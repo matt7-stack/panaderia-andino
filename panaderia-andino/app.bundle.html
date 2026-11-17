@@ -187,7 +187,102 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 #page-administracion .summary-card,#page-empleados .summary-card{min-height:108px}
 #page-administracion .summary-card h2,#page-empleados .summary-card h2{overflow-wrap:anywhere}
 @media(max-width:700px){#page-empleados .page-heading,#page-administracion .page-heading{align-items:flex-start;flex-direction:column}#page-empleados .heading-actions{width:100%}#page-empleados .heading-actions .btn{flex:1}}
-  </style>
+  
+
+/* Ajustes de uso real en teléfonos: lectura, navegación y formularios */
+@media (max-width: 767.98px) {
+  html, body { width:100%; max-width:100%; overflow-x:hidden; }
+  .app-shell, .main-content, .page-content, .page-view { min-width:0; max-width:100%; }
+  .topbar { position:sticky; gap:8px; height:auto; min-height:62px; padding-top:max(8px,env(safe-area-inset-top)); padding-bottom:8px; }
+  .mobile-menu-button { flex:0 0 42px; border-radius:10px; }
+  .breadcrumb-label { flex:1 1 auto; margin-left:2px; }
+  .topbar-actions { gap:6px; }
+  .month-picker { max-width:124px; min-width:0; }
+  .month-picker input { width:82px; min-width:0; }
+  .avatar { flex:0 0 34px; }
+  .page-content { padding-top:18px; padding-bottom:max(26px,env(safe-area-inset-bottom)); }
+  .page-heading { gap:12px; }
+  .page-heading h1 { font-size:clamp(23px,6vw,28px); line-height:1.12; }
+  .page-subtitle { font-size:11px; line-height:1.45; }
+  .heading-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .heading-actions .btn, .page-heading > .btn { width:100%; min-width:0; min-height:44px; white-space:normal; }
+  .summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .summary-grid.three-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .summary-card { min-height:0; padding:12px 10px; border-radius:11px; }
+  .summary-card h2 { font-size:clamp(14px,4vw,18px); line-height:1.2; }
+  .summary-label { margin-top:8px; font-size:9px; }
+  .summary-foot { flex-wrap:wrap; font-size:8px; }
+  .summary-tag { letter-spacing:.4px; }
+  .content-grid, .settings-grid { grid-template-columns:minmax(0,1fr); }
+  .panel { padding:13px 11px; }
+  .panel-heading { align-items:flex-start; flex-wrap:wrap; }
+  .panel-heading h3 { font-size:13px; }
+  .chart-wrap { height:190px; }
+  .quick-actions-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .quick-action { min-height:62px; gap:8px; padding:9px; }
+  .quick-action-icon { flex:0 0 32px; width:32px; height:32px; }
+  .quick-action strong { font-size:9px; }
+  .quick-action small { font-size:8px; }
+  .invoice-summary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .invoice-summary-card { min-width:0; padding:10px; gap:8px; }
+  .invoice-summary-card strong { font-size:14px; overflow-wrap:anywhere; }
+  .invoice-summary-icon { width:32px; height:32px; font-size:15px; }
+  .invoice-tabs { gap:4px; padding:9px 9px 0; }
+  .invoice-tab { padding:9px 10px; font-size:9px; }
+  .filter-bar, .invoice-toolbar { display:flex; align-items:stretch; gap:8px; padding:10px; }
+  .filter-bar .search-field, .invoice-toolbar .search-field { flex:1 1 100%; min-width:0; min-height:42px; }
+  .filter-select { flex:1 1 calc(50% - 5px); min-width:0; max-width:none; min-height:42px; }
+  .date-range { flex:1 1 100%; min-height:42px; gap:5px; }
+  .date-range input { flex:1 1 0; width:1%; min-width:0; font-size:14px; }
+  .btn-filter { min-height:42px; }
+  .table-panel, .invoices-panel { border-radius:11px; }
+  .table-responsive { width:100%; max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+  .table-responsive table, .data-table, .invoice-table { min-width:680px; }
+  .table-responsive::-webkit-scrollbar { height:5px; }
+  .table-responsive::-webkit-scrollbar-thumb { border-radius:8px; background:#d7c5b2; }
+  .table-bottom { align-items:flex-start; flex-direction:column; }
+  .table-bottom-actions { width:100%; }
+  .table-bottom-actions .btn { flex:1; min-height:40px; }
+  .settings-tabs { gap:4px; padding:5px; }
+  .settings-tab { flex:0 0 auto; min-height:42px; padding:9px 11px; }
+  .settings-card { padding:13px 11px; }
+  .settings-form .row > [class*="col-"] { width:100%; }
+  .bakery-modal .modal-dialog { width:auto; max-width:none; margin:0; min-height:100%; display:flex; align-items:flex-end; }
+  .bakery-modal .modal-content { width:100%; max-height: min(92dvh,900px); border-radius:18px 18px 0 0; overflow:hidden; }
+  .bakery-modal .modal-header { padding:14px 16px; }
+  .bakery-modal .modal-body { max-height:calc(92dvh - 130px); padding:14px 16px; overflow-y:auto; overscroll-behavior:contain; }
+  .bakery-modal .modal-footer { padding:10px 16px max(12px,env(safe-area-inset-bottom)); }
+  .bakery-modal .modal-footer .btn { flex:1 1 0; min-height:44px; }
+  .bakery-modal .form-control, .bakery-modal .form-select { min-height:44px; font-size:16px; }
+  .page-footer { align-items:flex-start; flex-direction:column; gap:5px; }
+  .auth-gate { padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
+  .auth-card { width:100%; max-width:430px; padding:24px 19px; }
+}
+@media (max-width: 420px) {
+  .topbar { flex-wrap:wrap; }
+  .breadcrumb-label { order:2; flex:1 1 100%; margin:0; padding-left:2px; }
+  .topbar-actions { margin-left:auto; }
+  .summary-grid, .summary-grid.three-cards { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .summary-card { padding:10px 9px; }
+  .summary-card h2 { font-size:14px; }
+  .summary-card-top { gap:5px; }
+  .summary-icon { width:27px; height:27px; }
+  .quick-actions-grid { grid-template-columns:1fr; }
+  .invoice-summary-grid { grid-template-columns:1fr 1fr; }
+  .invoice-summary-card { align-items:flex-start; flex-direction:column; }
+  .heading-actions { grid-template-columns:1fr 1fr; }
+  .chart-wrap { height:175px; }
+}
+@media (max-width: 360px) {
+  .month-picker { max-width:116px; }
+  .month-picker input { width:74px; }
+  .page-content { padding-left:10px; padding-right:10px; }
+  .summary-card h2 { font-size:13px; }
+  .summary-tag { font-size:6px; }
+  .invoice-tab { padding:8px; }
+}
+
+</style>
 </head>
 <body>
   <div class="app-shell">
