@@ -973,30 +973,22 @@ input[type="date"], input[type="month"] {
 
   function renderInvoices() {
     const issued = state.invoices.filter((invoice) => invoice.direction === 'issued');
-    const received = state.invoices.filter((invoice) => invoice.direction === 'received');
-    $('#issuedCount').textContent = issued.length;
-    $('#receivedCount').textContent = received.length;
-    $$('.invoice-tab').forEach((tab) => {
-      const active = tab.dataset.invoiceTab === activeInvoiceTab;
-      tab.classList.toggle('active', active);
-      tab.setAttribute('aria-selected', String(active));
-    });
-    $('#invoicePartyHeading').textContent = activeInvoiceTab === 'issued' ? 'CLIENTE' : 'PROVEEDOR';
+    activeInvoiceTab = 'issued';
     const search = $('#invoiceSearch').value.trim().toLowerCase();
-    const rows = [...state.invoices].filter((invoice) => invoice.direction === activeInvoiceTab)
+    const rows = issued
       .filter((invoice) => !search || `${invoice.number} ${invoice.party} ${invoice.description || ''}`.toLowerCase().includes(search))
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     $('#invoicesTableBody').innerHTML = rows.map((invoice) => `<tr>
       <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
       <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td>
       <td><div class="table-actions"><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
     </tr>`).join('');
-    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${activeInvoiceTab === 'issued' ? issued.length : received.length} notas`;
+    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
   }
 
-  function openInvoiceModal(id = '', direction = activeInvoiceTab) {
+  function openInvoiceModal(id = '', direction = 'issued') {
     $('#invoiceForm').reset();
     $('#invoiceId').value = '';
     $('#invoiceDate').value = todayISO();
@@ -1011,8 +1003,8 @@ input[type="date"], input[type="month"] {
       $('#invoiceDescription').value = invoice.description || '';
     } else {
       $('#invoiceModalTitle').textContent = 'Nueva nota';
-      $('#invoiceDirection').value = direction;
-      $('#invoiceNumber').value = nextInvoiceNumber(direction);
+      $('#invoiceDirection').value = 'issued';
+      $('#invoiceNumber').value = nextInvoiceNumber('issued');
     }
     invoiceModal.show();
   }
@@ -1163,7 +1155,6 @@ input[type="date"], input[type="month"] {
 
   // Notas
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
   $('#invoiceForm').addEventListener('submit', (event) => {
     event.preventDefault();
