@@ -67,9 +67,9 @@ async function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 2592000000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 31536000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 }
 const clearCookie = 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 async function currentUser(req) {
