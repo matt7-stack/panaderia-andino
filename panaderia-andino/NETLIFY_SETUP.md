@@ -19,7 +19,7 @@ En Netlify: **Site configuration → Environment variables**, agregar las siguie
 | `ADMIN_EMAIL` | El correo de la cuenta administradora |
 | `ADMIN_BOOTSTRAP_TOKEN` | El token de activación existente, si todavía se necesita para activar el primer administrador |
 
-No publicar estos valores en GitHub ni compartirlos en mensajes. Copiarlos directamente desde el panel seguro de variables del proveedor anterior. Mantener el mismo `SESSION_SECRET` permite conservar la validez de las sesiones existentes.
+No publicar estos valores en GitHub ni compartirlos en mensajes. Copiarlos directamente desde el panel seguro de variables del proveedor anterior. Mantener el mismo `SESSION_SECRET` conserva la misma clave de firma; como el dominio de Netlify es distinto, los usuarios deberán iniciar sesión nuevamente en ese dominio.
 
 ## Publicación
 
