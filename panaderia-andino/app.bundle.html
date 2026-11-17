@@ -317,6 +317,7 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
+        <a class="nav-link" href="#guia-uso" data-page-link="guia-uso"><i class="bi bi-book-half"></i><span>Guía de uso</span></a>
       </nav>
 
       <div class="sidebar-bottom">
@@ -414,6 +415,123 @@ input[type="date"], input[type="month"] {
           <section class="settings-panel" id="settings-users" data-settings-panel="users"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Usuarios del sistema</h3><p>Solo el administrador puede crear, desactivar y eliminar cuentas de acceso.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addUserButton"><i class="bi bi-person-plus"></i> Agregar usuario</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>ROL</th><th>ESTADO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="usersTableBody"></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Administración protegida: las cuentas y los permisos se controlan en el servidor.</div></article></section>
 
           <section class="settings-panel" id="settings-preferences" data-settings-panel="preferences"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Preferencias generales</h3><p>Ajustá cómo se muestra la información.</p></div></div><form id="preferencesForm" class="settings-form"><div class="preference-row"><div><strong>Moneda</strong><p>Moneda utilizada para mostrar importes.</p></div><span class="preference-select preference-static">Guaraníes (Gs.)</span></div><div class="preference-row"><div><strong>Alertas de notas pendientes</strong><p>Mostrar avisos cuando existan saldos pendientes.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefInvoiceAlerts"></div></div><div class="preference-row"><div><strong>Confirmar antes de eliminar</strong><p>Solicitar confirmación antes de borrar registros.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefConfirmDelete"></div></div><div class="preference-row"><div><strong>Formato de fecha</strong><p>Formato utilizado en las tablas.</p></div><select class="form-select preference-select" id="prefDateFormat"><option value="es-PY">DD/MM/AAAA</option><option value="en-GB">DD/MM/AAAA (alternativo)</option><option value="en-US">MM/DD/AAAA</option></select></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar preferencias</button><button class="btn btn-outline-bakery" type="button" id="resetDemoData"><i class="bi bi-arrow-counterclockwise"></i> Restaurar datos de ejemplo</button></div></form></article></section>
+        </section>
+
+        <!-- GUÍA DE USO -->
+        <section class="page-view" id="page-guia-uso" data-page="guia-uso">
+          <div class="page-heading"><div><p class="eyebrow">AYUDA DEL SISTEMA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Explicación práctica de cada sección, botón y control de Panadería Andino.</p></div></div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>Primeros pasos</h3><p>Cómo orientarte dentro del sistema.</p></div></div>
+            <ol class="mb-0">
+              <li><strong>Iniciar sesión:</strong> ingresá con tu correo y contraseña autorizados. Si tu sesión se cierra, volvé a identificarte.</li>
+              <li><strong>Menú lateral:</strong> tocá Dashboard, Movimientos, Notas, Empleados, Configuración o Guía de uso para cambiar de sección. En el teléfono, el botón de menú (☰) abre y cierra este panel.</li>
+              <li><strong>Barra superior:</strong> muestra el nombre de la sección actual y el usuario conectado. En Dashboard aparece el selector de mes.</li>
+              <li><strong>Guardar:</strong> después de completar un formulario, presioná el botón Guardar correspondiente. Usá Cancelar o la X para cerrar sin guardar.</li>
+              <li><strong>Editar y eliminar:</strong> los botones con lápiz permiten modificar un registro; el ícono de papelera lo elimina. Revisá los datos antes de confirmar una eliminación.</li>
+            </ol>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>1. Dashboard</h3><p>Vista general de la situación del negocio.</p></div></div>
+            <ul class="mb-0">
+              <li><strong>Selector de mes:</strong> elegí el mes que querés consultar. Los indicadores financieros se actualizan para ese período.</li>
+              <li><strong>Ingresos del mes:</strong> suma de los movimientos clasificados como ingresos.</li>
+              <li><strong>Gastos del mes:</strong> suma de los movimientos clasificados como gastos.</li>
+              <li><strong>Resultado del mes:</strong> diferencia entre ingresos y gastos; un resultado positivo indica que ingresó más dinero del que salió.</li>
+              <li><strong>Notas pendientes:</strong> indicador informativo basado en los datos históricos de notas con saldo pendiente, si existen. Las notas nuevas ya no solicitan estado, total ni vencimiento.</li>
+              <li><strong>Gráfico Ingresos vs. gastos:</strong> compara los movimientos de los últimos seis meses; no requiere ingresar datos desde el gráfico.</li>
+              <li><strong>Últimos movimientos / Ver todos:</strong> muestra actividad reciente. Tocá Ver todos para abrir Movimientos.</li>
+              <li><strong>Accesos rápidos:</strong> Registrar ingreso abre un formulario de ingreso; Registrar gasto abre uno de gasto; Nueva nota te lleva a la sección Notas.</li>
+              <li><strong>Nuevo movimiento:</strong> abre directamente el formulario para registrar un ingreso.</li>
+            </ul>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>2. Movimientos</h3><p>Registro de todo el dinero que entra y sale.</p></div></div>
+            <ul>
+              <li><strong>Nuevo ingreso:</strong> registrá dinero recibido, por ejemplo ventas cobradas.</li>
+              <li><strong>Nuevo gasto:</strong> registrá dinero pagado, por ejemplo compras, servicios o salarios.</li>
+              <li><strong>Ingreso / Gasto:</strong> dentro del formulario, seleccioná el tipo correcto. Esto determina cómo se suma al balance.</li>
+              <li><strong>Descripción:</strong> escribí un nombre claro para reconocer la operación, por ejemplo “Compra de harina”.</li>
+              <li><strong>Categoría:</strong> elegí la categoría que mejor describa el movimiento. Las categorías se administran en Configuración.</li>
+              <li><strong>Importe (Gs.):</strong> escribí el monto en guaraníes, usando un valor mayor que cero.</li>
+              <li><strong>Fecha:</strong> seleccioná el día en que ocurrió el movimiento.</li>
+              <li><strong>Método de pago:</strong> elegí cómo se recibió o pagó el dinero, por ejemplo efectivo o transferencia. Se configura en Métodos de pago.</li>
+              <li><strong>Observación:</strong> agregá una aclaración opcional para recordar algún detalle.</li>
+              <li><strong>Buscar por descripción:</strong> escribí una palabra para localizar movimientos.</li>
+              <li><strong>Todos los tipos:</strong> filtrá para ver todos, solo ingresos o solo gastos.</li>
+              <li><strong>Todas las categorías:</strong> mostrará todos los grupos o únicamente la categoría elegida.</li>
+              <li><strong>Desde / Hasta:</strong> delimitan el período por fecha. Completá uno o ambos campos para acotar la búsqueda.</li>
+              <li><strong>Limpiar:</strong> borra la búsqueda y restablece todos los filtros.</li>
+              <li><strong>Editar / Eliminar:</strong> modificá o quitá un movimiento desde las acciones de su fila.</li>
+              <li><strong>Exportar CSV:</strong> descarga los movimientos filtrados para abrirlos en una hoja de cálculo.</li>
+              <li><strong>Totales:</strong> Ingresos, Gastos y Diferencia resumen los resultados de los registros visibles en el período seleccionado.</li>
+            </ul>
+            <div class="info-note"><i class="bi bi-lightbulb"></i> Consejo: registrá cada operación una sola vez y comprobá la fecha, el tipo y el importe antes de guardar.</div>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>3. Notas</h3><p>Registro sencillo de documentos de ventas y compras.</p></div></div>
+            <ul class="mb-0">
+              <li><strong>Nueva nota:</strong> abre el formulario para registrar una nota.</li>
+              <li><strong>Notas emitidas:</strong> seleccioná esta pestaña para consultar las notas creadas para clientes (ventas).</li>
+              <li><strong>Notas recibidas:</strong> seleccioná esta pestaña para consultar documentos recibidos de proveedores (compras).</li>
+              <li><strong>N.º de nota:</strong> número identificador de cinco dígitos. El sistema propone el siguiente número disponible, por ejemplo 00001.</li>
+              <li><strong>Cliente / Proveedor:</strong> escribí el nombre de la persona o empresa relacionada con la nota.</li>
+              <li><strong>Fecha:</strong> seleccioná la fecha de emisión o recepción del documento.</li>
+              <li><strong>Concepto:</strong> describí brevemente qué se vendió o compró. Es opcional.</li>
+              <li><strong>Buscar:</strong> localizá notas por número o por cliente/proveedor.</li>
+              <li><strong>Editar:</strong> usá el lápiz para corregir los datos de una nota. <strong>Eliminar:</strong> usá la papelera para quitarla.</li>
+              <li><strong>Importante:</strong> el formulario de notas no utiliza campos de estado, total ni fecha de vencimiento.</li>
+            </ul>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>4. Empleados</h3><p>Datos del personal y registro de pagos.</p></div></div>
+            <ul class="mb-0">
+              <li><strong>Agregar empleado:</strong> abre el formulario para registrar una persona del equipo. Completá los datos solicitados y guardá.</li>
+              <li><strong>Tabla Personal:</strong> permite consultar nombre, cargo, monto base, frecuencia y estado del personal.</li>
+              <li><strong>Acciones de empleado:</strong> utilizá los controles de edición para actualizar sus datos y los controles de estado disponibles para activar o desactivar su registro.</li>
+              <li><strong>Registrar pago:</strong> abre el formulario de pago. Seleccioná el empleado, indicá fecha, concepto, método e importe según los campos que aparecen.</li>
+              <li><strong>Empleados activos:</strong> cantidad de empleados habilitados.</li>
+              <li><strong>Pagos registrados este mes:</strong> suma de los pagos de empleados correspondientes al mes actual.</li>
+              <li><strong>Pagos históricos:</strong> cantidad de pagos guardados.</li>
+              <li><strong>Historial de pagos:</strong> muestra fecha, empleado, concepto, método e importe. Cada pago se registra también como gasto financiero para evitar duplicar el registro manual.</li>
+            </ul>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>5. Configuración</h3><p>Personalizá los datos y listas utilizadas por el sistema.</p></div></div>
+            <ul>
+              <li><strong>Datos del negocio:</strong> completá nombre, dirección, teléfono, correo, RUC y responsable. <strong>Cambiar logo</strong> permite seleccionar una imagen del dispositivo. <strong>Guardar cambios</strong> aplica la información; la vista previa muestra cómo quedará.</li>
+              <li><strong>Categorías:</strong> las listas de ingresos y gastos clasifican los movimientos. Usá <strong>Agregar</strong> para crear una categoría y las acciones de cada elemento para modificarla o quitarla.</li>
+              <li><strong>Métodos de pago:</strong> usá <strong>Agregar método</strong> para añadir formas de cobro o pago. La lista permite administrar los métodos disponibles en los formularios.</li>
+              <li><strong>Usuarios:</strong> <strong>Agregar usuario</strong> crea una cuenta de acceso. La tabla permite revisar correo, rol, estado y las acciones disponibles. Solo el administrador principal puede gestionar cuentas.</li>
+              <li><strong>Preferencias – Moneda:</strong> muestra la moneda del sistema, Guaraníes (Gs.).</li>
+              <li><strong>Alertas de notas pendientes:</strong> activá o desactivá los avisos de notas pendientes, de acuerdo con los registros existentes.</li>
+              <li><strong>Confirmar antes de eliminar:</strong> activá esta opción para que el sistema pida confirmación antes de borrar un registro.</li>
+              <li><strong>Formato de fecha:</strong> elegí cómo se muestran las fechas en las tablas.</li>
+              <li><strong>Guardar preferencias:</strong> guarda los cambios de las opciones seleccionadas.</li>
+              <li><strong>Restaurar datos de ejemplo:</strong> repone datos demostrativos. No lo uses como operación habitual ni si querés conservar los datos actuales; revisá la confirmación antes de continuar.</li>
+            </ul>
+          </div>
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>6. Administración</h3><p>Herramientas reservadas al administrador principal.</p></div></div>
+            <ul class="mb-0">
+              <li><strong>Usuarios del sistema:</strong> cantidad de cuentas registradas.</li>
+              <li><strong>Empleados activos:</strong> cantidad de empleados habilitados.</li>
+              <li><strong>Movimientos registrados:</strong> cantidad de ingresos y gastos guardados.</li>
+              <li><strong>Última sincronización:</strong> referencia de la última actualización sincronizada con el servidor.</li>
+              <li><strong>Gestionar usuarios:</strong> abre la administración de cuentas y permisos.</li>
+              <li><strong>Descargar respaldo:</strong> descarga una copia de los datos compartidos en formato JSON. Guardala en un lugar seguro; descargarla no modifica los datos del sistema.</li>
+            </ul>
+          </div>
+          <div class="panel settings-card">
+            <div class="panel-heading"><div><h3>7. Uso desde el teléfono y buenas prácticas</h3><p>Recomendaciones para trabajar desde cualquier dispositivo.</p></div></div>
+            <ul class="mb-0">
+              <li>Usá el botón ☰ para abrir el menú y elegí la sección que necesitás.</li>
+              <li>Las tablas pueden desplazarse horizontalmente si la pantalla es angosta; desplazá la tabla para ver todas las columnas y acciones.</li>
+              <li>Completá los campos obligatorios, identificados por el formulario, antes de guardar.</li>
+              <li>Verificá que el importe esté expresado en guaraníes y que la fecha sea correcta.</li>
+              <li>Los cambios guardados se sincronizan con la base de datos compartida cuando hay conexión a Internet. Esperá el aviso de confirmación antes de cerrar la pantalla.</li>
+              <li>No compartas tu contraseña y cerrá la sesión si utilizás un dispositivo compartido.</li>
+            </ul>
+          </div>
         </section>
 
         <footer class="page-footer"><span>© <span id="footerYear">2026</span> <span id="footerBusinessName">Panadería Andino</span></span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
@@ -674,7 +792,7 @@ input[type="date"], input[type="month"] {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
     if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
@@ -684,7 +802,7 @@ input[type="date"], input[type="month"] {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
