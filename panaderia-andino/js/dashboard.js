@@ -681,13 +681,14 @@
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
   window.addEventListener('panaderia:authenticated', hydrateCloudData);
-  if (window.PanaderiaAuthReady) window.PanaderiaAuthReady.then((user) => { if (user) hydrateCloudData(); });
+  // La hidratación se inicia una sola vez mediante el evento panaderia:authenticated.
 
   // Valores iniciales de filtros y navegación solicitada por URL
   const initialMonth = monthFilter.value;
   const [initialYear, initialMonthNumber] = initialMonth.split('-').map(Number);
   $('#movementStartDate').value = `${initialYear}-${String(initialMonthNumber).padStart(2, '0')}-01`;
   $('#movementEndDate').value = todayISO();
+  setInterval(updateGreeting, 60000);
   renderAll();
   const hashPage = window.location.hash.replace('#', '');
   if (['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
