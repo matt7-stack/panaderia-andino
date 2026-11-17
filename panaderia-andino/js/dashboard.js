@@ -59,7 +59,7 @@
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
           try {
-            const saved = window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
             cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
