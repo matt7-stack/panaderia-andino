@@ -87,6 +87,8 @@
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
     if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+    const adminNav = document.getElementById('adminNavLink');
+    if (adminNav) adminNav.hidden = user.role !== 'admin';
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
     if (usersTab) usersTab.hidden = user.role !== 'admin';
