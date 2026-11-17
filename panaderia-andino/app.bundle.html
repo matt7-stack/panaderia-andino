@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Sistema de gestión para Panadería Andino: dashboard, ingresos, gastos, facturas y configuración.">
   <meta name="theme-color" content="#653820">
   <title>Panadería Andino | Gestión</title>
@@ -93,6 +93,87 @@ body.auth-locked .app-shell{visibility:hidden}
 .auth-form{display:grid;gap:8px}.auth-form label{margin-top:7px;color:#654832;font-size:10px;font-weight:800}.auth-form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #e7dbce;border-radius:9px;outline:none;color:#4d3828;background:#fff;font-size:13px}.auth-form input:focus{border-color:#aa7a50;box-shadow:0 0 0 3px rgba(170,122,80,.12)}.auth-form input[readonly]{color:#887968;background:#f8f4ee}
 .auth-submit{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#704427;font-size:12px;font-weight:800}.auth-submit:hover{background:#59351e}.auth-submit:disabled{opacity:.65;cursor:wait}.auth-submit span{font-size:18px}.auth-error{padding:10px 12px;border:1px solid #f0c9c2;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}.auth-footnote{margin:22px 0 0;color:#a99a89;font-size:9px;text-align:center}
 @media(max-width:480px){.auth-card{padding:25px 20px}.auth-heading h1{font-size:26px}}
+
+
+/* Responsive multipantalla: móviles, tablets, iOS y escritorio */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { min-width: 320px; overflow-x: hidden; }
+img, canvas, svg { max-width: 100%; }
+button, .btn, input, select, textarea { touch-action: manipulation; }
+.table-responsive { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-responsive table { min-width: 620px; }
+.invoice-table { min-width: 780px; }
+.modal-dialog { width: auto; max-width: min(560px, calc(100vw - 24px)); margin: 12px auto; }
+.form-control, .form-select { max-width: 100%; }
+.sidebar { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+.topbar { padding-top: env(safe-area-inset-top); }
+.page-content { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .sidebar { width: 270px; transform: translateX(-105%); transition: transform .25s ease; }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-left: 0; }
+  .mobile-menu-button {
+    display: inline-grid; place-items: center; flex: 0 0 42px;
+    width: 42px; height: 42px; padding: 0; border: 1px solid var(--line);
+    border-radius: 10px; color: var(--brown-800); background: #fff;
+  }
+  .mobile-menu-button i { font-size: 22px; }
+  .sidebar-backdrop.show {
+    position: fixed; inset: 0; z-index: 1020; display: block;
+    background: rgba(32,20,12,.42);
+  }
+  .topbar { height: 68px; gap: 12px; padding-right: 22px; padding-left: 22px; }
+  .breadcrumb-label { margin-right: auto; }
+  .page-content { padding: 26px 24px 22px; }
+  .summary-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .content-grid { grid-template-columns: minmax(0,1fr); }
+  .settings-grid { grid-template-columns: minmax(0,1fr); }
+  .filter-bar, .invoice-toolbar { align-items: stretch; }
+  .filter-bar .search-field { flex: 1 1 100%; }
+  .invoice-summary-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .panel, .summary-card, .settings-card { min-width: 0; }
+}
+
+@media (max-width: 767.98px) {
+  body { font-size: 14px; }
+  .topbar { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .mobile-menu-button { width: 42px; height: 42px; }
+  .breadcrumb-label { min-width: 0; overflow: hidden; }
+  .breadcrumb-label strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-actions { flex: 0 0 auto; }
+  .page-content { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .summary-card, .panel, .quick-action, .settings-card { min-width: 0; }
+  .summary-card h2 { overflow-wrap: anywhere; }
+  .filter-bar, .invoice-toolbar { gap: 8px; }
+  .filter-select { flex: 1 1 135px; min-width: 0; width: 100%; }
+  .date-range { min-width: 0; flex-wrap: wrap; }
+  .date-range input { min-width: 0; max-width: 100%; }
+  .table-responsive { margin-right: -2px; }
+  .table-responsive th, .table-responsive td { white-space: nowrap; }
+  .modal { padding-right: 0 !important; }
+  .modal-dialog { width: auto; max-width: none; margin: 8px; }
+  .modal-content { max-height: calc(100dvh - 16px); overflow-y: auto; }
+  .bakery-modal .modal-body { max-height: calc(100dvh - 180px); overflow-y: auto; }
+  .form-control, .form-select, input, select, textarea { font-size: 16px; }
+  .btn, button, .nav-link, .settings-tab, .invoice-tab { min-height: 42px; }
+}
+
+@media (max-width: 420px) {
+  .summary-grid { grid-template-columns: 1fr; }
+  .topbar { gap: 7px; }
+  .topbar-actions { gap: 5px; }
+  .month-picker { gap: 4px; padding: 5px; }
+  .month-picker input { width: 88px; }
+  .page-heading h1 { font-size: 24px; }
+  .invoice-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .invoice-tab { flex: 0 0 auto; white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
 
   </style>
 </head>
