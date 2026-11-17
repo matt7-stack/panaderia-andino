@@ -1045,7 +1045,7 @@ input[type="date"], input[type="month"] {
 
   // Notas
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $$('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
+  $('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
   $('#invoiceForm').addEventListener('submit', (event) => {
     event.preventDefault();
