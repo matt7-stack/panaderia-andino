@@ -31,61 +31,18 @@
     return new Intl.DateTimeFormat('es-PY', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
   };
 
-  const createDemoState = () => {
-    const currentMonth = monthISO();
-    const movements = [
-      { id: makeId(), description: 'Venta de pan', category: 'Ventas', amount: 350000, date: todayISO(), type: 'income', payment: 'Efectivo', note: 'Ventas de mostrador' },
-      { id: makeId(), description: 'Compra de harina', category: 'Materia prima', amount: 500000, date: monthDate(0, 12), type: 'expense', payment: 'Transferencia', note: 'Proveedor de harina' },
-      { id: makeId(), description: 'Venta de facturas', category: 'Ventas', amount: 280000, date: monthDate(0, 12), type: 'income', payment: 'Efectivo', note: '' },
-      { id: makeId(), description: 'Pago de electricidad', category: 'Servicios', amount: 200000, date: monthDate(0, 11), type: 'expense', payment: 'Transferencia', note: '' },
-      { id: makeId(), description: 'Pedidos empresariales', category: 'Pedidos', amount: 4370000, date: monthDate(0, 9), type: 'income', payment: 'Transferencia', note: 'Pedidos de la semana' },
-      { id: makeId(), description: 'Compra de insumos', category: 'Materia prima', amount: 3300000, date: monthDate(0, 8), type: 'expense', payment: 'Transferencia', note: '' },
-      { id: makeId(), description: 'Ventas del fin de semana', category: 'Ventas', amount: 10000000, date: monthDate(0, 6), type: 'income', payment: 'Efectivo', note: '' },
-      { id: makeId(), description: 'Alquiler del local', category: 'Alquiler', amount: 5000000, date: monthDate(0, 3), type: 'expense', payment: 'Transferencia', note: '' }
-    ];
-    const historical = [
-      [-1, 'Ventas de octubre', 14000000, 'Ventas', 'income'], [-1, 'Gastos de octubre', 8500000, 'Materia prima', 'expense'],
-      [-2, 'Ventas de septiembre', 13200000, 'Ventas', 'income'], [-2, 'Gastos de septiembre', 8700000, 'Materia prima', 'expense'],
-      [-3, 'Ventas de agosto', 14500000, 'Ventas', 'income'], [-3, 'Gastos de agosto', 9100000, 'Materia prima', 'expense'],
-      [-4, 'Ventas de julio', 12500000, 'Ventas', 'income'], [-4, 'Gastos de julio', 8000000, 'Materia prima', 'expense'],
-      [-5, 'Ventas de junio', 11800000, 'Ventas', 'income'], [-5, 'Gastos de junio', 7500000, 'Materia prima', 'expense']
-    ];
-    historical.forEach(([offset, description, amount, category, type]) => movements.push({
-      id: makeId(), description, category, amount, date: monthDate(offset, 15), type, payment: 'Transferencia', note: 'Registro histórico de demostración'
-    }));
+  const createEmptyState = () => ({
+    movements: [], invoices: [],
+    categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
+    paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
+    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
+  });
 
-    return {
-      movements,
-      invoices: [
-        { id: makeId(), direction: 'issued', number: '001-001-000025', party: 'Cliente particular', date: monthDate(0, 13), dueDate: monthDate(0, 20), amount: 350000, paidAmount: 350000, status: 'paid', description: 'Venta de productos de panadería' },
-        { id: makeId(), direction: 'issued', number: '001-001-000024', party: 'Supermercado ABC', date: monthDate(0, 10), dueDate: monthDate(0, 20), amount: 800000, paidAmount: 0, status: 'pending', description: 'Pedido de panificados' },
-        { id: makeId(), direction: 'issued', number: '001-001-000023', party: 'Panadería del Sol', date: monthDate(0, 5), dueDate: monthDate(0, 15), amount: 450000, paidAmount: 450000, status: 'paid', description: 'Venta mayorista' },
-        { id: makeId(), direction: 'received', number: '001-002-000018', party: 'Molinos del Este', date: monthDate(0, 11), dueDate: monthDate(0, 21), amount: 750000, paidAmount: 0, status: 'pending', description: 'Compra de harina y premezclas' },
-        { id: makeId(), direction: 'received', number: '001-002-000017', party: 'Distribuidora Central', date: monthDate(0, 7), dueDate: monthDate(0, 17), amount: 450000, paidAmount: 0, status: 'pending', description: 'Insumos para producción' }
-      ],
-      categories: {
-        income: ['Ventas', 'Pedidos', 'Otros ingresos'],
-        expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos']
-      },
-      paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'],
-      users: [{ id: makeId(), name: 'Administrador', email: 'admin@panaderiaandino.com', role: 'Administrador', active: true }],
-      business: { name: 'Panadería Andino', address: 'Av. Principal N.º 123', phone: '0981 123 456', email: 'panaderia@ejemplo.com', ruc: '', owner: 'Administrador', logo: '' },
-      preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
-    };
-  };
-
-  let state;
+  let state = createEmptyState();
   let cloudUsers = [];
   let cloudReady = false;
   let cloudSaveTimer = null;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    state = saved ? JSON.parse(saved) : createDemoState();
-    if (!state || !Array.isArray(state.movements) || !Array.isArray(state.invoices)) state = createDemoState();
-  } catch (error) {
-    console.warn('No se pudo leer el almacenamiento local; se cargarán datos de ejemplo.', error);
-    state = createDemoState();
-  }
   const cloudPayload = () => {
     const payload = JSON.parse(JSON.stringify(state));
     delete payload.users;
@@ -608,9 +565,10 @@
     state.preferences = { ...state.preferences, dateFormat: $('#prefDateFormat').value, invoiceAlerts: $('#prefInvoiceAlerts').checked, confirmDelete: $('#prefConfirmDelete').checked };
     saveState(); renderDashboard(); renderMovements(); renderInvoices(); notify('Preferencias guardadas.');
   });
+  $('#resetDemoData').hidden = true;
   $('#resetDemoData').addEventListener('click', () => {
     if (!window.confirm('Esto reemplazará todos los movimientos, facturas y ajustes por los datos de ejemplo. ¿Continuar?')) return;
-    state = createDemoState(); saveState(); renderAll(); pageNavigate('dashboard'); notify('Se restauraron los datos de ejemplo.');
+    notify('La carga de datos de demostración está deshabilitada para proteger la información real.');
   });
 
   // Período principal
@@ -641,7 +599,7 @@
     try {
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) {
-        state = { ...createDemoState(), ...result.data };
+        state = { ...createEmptyState(), ...result.data };
       } else {
         await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
       }

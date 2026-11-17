@@ -54,7 +54,9 @@ Copiar `.env.example` como referencia para el entorno local. **Nunca subir `.env
 
 - El repositorio no debe contener secretos reales.
 - La cuenta administradora se activa una sola vez mediante el flujo de bootstrap.
-- El proyecto contiene datos de demostración en el estado inicial; deben identificarse y retirarse antes de usar datos reales.
+- La aplicación inicia con colecciones vacías cuando Neon no tiene datos; no importa datos ficticios ni sincroniza muestras al servidor.
+- El acceso a `/api/data` está limitado en el servidor al administrador.
+- El endpoint público de estado no revela el correo configurado del administrador.
 - Las facturas actuales son registros de control interno; no son comprobantes fiscales ni están integradas con DNIT/e-Kuatia.
 - Antes de cambiar el esquema de Neon, realizar una copia de seguridad y validar el entorno de destino.
 

@@ -87,7 +87,7 @@ async function authenticated(req, res, adminOnly = false) {
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
-  if (adminOnly && user.role !== 'admin') { send(res, 403, { error: 'Solo el administrador puede administrar usuarios.' }); return null; }
+  if (adminOnly && user.role !== 'admin') { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -100,7 +100,7 @@ module.exports = async function handler(req, res) {
     if (path === '/api/auth/status' && req.method === 'GET') {
       const sql = await ensureSchema();
       const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE role='admin'`;
-      return send(res, 200, { adminExists:Number(rows[0].count)>0, adminEmail:process.env.ADMIN_EMAIL || '' });
+      return send(res, 200, { adminExists:Number(rows[0].count)>0 });
     }
     if (path === '/api/auth/me' && req.method === 'GET') {
       await ensureSchema(); const user = await currentUser(req);
@@ -166,7 +166,7 @@ module.exports = async function handler(req, res) {
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/data') {
-      const user = await authenticated(req,res,false); if (!user) return;
+      const user = await authenticated(req,res,true); if (!user) return;
       const sql=db();
       if (req.method==='GET') {
         const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`;
