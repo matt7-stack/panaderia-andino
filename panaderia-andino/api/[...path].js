@@ -67,9 +67,9 @@ async function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 28800000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 2592000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=28800`;
+  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
 }
 const clearCookie = 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 async function currentUser(req) {
@@ -166,7 +166,7 @@ module.exports = async function handler(req, res) {
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/data') {
-      const user = await authenticated(req,res,true); if (!user) return;
+      const user = await authenticated(req,res,false); if (!user) return;
       const sql=db();
       if (req.method==='GET') {
         const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`;
