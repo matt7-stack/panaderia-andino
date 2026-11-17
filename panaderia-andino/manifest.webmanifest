@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "Panadería Andino",
+  "short_name": "Andino",
+  "description": "Sistema de gestión de Panadería Andino",
+  "lang": "es-PY",
+  "start_url": "/app.bundle.html",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#fbf5eb",
+  "theme_color": "#653820",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
