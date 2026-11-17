@@ -540,6 +540,7 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
   const appToast = bootstrap.Toast.getOrCreateInstance($('#appToast'), { delay: 3000 });
   let activeInvoiceTab = 'issued';
   let simpleModalMode = '';
+  let simpleModalData = {};
   let chartInstance = null;
   let selectedPage = 'dashboard';
   const monthFilter = $('#monthFilter');
@@ -816,7 +817,7 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
     const active = employees.filter((employee) => employee.active !== false); const month = monthISO();
     const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     $('#employeeCount').textContent = active.length; $('#employeePayrollTotal').textContent = money(payroll); $('#employeePaymentsCount').textContent = payments.length;
-    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
+    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
@@ -865,7 +866,7 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
   }
 
   function openSimpleModal(mode, data = {}) {
-    simpleModalMode = mode;
+    simpleModalMode = mode; simpleModalData = data;
     const fields = $('#simpleModalFields');
     if (mode === 'category') {
       $('#simpleModalTitle').textContent = data.type === 'income' ? 'Nueva categoría de ingreso' : 'Nueva categoría de gasto';
@@ -875,7 +876,9 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre del método</label><input id="simpleName" name="name" maxlength="40" required placeholder="Ej. Billetera electrónica"></div>';
     } else if (mode === 'employee') {
       $('#simpleModalTitle').textContent = 'Agregar empleado';
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia</label><select id="employeeFrequency"><option value="monthly">Mensual</option><option value="daily">Diario</option></select></div>';
+      const employee = (state.employees || []).find((item) => item.id === data.employeeId) || {};
+      $('#simpleModalTitle').textContent = data.employeeId ? 'Editar empleado' : 'Agregar empleado';
+      fields.innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" value="${escapeHTML(employee.name || '')}" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" value="${escapeHTML(employee.position || '')}" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" value="${escapeHTML(employee.phone || '')}" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required value="${Number(employee.salary || 0)}" placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia</label><select id="employeeFrequency"><option value="monthly" ${employee.frequency !== 'daily' ? 'selected' : ''}>Mensual</option><option value="daily" ${employee.frequency === 'daily' ? 'selected' : ''}>Diario</option></select></div>`;
     } else if (mode === 'employee-payment') {
       $('#simpleModalTitle').textContent = 'Registrar pago a empleado';
       const employeeOptions = (state.employees || []).filter((employee) => employee.active !== false).map((employee) => `<option value="${escapeHTML(employee.id)}">${escapeHTML(employee.name)}</option>`).join('');
@@ -1013,8 +1016,9 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
   $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
   $('#employeesTableBody').addEventListener('click', (event) => {
-    const pay = event.target.closest('[data-pay-employee]'); const toggle = event.target.closest('[data-toggle-employee]');
+    const pay = event.target.closest('[data-pay-employee]'); const edit = event.target.closest('[data-edit-employee]'); const toggle = event.target.closest('[data-toggle-employee]');
     if (pay) openSimpleModal('employee-payment', { employeeId: pay.dataset.payEmployee });
+    if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
     if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
   });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);
@@ -1025,8 +1029,11 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
     if (!name && simpleModalMode !== 'employee-payment') return;
     if (simpleModalMode === 'employee') {
       const salary = Number($('#employeeSalary').value || 0); if (!Number.isFinite(salary) || salary < 0) { notify('Ingresá un salario válido.'); return; }
-      state.employees = state.employees || []; state.employees.push({ id: makeId(), name, position: $('#employeePosition').value.trim(), phone: $('#employeePhone').value.trim(), salary, frequency: $('#employeeFrequency').value, active: true, createdAt: new Date().toISOString() });
-      saveState(); simpleModal.hide(); renderEmployees(); renderAdminPanel(); notify('Empleado registrado correctamente.'); return;
+      state.employees = state.employees || [];
+      const employeeData = { name, position: $('#employeePosition').value.trim(), phone: $('#employeePhone').value.trim(), salary, frequency: $('#employeeFrequency').value };
+      if (simpleModalData.employeeId) state.employees = state.employees.map((employee) => employee.id === simpleModalData.employeeId ? { ...employee, ...employeeData, updatedAt: new Date().toISOString() } : employee);
+      else state.employees.push({ id: makeId(), ...employeeData, active: true, createdAt: new Date().toISOString() });
+      saveState(); simpleModal.hide(); renderEmployees(); renderAdminPanel(); notify(simpleModalData.employeeId ? 'Empleado actualizado correctamente.' : 'Empleado registrado correctamente.'); return;
     } else if (simpleModalMode === 'employee-payment') {
       const employee = (state.employees || []).find((item) => item.id === $('#paymentEmployee').value); const amount = Number($('#employeePaymentAmount').value); const date = $('#employeePaymentDate').value;
       if (!employee || !Number.isFinite(amount) || amount <= 0 || !date) { notify('Completá los datos del pago.'); return; }
