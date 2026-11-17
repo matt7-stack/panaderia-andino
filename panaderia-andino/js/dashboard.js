@@ -107,6 +107,7 @@
   }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
+    if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
