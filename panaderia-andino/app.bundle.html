@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-PY">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -189,6 +189,22 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 @media(max-width:700px){#page-empleados .page-heading,#page-administracion .page-heading{align-items:flex-start;flex-direction:column}#page-empleados .heading-actions{width:100%}#page-empleados .heading-actions .btn{flex:1}}
   
 
+/* Fechas legibles y adaptadas a la configuración regional de Paraguay */
+input[type="date"], input[type="month"] {
+  color: var(--brown-900);
+  color-scheme: light;
+  font-variant-numeric: tabular-nums;
+}
+.date-field { display:flex; flex:1 1 0; min-width:0; flex-direction:column; gap:4px; color:var(--muted); font-size:10px; font-weight:700; }
+.date-field input { width:100%; min-width:0; min-height:40px; padding:6px 7px; border:1px solid #e8ded2; border-radius:7px; background:#fff; color:var(--brown-900); font-size:13px; }
+@media(max-width:767.98px) {
+  .date-range { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:stretch; gap:8px; padding:9px; }
+  .date-range > i { grid-column:1 / -1; }
+  .date-field { min-width:0; gap:5px; font-size:11px; }
+  .date-field input { width:100%; min-width:0; min-height:46px; padding:7px 5px; font-size:16px; }
+  .bakery-modal input[type="date"] { min-height:46px; font-size:16px; }
+  .month-picker input { font-size:14px; }
+}
 /* Ajustes de uso real en teléfonos: lectura, navegación y formularios */
 @media (max-width: 767.98px) {
   html, body { width:100%; max-width:100%; overflow-x:hidden; }
@@ -350,7 +366,7 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
         <section class="page-view" id="page-movimientos" data-page="movimientos">
           <div class="page-heading"><div><p class="eyebrow">CONTROL FINANCIERO</p><h1><i class="bi bi-arrow-left-right heading-page-icon"></i> Movimientos</h1><p class="page-subtitle">Controlá todos los ingresos y gastos de tu panadería.</p></div><div class="heading-actions"><button class="btn btn-income" type="button" data-open-movement="income"><i class="bi bi-plus-lg"></i> Nuevo ingreso</button><button class="btn btn-expense" type="button" data-open-movement="expense"><i class="bi bi-plus-lg"></i> Nuevo gasto</button></div></div>
           <div class="summary-grid three-cards"><article class="summary-card income-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="summary-tag">TOTAL INGRESOS</span></div><p class="summary-label">Ingresos del período</p><h2 id="movementIncomeTotal">Gs. 0</h2></article><article class="summary-card expense-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-graph-down-arrow"></i></span><span class="summary-tag">TOTAL GASTOS</span></div><p class="summary-label">Gastos del período</p><h2 id="movementExpenseTotal">Gs. 0</h2></article><article class="summary-card profit-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-calculator"></i></span><span class="summary-tag">DIFERENCIA</span></div><p class="summary-label">Balance del período</p><h2 id="movementBalanceTotal">Gs. 0</h2></article></div>
-          <section class="panel table-panel"><div class="filter-bar"><div class="search-field"><i class="bi bi-search"></i><input type="search" id="movementSearch" placeholder="Buscar por descripción..." aria-label="Buscar movimientos"></div><select id="movementTypeFilter" class="form-select filter-select" aria-label="Filtrar por tipo"><option value="all">Todos los tipos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select><select id="movementCategoryFilter" class="form-select filter-select" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select><div class="date-range"><i class="bi bi-calendar3"></i><input type="date" id="movementStartDate" aria-label="Fecha desde"><span>—</span><input type="date" id="movementEndDate" aria-label="Fecha hasta"></div><button class="btn btn-bakery btn-filter" type="button" id="clearMovementFilters"><i class="bi bi-arrow-counterclockwise"></i><span>Limpiar</span></button></div>
+          <section class="panel table-panel"><div class="filter-bar"><div class="search-field"><i class="bi bi-search"></i><input type="search" id="movementSearch" placeholder="Buscar por descripción..." aria-label="Buscar movimientos"></div><select id="movementTypeFilter" class="form-select filter-select" aria-label="Filtrar por tipo"><option value="all">Todos los tipos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select><select id="movementCategoryFilter" class="form-select filter-select" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select><div class="date-range"><i class="bi bi-calendar3"></i><label class="date-field"><span>Desde</span><input type="date" id="movementStartDate" lang="es-PY" aria-label="Fecha desde"></label><label class="date-field"><span>Hasta</span><input type="date" id="movementEndDate" lang="es-PY" aria-label="Fecha hasta"></label></div><button class="btn btn-bakery btn-filter" type="button" id="clearMovementFilters"><i class="bi bi-arrow-counterclockwise"></i><span>Limpiar</span></button></div>
             <div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>DESCRIPCIÓN</th><th>CATEGORÍA</th><th>TIPO</th><th>MÉTODO</th><th class="text-end">IMPORTE</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="movementsTableBody"></tbody></table></div><div class="table-bottom"><span id="movementResultCount">Mostrando 0 registros</span><div class="table-bottom-actions"><button class="btn btn-light btn-sm" type="button" id="exportMovements"><i class="bi bi-download"></i> Exportar CSV</button></div></div><div class="empty-state d-none" id="movementsEmpty"><i class="bi bi-inbox"></i><strong>No se encontraron movimientos</strong><span>Probá cambiar los filtros o registrá un movimiento nuevo.</span></div>
           </section>
         </section>
