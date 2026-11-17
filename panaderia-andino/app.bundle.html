@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Sistema de gestión para Panadería Andino: dashboard, ingresos, gastos, facturas y configuración.">
   <meta name="theme-color" content="#653820">
+  <meta name="application-name" content="Panadería Andino">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Panadería Andino">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon.svg">
   <title>Panadería Andino | Gestión</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1051,6 +1058,12 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
   if (['dashboard', 'movimientos', 'facturas', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
 })();
 
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .catch((error) => console.warn('No se pudo activar el modo instalable:', error));
+    });
+  }
   </script>
 </body>
 </html>
