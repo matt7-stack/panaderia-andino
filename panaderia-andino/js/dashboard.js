@@ -107,7 +107,7 @@
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
     if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
@@ -117,14 +117,14 @@
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', facturas: 'Facturas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
     $('#sidebarBackdrop').classList.remove('show');
     $('#menuToggle').setAttribute('aria-expanded', 'false');
     if (page === 'movimientos') renderMovements();
-    if (page === 'facturas') renderInvoices();
+    if (page === 'notas') renderInvoices();
     if (page === 'empleados') renderEmployees();
     if (page === 'administracion') renderAdminPanel();
     if (page === 'configuracion') renderSettings();
@@ -295,8 +295,8 @@
     $('#invoiceSalesTotal').textContent = money(sales);
     $('#invoicePurchasesTotal').textContent = money(purchases);
     $('#invoicePendingTotal').textContent = money(pending);
-    $('#invoiceSalesCount').textContent = `${issued.length} facturas emitidas`;
-    $('#invoicePurchasesCount').textContent = `${received.length} facturas recibidas`;
+    $('#invoiceSalesCount').textContent = `${issued.length} notas de venta`;
+    $('#invoicePurchasesCount').textContent = `${received.length} notas de compra`;
     $('#issuedCount').textContent = issued.length;
     $('#receivedCount').textContent = received.length;
     $$('.invoice-tab').forEach((tab) => {
@@ -317,9 +317,9 @@
       <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
       <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td><td>${dateFormat(invoice.dueDate)}</td>
       <td class="text-end table-amount">${money(invoice.amount)}</td><td><span class="status-pill ${statusClasses[invoice.status] || 'status-draft'}">${statusLabels[invoice.status] || 'Borrador'}</span>${invoice.status === 'partial' ? `<span class="table-sub-text">Restan ${money(outstanding(invoice))}</span>` : ''}</td>
-      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar factura" aria-label="Editar factura" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>${['pending', 'partial'].includes(invoice.status) ? `<button class="icon-action" type="button" title="Marcar pagada" aria-label="Marcar factura pagada" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-check2-circle"></i></button>` : ''}<button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar factura" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
+      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>${['pending', 'partial'].includes(invoice.status) ? `<button class="icon-action" type="button" title="Marcar pagada" aria-label="Marcar nota pagada" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-check2-circle"></i></button>` : ''}<button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
     </tr>`).join('');
-    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${activeInvoiceTab === 'issued' ? issued.length : received.length} facturas`;
+    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${activeInvoiceTab === 'issued' ? issued.length : received.length} notas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
   }
@@ -332,7 +332,7 @@
     $('#invoicePaidAmount').value = 0;
     const invoice = id ? state.invoices.find((item) => item.id === id) : null;
     if (invoice) {
-      $('#invoiceModalTitle').textContent = 'Editar factura';
+      $('#invoiceModalTitle').textContent = 'Editar nota';
       $('#invoiceId').value = invoice.id;
       $('#invoiceDirection').value = invoice.direction;
       $('#invoiceNumber').value = invoice.number;
@@ -344,14 +344,14 @@
       $('#invoicePaidAmount').value = invoice.paidAmount || 0;
       $('#invoiceDescription').value = invoice.description || '';
     } else {
-      $('#invoiceModalTitle').textContent = 'Nueva factura';
+      $('#invoiceModalTitle').textContent = 'Nueva nota';
       $('#invoiceDirection').value = direction;
       $('#invoiceNumber').value = nextInvoiceNumber(direction);
     }
     invoiceModal.show();
   }
   function nextInvoiceNumber(direction) {
-    const prefix = direction === 'issued' ? '001-001-' : '001-002-';
+    const prefix = direction === 'issued' ? 'NV-' : 'NC-';
     const numbers = state.invoices.filter((item) => item.direction === direction).map((item) => Number(item.number.split('-').pop()) || 0);
     return prefix + String(Math.max(0, ...numbers) + 1).padStart(6, '0');
   }
@@ -493,7 +493,7 @@
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-panaderia-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
-  // Facturas
+  // Notas
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
   $$('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
@@ -504,17 +504,17 @@
     const amount = Number($('#invoiceAmount').value);
     const paidAmount = Number($('#invoicePaidAmount').value || 0);
     if (!$('#invoiceNumber').value.trim() || !$('#invoiceParty').value.trim() || !$('#invoiceDate').value || amount <= 0 || paidAmount < 0 || paidAmount > amount) {
-      notify('Revisá los datos. El monto pagado no puede superar el total de la factura.'); return;
+      notify('Revisá los datos. El monto pagado no puede superar el total de la nota.'); return;
     }
     let status = $('#invoiceStatus').value;
     if (paidAmount >= amount) status = 'paid';
     else if (paidAmount > 0 && status === 'pending') status = 'partial';
     const invoice = { id: id || makeId(), direction: $('#invoiceDirection').value, number: $('#invoiceNumber').value.trim(), party: $('#invoiceParty').value.trim(), status, date: $('#invoiceDate').value, dueDate: $('#invoiceDueDate').value, amount, paidAmount, description: $('#invoiceDescription').value.trim() };
     const duplicate = state.invoices.some((item) => item.id !== id && item.direction === invoice.direction && item.number.toLowerCase() === invoice.number.toLowerCase());
-    if (duplicate) { notify('Ya existe una factura con ese número en esta lista.'); return; }
+    if (duplicate) { notify('Ya existe una nota con ese número en esta lista.'); return; }
     if (id) state.invoices = state.invoices.map((item) => item.id === id ? invoice : item);
     else state.invoices.push(invoice);
-    activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Factura actualizada correctamente.' : 'Factura registrada correctamente.');
+    activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Nota actualizada correctamente.' : 'Nota registrada correctamente.');
   });
   $('#invoicesTableBody').addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-invoice]');
@@ -524,12 +524,12 @@
     if (pay) {
       const id = pay.dataset.payInvoice;
       state.invoices = state.invoices.map((invoice) => invoice.id === id ? { ...invoice, paidAmount: invoice.amount, status: 'paid' } : invoice);
-      saveState(); renderInvoices(); renderDashboard(); notify('Factura marcada como pagada.');
+      saveState(); renderInvoices(); renderDashboard(); notify('Nota marcada como pagada.');
     }
     if (remove) {
       const id = remove.dataset.deleteInvoice;
-      if (!confirmDelete('¿Eliminar esta factura? Esta acción no se puede deshacer.')) return;
-      state.invoices = state.invoices.filter((invoice) => invoice.id !== id); saveState(); renderInvoices(); renderDashboard(); notify('Factura eliminada.');
+      if (!confirmDelete('¿Eliminar esta nota? Esta acción no se puede deshacer.')) return;
+      state.invoices = state.invoices.filter((invoice) => invoice.id !== id); saveState(); renderInvoices(); renderDashboard(); notify('Nota eliminada.');
     }
   });
 
@@ -642,7 +642,7 @@
   });
   $('#resetDemoData').hidden = true;
   $('#resetDemoData').addEventListener('click', () => {
-    if (!window.confirm('Esto reemplazará todos los movimientos, facturas y ajustes por los datos de ejemplo. ¿Continuar?')) return;
+    if (!window.confirm('Esto reemplazará todos los movimientos, notas y ajustes por los datos de ejemplo. ¿Continuar?')) return;
     notify('La carga de datos de demostración está deshabilitada para proteger la información real.');
   });
 
@@ -698,5 +698,5 @@
   setInterval(updateGreeting, 60000);
   renderAll();
   const hashPage = window.location.hash.replace('#', '');
-  if (['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+  if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
 })();
