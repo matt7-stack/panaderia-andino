@@ -346,7 +346,7 @@ body.auth-locked .app-shell{visibility:hidden}
 (() => {
   const STORAGE_KEY = 'panaderiaAndino_data_v2';
   const $ = (selector, root = document) => root.querySelector(selector);
-  const $ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
   const todayISO = () => {
     const now = new Date();
@@ -447,8 +447,8 @@ body.auth-locked .app-shell{visibility:hidden}
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'facturas', 'configuracion'].includes(page)) return;
     selectedPage = page;
-    $('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
-    $('.nav-menu [data-page-link]').forEach((link) => {
+    $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
+    $$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page');
@@ -586,7 +586,7 @@ body.auth-locked .app-shell{visibility:hidden}
 
   function setMovementType(type) {
     $('#movementType').value = type;
-    $('.type-option').forEach((button) => button.classList.toggle('active', button.dataset.type === type));
+    $$('.type-option').forEach((button) => button.classList.toggle('active', button.dataset.type === type));
     $('#movementCategory').innerHTML = categoryOptions(type);
   }
   function openMovementModal(type = 'income', id = '') {
@@ -626,7 +626,7 @@ body.auth-locked .app-shell{visibility:hidden}
     $('#invoicePurchasesCount').textContent = `${received.length} facturas recibidas`;
     $('#issuedCount').textContent = issued.length;
     $('#receivedCount').textContent = received.length;
-    $('.invoice-tab').forEach((tab) => {
+    $$('.invoice-tab').forEach((tab) => {
       const active = tab.dataset.invoiceTab === activeInvoiceTab;
       tab.classList.toggle('active', active);
       tab.setAttribute('aria-selected', String(active));
@@ -732,8 +732,8 @@ body.auth-locked .app-shell{visibility:hidden}
   }
 
   // Navegación principal
-  $('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
-  $('[data-go-page]').forEach((button) => button.addEventListener('click', () => pageNavigate(button.dataset.goPage)));
+  $$('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
+  $$('[data-go-page]').forEach((button) => button.addEventListener('click', () => pageNavigate(button.dataset.goPage)));
   $('#menuToggle').addEventListener('click', () => {
     const open = $('#sidebar').classList.toggle('open');
     $('#sidebarBackdrop').classList.toggle('show', open);
@@ -745,8 +745,8 @@ body.auth-locked .app-shell{visibility:hidden}
   $('#logoutButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
 
   // Formularios de movimientos
-  $('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
-  $('.type-option').forEach((button) => button.addEventListener('click', () => setMovementType(button.dataset.type)));
+  $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
+  $$('.type-option').forEach((button) => button.addEventListener('click', () => setMovementType(button.dataset.type)));
   $('#movementForm').addEventListener('submit', (event) => {
     event.preventDefault();
     const id = $('#movementId').value;
@@ -788,7 +788,7 @@ body.auth-locked .app-shell{visibility:hidden}
 
   // Facturas
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
+  $$('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
   $('#invoiceStatusFilter').addEventListener('change', renderInvoices);
   $('#invoiceForm').addEventListener('submit', (event) => {
@@ -827,10 +827,10 @@ body.auth-locked .app-shell{visibility:hidden}
   });
 
   // Configuración y mantenimiento
-  $('.settings-tab').forEach((tab) => tab.addEventListener('click', () => {
+  $$('.settings-tab').forEach((tab) => tab.addEventListener('click', () => {
     const target = tab.dataset.settingsTab;
-    $('.settings-tab').forEach((item) => item.classList.toggle('active', item === tab));
-    $('[data-settings-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.settingsPanel === target));
+    $$('.settings-tab').forEach((item) => item.classList.toggle('active', item === tab));
+    $$('[data-settings-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.settingsPanel === target));
   }));
   $('#businessForm').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -847,7 +847,7 @@ body.auth-locked .app-shell{visibility:hidden}
     reader.onerror = () => notify('No se pudo leer la imagen seleccionada.');
     reader.readAsDataURL(file);
   });
-  $('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
+  $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
   $('#addUserButton').addEventListener('click', () => openSimpleModal('user'));
   $('#simpleForm').addEventListener('submit', async (event) => {
