@@ -32,7 +32,7 @@
   };
 
   const createEmptyState = () => ({
-    movements: [], invoices: [],
+    movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
     business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
@@ -43,6 +43,9 @@
   let cloudUsers = [];
   let cloudReady = false;
   let cloudSaveTimer = null;
+  let cloudUpdatedAt = null;
+  let cloudSaving = false;
+  let cloudSyncInterval = null;
   const cloudPayload = () => {
     const payload = JSON.parse(JSON.stringify(state));
     delete payload.users;
@@ -54,12 +57,14 @@
       if (syncCloud && cloudReady && window.PanaderiaAuth?.user) {
         clearTimeout(cloudSaveTimer);
         cloudSaveTimer = setTimeout(async () => {
+          cloudSaveTimer = null; cloudSaving = true;
           try {
-            await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const saved = window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
             notify('No se pudo sincronizar con el servidor. Revisá tu conexión.');
-          }
+          } finally { cloudSaving = false; }
         }, 500);
       }
       return true;
@@ -101,7 +106,7 @@
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'facturas', 'configuracion'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
@@ -110,7 +115,7 @@
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', facturas: 'Facturas', configuracion: 'Configuración' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', facturas: 'Facturas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -118,6 +123,8 @@
     $('#menuToggle').setAttribute('aria-expanded', 'false');
     if (page === 'movimientos') renderMovements();
     if (page === 'facturas') renderInvoices();
+    if (page === 'empleados') renderEmployees();
+    if (page === 'administracion') renderAdminPanel();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
   }
@@ -127,10 +134,18 @@
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
     $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
-    $('#topUserName').textContent = state.business.owner || 'Administrador';
+    $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
+  }
+
+  function updateGreeting() {
+    const hour = Number(new Intl.DateTimeFormat('es-PY', { timeZone: 'America/Asuncion', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
+    const greeting = hour >= 5 && hour < 12 ? ['¡Buenos días!', '☀️'] : (hour >= 12 && hour < 19 ? ['¡Buenas tardes!', '🌤️'] : ['¡Buenas noches!', '🌙']);
+    const heading = $('#dashboardGreeting'); const icon = $('#dashboardGreetingIcon');
+    if (heading) heading.textContent = greeting[0]; if (icon) icon.textContent = greeting[1];
   }
 
   function renderDashboard() {
+    updateGreeting();
     const monthKey = monthFilter.value || monthISO();
     const monthMovements = getMonthMovements(monthKey);
     const income = sumType(monthMovements, 'income');
@@ -339,6 +354,27 @@
     return prefix + String(Math.max(0, ...numbers) + 1).padStart(6, '0');
   }
 
+  function renderEmployees() {
+    const employees = state.employees || []; const payments = state.employeePayments || [];
+    const active = employees.filter((employee) => employee.active !== false); const month = monthISO();
+    const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    $('#employeeCount').textContent = active.length; $('#employeePayrollTotal').textContent = money(payroll); $('#employeePaymentsCount').textContent = payments.length;
+    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" data-active="${employee.active === false ? 'false' : 'true'}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
+    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
+  }
+
+  function renderAdminPanel() {
+    if (!$('#adminUserCount')) return;
+    $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
+    $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+  }
+
+  function exportAdminBackup() {
+    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
+    link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
+  }
+
   function renderSettings() {
     $('#businessName').value = state.business.name || '';
     $('#businessAddress').value = state.business.address || '';
@@ -380,6 +416,17 @@
     } else if (mode === 'payment') {
       $('#simpleModalTitle').textContent = 'Nuevo método de pago';
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre del método</label><input id="simpleName" name="name" maxlength="40" required placeholder="Ej. Billetera electrónica"></div>';
+    } else if (mode === 'employee') {
+      $('#simpleModalTitle').textContent = 'Agregar empleado';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia</label><select id="employeeFrequency"><option value="monthly">Mensual</option><option value="daily">Diario</option></select></div>';
+    } else if (mode === 'employee-payment') {
+      $('#simpleModalTitle').textContent = 'Registrar pago a empleado';
+      const employeeOptions = (state.employees || []).filter((employee) => employee.active !== false).map((employee) => `<option value="${escapeHTML(employee.id)}">${escapeHTML(employee.name)}</option>`).join('');
+      fields.innerHTML = `<div class="simple-modal-field"><label for="paymentEmployee">Empleado</label><select id="paymentEmployee" required>${employeeOptions}</select></div><div class="simple-modal-field"><label for="employeePaymentAmount">Importe (Gs.)</label><input id="employeePaymentAmount" type="number" min="1" step="1" required></div><div class="simple-modal-field"><label for="employeePaymentDate">Fecha de pago</label><input id="employeePaymentDate" type="date" value="${todayISO()}" required></div><div class="simple-modal-field"><label for="employeePaymentMethod">Método de pago</label><select id="employeePaymentMethod">${paymentOptions()}</select></div><div class="simple-modal-field"><label for="employeePaymentPeriod">Concepto</label><input id="employeePaymentPeriod" maxlength="80" value="Pago de salario" required></div>`;
+      if (data.employeeId) fields.querySelector('#paymentEmployee').value = data.employeeId;
+      const employeeSelect = fields.querySelector('#paymentEmployee'); const amountInput = fields.querySelector('#employeePaymentAmount');
+      const setDefaultAmount = () => { const employee = (state.employees || []).find((item) => item.id === employeeSelect.value); if (employee && !amountInput.value) amountInput.value = employee.salary || ''; };
+      employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
@@ -506,11 +553,31 @@
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
   $('#addUserButton').addEventListener('click', () => openSimpleModal('user'));
+  $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
+  $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
+  $('#employeesTableBody').addEventListener('click', (event) => {
+    const pay = event.target.closest('[data-pay-employee]'); const toggle = event.target.closest('[data-toggle-employee]');
+    if (pay) openSimpleModal('employee-payment', { employeeId: pay.dataset.payEmployee });
+    if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
+  });
+  $('#adminBackupButton').addEventListener('click', exportAdminBackup);
+  $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
-    if (!name) return;
-    if (simpleModalMode === 'category') {
+    if (!name && simpleModalMode !== 'employee-payment') return;
+    if (simpleModalMode === 'employee') {
+      const salary = Number($('#employeeSalary').value || 0); if (!Number.isFinite(salary) || salary < 0) { notify('Ingresá un salario válido.'); return; }
+      state.employees = state.employees || []; state.employees.push({ id: makeId(), name, position: $('#employeePosition').value.trim(), phone: $('#employeePhone').value.trim(), salary, frequency: $('#employeeFrequency').value, active: true, createdAt: new Date().toISOString() });
+      saveState(); simpleModal.hide(); renderEmployees(); renderAdminPanel(); notify('Empleado registrado correctamente.'); return;
+    } else if (simpleModalMode === 'employee-payment') {
+      const employee = (state.employees || []).find((item) => item.id === $('#paymentEmployee').value); const amount = Number($('#employeePaymentAmount').value); const date = $('#employeePaymentDate').value;
+      if (!employee || !Number.isFinite(amount) || amount <= 0 || !date) { notify('Completá los datos del pago.'); return; }
+      const paymentId = makeId(); const method = $('#employeePaymentMethod').value; const period = $('#employeePaymentPeriod').value.trim() || 'Pago de salario';
+      state.employeePayments = state.employeePayments || []; state.employeePayments.push({ id: paymentId, employeeId: employee.id, employeeName: employee.name, amount, date, method, period, createdAt: new Date().toISOString() });
+      state.movements.push({ id: makeId(), description: `Pago a ${employee.name}`, amount, date, type: 'expense', category: 'Salarios', payment: method, note: period, employeePaymentId: paymentId });
+      saveState(); simpleModal.hide(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel(); notify('Pago registrado y contabilizado como gasto.'); return;
+    } else if (simpleModalMode === 'category') {
       const inferredType = $('#simpleModalTitle').textContent.toLowerCase().includes('ingreso') ? 'income' : 'expense';
       const target = state.categories[inferredType];
       if (target.some((item) => item.toLowerCase() === name.toLowerCase())) { notify('Esa categoría ya existe.'); return; }
@@ -584,35 +651,34 @@
   });
 
   function renderAll() {
-    renderDashboard(); renderMovements(); renderInvoices(); renderSettings(); updateCounters();
+    renderDashboard(); renderMovements(); renderInvoices(); renderEmployees(); renderAdminPanel(); renderSettings(); updateCounters();
   }
 
   async function refreshCloudUsers() {
     if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
-    renderSettings();
+    renderSettings(); renderAdminPanel();
+  }
+
+  async function refreshCloudData() {
+    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
+    try { const result = await window.PanaderiaAuth.api('/api/data');
+      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
+    } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
 
   async function hydrateCloudData() {
     if (!window.PanaderiaAuth?.user) return;
     try {
       const result = await window.PanaderiaAuth.api('/api/data');
-      if (result.data) {
-        state = { ...createEmptyState(), ...result.data };
-      } else {
-        await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
-      }
-      delete state.users;
-      cloudReady = true;
-      saveState(false);
-      renderAll();
-      await refreshCloudUsers();
-    } catch (error) {
-      console.error('No se pudo cargar el espacio compartido.', error);
-      notify('No se pudieron cargar los datos compartidos. Recargá la página.');
-    }
+      if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
+      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
+      delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
+      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
+    } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
   }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
   window.addEventListener('panaderia:authenticated', hydrateCloudData);
   if (window.PanaderiaAuthReady) window.PanaderiaAuthReady.then((user) => { if (user) hydrateCloudData(); });
 
@@ -623,5 +689,5 @@
   $('#movementEndDate').value = todayISO();
   renderAll();
   const hashPage = window.location.hash.replace('#', '');
-  if (['dashboard', 'movimientos', 'facturas', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+  if (['dashboard', 'movimientos', 'facturas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
 })();
