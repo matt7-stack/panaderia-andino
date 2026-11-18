@@ -761,6 +761,23 @@
     if (button) selectAdminSection(button.dataset.adminTab);
   });
   selectAdminSection('overview');
+  $('#adminCreateBusinessForm')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = $('#adminNewBusinessName');
+    const button = $('#adminCreateBusinessButton');
+    const name = input?.value.trim();
+    if (!name) { notify('Ingresá el nombre de la panadería.'); input?.focus(); return; }
+    button.disabled = true;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name }) });
+      await refreshCloudBusinesses(result.business?.id || '');
+      renderBusinessAdminList();
+      input.value = '';
+      notify('Panadería creada correctamente. Ahora podés asignarle usuarios desde Usuarios.');
+    } catch (error) {
+      notify(error.message || 'No se pudo crear la panadería.');
+    } finally { button.disabled = false; }
+  });
   $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);
   $('#adminManageUsers')?.addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
