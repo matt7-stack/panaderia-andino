@@ -18,14 +18,14 @@ new vm.Script(dashboard, { filename: 'js/dashboard.js' });
 
 const inlineScriptPattern = /<script>([\s\S]*?)<\/script>/g;
 const inlineScripts = [...html.matchAll(inlineScriptPattern)];
-if (inlineScripts.length !== 2) {
-  throw new Error(`Se esperaban 2 bloques JavaScript inline y se encontraron ${inlineScripts.length}. No se modificó el paquete.`);
+if (inlineScripts.length < 2) {
+  throw new Error(`Se esperaban al menos 2 bloques JavaScript inline y se encontraron ${inlineScripts.length}. No se modificó el paquete.`);
 }
 
 let index = 0;
 html = html.replace(inlineScriptPattern, () => {
   const source = index++ === 0 ? auth : dashboard;
-  return `<script>\n${source}\n</script>`;
+  return source ? `<script>\n${source}\n</script>` : inlineScripts[index - 1][0];
 });
 
 html = html
