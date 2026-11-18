@@ -421,7 +421,23 @@
       bar.innerHTML = '<strong>Negocio activo</strong><select id="globalBusinessSelect" aria-label="Seleccionar negocio" style="min-width:220px;max-width:100%;padding:8px;border:1px solid #cdb9a6;border-radius:8px"></select><button id="globalAddBusiness" type="button" class="btn btn-sm btn-outline-primary">Agregar negocio</button><small id="globalBusinessHint" class="text-muted"></small>';
       document.body.prepend(bar);
       $('#globalBusinessSelect').addEventListener('change', async (event) => {
-        selectedBusinessId = event.target.value;
+        const nextBusinessId = event.target.value;
+        if (cloudSaving) {
+          event.target.value = selectedBusinessId;
+          notify('Esperá a que termine la sincronización antes de cambiar de negocio.');
+          return;
+        }
+        if (cloudSaveTimer) {
+          clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
+          try {
+            await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+          } catch (error) {
+            event.target.value = selectedBusinessId;
+            notify('No se pudo guardar el negocio actual. No se cambió de negocio.');
+            return;
+          }
+        }
+        selectedBusinessId = nextBusinessId;
         localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
         cloudReady = false; cloudUpdatedAt = null;
         await hydrateCloudData();
