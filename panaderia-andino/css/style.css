@@ -79,3 +79,59 @@ body.auth-locked .app-shell{visibility:hidden}
 .auth-form{display:grid;gap:8px}.auth-form label{margin-top:7px;color:#654832;font-size:10px;font-weight:800}.auth-form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #e7dbce;border-radius:9px;outline:none;color:#4d3828;background:#fff;font-size:13px}.auth-form input:focus{border-color:#aa7a50;box-shadow:0 0 0 3px rgba(170,122,80,.12)}.auth-form input[readonly]{color:#887968;background:#f8f4ee}
 .auth-submit{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#704427;font-size:12px;font-weight:800}.auth-submit:hover{background:#59351e}.auth-submit:disabled{opacity:.65;cursor:wait}.auth-submit span{font-size:18px}.auth-error{padding:10px 12px;border:1px solid #f0c9c2;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}.auth-footnote{margin:22px 0 0;color:#a99a89;font-size:9px;text-align:center}
 @media(max-width:480px){.auth-card{padding:25px 20px}.auth-heading h1{font-size:26px}}
+
+
+/* Accesibilidad del menú: permitir ver y recorrer todas las opciones en pantallas bajas. */
+.sidebar {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(239, 207, 173, .45) transparent;
+}
+.nav-menu {
+  flex: 0 0 auto;
+  gap: 5px;
+}
+.nav-menu .nav-link {
+  min-height: 42px;
+  flex: 0 0 auto;
+}
+.sidebar-bottom {
+  flex: 0 0 auto;
+  margin-top: 18px;
+}
+.brand {
+  padding-bottom: 20px;
+}
+@media (max-height: 760px) {
+  .sidebar { padding-top: 16px; padding-bottom: 12px; }
+  .brand { padding-bottom: 14px; }
+  .brand-mark { width: 52px; height: 48px; font-size: 27px; }
+  .brand-name { font-size: 23px; }
+  .sidebar-label { padding-bottom: 7px; }
+  .nav-menu .nav-link { min-height: 38px; }
+}
+
+
+/* Administración: tarjetas financieras alineadas */
+#page-administracion .admin-tools-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:16px}
+#page-administracion .admin-tool-card{display:flex;flex-direction:column;align-items:stretch;min-width:0;min-height:100%;height:100%;padding:20px}
+#page-administracion .admin-tool-card .panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:76px;margin-bottom:14px}
+#page-administracion .admin-tool-card .panel-heading>div{min-width:0}
+#page-administracion .admin-tool-card .panel-heading h3{margin:0 0 6px}
+#page-administracion .admin-tool-card .panel-heading p{margin:0;line-height:1.55}
+#page-administracion .admin-tool-card .admin-finance-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}
+#page-administracion .admin-tool-card .admin-finance-metrics>div{min-width:0;padding:11px 9px;border:1px solid var(--line);border-radius:9px;background:#fffefa}
+#page-administracion .admin-tool-card .admin-finance-metrics small{display:block;font-size:9px}
+#page-administracion .admin-tool-card .admin-finance-metrics strong{display:block;overflow-wrap:anywhere;font-size:clamp(12px,1.2vw,17px)}
+#page-administracion .admin-tool-card>p{line-height:1.6}
+#page-administracion .admin-tool-card .admin-tool-action{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;min-height:40px;margin-top:auto;padding:10px 14px;white-space:normal;text-align:center}
+#page-administracion .admin-tool-card>label.admin-tool-action{cursor:pointer}
+#page-administracion .admin-tool-card #adminNotificationStatus{min-height:44px;margin:0 0 14px;padding:11px;border-radius:8px;background:#f8f3ec}
+#page-administracion .admin-tool-card #adminRestoreBackupInput+p{margin-top:14px}
+@media(max-width:1050px){#page-administracion .admin-tools-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#page-administracion .admin-tools-grid{grid-template-columns:minmax(0,1fr);gap:12px}#page-administracion .admin-tool-card{min-height:0;padding:16px}#page-administracion .admin-tool-card .panel-heading{min-height:0}#page-administracion .admin-tool-card .admin-tool-action{width:100%}}

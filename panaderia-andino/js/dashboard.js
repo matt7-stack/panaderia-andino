@@ -1,7 +1,7 @@
 'use strict';
 
 (() => {
-  const STORAGE_KEY = 'panaderiaAndino_data_v2';
+  const STORAGE_KEY = 'gestionPanaderia_data_v3';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -31,21 +31,29 @@
     return new Intl.DateTimeFormat('es-PY', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
   };
 
-  const createEmptyState = () => ({
+  const createEmptyState = (businessName = 'Mi panadería') => ({
     movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: businessName, address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
   let state = createEmptyState();
   let cloudUsers = [];
+  let cloudBusinesses = [];
+  let selectedBusinessId = localStorage.getItem('gestionPanaderia_businessId') || '';
   let cloudReady = false;
   let cloudSaveTimer = null;
   let cloudUpdatedAt = null;
   let cloudSaving = false;
+  let cloudSwitching = false;
   let cloudSyncInterval = null;
+  const scopedStorageKey = () => {
+    const user = window.PanaderiaAuth?.user;
+    const scope = user?.isPlatformAdmin === true ? selectedBusinessId : (user?.businessId || user?.id || 'anonymous');
+    return `${STORAGE_KEY}:${scope || 'unselected'}`;
+  };
   const cloudPayload = () => {
     const payload = JSON.parse(JSON.stringify(state));
     delete payload.users;
@@ -53,8 +61,9 @@
   };
   const saveState = (syncCloud = true) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      if (syncCloud && cloudReady && window.PanaderiaAuth?.user) {
+      if (!window.__gpAuditSaving) { window.__gpAuditSaving = true; addAuditEntry('Datos guardados', 'Cambios del negocio sincronizados o guardados localmente'); window.__gpAuditSaving = false; }
+      localStorage.setItem(scopedStorageKey(), JSON.stringify(state));
+      if (syncCloud && cloudReady && !cloudSwitching && window.PanaderiaAuth?.user) {
         clearTimeout(cloudSaveTimer);
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
@@ -69,6 +78,7 @@
       }
       return true;
     } catch (error) {
+      window.__gpAuditSaving = false;
       console.error('No se pudo guardar la información local.', error);
       notify('No se pudo guardar la información.');
       return false;
@@ -107,7 +117,7 @@
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
     if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
@@ -117,7 +127,7 @@
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -135,7 +145,7 @@
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -287,66 +297,44 @@
   }
 
   function renderInvoices() {
-    const issued = state.invoices.filter((invoice) => invoice.direction === 'issued');
-    const received = state.invoices.filter((invoice) => invoice.direction === 'received');
-    const sales = issued.reduce((sum, item) => sum + Number(item.amount), 0);
-    const purchases = received.reduce((sum, item) => sum + Number(item.amount), 0);
-    const pending = state.invoices.reduce((sum, item) => ['pending', 'partial'].includes(item.status) ? sum + outstanding(item) : sum, 0);
-    $('#invoiceSalesTotal').textContent = money(sales);
-    $('#invoicePurchasesTotal').textContent = money(purchases);
-    $('#invoicePendingTotal').textContent = money(pending);
-    $('#invoiceSalesCount').textContent = `${issued.length} notas de venta`;
-    $('#invoicePurchasesCount').textContent = `${received.length} notas de compra`;
-    $('#issuedCount').textContent = issued.length;
-    $('#receivedCount').textContent = received.length;
-    $$('.invoice-tab').forEach((tab) => {
-      const active = tab.dataset.invoiceTab === activeInvoiceTab;
-      tab.classList.toggle('active', active);
-      tab.setAttribute('aria-selected', String(active));
-    });
-    $('#invoicePartyHeading').textContent = activeInvoiceTab === 'issued' ? 'CLIENTE' : 'PROVEEDOR';
+    // Esta versión administra exclusivamente notas emitidas.
+    const issued = (state.invoices || []).filter((invoice) => invoice.direction === 'issued');
     const search = $('#invoiceSearch').value.trim().toLowerCase();
-    const status = $('#invoiceStatusFilter').value;
-    const rows = [...state.invoices].filter((invoice) => invoice.direction === activeInvoiceTab)
+    const rows = issued
       .filter((invoice) => !search || `${invoice.number} ${invoice.party} ${invoice.description || ''}`.toLowerCase().includes(search))
-      .filter((invoice) => status === 'all' || invoice.status === status)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const statusLabels = { draft: 'Borrador', pending: 'Pendiente', partial: 'Pago parcial', paid: 'Pagada', cancelled: 'Anulada' };
-    const statusClasses = { draft: 'status-draft', pending: 'status-pending', partial: 'status-partial', paid: 'status-paid', cancelled: 'status-cancelled' };
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     $('#invoicesTableBody').innerHTML = rows.map((invoice) => `<tr>
       <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
-      <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td><td>${dateFormat(invoice.dueDate)}</td>
-      <td class="text-end table-amount">${money(invoice.amount)}</td><td><span class="status-pill ${statusClasses[invoice.status] || 'status-draft'}">${statusLabels[invoice.status] || 'Borrador'}</span>${invoice.status === 'partial' ? `<span class="table-sub-text">Restan ${money(outstanding(invoice))}</span>` : ''}</td>
-      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>${['pending', 'partial'].includes(invoice.status) ? `<button class="icon-action" type="button" title="Marcar pagada" aria-label="Marcar nota pagada" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-check2-circle"></i></button>` : ''}<button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
+      <td>${escapeHTML(invoice.party)}</td>
+      <td>${dateFormat(invoice.date)}</td>
+      <td class="text-end table-amount">${money(invoice.amount)}</td>
+      <td><div class="table-actions">
+        <button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>
+        <button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button>
+      </div></td>
     </tr>`).join('');
-    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${activeInvoiceTab === 'issued' ? issued.length : received.length} notas`;
+    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
   }
 
-  function openInvoiceModal(id = '', direction = activeInvoiceTab) {
+  function openInvoiceModal(id = '') {
     $('#invoiceForm').reset();
     $('#invoiceId').value = '';
+    $('#invoiceDirection').value = 'issued';
     $('#invoiceDate').value = todayISO();
-    $('#invoiceDueDate').value = todayISO();
-    $('#invoicePaidAmount').value = 0;
-    const invoice = id ? state.invoices.find((item) => item.id === id) : null;
+    const invoice = id ? (state.invoices || []).find((item) => item.id === id && item.direction === 'issued') : null;
     if (invoice) {
-      $('#invoiceModalTitle').textContent = 'Editar nota';
+      $('#invoiceModalTitle').textContent = 'Editar nota emitida';
       $('#invoiceId').value = invoice.id;
-      $('#invoiceDirection').value = invoice.direction;
       $('#invoiceNumber').value = invoice.number;
       $('#invoiceParty').value = invoice.party;
-      $('#invoiceStatus').value = invoice.status;
       $('#invoiceDate').value = invoice.date;
-      $('#invoiceDueDate').value = invoice.dueDate || '';
       $('#invoiceAmount').value = invoice.amount;
-      $('#invoicePaidAmount').value = invoice.paidAmount || 0;
       $('#invoiceDescription').value = invoice.description || '';
     } else {
-      $('#invoiceModalTitle').textContent = 'Nueva nota';
-      $('#invoiceDirection').value = direction;
-      $('#invoiceNumber').value = nextInvoiceNumber(direction);
+      $('#invoiceModalTitle').textContent = 'Nueva nota emitida';
+      $('#invoiceNumber').value = nextInvoiceNumber('issued');
     }
     invoiceModal.show();
   }
@@ -361,18 +349,82 @@
     const active = employees.filter((employee) => employee.active !== false); const month = monthISO();
     const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     $('#employeeCount').textContent = active.length; $('#employeePayrollTotal').textContent = money(payroll); $('#employeePaymentsCount').textContent = payments.length;
-    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" data-active="${employee.active === false ? 'false' : 'true'}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
+    const frequencyLabel = (frequency) => frequency === 'daily' ? 'Por día' : frequency === 'weekly' ? 'Semanal' : 'Mensual';
+    const today = todayISO();
+    const reminders = active.filter((employee) => employee.nextPaymentDate && Math.ceil((new Date(employee.nextPaymentDate + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000) <= 3);
+    let reminderBox = $('#employeeReminders');
+    if (reminderBox) {
+      reminderBox.innerHTML = reminders.length ? `<div class="alert alert-warning mb-3"><strong><i class="bi bi-bell"></i> Próximos pagos</strong><ul class="mb-0 mt-2">${reminders.map((employee) => { const days = Math.ceil((new Date(employee.nextPaymentDate + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000); return `<li>${escapeHTML(employee.name)}: ${days < 0 ? 'vencido' : days === 0 ? 'hoy' : `en ${days} día(s)`} — ${dateFormat(employee.nextPaymentDate)}</li>`; }).join('')}</ul></div>` : '';
+    }
+    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${frequencyLabel(employee.frequency)}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" data-active="${employee.active === false ? 'false' : 'true'}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
+  }
+
+  function addAuditEntry(action, detail = '') {
+    state.auditLog = Array.isArray(state.auditLog) ? state.auditLog : [];
+    const user = window.PanaderiaAuth?.user;
+    state.auditLog.unshift({ id: makeId(), at: new Date().toISOString(), user: user?.name || user?.email || 'Usuario', action, detail: String(detail).slice(0, 220) });
+    state.auditLog = state.auditLog.slice(0, 300);
+  }
+
+  function exportMovementsCSV() {
+    const rows = [['Fecha','Tipo','Descripción','Categoría','Método','Importe']];
+    (state.movements || []).forEach(item => rows.push([item.date || '', item.type || '', item.description || '', item.category || '', item.payment || '', Number(item.amount || 0)]));
+    const csv = '\uFEFF' + rows.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'gestion-panaderia-movimientos-' + todayISO() + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify('Reporte CSV descargado.');
+  }
+
+  async function restoreAdminBackup(file) {
+    if (!file || file.size > 10 * 1024 * 1024) { notify('Seleccioná un respaldo JSON de hasta 10 MB.'); return; }
+    try {
+      const parsed = JSON.parse(await file.text());
+      const data = parsed?.data;
+      if (!data || !Array.isArray(data.movements) || !Array.isArray(data.invoices) || !Array.isArray(data.employees)) throw new Error('El archivo no tiene el formato de respaldo de Gestión Panadería.');
+      if (!window.confirm('¿Restaurar este respaldo en la panadería seleccionada? Los datos operativos actuales serán reemplazados. Primero descargá una copia si querés conservarlos.')) return;
+      const safe = { ...createEmptyState(data.business?.name || 'Mi panadería'), ...data };
+      delete safe.users;
+      state = safe; addAuditEntry('Restauración de respaldo', 'Respaldo importado: ' + file.name);
+      saveState(); renderAll(); renderAdminPanel(); notify('Respaldo restaurado correctamente.');
+    } catch (error) { notify(error.message || 'No se pudo leer el respaldo.'); }
+  }
+
+  function notifyUpcomingPayroll() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const today = todayISO();
+    (state.employees || []).filter(e => e.active !== false && e.nextPaymentDate).forEach(employee => {
+      const days = Math.ceil((new Date(employee.nextPaymentDate + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000);
+      const key = 'payroll-notice:' + employee.id + ':' + employee.nextPaymentDate;
+      if (days >= 0 && days <= 3 && !localStorage.getItem(key)) {
+        new Notification('Próximo pago de ' + employee.name, { body: days === 0 ? 'El pago vence hoy.' : 'El pago vence en ' + days + ' día(s).', tag: key });
+        localStorage.setItem(key, '1');
+      }
+    });
+  }
+
+  function renderBusinessAdminList() {
+    const body = $('#adminBusinessesBody'); if (!body) return;
+    body.innerHTML = cloudBusinesses.map(b => '<tr><td>' + escapeHTML(b.name) + '</td><td>' + (b.userCount || 0) + '</td><td>' + (b.active ? 'Activa' : 'Inactiva') + '</td><td><div class="table-actions"><button type="button" class="icon-action" data-edit-business="' + escapeHTML(b.id) + '" title="Renombrar"><i class="bi bi-pencil"></i></button><button type="button" class="icon-action" data-toggle-business="' + escapeHTML(b.id) + '" data-active="' + String(!!b.active) + '" title="' + (b.active ? 'Desactivar' : 'Activar') + '"><i class="bi bi-power"></i></button></div></td></tr>').join('') || '<tr><td colspan="4" class="text-center text-muted">No hay panaderías registradas.</td></tr>';
   }
 
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
     $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
     $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    const income = sumType(state.movements || [], 'income'), expense = sumType(state.movements || [], 'expense');
+    if ($('#adminIncomeTotal')) $('#adminIncomeTotal').textContent = money(income);
+    if ($('#adminExpenseTotal')) $('#adminExpenseTotal').textContent = money(expense);
+    if ($('#adminNetTotal')) $('#adminNetTotal').textContent = money(income - expense);
+    if ($('#adminAuditBody')) $('#adminAuditBody').innerHTML = (state.auditLog || []).slice(0, 30).map(item => '<tr><td>' + dateFormat(item.at?.slice(0,10)) + ' ' + new Date(item.at).toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit'}) + '</td><td>' + escapeHTML(item.user) + '</td><td>' + escapeHTML(item.action) + '</td><td>' + escapeHTML(item.detail || '—') + '</td></tr>').join('') || '<tr><td colspan="4" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
+    renderBusinessAdminList();
+    const status = $('#adminNotificationStatus');
+    if (status) status.textContent = !('Notification' in window) ? 'Este navegador no admite notificaciones.' : Notification.permission === 'granted' ? 'Avisos activados en este dispositivo.' : Notification.permission === 'denied' ? 'Avisos bloqueados por el navegador.' : 'Avisos desactivados.';
+    notifyUpcomingPayroll();
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Gestión Panadería', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
     link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
@@ -388,7 +440,7 @@
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
@@ -396,7 +448,7 @@
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
       const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
-      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
+      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-reset-user="${escapeHTML(user.id)}"><i class="bi bi-key"></i></button><button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
     $('#prefDateFormat').value = state.preferences.dateFormat || 'es-PY';
@@ -407,6 +459,100 @@
     const categories = state.categories[type] || [];
     if (!categories.length) return '<div class="empty-inline">No hay categorías registradas.</div>';
     return categories.map((category) => `<div class="category-item"><i class="bi ${type === 'income' ? 'bi-check-circle-fill' : 'bi-check-circle-fill'}"></i><span>${escapeHTML(category)}</span><small>${type === 'income' ? 'Ingreso' : 'Gasto'}</small><button type="button" class="mini-delete" title="Eliminar categoría" aria-label="Eliminar categoría" data-delete-category="${escapeHTML(category)}" data-category-type="${type}"><i class="bi bi-trash3"></i></button></div>`).join('');
+  }
+
+  async function switchCloudBusiness(nextBusinessId, select) {
+    if (!nextBusinessId || nextBusinessId === selectedBusinessId) {
+      if (select) select.value = selectedBusinessId;
+      return false;
+    }
+    if (cloudSaving || cloudSwitching) {
+      if (select) select.value = selectedBusinessId;
+      notify('Esperá a que termine la sincronización antes de cambiar de negocio.');
+      return false;
+    }
+
+    cloudSwitching = true;
+    if (select) select.disabled = true;
+    const appShell = $('.app-shell');
+    if (appShell) appShell.setAttribute('inert', '');
+    try {
+      if (cloudSaveTimer) {
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = null;
+        cloudSaving = true;
+        try {
+          await window.PanaderiaAuth.api('/api/data', {
+            method: 'PUT',
+            body: JSON.stringify({ data: cloudPayload() })
+          });
+        } finally {
+          cloudSaving = false;
+        }
+      }
+
+      selectedBusinessId = nextBusinessId;
+      localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
+      cloudReady = false;
+      cloudUpdatedAt = null;
+      state = createEmptyState();
+      saveState(false);
+      renderAll();
+      await hydrateCloudData();
+      return cloudReady;
+    } catch (error) {
+      console.error('No se pudo cambiar de panadería.', error);
+      notify('No se pudo cambiar de panadería. Los datos anteriores no se copiarán al nuevo negocio.');
+      return false;
+    } finally {
+      cloudSwitching = false;
+      if (appShell) appShell.removeAttribute('inert');
+      if (select) {
+        select.disabled = false;
+        select.value = selectedBusinessId;
+      }
+    }
+  }
+
+  function renderBusinessSwitcher() {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+    let bar = $('#businessSwitcher');
+    if (!bar) {
+      bar = document.createElement('section');
+      bar.id = 'businessSwitcher';
+      bar.style.cssText = 'position:sticky;top:0;z-index:1030;background:#fff8ef;border-bottom:1px solid #ead9c8;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+      bar.innerHTML = '<strong>Negocio activo</strong><select id="globalBusinessSelect" aria-label="Seleccionar negocio" style="min-width:220px;max-width:100%;padding:8px;border:1px solid #cdb9a6;border-radius:8px"></select><button id="globalAddBusiness" type="button" class="btn btn-sm btn-outline-primary">Agregar negocio</button><small id="globalBusinessHint" class="text-muted"></small>';
+      document.body.prepend(bar);
+      $('#globalBusinessSelect').addEventListener('change', async (event) => {
+        await switchCloudBusiness(event.target.value, event.target);
+      });
+      $('#globalAddBusiness').addEventListener('click', async () => {
+        const name = window.prompt('Nombre de la nueva panadería:');
+        if (!name || !name.trim()) return;
+        try {
+          const result = await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+          await refreshCloudBusinesses(selectedBusinessId);
+          const switched = await switchCloudBusiness(result.business.id, $('#globalBusinessSelect'));
+          if (switched) notify('Negocio creado y seleccionado. Ya podés asignarle usuarios.');
+        } catch (error) { notify(error.message); }
+      });
+    }
+    const select = $('#globalBusinessSelect');
+    select.innerHTML = '<option value="">Seleccioná una panadería</option>' + cloudBusinesses.map(b => '<option value="' + escapeHTML(b.id) + '">' + escapeHTML(b.name) + (b.active ? '' : ' (inactiva)') + '</option>').join('');
+    select.value = selectedBusinessId;
+    $('#globalBusinessHint').textContent = cloudBusinesses.length ? 'Los datos se mantienen separados por negocio.' : 'Creá el primer negocio para comenzar.';
+  }
+
+  async function refreshCloudBusinesses(preferredId = '') {
+    const result = await window.PanaderiaAuth.api('/api/admin/businesses');
+    cloudBusinesses = result.businesses || [];
+    if (preferredId) selectedBusinessId = preferredId;
+    if (!cloudBusinesses.some(b => b.id === selectedBusinessId && b.active)) {
+      selectedBusinessId = (cloudBusinesses.find(b => b.active) || {}).id || '';
+    }
+    if (selectedBusinessId) localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
+    else localStorage.removeItem('gestionPanaderia_businessId');
+    renderBusinessSwitcher();
   }
 
   function openSimpleModal(mode, data = {}) {
@@ -422,7 +568,7 @@
       $('#simpleModalTitle').textContent = 'Agregar empleado';
       const employee = (state.employees || []).find((item) => item.id === data.employeeId) || {};
       $('#simpleModalTitle').textContent = data.employeeId ? 'Editar empleado' : 'Agregar empleado';
-      fields.innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" value="${escapeHTML(employee.name || '')}" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" value="${escapeHTML(employee.position || '')}" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" value="${escapeHTML(employee.phone || '')}" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required value="${Number(employee.salary || 0)}" placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia</label><select id="employeeFrequency"><option value="monthly" ${employee.frequency !== 'daily' ? 'selected' : ''}>Mensual</option><option value="daily" ${employee.frequency === 'daily' ? 'selected' : ''}>Diario</option></select></div>`;
+      fields.innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" value="${escapeHTML(employee.name || '')}" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" value="${escapeHTML(employee.position || '')}" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" value="${escapeHTML(employee.phone || '')}" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required value="${Number(employee.salary || 0)}" placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia de pago</label><select id="employeeFrequency"><option value="monthly" ${!['daily','weekly'].includes(employee.frequency) ? 'selected' : ''}>Mensual</option><option value="weekly" ${employee.frequency === 'weekly' ? 'selected' : ''}>Semanal</option><option value="daily" ${employee.frequency === 'daily' ? 'selected' : ''}>Por día</option></select></div><div class="simple-modal-field"><label for="employeeNextPaymentDate">Próxima fecha de pago</label><input id="employeeNextPaymentDate" type="date" value="${escapeHTML(employee.nextPaymentDate || '')}"><small>Se usará para avisarte cuando se acerque el pago.</small></div>`;
     } else if (mode === 'employee-payment') {
       $('#simpleModalTitle').textContent = 'Registrar pago a empleado';
       const employeeOptions = (state.employees || []).filter((employee) => employee.active !== false).map((employee) => `<option value="${escapeHTML(employee.id)}">${escapeHTML(employee.name)}</option>`).join('');
@@ -433,7 +579,8 @@
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
+      const businessOptions = cloudBusinesses.filter(b => b.active).map(b => '<option value="' + escapeHTML(b.id) + '"' + (b.id === selectedBusinessId ? ' selected' : '') + '>' + escapeHTML(b.name) + '</option>').join('');
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><div class="simple-modal-field"><label for="simpleBusiness">Panadería asignada</label><select id="simpleBusiness" required>' + businessOptions + '</select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -493,43 +640,40 @@
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-panaderia-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
-  // Notas
+  // Notas: esta versión trabaja únicamente con notas emitidas.
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $$('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
-  $('#invoiceStatusFilter').addEventListener('change', renderInvoices);
   $('#invoiceForm').addEventListener('submit', (event) => {
     event.preventDefault();
     const id = $('#invoiceId').value;
+    const number = $('#invoiceNumber').value.trim();
+    const party = $('#invoiceParty').value.trim();
+    const date = $('#invoiceDate').value;
     const amount = Number($('#invoiceAmount').value);
-    const paidAmount = Number($('#invoicePaidAmount').value || 0);
-    if (!$('#invoiceNumber').value.trim() || !$('#invoiceParty').value.trim() || !$('#invoiceDate').value || amount <= 0 || paidAmount < 0 || paidAmount > amount) {
-      notify('Revisá los datos. El monto pagado no puede superar el total de la nota.'); return;
+    if (!/^\\d{5}$/.test(number) || !party || !date || !Number.isFinite(amount) || amount <= 0) {
+      notify('Completá el número de cinco dígitos, cliente, fecha y total válido.'); return;
     }
-    let status = $('#invoiceStatus').value;
-    if (paidAmount >= amount) status = 'paid';
-    else if (paidAmount > 0 && status === 'pending') status = 'partial';
-    const invoice = { id: id || makeId(), direction: $('#invoiceDirection').value, number: $('#invoiceNumber').value.trim(), party: $('#invoiceParty').value.trim(), status, date: $('#invoiceDate').value, dueDate: $('#invoiceDueDate').value, amount, paidAmount, description: $('#invoiceDescription').value.trim() };
-    const duplicate = state.invoices.some((item) => item.id !== id && item.direction === invoice.direction && item.number.toLowerCase() === invoice.number.toLowerCase());
-    if (duplicate) { notify('Ya existe una nota con ese número en esta lista.'); return; }
+    const invoice = {
+      id: id || makeId(), direction: 'issued', number, party, date, amount,
+      description: $('#invoiceDescription').value.trim()
+    };
+    const duplicate = (state.invoices || []).some((item) => item.id !== id && item.direction === 'issued' && String(item.number).toLowerCase() === number.toLowerCase());
+    if (duplicate) { notify('Ya existe una nota emitida con ese número.'); return; }
+    state.invoices = state.invoices || [];
     if (id) state.invoices = state.invoices.map((item) => item.id === id ? invoice : item);
     else state.invoices.push(invoice);
-    activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Nota actualizada correctamente.' : 'Nota registrada correctamente.');
+    saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard();
+    notify(id ? 'Nota emitida actualizada.' : 'Nota emitida registrada.');
   });
   $('#invoicesTableBody').addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-invoice]');
-    const pay = event.target.closest('[data-pay-invoice]');
     const remove = event.target.closest('[data-delete-invoice]');
     if (edit) openInvoiceModal(edit.dataset.editInvoice);
-    if (pay) {
-      const id = pay.dataset.payInvoice;
-      state.invoices = state.invoices.map((invoice) => invoice.id === id ? { ...invoice, paidAmount: invoice.amount, status: 'paid' } : invoice);
-      saveState(); renderInvoices(); renderDashboard(); notify('Nota marcada como pagada.');
-    }
     if (remove) {
       const id = remove.dataset.deleteInvoice;
-      if (!confirmDelete('¿Eliminar esta nota? Esta acción no se puede deshacer.')) return;
-      state.invoices = state.invoices.filter((invoice) => invoice.id !== id); saveState(); renderInvoices(); renderDashboard(); notify('Nota eliminada.');
+      if (!confirmDelete('¿Eliminar esta nota emitida? Esta acción no se puede deshacer.')) return;
+      state.invoices = (state.invoices || []).filter((invoice) => invoice.id !== id);
+      saveState(); renderInvoices(); renderDashboard(); notify('Nota emitida eliminada.');
     }
   });
 
@@ -565,8 +709,59 @@
     if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
     if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
   });
-  $('#adminBackupButton').addEventListener('click', exportAdminBackup);
-  $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
+  $('#adminExportCsvButton')?.addEventListener('click', exportMovementsCSV);
+  $('#adminRestoreBackupInput')?.addEventListener('change', async event => { await restoreAdminBackup(event.target.files?.[0]); event.target.value = ''; });
+  $('#adminEnableNotifications')?.addEventListener('click', async () => {
+    if (!('Notification' in window)) { notify('Este navegador no admite notificaciones.'); return; }
+    const permission = await Notification.requestPermission();
+    renderAdminPanel();
+    if (permission === 'granted') { notifyUpcomingPayroll(); notify('Avisos activados para este dispositivo.'); }
+    else notify('No se concedió permiso para las notificaciones.');
+  });
+  $('#adminBusinessesBody')?.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-edit-business]');
+    const toggle = event.target.closest('[data-toggle-business]');
+    if (edit) {
+      const business = cloudBusinesses.find(b => b.id === edit.dataset.editBusiness); if (!business) return;
+      const name = window.prompt('Nuevo nombre de la panadería:', business.name);
+      if (!name || !name.trim() || name.trim() === business.name) return;
+      try { await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'PATCH', body: JSON.stringify({ id: business.id, name: name.trim() }) }); await refreshCloudBusinesses(selectedBusinessId); renderAdminPanel(); notify('Panadería actualizada.'); } catch (error) { notify(error.message); }
+    }
+    if (toggle) {
+      const business = cloudBusinesses.find(b => b.id === toggle.dataset.toggleBusiness); if (!business) return;
+      const active = toggle.dataset.active !== 'true';
+      if (!window.confirm((active ? '¿Activar' : '¿Desactivar') + ' la panadería ' + business.name + '?')) return;
+      try { await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'PATCH', body: JSON.stringify({ id: business.id, active }) }); await refreshCloudBusinesses(selectedBusinessId); renderAdminPanel(); notify('Estado de la panadería actualizado.'); } catch (error) { notify(error.message); }
+    }
+  });
+  const adminDescriptions = {
+    overview: 'Resumen general, indicadores financieros y actividad reciente.',
+    businesses: 'Administrá las panaderías registradas: revisá usuarios, editá nombres y activá o suspendé negocios.',
+    users: 'Gestioná cuentas, roles, accesos y restablecimiento de contraseñas desde la administración de usuarios.',
+    finance: 'Consultá indicadores y descargá o restaurá copias de seguridad y reportes.',
+    security: 'Herramientas de seguridad, avisos de pagos y acciones sensibles del sistema.'
+  };
+  function selectAdminSection(name) {
+    const page = $('#page-administracion'); if (!page) return;
+    const selected = adminDescriptions[name] ? name : 'overview';
+    $$('[data-admin-tab]', page).forEach(button => {
+      const active = button.dataset.adminTab === selected;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    $$('[data-admin-section]', page).forEach(panel => {
+      panel.hidden = panel.dataset.adminSection !== selected;
+    });
+    const description = $('#adminSectionDescription');
+    if (description) description.textContent = adminDescriptions[selected];
+  }
+  $('#page-administracion')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-admin-tab]');
+    if (button) selectAdminSection(button.dataset.adminTab);
+  });
+  selectAdminSection('overview');
+  $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);
+  $('#adminManageUsers')?.addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
@@ -574,7 +769,7 @@
     if (simpleModalMode === 'employee') {
       const salary = Number($('#employeeSalary').value || 0); if (!Number.isFinite(salary) || salary < 0) { notify('Ingresá un salario válido.'); return; }
       state.employees = state.employees || [];
-      const employeeData = { name, position: $('#employeePosition').value.trim(), phone: $('#employeePhone').value.trim(), salary, frequency: $('#employeeFrequency').value };
+      const employeeData = { name, position: $('#employeePosition').value.trim(), phone: $('#employeePhone').value.trim(), salary, frequency: $('#employeeFrequency').value, nextPaymentDate: $('#employeeNextPaymentDate').value || '' };
       if (simpleModalData.employeeId) state.employees = state.employees.map((employee) => employee.id === simpleModalData.employeeId ? { ...employee, ...employeeData, updatedAt: new Date().toISOString() } : employee);
       else state.employees.push({ id: makeId(), ...employeeData, active: true, createdAt: new Date().toISOString() });
       saveState(); simpleModal.hide(); renderEmployees(); renderAdminPanel(); notify(simpleModalData.employeeId ? 'Empleado actualizado correctamente.' : 'Empleado registrado correctamente.'); return;
@@ -583,6 +778,7 @@
       if (!employee || !Number.isFinite(amount) || amount <= 0 || !date) { notify('Completá los datos del pago.'); return; }
       const paymentId = makeId(); const method = $('#employeePaymentMethod').value; const period = $('#employeePaymentPeriod').value.trim() || 'Pago de salario';
       state.employeePayments = state.employeePayments || []; state.employeePayments.push({ id: paymentId, employeeId: employee.id, employeeName: employee.name, amount, date, method, period, createdAt: new Date().toISOString() });
+       const nextPay = new Date(date + 'T12:00:00'); if (employee.frequency === 'daily') nextPay.setDate(nextPay.getDate() + 1); else if (employee.frequency === 'weekly') nextPay.setDate(nextPay.getDate() + 7); else nextPay.setMonth(nextPay.getMonth() + 1); employee.nextPaymentDate = nextPay.toISOString().slice(0, 10);
       state.movements.push({ id: makeId(), description: `Pago a ${employee.name}`, amount, date, type: 'expense', category: 'Salarios', payment: method, note: period, employeePaymentId: paymentId });
       saveState(); simpleModal.hide(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel(); notify('Pago registrado y contabilizado como gasto.'); return;
     } else if (simpleModalMode === 'category') {
@@ -595,7 +791,7 @@
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId: $('#simpleBusiness')?.value }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -621,8 +817,20 @@
   $('#usersTableBody').addEventListener('click', async (event) => {
     const remove = event.target.closest('[data-delete-user]');
     const toggle = event.target.closest('[data-toggle-user]');
+    const reset = event.target.closest('[data-reset-user]');
     try {
-      if (toggle) {
+      if (reset) {
+        const user = cloudUsers.find((item) => item.id === reset.dataset.resetUser);
+        if (!user) return;
+        const password = window.prompt(`Nueva contraseña para ${user.name} (mínimo 12 caracteres):`);
+        if (password === null) return;
+        if (password.length < 12 || password.length > 200) { notify('La contraseña debe tener entre 12 y 200 caracteres.'); return; }
+        const confirmation = window.prompt('Repetí la nueva contraseña para confirmar:');
+        if (confirmation === null) return;
+        if (password !== confirmation) { notify('Las contraseñas no coinciden.'); return; }
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: reset.dataset.resetUser, password }) });
+        notify('Contraseña restablecida. La sesión anterior del usuario quedó invalidada.');
+      } else if (toggle) {
         const active = toggle.dataset.active !== 'true';
         await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
         await refreshCloudUsers();
@@ -663,28 +871,73 @@
   }
 
   async function refreshCloudUsers() {
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel();
   }
 
   async function refreshCloudData() {
-    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
-    try { const result = await window.PanaderiaAuth.api('/api/data');
-      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
+    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSwitching || cloudSaveTimer) return;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/data');
+      const expectedBusinessId = window.PanaderiaAuth.user.isPlatformAdmin === true
+        ? selectedBusinessId : window.PanaderiaAuth.user.businessId;
+      if (result.businessId && result.businessId !== expectedBusinessId) return;
+      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) {
+        state = { ...createEmptyState(result.businessName || 'Mi panadería'), ...result.data };
+        delete state.users;
+        cloudUpdatedAt = result.updatedAt;
+        saveState(false);
+        renderAll();
+      }
     } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
 
   async function hydrateCloudData() {
-    if (!window.PanaderiaAuth?.user) return;
+    const user = window.PanaderiaAuth?.user;
+    if (!user) return;
+    cloudReady = false;
+    state = createEmptyState();
+    saveState(false);
+    renderAll();
     try {
+      if (user.isPlatformAdmin === true) {
+        await refreshCloudBusinesses(selectedBusinessId);
+        if (!selectedBusinessId) {
+          cloudReady = false;
+          notify('Creá una panadería y seleccionála para cargar sus datos.');
+          return;
+        }
+      }
       const result = await window.PanaderiaAuth.api('/api/data');
-      if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
-      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
-      delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
-      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
-    } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
+      const expectedBusinessId = user.isPlatformAdmin === true ? selectedBusinessId : user.businessId;
+      if (result.businessId && result.businessId !== expectedBusinessId) {
+        throw new Error('La respuesta pertenece a otra panadería; se canceló la carga.');
+      }
+      if (result.data) {
+        state = { ...createEmptyState(result.businessName || 'Mi panadería'), ...result.data };
+        cloudUpdatedAt = result.updatedAt || null;
+      } else {
+        state = createEmptyState(result.businessName || 'Mi panadería');
+        const saved = await window.PanaderiaAuth.api('/api/data', {
+          method: 'PUT',
+          body: JSON.stringify({ data: cloudPayload() })
+        });
+        cloudUpdatedAt = saved.updatedAt || null;
+      }
+      delete state.users;
+      cloudReady = true;
+      saveState(false);
+      renderAll();
+      await refreshCloudUsers();
+      if (cloudSyncInterval) clearInterval(cloudSyncInterval);
+      cloudSyncInterval = setInterval(refreshCloudData, 10000);
+    } catch (error) {
+      cloudReady = false;
+      console.error('No se pudo cargar el espacio compartido.', error);
+      notify('No se pudieron cargar los datos compartidos. Recargá la página. No se guardaron datos de otra panadería.');
+    }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
   window.addEventListener('panaderia:authenticated', hydrateCloudData);
