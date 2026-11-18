@@ -1459,7 +1459,7 @@ input[type="date"], input[type="month"] {
     try {
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
-      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
+      else { if (window.PanaderiaAuth.user.business_name) state.business.name = window.PanaderiaAuth.user.business_name; const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
       delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
       if (window.PanaderiaAuth.user.is_platform_admin) await refreshPlatformBusinesses();
       if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
