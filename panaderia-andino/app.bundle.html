@@ -1000,11 +1000,13 @@ input[type="date"], input[type="month"] {
       $('#invoiceNumber').value = invoice.number;
       $('#invoiceParty').value = invoice.party;
       $('#invoiceDate').value = invoice.date;
-      $('#invoiceDescription').value = invoice.description || '';\n      $('#invoiceAmount').value = Number(invoice.amount || 0);
+      $('#invoiceDescription').value = invoice.description || '';
+      $('#invoiceAmount').value = Number(invoice.amount || 0);
     } else {
       $('#invoiceModalTitle').textContent = 'Nueva nota';
       $('#invoiceDirection').value = 'issued';
-      $('#invoiceNumber').value = nextInvoiceNumber('issued');\n      $('#invoiceAmount').value = '';
+      $('#invoiceNumber').value = nextInvoiceNumber('issued');
+      $('#invoiceAmount').value = '';
     }
     invoiceModal.show();
   }
