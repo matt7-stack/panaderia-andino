@@ -119,3 +119,22 @@ Los tres archivos modificados (`api/[...path].js`, `js/auth.js` y `js/dashboard.
 Se volvió a consultar únicamente el recuento de la rama Neon aislada: 1 negocio, 0 usuarios, 0 estados y 2 intentos de acceso. No se insertaron ni eliminaron datos durante esta comprobación.
 
 **Limitación importante:** todavía no se ejecutó la aplicación contra Neon mediante peticiones HTTP reales ni se regeneró el bundle de producción. Por ello no se considera terminada la prueba funcional; la rama sigue sin desplegarse y producción permanece intacta.
+
+## Correcciones de aislamiento y compilación (18 nov 2026)
+
+- Se corrigió la tabla `app_state` en la rama aislada de desarrollo: se retiró la clave primaria heredada sobre `id`, que impedía insertar una fila por negocio. La unicidad del estado queda garantizada por el índice único `app_state_business_id_uidx` sobre `business_id`; se conserva la columna `id` por compatibilidad, pero ya no identifica globalmente la fila.
+- Se probó el mismo patrón de inserción usado por la API con dos negocios QA y estados distintos. Ambos se guardaron y recuperaron correctamente; los registros de prueba fueron eliminados después.
+- Se corrigió el cambio de negocio en la interfaz: se bloquea la vista durante el cambio, se termina la escritura pendiente en el negocio anterior, se limpia el estado en memoria y se carga el negocio de destino. Si la carga falla, no se escribe el estado anterior en el destino.
+- La creación de una panadería nueva ahora la selecciona y carga su propio estado vacío, en vez de dejar visible el negocio anterior.
+- La sincronización periódica verifica que la respuesta pertenezca al negocio actualmente seleccionado.
+- El almacenamiento local auxiliar ahora usa una clave separada por negocio/usuario.
+- Se añadió `scripts/build-bundle.js`, que valida la sintaxis de los dos archivos JavaScript y recompone los bloques inline de `app.bundle.html`. El script queda conectado al comando `build` para que Vercel regenere el paquete al compilar.
+- Se actualizó la versión de caché del service worker para evitar conservar la interfaz anterior.
+- Se configuró el entorno Preview de Vercel para esta rama con una conexión exclusiva a la rama Neon `gestion-panaderia-dev-20261118`; no se modificaron variables de producción.
+
+### Verificación posterior
+
+- Prueba de inserción con dos negocios usando la estructura real de `app_state`: aprobada.
+- Limpieza de datos QA: aprobada; permanecen 1 negocio preexistente, 0 usuarios, 0 estados y 2 intentos de inicio de sesión.
+- Prueba sintáctica de los archivos fuente y del paquete generado: pendiente de confirmación en el siguiente build de Vercel.
+- Pruebas HTTP de autenticación, administración y aislamiento entre sesiones: pendientes; no se deben considerar aprobadas hasta ejecutarlas contra la vista previa.
