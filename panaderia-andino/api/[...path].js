@@ -12,6 +12,10 @@ function db() {
 async function ensureSchema() {
   const sql = db();
   await sql`CREATE TABLE IF NOT EXISTS app_users (id UUID PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','supervisor','employee')), active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0`;
+  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS business_id UUID`;
+  await sql`CREATE TABLE IF NOT EXISTS app_businesses (id UUID PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`CREATE TABLE IF NOT EXISTS app_business_state (business_id UUID PRIMARY KEY REFERENCES app_businesses(id) ON DELETE RESTRICT, data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_state (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id=1), data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
@@ -67,7 +71,7 @@ async function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 31536000000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: id, ver: 0, exp: Date.now() + 31536000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
   return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 }
@@ -79,8 +83,10 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active FROM app_users WHERE id = ${data.sub} LIMIT 1`;
-  return rows[0] && rows[0].active ? rows[0] : null;
+  const rows = await db()`SELECT id, name, email, role, active, business_id, session_version FROM app_users WHERE id = ${data.sub} LIMIT 1`;
+  if (!rows[0] || !rows[0].active) return null;
+  if (Number(data.ver || 0) !== Number(rows[0].session_version || 0)) return null;
+  return rows[0];
 }
 async function authenticated(req, res, adminOnly = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
@@ -152,8 +158,17 @@ module.exports = async function handler(req, res) {
         return send(res,201,{user:publicUser(rows[0])});
       }
       if (req.method === 'PATCH') {
-        const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
-        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
+        const input=body(req); const id=String(input.id||'');
+        if (!id) return send(res,400,{error:'Datos de usuario incompletos.'});
+        if (Object.prototype.hasOwnProperty.call(input,'password')) {
+          if (!validPassword(input.password)) return send(res,400,{error:'La nueva contraseña debe tener entre 12 y 200 caracteres.'});
+          const passwordHash=await hashPassword(input.password);
+          const rows=await sql`UPDATE app_users SET password_hash=${passwordHash},session_version=session_version+1 WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
+          if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
+          return send(res,200,{user:publicUser(rows[0]),passwordReset:true});
+        }
+        if (typeof input.active!=='boolean') return send(res,400,{error:'Indicá si el usuario debe estar activo o inactivo.'});
+        const rows=await sql`UPDATE app_users SET active=${input.active},session_version=CASE WHEN ${input.active}=FALSE THEN session_version+1 ELSE session_version END WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
         if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
         return send(res,200,{user:publicUser(rows[0])});
       }
