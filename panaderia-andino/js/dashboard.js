@@ -143,7 +143,7 @@
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -380,7 +380,7 @@
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Gestión Panadería', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
     link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
@@ -396,7 +396,7 @@
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
