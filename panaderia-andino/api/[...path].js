@@ -161,7 +161,7 @@ module.exports = async function handler(req, res) {
       const passwordHash = await hashPassword(password);
       const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin)
         VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE)
-        RETURNING id,name,email,role,active,business_id,is_platform_admin`;
+        RETURNING id,name,email,role,active,business_id,is_platform_admin,session_version`;
       return send(res, 201, { user: publicSessionUser(rows[0]) }, { 'Set-Cookie': sessionCookie(id, rows[0].session_version) });
     }
     if (path === '/api/auth/login' && req.method === 'POST') {
