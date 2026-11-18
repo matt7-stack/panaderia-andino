@@ -70,8 +70,8 @@ async function verifyPassword(password, stored) {
     return expected.length === 64 && crypto.timingSafeEqual(actual, expected);
   } catch (_) { return false; }
 }
-function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, ver: 0, exp: Date.now() + 31536000000 })).toString('base64url');
+function sessionCookie(id, version = 0) {
+  const payload = Buffer.from(JSON.stringify({ sub: id, ver: Number(version) || 0, exp: Date.now() + 31536000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
   return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 }
@@ -135,13 +135,13 @@ module.exports = async function handler(req, res) {
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
-      const rows = await sql`SELECT id,name,email,password_hash,role,active FROM app_users WHERE email=${email} LIMIT 1`; const u = rows[0];
+      const rows = await sql`SELECT id,name,email,password_hash,role,active,session_version FROM app_users WHERE email=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
-      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
+      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
     }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
