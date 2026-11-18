@@ -2,16 +2,24 @@
   "id": "/",
   "name": "Gestión Panadería",
   "short_name": "Gestión",
-  "description": "Sistema de gestión de Gestión Panadería",
+  "description": "Sistema de gestión para panaderías.",
   "lang": "es-PY",
   "start_url": "/app.bundle.html",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
   "background_color": "#fbf5eb",
   "theme_color": "#653820",
   "icons": [
-    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }
