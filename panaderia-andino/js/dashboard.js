@@ -744,12 +744,12 @@
   function selectAdminSection(name) {
     const page = $('#page-administracion'); if (!page) return;
     const selected = adminDescriptions[name] ? name : 'overview';
-    $('[data-admin-tab]', page).forEach(button => {
+    $$('[data-admin-tab]', page).forEach(button => {
       const active = button.dataset.adminTab === selected;
       button.classList.toggle('active', active);
       button.setAttribute('aria-selected', String(active));
     });
-    $('[data-admin-section]', page).forEach(panel => {
+    $$('[data-admin-section]', page).forEach(panel => {
       panel.hidden = panel.dataset.adminSection !== selected;
     });
     const description = $('#adminSectionDescription');
