@@ -60,3 +60,19 @@ Conservar los nombres de tablas ya existentes en el entorno de pruebas:
 ## Límite de esta revisión
 
 Este documento registra hallazgos y diseño. No ejecuta migraciones, no modifica datos, no cambia variables de entorno y no autoriza despliegues. El esquema de producción sigue sin estar identificado de forma verificable y debe permanecer intacto.
+
+
+## Resultado de la primera migración de desarrollo (18 nov 2026)
+
+Se aplicó exclusivamente en la rama Neon aislada `gestion-panaderia-dev-20261118` del proyecto de pruebas:
+
+- `app_users.business_id` ahora admite NULL únicamente para la cuenta global.
+- Se añadió `app_users.session_version INTEGER NOT NULL DEFAULT 0`.
+- Se sustituyó el índice de administrador por negocio por un índice único parcial que permite una sola cuenta global.
+- Se añadió una restricción que exige que el administrador global tenga `role='admin'` y `business_id IS NULL`, mientras que supervisores y empleados deben tener un negocio y no pueden ser administradores globales.
+
+Prueba transaccional con dos negocios ficticios, dos usuarios de distinto ámbito y una cuenta global: **PASS**. La prueba verificó que cada negocio tuviera su propio estado y que el estado del negocio Sur no apareciera al consultar el ámbito del Norte. Los datos sintéticos se eliminaron dentro de la misma transacción.
+
+Recuento posterior: 1 negocio preexistente, 0 usuarios, 0 estados y 2 registros de intentos de acceso. No se alteraron los registros preexistentes.
+
+Esta prueba valida restricciones y estructura de base de datos; todavía no valida el aislamiento de la API ni la interfaz. La API actual aún debe adaptarse antes de que el modelo pueda considerarse funcional.
