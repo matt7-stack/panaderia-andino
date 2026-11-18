@@ -18,6 +18,12 @@
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
+  let recoveryToken = '';
+  if (hash.startsWith('#recuperar=')) {
+    recoveryToken = decodeURIComponent(hash.slice('#recuperar='.length));
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) {
@@ -81,6 +87,30 @@
       } catch (error) { showMessage(error.message); button.disabled = false; }
     });
     document.getElementById('authName').focus();
+  }
+
+  function showRecovery() {
+    document.body.classList.add('auth-locked');
+    gate.classList.remove('auth-gate-hidden');
+    content.innerHTML = `<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1 id="authTitle">Crear nueva contraseña</h1><p>Elegí una contraseña nueva para tu cuenta de administrador global. El enlace se puede utilizar una sola vez.</p></div><form id="recoveryForm" class="auth-form"><label for="recoveryPassword">Nueva contraseña</label><input id="recoveryPassword" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="200" required placeholder="Mínimo 12 caracteres"><label for="recoveryConfirm">Confirmar contraseña</label><input id="recoveryConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="200" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Guardar contraseña <span>→</span></button></form>`;
+    document.getElementById('recoveryForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.currentTarget.querySelector('button');
+      const password = document.getElementById('recoveryPassword').value;
+      if (password.length < 12) return showMessage('Usá al menos 12 caracteres.');
+      if (password !== document.getElementById('recoveryConfirm').value) return showMessage('Las contraseñas no coinciden.');
+      button.disabled = true;
+      showMessage('');
+      try {
+        await api('/api/auth/recover', { method: 'POST', body: JSON.stringify({ token: recoveryToken, password }) });
+        recoveryToken = '';
+        showLogin('Contraseña actualizada correctamente. Iniciá sesión con tu nueva contraseña.');
+      } catch (error) {
+        showMessage(error.message);
+        button.disabled = false;
+      }
+    });
+    document.getElementById('recoveryPassword').focus();
   }
 
   const appMode = new URLSearchParams(window.location.search).get('app');
@@ -153,6 +183,7 @@
   };
 
   window.PanaderiaAuthReady = (async () => {
+    if (recoveryToken) { showRecovery(); return null; }
     try {
       const current = await api('/api/auth/me');
       if (current.authenticated && current.user) { establish(current.user); return current.user; }
