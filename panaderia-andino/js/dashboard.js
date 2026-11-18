@@ -1,7 +1,7 @@
 'use strict';
 
 (() => {
-  const STORAGE_KEY = 'panaderiaAndino_data_v2';
+  const STORAGE_KEY = 'gestionPanaderia_data_v3';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -35,7 +35,7 @@
     movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: 'Mi panadería', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
@@ -47,7 +47,13 @@
   let cloudSaveTimer = null;
   let cloudUpdatedAt = null;
   let cloudSaving = false;
+  let cloudSwitching = false;
   let cloudSyncInterval = null;
+  const scopedStorageKey = () => {
+    const user = window.PanaderiaAuth?.user;
+    const scope = user?.isPlatformAdmin === true ? selectedBusinessId : (user?.businessId || user?.id || 'anonymous');
+    return `${STORAGE_KEY}:${scope || 'unselected'}`;
+  };
   const cloudPayload = () => {
     const payload = JSON.parse(JSON.stringify(state));
     delete payload.users;
@@ -55,8 +61,8 @@
   };
   const saveState = (syncCloud = true) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      if (syncCloud && cloudReady && window.PanaderiaAuth?.user) {
+      localStorage.setItem(scopedStorageKey(), JSON.stringify(state));
+      if (syncCloud && cloudReady && !cloudSwitching && window.PanaderiaAuth?.user) {
         clearTimeout(cloudSaveTimer);
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
@@ -411,6 +417,59 @@
     return categories.map((category) => `<div class="category-item"><i class="bi ${type === 'income' ? 'bi-check-circle-fill' : 'bi-check-circle-fill'}"></i><span>${escapeHTML(category)}</span><small>${type === 'income' ? 'Ingreso' : 'Gasto'}</small><button type="button" class="mini-delete" title="Eliminar categoría" aria-label="Eliminar categoría" data-delete-category="${escapeHTML(category)}" data-category-type="${type}"><i class="bi bi-trash3"></i></button></div>`).join('');
   }
 
+  async function switchCloudBusiness(nextBusinessId, select) {
+    if (!nextBusinessId || nextBusinessId === selectedBusinessId) {
+      if (select) select.value = selectedBusinessId;
+      return false;
+    }
+    if (cloudSaving || cloudSwitching) {
+      if (select) select.value = selectedBusinessId;
+      notify('Esperá a que termine la sincronización antes de cambiar de negocio.');
+      return false;
+    }
+
+    cloudSwitching = true;
+    if (select) select.disabled = true;
+    const appShell = $('.app-shell');
+    if (appShell) appShell.setAttribute('inert', '');
+    try {
+      if (cloudSaveTimer) {
+        clearTimeout(cloudSaveTimer);
+        cloudSaveTimer = null;
+        cloudSaving = true;
+        try {
+          await window.PanaderiaAuth.api('/api/data', {
+            method: 'PUT',
+            body: JSON.stringify({ data: cloudPayload() })
+          });
+        } finally {
+          cloudSaving = false;
+        }
+      }
+
+      selectedBusinessId = nextBusinessId;
+      localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
+      cloudReady = false;
+      cloudUpdatedAt = null;
+      state = createEmptyState();
+      saveState(false);
+      renderAll();
+      await hydrateCloudData();
+      return cloudReady;
+    } catch (error) {
+      console.error('No se pudo cambiar de panadería.', error);
+      notify('No se pudo cambiar de panadería. Los datos anteriores no se copiarán al nuevo negocio.');
+      return false;
+    } finally {
+      cloudSwitching = false;
+      if (appShell) appShell.removeAttribute('inert');
+      if (select) {
+        select.disabled = false;
+        select.value = selectedBusinessId;
+      }
+    }
+  }
+
   function renderBusinessSwitcher() {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
     let bar = $('#businessSwitcher');
@@ -421,34 +480,16 @@
       bar.innerHTML = '<strong>Negocio activo</strong><select id="globalBusinessSelect" aria-label="Seleccionar negocio" style="min-width:220px;max-width:100%;padding:8px;border:1px solid #cdb9a6;border-radius:8px"></select><button id="globalAddBusiness" type="button" class="btn btn-sm btn-outline-primary">Agregar negocio</button><small id="globalBusinessHint" class="text-muted"></small>';
       document.body.prepend(bar);
       $('#globalBusinessSelect').addEventListener('change', async (event) => {
-        const nextBusinessId = event.target.value;
-        if (cloudSaving) {
-          event.target.value = selectedBusinessId;
-          notify('Esperá a que termine la sincronización antes de cambiar de negocio.');
-          return;
-        }
-        if (cloudSaveTimer) {
-          clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
-          try {
-            await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
-          } catch (error) {
-            event.target.value = selectedBusinessId;
-            notify('No se pudo guardar el negocio actual. No se cambió de negocio.');
-            return;
-          }
-        }
-        selectedBusinessId = nextBusinessId;
-        localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
-        cloudReady = false; cloudUpdatedAt = null;
-        await hydrateCloudData();
+        await switchCloudBusiness(event.target.value, event.target);
       });
       $('#globalAddBusiness').addEventListener('click', async () => {
         const name = window.prompt('Nombre de la nueva panadería:');
         if (!name || !name.trim()) return;
         try {
           const result = await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
-          await refreshCloudBusinesses(result.business.id);
-          notify('Negocio creado. Ya podés asignarle usuarios.');
+          await refreshCloudBusinesses(selectedBusinessId);
+          const switched = await switchCloudBusiness(result.business.id, $('#globalBusinessSelect'));
+          if (switched) notify('Negocio creado y seleccionado. Ya podés asignarle usuarios.');
         } catch (error) { notify(error.message); }
       });
     }
@@ -744,16 +785,31 @@
   }
 
   async function refreshCloudData() {
-    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
-    try { const result = await window.PanaderiaAuth.api('/api/data');
-      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
+    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSwitching || cloudSaveTimer) return;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/data');
+      const expectedBusinessId = window.PanaderiaAuth.user.isPlatformAdmin === true
+        ? selectedBusinessId : window.PanaderiaAuth.user.businessId;
+      if (result.businessId && result.businessId !== expectedBusinessId) return;
+      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) {
+        state = { ...createEmptyState(result.businessName || 'Mi panadería'), ...result.data };
+        delete state.users;
+        cloudUpdatedAt = result.updatedAt;
+        saveState(false);
+        renderAll();
+      }
     } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
 
   async function hydrateCloudData() {
-    if (!window.PanaderiaAuth?.user) return;
+    const user = window.PanaderiaAuth?.user;
+    if (!user) return;
+    cloudReady = false;
+    state = createEmptyState();
+    saveState(false);
+    renderAll();
     try {
-      if (window.PanaderiaAuth.user.isPlatformAdmin === true) {
+      if (user.isPlatformAdmin === true) {
         await refreshCloudBusinesses(selectedBusinessId);
         if (!selectedBusinessId) {
           cloudReady = false;
@@ -762,11 +818,33 @@
         }
       }
       const result = await window.PanaderiaAuth.api('/api/data');
-      if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
-      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
-      delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
-      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
-    } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
+      const expectedBusinessId = user.isPlatformAdmin === true ? selectedBusinessId : user.businessId;
+      if (result.businessId && result.businessId !== expectedBusinessId) {
+        throw new Error('La respuesta pertenece a otra panadería; se canceló la carga.');
+      }
+      if (result.data) {
+        state = { ...createEmptyState(result.businessName || 'Mi panadería'), ...result.data };
+        cloudUpdatedAt = result.updatedAt || null;
+      } else {
+        state = createEmptyState(result.businessName || 'Mi panadería');
+        const saved = await window.PanaderiaAuth.api('/api/data', {
+          method: 'PUT',
+          body: JSON.stringify({ data: cloudPayload() })
+        });
+        cloudUpdatedAt = saved.updatedAt || null;
+      }
+      delete state.users;
+      cloudReady = true;
+      saveState(false);
+      renderAll();
+      await refreshCloudUsers();
+      if (cloudSyncInterval) clearInterval(cloudSyncInterval);
+      cloudSyncInterval = setInterval(refreshCloudData, 10000);
+    } catch (error) {
+      cloudReady = false;
+      console.error('No se pudo cargar el espacio compartido.', error);
+      notify('No se pudieron cargar los datos compartidos. Recargá la página. No se guardaron datos de otra panadería.');
+    }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
   window.addEventListener('panaderia:authenticated', hydrateCloudData);
