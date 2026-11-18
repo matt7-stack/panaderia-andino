@@ -137,6 +137,55 @@ module.exports = async function handler(req, res) {
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
     }
+    if (path === '/api/auth/signup' && req.method === 'POST') {
+      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      const sql = await ensureSchema(); const input=body(req);
+      const businessName=String(input.businessName||'').trim().slice(0,100);
+      const name=String(input.name||'').trim().slice(0,70);
+      const email=String(input.email||'').trim().toLowerCase(); const password=input.password;
+      if (!businessName || !name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá el nombre del negocio, tu nombre, correo y contraseña de al menos 12 caracteres.'});
+      const businessId=crypto.randomUUID(); const userId=crypto.randomUUID();
+      const slug=(businessName.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'panaderia')+'-'+crypto.randomBytes(4).toString('hex');
+      const passwordHash=await hashPassword(password);
+      await sql`INSERT INTO businesses(id,name,slug,active) VALUES(${businessId},${businessName},${slug},TRUE)`;
+      try {
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${userId},${name},${email},${passwordHash},'admin',TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
+        return send(res,201,{user:rows[0]},{'Set-Cookie':sessionCookie(userId)});
+      } catch (error) {
+        await sql`DELETE FROM businesses WHERE id=${businessId}`;
+        throw error;
+      }
+    }
+    if (path.startsWith('/api/platform/')) {
+      const platformUser=await authenticated(req,res,false); if (!platformUser) return;
+      if (!platformUser.is_platform_admin) return send(res,403,{error:'Solo el administrador de la plataforma puede gestionar panaderías.'});
+      const sql=db();
+      if (path === '/api/platform/businesses' && req.method === 'GET') {
+        const rows=await sql`SELECT b.id,b.name,b.slug,b.active,b.created_at,COUNT(DISTINCT u.id)::int AS user_count,(SELECT email FROM app_users WHERE business_id=b.id AND role='admin' ORDER BY created_at ASC LIMIT 1) AS owner_email FROM businesses b LEFT JOIN app_users u ON u.business_id=b.id GROUP BY b.id ORDER BY b.created_at DESC`;
+        return send(res,200,{businesses:rows});
+      }
+      if (path === '/api/platform/businesses' && req.method === 'POST') {
+        const input=body(req); const businessName=String(input.businessName||'').trim().slice(0,100); const name=String(input.name||'').trim().slice(0,70);
+        const email=String(input.email||'').trim().toLowerCase(); const password=input.password;
+        if (!businessName || !name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá negocio, responsable, correo y contraseña de al menos 12 caracteres.'});
+        const businessId=crypto.randomUUID(); const userId=crypto.randomUUID();
+        const slug=(businessName.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'panaderia')+'-'+crypto.randomBytes(4).toString('hex');
+        const passwordHash=await hashPassword(password);
+        await sql`INSERT INTO businesses(id,name,slug,active) VALUES(${businessId},${businessName},${slug},TRUE)`;
+        try {
+          await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${userId},${name},${email},${passwordHash},'admin',TRUE,${businessId},FALSE)`;
+        } catch(error) { await sql`DELETE FROM businesses WHERE id=${businessId}`; throw error; }
+        return send(res,201,{ok:true,business:{id:businessId,name:businessName,slug,active:true},owner:{name,email}});
+      }
+      if (path === '/api/platform/businesses' && req.method === 'PATCH') {
+        const input=body(req); const id=String(input.id||'');
+        if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Indicá la panadería y su estado.'});
+        const rows=await sql`UPDATE businesses SET active=${input.active} WHERE id=${id} RETURNING id,name,slug,active,created_at`;
+        if (!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
+        return send(res,200,{business:rows[0]});
+      }
+      return send(res,404,{error:'Ruta de plataforma no encontrada.'});
+    }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
