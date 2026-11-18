@@ -20,6 +20,10 @@
 
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) {
+      const businessId = localStorage.getItem('gestionPanaderia_businessId');
+      if (businessId && !headers['X-Business-Id']) headers['X-Business-Id'] = businessId;
+    }
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
     let result = {};
@@ -88,11 +92,11 @@
     const meta = document.querySelector('.user-meta small');
     if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
     const adminNav = document.getElementById('adminNavLink');
-    if (adminNav) adminNav.hidden = user.role !== 'admin';
+    if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
-    if (usersTab) usersTab.hidden = user.role !== 'admin';
-    if (usersPanel) usersPanel.hidden = user.role !== 'admin';
+    if (usersTab) usersTab.hidden = user.isPlatformAdmin !== true;
+    if (usersPanel) usersPanel.hidden = user.isPlatformAdmin !== true;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
