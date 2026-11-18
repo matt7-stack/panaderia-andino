@@ -263,6 +263,7 @@ module.exports = async function handler(req, res) {
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
+    console.error('[panaderia-api]', { path, method:req.method, code:err?.code || null, message:err?.message || String(err) });
     if (err && err.code==='23505') return send(res,409,{error:'Ya existe un usuario con ese correo.'});
     return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
   }
