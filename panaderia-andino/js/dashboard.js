@@ -734,6 +734,32 @@
       try { await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'PATCH', body: JSON.stringify({ id: business.id, active }) }); await refreshCloudBusinesses(selectedBusinessId); renderAdminPanel(); notify('Estado de la panadería actualizado.'); } catch (error) { notify(error.message); }
     }
   });
+  const adminDescriptions = {
+    overview: 'Resumen general, indicadores financieros y actividad reciente.',
+    businesses: 'Administrá las panaderías registradas: revisá usuarios, editá nombres y activá o suspendé negocios.',
+    users: 'Gestioná cuentas, roles, accesos y restablecimiento de contraseñas desde la administración de usuarios.',
+    finance: 'Consultá indicadores y descargá o restaurá copias de seguridad y reportes.',
+    security: 'Herramientas de seguridad, avisos de pagos y acciones sensibles del sistema.'
+  };
+  function selectAdminSection(name) {
+    const page = $('#page-administracion'); if (!page) return;
+    const selected = adminDescriptions[name] ? name : 'overview';
+    $('[data-admin-tab]', page).forEach(button => {
+      const active = button.dataset.adminTab === selected;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    $('[data-admin-section]', page).forEach(panel => {
+      panel.hidden = panel.dataset.adminSection !== selected;
+    });
+    const description = $('#adminSectionDescription');
+    if (description) description.textContent = adminDescriptions[selected];
+  }
+  $('#page-administracion')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-admin-tab]');
+    if (button) selectAdminSection(button.dataset.adminTab);
+  });
+  selectAdminSection('overview');
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);
   $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
