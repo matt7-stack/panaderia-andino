@@ -99,3 +99,23 @@ Se adaptó `api/[...path].js` para trabajar con el esquema real de desarrollo:
 - **Pendiente:** pruebas de integración ejecutando las rutas HTTP contra la rama Neon aislada, incluyendo intentos de acceso cruzado y CRUD de negocios/usuarios.
 - **Pendiente:** adaptar la interfaz para que el administrador global pueda seleccionar el negocio activo y enviar `X-Business-Id`; el formulario actual de alta de usuarios aún no envía `businessId`.
 - No se desplegó la API, no se modificaron variables de entorno ni se tocó producción.
+
+
+## Interfaz de administración global (18 nov 2026)
+
+Se añadió en la rama feature:
+
+- Selector persistente de panadería para la cuenta global.
+- Alta de negocios desde el selector.
+- Envío automático del encabezado `X-Business-Id` en llamadas autenticadas del administrador global.
+- Selector de negocio obligatorio al crear supervisores o empleados.
+- Al cambiar de negocio, la interfaz intenta guardar los cambios pendientes en el negocio anterior antes de cambiar el ámbito; si la sincronización está en curso o falla, cancela el cambio.
+- Las pestañas de administración de usuarios se muestran únicamente a la cuenta global identificada por `isPlatformAdmin`.
+
+### Validación estática posterior
+
+Los tres archivos modificados (`api/[...path].js`, `js/auth.js` y `js/dashboard.js`) pasaron comprobación de sintaxis JavaScript. La comparación con `main` confirma que la rama feature está 19 commits por delante y no está detrás.
+
+Se volvió a consultar únicamente el recuento de la rama Neon aislada: 1 negocio, 0 usuarios, 0 estados y 2 intentos de acceso. No se insertaron ni eliminaron datos durante esta comprobación.
+
+**Limitación importante:** todavía no se ejecutó la aplicación contra Neon mediante peticiones HTTP reales ni se regeneró el bundle de producción. Por ello no se considera terminada la prueba funcional; la rama sigue sin desplegarse y producción permanece intacta.
