@@ -115,3 +115,23 @@ body.auth-locked .app-shell{visibility:hidden}
   .sidebar-label { padding-bottom: 7px; }
   .nav-menu .nav-link { min-height: 38px; }
 }
+
+
+/* Administración: tarjetas financieras alineadas */
+#page-administracion .admin-tools-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:16px}
+#page-administracion .admin-tool-card{display:flex;flex-direction:column;align-items:stretch;min-width:0;min-height:100%;height:100%;padding:20px}
+#page-administracion .admin-tool-card .panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-height:76px;margin-bottom:14px}
+#page-administracion .admin-tool-card .panel-heading>div{min-width:0}
+#page-administracion .admin-tool-card .panel-heading h3{margin:0 0 6px}
+#page-administracion .admin-tool-card .panel-heading p{margin:0;line-height:1.55}
+#page-administracion .admin-tool-card .admin-finance-metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}
+#page-administracion .admin-tool-card .admin-finance-metrics>div{min-width:0;padding:11px 9px;border:1px solid var(--line);border-radius:9px;background:#fffefa}
+#page-administracion .admin-tool-card .admin-finance-metrics small{display:block;font-size:9px}
+#page-administracion .admin-tool-card .admin-finance-metrics strong{display:block;overflow-wrap:anywhere;font-size:clamp(12px,1.2vw,17px)}
+#page-administracion .admin-tool-card>p{line-height:1.6}
+#page-administracion .admin-tool-card .admin-tool-action{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;min-height:40px;margin-top:auto;padding:10px 14px;white-space:normal;text-align:center}
+#page-administracion .admin-tool-card>label.admin-tool-action{cursor:pointer}
+#page-administracion .admin-tool-card #adminNotificationStatus{min-height:44px;margin:0 0 14px;padding:11px;border-radius:8px;background:#f8f3ec}
+#page-administracion .admin-tool-card #adminRestoreBackupInput+p{margin-top:14px}
+@media(max-width:1050px){#page-administracion .admin-tools-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#page-administracion .admin-tools-grid{grid-template-columns:minmax(0,1fr);gap:12px}#page-administracion .admin-tool-card{min-height:0;padding:16px}#page-administracion .admin-tool-card .panel-heading{min-height:0}#page-administracion .admin-tool-card .admin-tool-action{width:100%}}
