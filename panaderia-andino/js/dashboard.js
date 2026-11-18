@@ -115,7 +115,7 @@
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
     if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
@@ -125,7 +125,7 @@
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
