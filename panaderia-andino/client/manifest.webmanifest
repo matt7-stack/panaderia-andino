@@ -1,0 +1,25 @@
+{
+  "id": "/client/",
+  "name": "Gestión Panadería · Clientes",
+  "short_name": "Mi Panadería",
+  "description": "Gestión diaria de tu panadería.",
+  "lang": "es-PY",
+  "start_url": "/client/",
+  "scope": "/client/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#fbf5eb",
+  "theme_color": "#653820",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
