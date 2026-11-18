@@ -33,7 +33,10 @@ html = html
   .replace('<meta name="application-name" content="Panadería Andino">', '<meta name="application-name" content="Gestión Panadería">')
   .replace('<meta name="apple-mobile-web-app-title" content="Panadería Andino">', '<meta name="apple-mobile-web-app-title" content="Gestión Panadería">')
   .replace('<title>Panadería Andino | Gestión</title>', '<title>Gestión Panadería</title>')
-  .replace('<div class="brand-name">Panadería Andino</div>', '<div class="brand-name">Gestión Panadería</div>');
+  .replace('aria-label="Panadería Andino, inicio"', 'aria-label="Gestión Panadería, inicio"')
+  .replace('<span class="brand-name">Panadería<br>Andino</span>', '<span class="brand-name">Gestión<br>Panadería</span>')
+  .replace('<span>Panadería Andino</span><i class="bi bi-chevron-right"></i>', '<span>Gestión Panadería</span><i class="bi bi-chevron-right"></i>')
+  .replace('Explicación práctica de cada sección, botón y control de Panadería Andino.', 'Explicación práctica de cada sección, botón y control de Gestión Panadería.');
 
 const output = path.join(root, 'app.bundle.html');
 fs.writeFileSync(output, html);
