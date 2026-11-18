@@ -304,9 +304,9 @@ input[type="date"], input[type="month"] {
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <a class="brand" href="#dashboard" data-page-link="dashboard" aria-label="Panadería Andino, inicio">
+      <a class="brand" href="#dashboard" data-page-link="dashboard" aria-label="Gestión Panadería, inicio">
         <span class="brand-mark"><i class="bi bi-basket2-fill"></i><span>✦</span></span>
-        <span class="brand-name">Panadería<br>Andino</span>
+        <span class="brand-name">Gestión<br>Panadería</span>
         <span class="brand-caption">GESTIÓN DEL NEGOCIO</span>
       </a>
 
@@ -330,7 +330,7 @@ input[type="date"], input[type="month"] {
     <main class="main-content">
       <header class="topbar">
         <button class="btn icon-button mobile-menu-button" id="menuToggle" type="button" aria-label="Abrir menú" aria-expanded="false"><i class="bi bi-list"></i></button>
-        <div class="breadcrumb-label"><span>Panadería Andino</span><i class="bi bi-chevron-right"></i><strong id="breadcrumbCurrent">Dashboard</strong></div>
+        <div class="breadcrumb-label"><span>Gestión Panadería</span><i class="bi bi-chevron-right"></i><strong id="breadcrumbCurrent">Dashboard</strong></div>
         <div class="topbar-actions">
           <label class="month-picker" id="globalMonthPicker"><i class="bi bi-calendar3"></i><span class="visually-hidden">Mes del resumen</span><input type="month" id="monthFilter" aria-label="Seleccionar mes"></label>
           <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div>
@@ -420,7 +420,7 @@ input[type="date"], input[type="month"] {
 
         <!-- GUÍA DE USO -->
         <section class="page-view" id="page-guia-uso" data-page="guia-uso">
-          <div class="page-heading"><div><p class="eyebrow">AYUDA DEL SISTEMA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Explicación práctica de cada sección, botón y control de Panadería Andino.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">AYUDA DEL SISTEMA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Explicación práctica de cada sección, botón y control de Gestión Panadería.</p></div></div>
           <div class="panel settings-card mb-3">
             <div class="panel-heading"><div><h3>Primeros pasos</h3><p>Cómo orientarte dentro del sistema.</p></div></div>
             <ol class="mb-0">
@@ -832,7 +832,7 @@ input[type="date"], input[type="month"] {
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -1069,7 +1069,7 @@ input[type="date"], input[type="month"] {
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Gestión Panadería', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
     link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
@@ -1085,7 +1085,7 @@ input[type="date"], input[type="month"] {
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mi panadería';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
