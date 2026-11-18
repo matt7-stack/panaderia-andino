@@ -387,7 +387,7 @@ input[type="date"], input[type="month"] {
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DEL PERSONAL</p><h1><i class="bi bi-people heading-page-icon"></i> Empleados</h1><p class="page-subtitle">Administrá los datos del personal y registrá sus pagos diarios o mensuales.</p></div><div class="heading-actions"><button class="btn btn-outline-bakery" type="button" id="payEmployeeButton"><i class="bi bi-cash-coin"></i> Registrar pago</button><button class="btn btn-bakery" type="button" id="addEmployeeButton"><i class="bi bi-person-plus"></i> Agregar empleado</button></div></div>
           <div class="summary-grid three-cards"><article class="summary-card income-card"><p class="summary-label">Empleados activos</p><h2 id="employeeCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Pagos registrados este mes</p><h2 id="employeePayrollTotal">Gs. 0</h2></article><article class="summary-card pending-card"><p class="summary-label">Pagos históricos</p><h2 id="employeePaymentsCount">0</h2></article></div>
           <section class="panel table-panel"><div class="panel-heading p-3 mb-0"><div><h3>Personal</h3><p>Salario/jornal de referencia y estado de cada empleado.</p></div></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>EMPLEADO</th><th>CARGO</th><th>MONTO BASE</th><th>FRECUENCIA</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="employeesTableBody"></tbody></table></div></section>
-          <section class="panel table-panel mt-3"><div class="panel-heading p-3 mb-0"><div><h3>Historial de pagos</h3><p>Cada pago se registra una sola vez como gasto en el control financiero.</p></div></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>EMPLEADO</th><th>CONCEPTO</th><th>MÉTODO</th><th class="text-end">IMPORTE</th></tr></thead><tbody id="employeePaymentsTableBody"></tbody></table></div></section>
+          <section class="panel table-panel mt-3"><div class="panel-heading p-3 mb-0"><div><h3>Historial de pagos</h3><p>Cada pago se registra una sola vez como gasto en el control financiero.</p></div></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>EMPLEADO</th><th>CONCEPTO</th><th>MÉTODO</th><th class="text-end">IMPORTE</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="employeePaymentsTableBody"></tbody></table></div></section>
         </section>
 
         <!-- ADMINISTRACIÓN -->
@@ -1024,7 +1024,7 @@ input[type="date"], input[type="month"] {
     const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     $('#employeeCount').textContent = active.length; $('#employeePayrollTotal').textContent = money(payroll); $('#employeePaymentsCount').textContent = payments.length;
     $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago" aria-label="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" type="button" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado" aria-label="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-employee="${escapeHTML(employee.id)}" title="Eliminar empleado" aria-label="Eliminar empleado"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
-    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
+    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td class="text-center"><button class="icon-action danger" type="button" data-delete-employee-payment="${escapeHTML(payment.id)}" title="Eliminar pago" aria-label="Eliminar pago"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
   function renderAdminPanel() {
@@ -1220,6 +1220,19 @@ input[type="date"], input[type="month"] {
       state.employees = (state.employees || []).filter((item) => item.id !== id);
       saveState(); renderEmployees(); renderAdminPanel(); notify('Empleado eliminado. Los pagos históricos se conservaron.');
     }
+  });
+  $('#employeePaymentsTableBody').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-employee-payment]');
+    if (!button) return;
+    if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede eliminar pagos.'); return; }
+    const paymentId = button.dataset.deleteEmployeePayment;
+    const payment = (state.employeePayments || []).find((item) => item.id === paymentId);
+    if (!payment) { notify('No se encontró el pago seleccionado.'); return; }
+    if (!confirmDelete(`¿Eliminar únicamente el pago de ${payment.employeeName} por ${money(payment.amount)} del ${dateFormat(payment.date)}? También se quitará su movimiento de gasto asociado. El empleado y los demás registros permanecerán.`)) return;
+    state.employeePayments = (state.employeePayments || []).filter((item) => item.id !== paymentId);
+    state.movements = (state.movements || []).filter((item) => item.employeePaymentId !== paymentId);
+    saveState(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel();
+    notify('Pago y gasto asociado eliminados. El empleado y los demás registros se conservaron.');
   });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);  $('#adminResetDataButton').addEventListener('click', async () => {
     const button = $('#adminResetDataButton');
