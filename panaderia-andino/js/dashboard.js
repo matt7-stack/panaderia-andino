@@ -41,6 +41,8 @@
 
   let state = createEmptyState();
   let cloudUsers = [];
+  let cloudBusinesses = [];
+  let selectedBusinessId = localStorage.getItem('gestionPanaderia_businessId') || '';
   let cloudReady = false;
   let cloudSaveTimer = null;
   let cloudUpdatedAt = null;
@@ -409,6 +411,49 @@
     return categories.map((category) => `<div class="category-item"><i class="bi ${type === 'income' ? 'bi-check-circle-fill' : 'bi-check-circle-fill'}"></i><span>${escapeHTML(category)}</span><small>${type === 'income' ? 'Ingreso' : 'Gasto'}</small><button type="button" class="mini-delete" title="Eliminar categoría" aria-label="Eliminar categoría" data-delete-category="${escapeHTML(category)}" data-category-type="${type}"><i class="bi bi-trash3"></i></button></div>`).join('');
   }
 
+  function renderBusinessSwitcher() {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+    let bar = $('#businessSwitcher');
+    if (!bar) {
+      bar = document.createElement('section');
+      bar.id = 'businessSwitcher';
+      bar.style.cssText = 'position:sticky;top:0;z-index:1030;background:#fff8ef;border-bottom:1px solid #ead9c8;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+      bar.innerHTML = '<strong>Negocio activo</strong><select id="globalBusinessSelect" aria-label="Seleccionar negocio" style="min-width:220px;max-width:100%;padding:8px;border:1px solid #cdb9a6;border-radius:8px"></select><button id="globalAddBusiness" type="button" class="btn btn-sm btn-outline-primary">Agregar negocio</button><small id="globalBusinessHint" class="text-muted"></small>';
+      document.body.prepend(bar);
+      $('#globalBusinessSelect').addEventListener('change', async (event) => {
+        selectedBusinessId = event.target.value;
+        localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
+        cloudReady = false; cloudUpdatedAt = null;
+        await hydrateCloudData();
+      });
+      $('#globalAddBusiness').addEventListener('click', async () => {
+        const name = window.prompt('Nombre de la nueva panadería:');
+        if (!name || !name.trim()) return;
+        try {
+          const result = await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+          await refreshCloudBusinesses(result.business.id);
+          notify('Negocio creado. Ya podés asignarle usuarios.');
+        } catch (error) { notify(error.message); }
+      });
+    }
+    const select = $('#globalBusinessSelect');
+    select.innerHTML = '<option value="">Seleccioná una panadería</option>' + cloudBusinesses.map(b => '<option value="' + escapeHTML(b.id) + '">' + escapeHTML(b.name) + (b.active ? '' : ' (inactiva)') + '</option>').join('');
+    select.value = selectedBusinessId;
+    $('#globalBusinessHint').textContent = cloudBusinesses.length ? 'Los datos se mantienen separados por negocio.' : 'Creá el primer negocio para comenzar.';
+  }
+
+  async function refreshCloudBusinesses(preferredId = '') {
+    const result = await window.PanaderiaAuth.api('/api/admin/businesses');
+    cloudBusinesses = result.businesses || [];
+    if (preferredId) selectedBusinessId = preferredId;
+    if (!cloudBusinesses.some(b => b.id === selectedBusinessId && b.active)) {
+      selectedBusinessId = (cloudBusinesses.find(b => b.active) || {}).id || '';
+    }
+    if (selectedBusinessId) localStorage.setItem('gestionPanaderia_businessId', selectedBusinessId);
+    else localStorage.removeItem('gestionPanaderia_businessId');
+    renderBusinessSwitcher();
+  }
+
   function openSimpleModal(mode, data = {}) {
     simpleModalMode = mode; simpleModalData = data;
     const fields = $('#simpleModalFields');
@@ -433,7 +478,8 @@
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
+      const businessOptions = cloudBusinesses.filter(b => b.active).map(b => '<option value="' + escapeHTML(b.id) + '"' + (b.id === selectedBusinessId ? ' selected' : '') + '>' + escapeHTML(b.name) + '</option>').join('');
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><div class="simple-modal-field"><label for="simpleBusiness">Panadería asignada</label><select id="simpleBusiness" required>' + businessOptions + '</select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -595,7 +641,7 @@
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId: $('#simpleBusiness')?.value }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -675,7 +721,7 @@
   }
 
   async function refreshCloudUsers() {
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel();
@@ -691,6 +737,14 @@
   async function hydrateCloudData() {
     if (!window.PanaderiaAuth?.user) return;
     try {
+      if (window.PanaderiaAuth.user.isPlatformAdmin === true) {
+        await refreshCloudBusinesses(selectedBusinessId);
+        if (!selectedBusinessId) {
+          cloudReady = false;
+          notify('Creá una panadería y seleccionála para cargar sus datos.');
+          return;
+        }
+      }
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
       else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
