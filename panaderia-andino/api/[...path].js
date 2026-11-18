@@ -202,7 +202,7 @@ module.exports = async function handler(req, res) {
       }
       if (req.method === 'PATCH') {
         const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
-        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
+        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' AND business_id=${admin.business_id} RETURNING id,name,email,role,active,created_at`;
         if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
         return send(res,200,{user:publicUser(rows[0])});
       }
