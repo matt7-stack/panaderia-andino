@@ -15,16 +15,6 @@
   <style>html,body{width:100%;height:100%;margin:0;background:#fbf5eb}body{overflow:hidden}iframe{display:block;width:100%;height:100%;height:100dvh;border:0}</style>
 </head>
 <body>
-  <iframe id="adminAppFrame" title="Gestión Panadería Administrador" src="/app.bundle.html?app=admin#administracion" allow="clipboard-read; clipboard-write"></iframe>
-  <script>
-    // El panel vive dentro de un iframe: reenviar el fragmento de recuperación
-    // desde la URL exterior para que auth.js pueda mostrar el formulario.
-    (function () {
-      var fragment = window.location.hash || '';
-      if (/^#recuperar=[a-f0-9]{64}$/i.test(fragment) || /^#emitir-recuperacion=/.test(fragment)) {
-        document.getElementById('adminAppFrame').src = '/app.bundle.html?app=admin' + fragment;
-      }
-    })();
-  </script>
+  <iframe title="Gestión Panadería Administrador" src="/app.bundle.html?app=admin#administracion" allow="clipboard-read; clipboard-write"></iframe>
 </body>
 </html>
