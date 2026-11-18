@@ -88,7 +88,7 @@
     document.body.dataset.appMode = appMode;
     const modeStyle = document.createElement('style');
     modeStyle.textContent = appMode === 'admin'
-      ? 'body[data-app-mode="admin"] .nav-menu [data-page-link]:not([data-page-link="administracion"]){display:none!important} body[data-app-mode="admin"] .page-view:not([data-page="administracion"]){display:none!important}'
+      ? 'body[data-app-mode="admin"] .page-view:not([data-page="administracion"]){display:none!important} body[data-app-mode="admin"] #page-administracion{display:block!important} body[data-app-mode="admin"] #page-administracion[hidden]{display:block!important}'
       : 'body[data-app-mode="client"] #adminNavLink,body[data-app-mode="client"] #page-administracion{display:none!important}';
     document.head.appendChild(modeStyle);
   }
@@ -126,6 +126,18 @@
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
     if (usersTab) usersTab.hidden = user.isPlatformAdmin !== true;
     if (usersPanel) usersPanel.hidden = user.isPlatformAdmin !== true;
+    if (appMode === 'admin') {
+      const adminPage = document.getElementById('page-administracion');
+      document.querySelectorAll('.page-view').forEach(view => view.classList.toggle('active', view === adminPage));
+      if (adminPage) adminPage.classList.add('active');
+      document.querySelectorAll('[data-page-link]').forEach(link => {
+        const active = link.dataset.pageLink === 'administracion';
+        link.hidden = !active;
+        link.classList.toggle('active', active);
+      });
+      const title = document.getElementById('breadcrumbCurrent');
+      if (title) title.textContent = 'Administración';
+    }
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
