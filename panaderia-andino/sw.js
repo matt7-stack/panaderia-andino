@@ -1,4 +1,4 @@
-const CACHE_NAME = 'panaderia-andino-pwa-v2';
+const CACHE_NAME = 'gestion-panaderia-pwa-v3';
 const APP_SHELL = ['/app.bundle.html', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
