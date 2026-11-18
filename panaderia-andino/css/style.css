@@ -135,3 +135,10 @@ body.auth-locked .app-shell{visibility:hidden}
 #page-administracion .admin-tool-card #adminRestoreBackupInput+p{margin-top:14px}
 @media(max-width:1050px){#page-administracion .admin-tools-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){#page-administracion .admin-tools-grid{grid-template-columns:minmax(0,1fr);gap:12px}#page-administracion .admin-tool-card{min-height:0;padding:16px}#page-administracion .admin-tool-card .panel-heading{min-height:0}#page-administracion .admin-tool-card .admin-tool-action{width:100%}}
+
+/* Manual exclusivo de la cuenta administradora */
+#adminGuideSection .admin-guide-subsection{padding:14px 0;border-top:1px solid var(--line,#e8e1d8)}
+#adminGuideSection .admin-guide-subsection:first-of-type{border-top:0}
+#adminGuideSection .admin-guide-subsection h4{font-size:15px;font-weight:700;margin:0 0 8px}
+#adminGuideSection .admin-guide-subsection ul{margin:0;padding-left:20px}
+#adminGuideSection .admin-guide-subsection li{margin:6px 0;line-height:1.55}
