@@ -83,7 +83,34 @@
     document.getElementById('authName').focus();
   }
 
+  const appMode = new URLSearchParams(window.location.search).get('app');
+  if (appMode === 'admin' || appMode === 'client') {
+    document.body.dataset.appMode = appMode;
+    const modeStyle = document.createElement('style');
+    modeStyle.textContent = appMode === 'admin'
+      ? 'body[data-app-mode="admin"] .nav-menu [data-page-link]:not([data-page-link="administracion"]){display:none!important} body[data-app-mode="admin"] .page-view:not([data-page="administracion"]){display:none!important}'
+      : 'body[data-app-mode="client"] #adminNavLink,body[data-app-mode="client"] #page-administracion{display:none!important}';
+    document.head.appendChild(modeStyle);
+  }
+
+  function showWrongApp(message) {
+    document.body.classList.add('auth-locked');
+    gate.classList.remove('auth-gate-hidden');
+    content.innerHTML = `<div class="auth-heading"><span>ACCESO RESTRINGIDO</span><h1 id="authTitle">Aplicación incorrecta</h1><p>${esc(message)}</p></div><button class="auth-submit" id="wrongAppLogout" type="button">Cerrar sesión <span>→</span></button>`;
+    document.getElementById('wrongAppLogout').addEventListener('click', () => window.PanaderiaAuth?.logout());
+  }
+
   function establish(user) {
+    if (appMode === 'admin' && user.isPlatformAdmin !== true) {
+      window.PanaderiaAuth.user = user;
+      showWrongApp('Esta aplicación es exclusiva del administrador global. Ingresá desde Gestión Panadería Clientes.');
+      return;
+    }
+    if (appMode === 'client' && user.isPlatformAdmin === true) {
+      window.PanaderiaAuth.user = user;
+      showWrongApp('Esta es la aplicación para panaderías clientes. El administrador debe ingresar desde Gestión Panadería Administrador.');
+      return;
+    }
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
     gate.classList.add('auth-gate-hidden');
