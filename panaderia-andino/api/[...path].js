@@ -254,6 +254,7 @@ module.exports = async function handler(req, res) {
         const input=body(req); if (!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
         const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
         if (Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+        if (data.business && typeof data.business.name === 'string') { const businessName=data.business.name.trim().slice(0,100); if (businessName) await sql`UPDATE businesses SET name=${businessName} WHERE id=${user.business_id}`; }
         const saved=await sql`INSERT INTO app_state(data,updated_by,updated_at,business_id) VALUES(${serialized}::jsonb,${user.id},NOW(),${user.business_id}) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
         return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
       }
