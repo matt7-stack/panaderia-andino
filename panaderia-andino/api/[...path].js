@@ -167,8 +167,9 @@ module.exports = async function handler(req, res) {
     if (path === '/api/auth/create-recovery' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
       const expected = process.env.ADMIN_RECOVERY_SECRET || '';
+      const secretExpiresAt = Date.parse(process.env.ADMIN_RECOVERY_SECRET_EXPIRES_AT || '');
       const supplied = String(req.headers['x-admin-recovery'] || '');
-      if (!expected || expected.length < 32 || !safeEqual(supplied, expected)) {
+      if (!expected || expected.length < 32 || !Number.isFinite(secretExpiresAt) || Date.now() > secretExpiresAt || !safeEqual(supplied, expected)) {
         return send(res, 403, { error: 'El enlace de recuperación no es válido.' });
       }
       const sql = await ensureSchema();
