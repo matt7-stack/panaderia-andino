@@ -396,7 +396,7 @@
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
       const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
-      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
+      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-reset-user="${escapeHTML(user.id)}"><i class="bi bi-key"></i></button><button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
     $('#prefDateFormat').value = state.preferences.dateFormat || 'es-PY';
@@ -621,8 +621,20 @@
   $('#usersTableBody').addEventListener('click', async (event) => {
     const remove = event.target.closest('[data-delete-user]');
     const toggle = event.target.closest('[data-toggle-user]');
+    const reset = event.target.closest('[data-reset-user]');
     try {
-      if (toggle) {
+      if (reset) {
+        const user = cloudUsers.find((item) => item.id === reset.dataset.resetUser);
+        if (!user) return;
+        const password = window.prompt(`Nueva contraseña para ${user.name} (mínimo 12 caracteres):`);
+        if (password === null) return;
+        if (password.length < 12 || password.length > 200) { notify('La contraseña debe tener entre 12 y 200 caracteres.'); return; }
+        const confirmation = window.prompt('Repetí la nueva contraseña para confirmar:');
+        if (confirmation === null) return;
+        if (password !== confirmation) { notify('Las contraseñas no coinciden.'); return; }
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: reset.dataset.resetUser, password }) });
+        notify('Contraseña restablecida. La sesión anterior del usuario quedó invalidada.');
+      } else if (toggle) {
         const active = toggle.dataset.active !== 'true';
         await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
         await refreshCloudUsers();
