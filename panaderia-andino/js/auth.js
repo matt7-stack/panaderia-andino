@@ -91,6 +91,8 @@
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
     if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+    const adminGuide = document.getElementById('adminGuideSection');
+    if (adminGuide) adminGuide.hidden = user.isPlatformAdmin !== true;
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     const usersTab = document.querySelector('[data-settings-tab="users"]');
