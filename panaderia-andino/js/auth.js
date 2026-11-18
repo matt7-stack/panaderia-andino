@@ -154,7 +154,7 @@
     document.body.dataset.appMode = appMode;
     const modeStyle = document.createElement('style');
     modeStyle.textContent = appMode === 'admin'
-      ? 'body[data-app-mode="admin"] .page-view:not([data-page="administracion"]){display:none!important} body[data-app-mode="admin"] #page-administracion{display:block!important} body[data-app-mode="admin"] #page-administracion[hidden]{display:block!important}'
+      ? 'body[data-app-mode="admin"] .page-view:not([data-page="administracion"]):not([data-page="configuracion"]){display:none!important} body[data-app-mode="admin"] #page-administracion{display:block!important} body[data-app-mode="admin"] #page-administracion[hidden]{display:block!important} body[data-app-mode="admin"] #page-configuracion:not(.active){display:none!important} body[data-app-mode="admin"] #page-configuracion.active{display:block!important} body[data-app-mode="admin"] #page-configuracion .settings-panel:not(.active){display:none!important} body[data-app-mode="admin"] #page-configuracion .settings-panel.active{display:block!important} body[data-app-mode="admin"] #page-configuracion [data-settings-tab]:not([data-settings-tab="users"]){display:none!important}'
       : 'body[data-app-mode="client"] #adminNavLink,body[data-app-mode="client"] #page-administracion{display:none!important}';
     document.head.appendChild(modeStyle);
   }
