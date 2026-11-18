@@ -9,6 +9,7 @@
     "@neondatabase/serverless": "1.2.0"
   },
   "scripts": {
-    "build:bundle": "node scripts/build-bundle.js"
+    "build:bundle": "node scripts/build-bundle.js",
+    "build": "node scripts/build-bundle.js"
   }
 }
