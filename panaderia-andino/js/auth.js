@@ -19,8 +19,11 @@
   }
 
   let recoveryToken = '';
+  let recoveryIssueSecret = '';
   if (hash.startsWith('#recuperar=')) {
     recoveryToken = decodeURIComponent(hash.slice('#recuperar='.length));
+  } else if (hash.startsWith('#emitir-recuperacion=')) {
+    recoveryIssueSecret = decodeURIComponent(hash.slice('#emitir-recuperacion='.length));
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
@@ -89,6 +92,25 @@
     document.getElementById('authName').focus();
   }
 
+  async function issueRecoveryLink() {
+    document.body.classList.add('auth-locked');
+    content.innerHTML = '<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1 id="authTitle">Preparando enlace</h1><p>Estamos validando el acceso y preparando tu formulario de contraseña.</p></div><div class="auth-form"><div class="auth-help">No cierres esta página hasta que aparezca el formulario.</div><div id="authError" class="auth-error" role="alert" hidden></div></div>';
+    try {
+      const result = await api('/api/auth/create-recovery', {
+        method: 'POST',
+        headers: { 'X-Admin-Recovery': recoveryIssueSecret },
+        body: '{}'
+      });
+      recoveryIssueSecret = '';
+      recoveryToken = result.token;
+      history.replaceState(null, '', window.location.pathname + window.location.search + '#recuperar=' + encodeURIComponent(recoveryToken));
+      showRecovery();
+    } catch (error) {
+      const box = document.getElementById('authError');
+      if (box) { box.textContent = error.message; box.hidden = false; }
+    }
+  }
+
   function showRecovery() {
     document.body.classList.add('auth-locked');
     gate.classList.remove('auth-gate-hidden');
@@ -104,6 +126,7 @@
       try {
         await api('/api/auth/recover', { method: 'POST', body: JSON.stringify({ token: recoveryToken, password }) });
         recoveryToken = '';
+        history.replaceState(null, '', window.location.pathname + window.location.search);
         showLogin('Contraseña actualizada correctamente. Iniciá sesión con tu nueva contraseña.');
       } catch (error) {
         showMessage(error.message);
@@ -183,6 +206,7 @@
   };
 
   window.PanaderiaAuthReady = (async () => {
+    if (recoveryIssueSecret) { await issueRecoveryLink(); return null; }
     if (recoveryToken) { showRecovery(); return null; }
     try {
       const current = await api('/api/auth/me');
