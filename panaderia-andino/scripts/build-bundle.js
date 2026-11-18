@@ -40,6 +40,19 @@ html = html
   .replace('<span>ANDINO</span></div>', '<span>LOGO</span></div>')
   .replace('<span id="footerBusinessName">Panadería Andino</span>', '<span id="footerBusinessName">Mi panadería</span>');
 
+// Registrar el service worker para habilitar instalación PWA y actualización del shell.
+const pwaRegistration = `<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch((error) => console.error('No se pudo registrar la aplicación offline:', error));
+  });
+}
+</script>`;
+if (!html.includes("navigator.serviceWorker.register('/sw.js'")) {
+  html = html.replace('</body>', `${pwaRegistration}\n</body>`);
+}
+
 const output = path.join(root, 'app.bundle.html');
 fs.writeFileSync(output, html);
 console.log('Paquete actualizado y JavaScript validado: app.bundle.html');
