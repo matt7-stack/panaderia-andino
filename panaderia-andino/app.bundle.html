@@ -394,7 +394,7 @@ input[type="date"], input[type="month"] {
         <section class="page-view" id="page-administracion" data-page="administracion">
           <div class="page-heading"><div><p class="eyebrow">CONTROL Y SEGURIDAD</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Administración</h1><p class="page-subtitle">Herramientas para supervisar el sistema y administrar el negocio.</p></div></div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
-          <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Usuarios y permisos</h3><p>Creá cuentas, desactivá accesos y administrá roles.</p></div><span class="panel-heading-icon"><i class="bi bi-person-gear"></i></span></div><p class="page-subtitle mb-3">Solo el administrador principal puede gestionar las cuentas de acceso.</p><button class="btn btn-bakery" type="button" id="adminManageUsers"><i class="bi bi-people"></i> Gestionar usuarios</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Copia de seguridad</h3><p>Descargá una copia de los datos compartidos.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-arrow-down"></i></span></div><p class="page-subtitle mb-3">Guardá el archivo JSON en un lugar seguro. Esta acción no modifica la base de datos.</p><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-download"></i> Descargar respaldo</button></article></div>
+          <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Usuarios y permisos</h3><p>Creá cuentas, desactivá accesos y administrá roles.</p></div><span class="panel-heading-icon"><i class="bi bi-person-gear"></i></span></div><p class="page-subtitle mb-3">Solo el administrador principal puede gestionar las cuentas de acceso.</p><button class="btn btn-bakery" type="button" id="adminManageUsers"><i class="bi bi-people"></i> Gestionar usuarios</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Copia de seguridad</h3><p>Descargá una copia de los datos compartidos.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-arrow-down"></i></span></div><p class="page-subtitle mb-3">Guardá el archivo JSON en un lugar seguro. Esta acción no modifica la base de datos.</p><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-download"></i> Descargar respaldo</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Limpiar datos operativos</h3><p>Prepará el sistema para comenzar desde cero.</p></div><span class="panel-heading-icon"><i class="bi bi-trash3"></i></span></div><p class="page-subtitle mb-3">Elimina movimientos, notas emitidas y recibidas, empleados y pagos históricos. Conserva el administrador, las credenciales y la configuración del negocio.</p><div class="info-note mb-3"><i class="bi bi-exclamation-triangle"></i> Esta acción afecta a todos los dispositivos conectados y no se puede deshacer. Descargá primero un respaldo si necesitás conservar los registros.</div><button class="btn btn-outline-danger" type="button" id="adminResetDataButton"><i class="bi bi-trash3"></i> Limpiar datos operativos</button></article></div>
         </section>
 
         <section class="page-view" id="page-configuracion" data-page="configuracion">
@@ -463,7 +463,7 @@ input[type="date"], input[type="month"] {
               <li><strong>Desde / Hasta:</strong> delimitan el período por fecha. Completá uno o ambos campos para acotar la búsqueda.</li>
               <li><strong>Limpiar:</strong> borra la búsqueda y restablece todos los filtros.</li>
               <li><strong>Editar / Eliminar:</strong> modificá o quitá un movimiento desde las acciones de su fila.</li>
-              <li><strong>Exportar CSV:</strong> descarga los movimientos filtrados para abrirlos en una hoja de cálculo.</li>
+              <li><strong>Exportar CSV:</strong> descarga los movimientos filtrados para abrirlos en una hoja de cálculo.</li><li><strong>Limpiar datos operativos (solo administrador):</strong> elimina movimientos, notas, empleados y pagos históricos en todos los dispositivos, pero conserva el administrador y la configuración. Descargá un respaldo antes de usarlo; la acción no se puede deshacer.</li>
               <li><strong>Totales:</strong> Ingresos, Gastos y Diferencia resumen los resultados de los registros visibles en el período seleccionado.</li>
             </ul>
             <div class="info-note"><i class="bi bi-lightbulb"></i> Consejo: registrá cada operación una sola vez y comprobá la fecha, el tipo y el importe antes de guardar.</div>
@@ -1219,7 +1219,25 @@ input[type="date"], input[type="month"] {
       saveState(); renderEmployees(); renderAdminPanel(); notify('Empleado eliminado. Los pagos históricos se conservaron.');
     }
   });
-  $('#adminBackupButton').addEventListener('click', exportAdminBackup);
+  $('#adminBackupButton').addEventListener('click', exportAdminBackup);  $('#adminResetDataButton').addEventListener('click', async () => {
+    const button = $('#adminResetDataButton');
+    if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede realizar esta acción.'); return; }
+    if (!window.confirm('¿Confirmás limpiar los datos operativos de Panadería Andino? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
+    if (!window.confirm('Última confirmación: esta eliminación no se puede deshacer. ¿Continuar?')) return;
+    button.disabled = true;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/admin/reset-data', { method: 'POST', body: JSON.stringify({ confirm: true }) });
+      if (!result?.ok || !result.data) throw new Error('El servidor no confirmó la limpieza.');
+      state = { ...createEmptyState(), ...result.data, users: state.users || [] };
+      cloudUpdatedAt = result.updatedAt || cloudUpdatedAt;
+      saveState(false);
+      renderDashboard(); renderMovements(); renderInvoices(); renderEmployees(); renderAdminPanel();
+      notify('Datos operativos eliminados. El administrador y la configuración se conservaron.');
+    } catch (error) {
+      console.error('No se pudieron limpiar los datos operativos.', error);
+      notify(error.message || 'No se pudo completar la limpieza. Verificá la conexión.');
+    } finally { button.disabled = false; }
+  });
   $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
     event.preventDefault();
