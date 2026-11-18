@@ -165,6 +165,20 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/reset-data') {
+      const admin = await authenticated(req,res,true); if (!admin) return;
+      if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
+      const input = body(req);
+      if (input.confirm !== true) return send(res,400,{error:'Confirmá la limpieza de datos.'});
+      const sql = db();
+      const rows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
+      const current = rows[0]?.data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
+      const data = { ...current, movements: [], invoices: [], employees: [], employeePayments: [] };
+      delete data.users;
+      const serialized = JSON.stringify(data);
+      const saved = await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+      return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at || null});
+    }
     if (path === '/api/data') {
       const user = await authenticated(req,res,false); if (!user) return;
       const sql=db();
