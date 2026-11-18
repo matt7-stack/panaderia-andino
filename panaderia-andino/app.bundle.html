@@ -1550,5 +1550,13 @@ input[type="date"], input[type="month"] {
   if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
 })();
 </script>
+
+<script>
+if ('serviceWorker' in navigator) {
+ window.addEventListener('load', () => {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => console.error('No se pudo registrar la aplicación offline:', error));
+ });
+}
+</script>
 </body>
 </html>
