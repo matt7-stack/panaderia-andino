@@ -164,6 +164,37 @@ module.exports = async function handler(req, res) {
         RETURNING id,name,email,role,active,business_id,is_platform_admin,session_version`;
       return send(res, 201, { user: publicSessionUser(rows[0]) }, { 'Set-Cookie': sessionCookie(id, rows[0].session_version) });
     }
+    if (path === '/api/auth/create-recovery' && req.method === 'POST') {
+      if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
+      const expected = process.env.ADMIN_RECOVERY_SECRET || '';
+      const supplied = String(req.headers['x-admin-recovery'] || '');
+      if (!expected || expected.length < 32 || !safeEqual(supplied, expected)) {
+        return send(res, 403, { error: 'El enlace de recuperación no es válido.' });
+      }
+      const sql = await ensureSchema();
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+      const issuerHash = crypto.createHash('sha256').update(expected, 'utf8').digest('hex');
+      const issued = await sql`
+        WITH marker AS (
+          INSERT INTO admin_password_resets(token_hash,user_id,expires_at,used_at)
+          SELECT ${issuerHash},id,NOW()+INTERVAL '10 years',NOW()
+          FROM app_users
+          WHERE is_platform_admin=TRUE AND active=TRUE
+          ORDER BY created_at ASC
+          LIMIT 1
+          ON CONFLICT(token_hash) DO NOTHING
+          RETURNING user_id
+        )
+        INSERT INTO admin_password_resets(token_hash,user_id,expires_at)
+        SELECT ${tokenHash},user_id,NOW()+INTERVAL '30 minutes'
+        FROM marker
+        RETURNING expires_at
+      `;
+      if (!issued.length) return send(res, 409, { error: 'Este enlace de recuperación ya fue utilizado. Solicitá uno nuevo.' });
+      return send(res, 200, { token, expiresAt: issued[0].expires_at });
+    }
+
     if (path === '/api/auth/recover' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
       const sql = await ensureSchema();
