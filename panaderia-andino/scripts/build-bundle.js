@@ -24,8 +24,10 @@ if (inlineScripts.length < 2) {
 
 let index = 0;
 html = html.replace(inlineScriptPattern, () => {
-  const source = index++ === 0 ? auth : dashboard;
-  return source ? `<script>\n${source}\n</script>` : inlineScripts[index - 1][0];
+  const slot = index++;
+  if (slot === 0) return `<script>\n${auth}\n</script>`;
+  if (slot === 1) return `<script>\n${dashboard}\n</script>`;
+  return inlineScripts[slot][0];
 });
 
 html = html
