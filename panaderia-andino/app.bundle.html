@@ -1,4 +1,4 @@
-<!-- Panadería Andino | Versión 2.0.0 | Módulo Notas simplificado, gestión de empleados y Guía de uso -->
+<!-- Panadería Andino | Versión 2.0.1 | Resumen de notas emitidas y guía actualizada -->
 <!doctype html>
 <html lang="es-PY">
 <head>
@@ -438,7 +438,7 @@ input[type="date"], input[type="month"] {
               <li><strong>Ingresos del mes:</strong> suma de los movimientos clasificados como ingresos.</li>
               <li><strong>Gastos del mes:</strong> suma de los movimientos clasificados como gastos.</li>
               <li><strong>Resultado del mes:</strong> diferencia entre ingresos y gastos; un resultado positivo indica que ingresó más dinero del que salió.</li>
-              <li><strong>Notas pendientes:</strong> indicador informativo basado en los datos históricos de notas con saldo pendiente, si existen. Las notas nuevas ya no solicitan estado, total ni vencimiento.</li>
+              <li><strong>Notas pendientes:</strong> muestra el saldo pendiente de las notas emitidas a clientes. Solo considera notas emitidas con saldo registrado.</li>
               <li><strong>Gráfico Ingresos vs. gastos:</strong> compara los movimientos de los últimos seis meses; no requiere ingresar datos desde el gráfico.</li>
               <li><strong>Últimos movimientos / Ver todos:</strong> muestra actividad reciente. Tocá Ver todos para abrir Movimientos.</li>
               <li><strong>Accesos rápidos:</strong> Registrar ingreso abre un formulario de ingreso; Registrar gasto abre uno de gasto; Nueva nota te lleva a la sección Notas.</li>
@@ -463,21 +463,21 @@ input[type="date"], input[type="month"] {
               <li><strong>Desde / Hasta:</strong> delimitan el período por fecha. Completá uno o ambos campos para acotar la búsqueda.</li>
               <li><strong>Limpiar:</strong> borra la búsqueda y restablece todos los filtros.</li>
               <li><strong>Editar / Eliminar:</strong> modificá o quitá un movimiento desde las acciones de su fila.</li>
-              <li><strong>Exportar CSV:</strong> descarga los movimientos filtrados para abrirlos en una hoja de cálculo.</li><li><strong>Limpiar datos operativos (solo administrador):</strong> elimina movimientos, notas, empleados y pagos históricos en todos los dispositivos, pero conserva el administrador y la configuración. Descargá un respaldo antes de usarlo; la acción no se puede deshacer.</li>
+              <li><strong>Exportar CSV:</strong> descarga los movimientos filtrados para abrirlos en una hoja de cálculo.</li>
               <li><strong>Totales:</strong> Ingresos, Gastos y Diferencia resumen los resultados de los registros visibles en el período seleccionado.</li>
             </ul>
             <div class="info-note"><i class="bi bi-lightbulb"></i> Consejo: registrá cada operación una sola vez y comprobá la fecha, el tipo y el importe antes de guardar.</div>
           </div>
           <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>3. Notas</h3><p>Registro sencillo de documentos de ventas y compras.</p></div></div>
+            <div class="panel-heading"><div><h3>3. Notas</h3><p>Registro de notas emitidas a clientes.</p></div></div>
             <ul class="mb-0">
               <li><strong>Nueva nota:</strong> abre el formulario para registrar una nota.</li>
               <li><strong>Listado de notas emitidas:</strong> muestra las notas creadas para clientes (ventas). El módulo trabaja únicamente con notas emitidas.</li>
               <li><strong>N.º de nota:</strong> número identificador de cinco dígitos. El sistema propone el siguiente número disponible, por ejemplo 00001.</li>
-              <li><strong>Cliente / Proveedor:</strong> escribí el nombre de la persona o empresa relacionada con la nota.</li>
-              <li><strong>Fecha:</strong> seleccioná la fecha de emisión o recepción del documento.</li>
-              <li><strong>Concepto:</strong> describí brevemente qué se vendió o compró. Es opcional.</li>
-              <li><strong>Buscar:</strong> localizá notas por número o por cliente/proveedor.</li>
+              <li><strong>Cliente:</strong> escribí el nombre de la persona o empresa a quien se emitió la nota.</li>
+              <li><strong>Fecha:</strong> seleccioná la fecha de emisión de la nota.</li>
+              <li><strong>Concepto:</strong> describí brevemente el producto o servicio vendido. Es opcional.</li>
+              <li><strong>Buscar:</strong> localizá notas por número o por cliente.</li>
               <li><strong>Editar:</strong> usá el lápiz para corregir los datos de una nota. <strong>Eliminar:</strong> usá la papelera para quitarla.</li>
               <li><strong>Total:</strong> ingresá el importe completo de la nota en guaraníes. El total se conserva al editar y se muestra en el listado de notas emitidas.</li><li><strong>Importante:</strong> el formulario de notas no utiliza campos de estado ni fecha de vencimiento.</li>
             </ul>
@@ -493,6 +493,7 @@ input[type="date"], input[type="month"] {
               <li><strong>Pagos registrados este mes:</strong> suma de los pagos de empleados correspondientes al mes actual.</li>
               <li><strong>Pagos históricos:</strong> cantidad de pagos guardados.</li>
               <li><strong>Historial de pagos:</strong> muestra fecha, empleado, concepto, método e importe. Cada pago se registra también como gasto financiero para evitar duplicar el registro manual.</li>
+              <li><strong>Eliminar pago:</strong> solo el administrador puede usar la papelera del historial y confirmar para quitar ese pago y su gasto asociado. El empleado y los demás registros permanecen.</li>
             </ul>
           </div>
           <div class="panel settings-card mb-3">
@@ -519,6 +520,7 @@ input[type="date"], input[type="month"] {
               <li><strong>Última sincronización:</strong> referencia de la última actualización sincronizada con el servidor.</li>
               <li><strong>Gestionar usuarios:</strong> abre la administración de cuentas y permisos.</li>
               <li><strong>Descargar respaldo:</strong> descarga una copia de los datos compartidos en formato JSON. Guardala en un lugar seguro; descargarla no modifica los datos del sistema.</li>
+              <li><strong>Limpiar datos operativos:</strong> disponible solo para el administrador principal. Borra movimientos, notas emitidas y recibidas, empleados y pagos históricos de todos los dispositivos; conserva la cuenta administradora y la configuración. Requiere dos confirmaciones y no se puede deshacer. Descargá un respaldo antes de usarla.</li>
             </ul>
           </div>
           <div class="panel settings-card">
@@ -818,7 +820,7 @@ input[type="date"], input[type="month"] {
 
   function updateCounters() {
     $('#movementNavCount').textContent = state.movements.length;
-    $('#invoiceNavCount').textContent = state.invoices.length;
+    $('#invoiceNavCount').textContent = state.invoices.filter((invoice) => invoice.direction === 'issued').length;
     $('#footerYear').textContent = new Date().getFullYear();
     $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
@@ -838,7 +840,7 @@ input[type="date"], input[type="month"] {
     const income = sumType(monthMovements, 'income');
     const expense = sumType(monthMovements, 'expense');
     const profit = income - expense;
-    const pending = state.invoices.reduce((total, invoice) => ['pending', 'partial'].includes(invoice.status) ? total + outstanding(invoice) : total, 0);
+    const pending = state.invoices.filter((invoice) => invoice.direction === 'issued').reduce((total, invoice) => ['pending', 'partial'].includes(invoice.status) ? total + outstanding(invoice) : total, 0);
     $('#incomeTotal').textContent = money(income);
     $('#expenseTotal').textContent = money(expense);
     $('#profitTotal').textContent = money(profit);
