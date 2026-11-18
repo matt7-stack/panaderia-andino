@@ -537,18 +537,14 @@ input[type="date"], input[type="month"] {
               <li><strong>Restaurar datos de ejemplo:</strong> repone datos demostrativos. No lo uses como operación habitual ni si querés conservar los datos actuales; revisá la confirmación antes de continuar.</li>
             </ul>
           </div>
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>6. Administración</h3><p>Herramientas reservadas al administrador principal.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Usuarios del sistema:</strong> cantidad de cuentas registradas.</li>
-              <li><strong>Empleados activos:</strong> cantidad de empleados habilitados.</li>
-              <li><strong>Movimientos registrados:</strong> cantidad de ingresos y gastos guardados.</li>
-              <li><strong>Última sincronización:</strong> referencia de la última actualización sincronizada con el servidor.</li>
-              <li><strong>Gestionar usuarios:</strong> abre la administración de cuentas y permisos.</li>
-              <li><strong>Descargar respaldo:</strong> descarga una copia de los datos compartidos en formato JSON. Guardala en un lugar seguro; descargarla no modifica los datos del sistema.</li>
-              <li><strong>Limpiar datos operativos:</strong> disponible solo para el administrador principal. Borra movimientos, notas emitidas y recibidas, empleados y pagos históricos de todos los dispositivos; conserva la cuenta administradora y la configuración. Requiere dos confirmaciones y no se puede deshacer. Descargá un respaldo antes de usarla.</li>
-            </ul>
-          </div>
+          <div class="panel settings-card mb-3 admin-guide-section" id="adminGuideSection" hidden>
+            <div class="panel-heading"><div><h3>Manual de uso para el administrador</h3><p>Este apartado solo aparece en la cuenta del administrador global.</p></div></div>
+            <div class="admin-guide-subsection"><h4>1. Panel general</h4><ul><li>Consultá la cantidad de usuarios, empleados activos y movimientos registrados.</li><li>Revisá ingresos, gastos y resultado neto del negocio seleccionado.</li><li>El registro de actividad permite revisar acciones recientes, quién las realizó y cuándo.</li></ul></div>
+            <div class="admin-guide-subsection"><h4>2. Panaderías</h4><ul><li>Consultá la lista de negocios registrados y la cantidad de usuarios de cada uno.</li><li>Usá el lápiz para cambiar el nombre del negocio y el botón de estado para activarlo o suspenderlo.</li><li>Antes de suspender una panadería, verificá que sea la correcta. No elimina sus datos.</li></ul></div>
+            <div class="admin-guide-subsection"><h4>3. Usuarios</h4><ul><li>Entrá en Gestionar usuarios para crear cuentas, revisar roles y estados.</li><li>Para una contraseña olvidada, elegí restablecer contraseña junto al usuario y seguí la confirmación que presenta el sistema.</li><li>Activá o desactivá cuentas según corresponda. No compartas credenciales ni uses la cuenta global para tareas diarias.</li></ul></div>
+            <div class="admin-guide-subsection"><h4>4. Finanzas y respaldos</h4><ul><li>Los indicadores muestran ingresos, gastos y resultado del negocio seleccionado.</li><li>Exportar movimientos CSV descarga una planilla para analizar los registros.</li><li>Descargar respaldo guarda una copia JSON. Conservá el archivo en un lugar seguro.</li><li>Para restaurar, seleccioná un respaldo JSON válido y leé con atención la confirmación: la restauración puede reemplazar los datos operativos del negocio seleccionado. No incluye usuarios ni contraseñas.</li></ul></div>
+            <div class="admin-guide-subsection"><h4>5. Seguridad</h4><ul><li>Activá avisos de pagos desde el navegador y concedé permiso cuando lo solicite.</li><li>Los avisos locales funcionan en este dispositivo cuando la aplicación está abierta; para notificaciones push con la app cerrada se requiere una integración adicional.</li><li>Revisá el historial de actividad y cerrá sesión al terminar en equipos compartidos.</li><li>No uses acciones de limpieza de datos salvo que sea imprescindible y después de descargar y verificar un respaldo.</li></ul></div>
+          </div></div>
           <div class="panel settings-card">
             <div class="panel-heading"><div><h3>7. Uso desde el teléfono y buenas prácticas</h3><p>Recomendaciones para trabajar desde cualquier dispositivo.</p></div></div>
             <ul class="mb-0">
