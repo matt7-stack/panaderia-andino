@@ -36,7 +36,9 @@ html = html
   .replace('aria-label="Panadería Andino, inicio"', 'aria-label="Gestión Panadería, inicio"')
   .replace('<span class="brand-name">Panadería<br>Andino</span>', '<span class="brand-name">Gestión<br>Panadería</span>')
   .replace('<span>Panadería Andino</span><i class="bi bi-chevron-right"></i>', '<span>Gestión Panadería</span><i class="bi bi-chevron-right"></i>')
-  .replace('Explicación práctica de cada sección, botón y control de Panadería Andino.', 'Explicación práctica de cada sección, botón y control de Gestión Panadería.');
+  .replace('Explicación práctica de cada sección, botón y control de Panadería Andino.', 'Explicación práctica de cada sección, botón y control de Gestión Panadería.')
+  .replace('<span>ANDINO</span></div>', '<span>LOGO</span></div>')
+  .replace('<span id="footerBusinessName">Panadería Andino</span>', '<span id="footerBusinessName">Mi panadería</span>');
 
 const output = path.join(root, 'app.bundle.html');
 fs.writeFileSync(output, html);
