@@ -195,6 +195,7 @@ module.exports = async function handler(req, res) {
       if (path === '/api/platform/businesses' && req.method === 'PATCH') {
         const input=body(req); const id=String(input.id||'');
         if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Indicá la panadería y su estado.'});
+        if (id===platformUser.business_id && input.active===false) return send(res,400,{error:'No podés suspender el negocio principal que administra la plataforma.'});
         const rows=await sql`UPDATE businesses SET active=${input.active} WHERE id=${id} RETURNING id,name,slug,active,created_at`;
         if (!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
         return send(res,200,{business:rows[0]});
