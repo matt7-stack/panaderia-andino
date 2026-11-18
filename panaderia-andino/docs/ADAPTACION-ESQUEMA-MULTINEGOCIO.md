@@ -78,3 +78,24 @@ Recuento posterior: 1 negocio preexistente, 0 usuarios, 0 estados y 2 registros 
 También se probaron las restricciones negativas: la base rechaza un empleado sin negocio y rechaza la creación de un segundo administrador global. Los intentos de prueba se ejecutaron sin dejar usuarios de prueba persistidos.
 
 Esta prueba valida restricciones y estructura de base de datos; todavía no valida el aislamiento de la API ni la interfaz. La API actual aún debe adaptarse antes de que el modelo pueda considerarse funcional.
+
+
+## Implementación inicial de API en rama feature (18 nov 2026)
+
+Se adaptó `api/[...path].js` para trabajar con el esquema real de desarrollo:
+
+- La cuenta global se identifica mediante `is_platform_admin=TRUE`; no se crean administradores locales por negocio.
+- El bootstrap inicial crea la cuenta global sin `business_id`, y el estado de autenticación devuelve el ámbito de la cuenta sin exponer hashes.
+- El login y la validación de sesión comprueban la versión de sesión y que el negocio asignado a un usuario normal siga activo.
+- `GET/POST/PATCH /api/admin/businesses` permite al administrador global listar, crear y modificar/activar negocios.
+- `GET/POST/PATCH/DELETE /api/admin/users` permite gestionar usuarios de todos los negocios; la creación exige un negocio activo y el restablecimiento de contraseña invalida sesiones anteriores.
+- `/api/data` y `/api/admin/reset-data` consultan y escriben exclusivamente el estado identificado por `business_id`. Para el administrador global, el negocio se selecciona mediante el encabezado `X-Business-Id` o el parámetro `businessId`; para supervisores y empleados se ignora cualquier negocio enviado por el cliente y se utiliza siempre el negocio de su cuenta.
+- Se eliminaron de la API las referencias al catálogo paralelo `app_businesses`, al estado paralelo `app_business_state` y al antiguo estado global `app_state WHERE id=1`. La API ya no ejecuta DDL automáticamente en cada petición.
+
+### Validación realizada y pendiente
+
+- El archivo actualizado pasó una comprobación de sintaxis JavaScript.
+- Se verificaron estáticamente las rutas de negocio, la selección de ámbito, las operaciones `ON CONFLICT(business_id)`, la revocación de sesiones y la eliminación de las referencias al esquema paralelo.
+- **Pendiente:** pruebas de integración ejecutando las rutas HTTP contra la rama Neon aislada, incluyendo intentos de acceso cruzado y CRUD de negocios/usuarios.
+- **Pendiente:** adaptar la interfaz para que el administrador global pueda seleccionar el negocio activo y enviar `X-Business-Id`; el formulario actual de alta de usuarios aún no envía `businessId`.
+- No se desplegó la API, no se modificaron variables de entorno ni se tocó producción.
