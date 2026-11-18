@@ -164,6 +164,39 @@ module.exports = async function handler(req, res) {
         RETURNING id,name,email,role,active,business_id,is_platform_admin,session_version`;
       return send(res, 201, { user: publicSessionUser(rows[0]) }, { 'Set-Cookie': sessionCookie(id, rows[0].session_version) });
     }
+    if (path === '/api/auth/recover' && req.method === 'POST') {
+      if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
+      const sql = await ensureSchema();
+      const input = body(req);
+      const token = String(input.token || '');
+      const password = input.password;
+      if (!/^[a-f0-9]{64}$/i.test(token)) return send(res, 400, { error: 'El enlace no es válido o ya venció. Solicitá uno nuevo.' });
+      if (!validPassword(password)) return send(res, 400, { error: 'La contraseña debe tener al menos 12 caracteres.' });
+      const tokenHash = crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+      const passwordHash = await hashPassword(password);
+      const rows = await sql`
+        WITH consumed AS (
+          UPDATE admin_password_resets r
+          SET used_at=NOW()
+          FROM app_users u
+          WHERE r.token_hash=${tokenHash}
+            AND r.user_id=u.id
+            AND u.is_platform_admin=TRUE
+            AND u.active=TRUE
+            AND r.used_at IS NULL
+            AND r.expires_at>NOW()
+          RETURNING r.user_id
+        )
+        UPDATE app_users u
+        SET password_hash=${passwordHash}, session_version=COALESCE(u.session_version,0)+1
+        FROM consumed c
+        WHERE u.id=c.user_id AND u.is_platform_admin=TRUE
+        RETURNING u.id
+      `;
+      if (!rows.length) return send(res, 400, { error: 'El enlace no es válido o ya fue utilizado. Solicitá uno nuevo.' });
+      return send(res, 200, { ok: true, message: 'Contraseña actualizada. Ya podés iniciar sesión.' }, { 'Set-Cookie': clearCookie });
+    }
+
     if (path === '/api/auth/login' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
       const sql = await ensureSchema();
