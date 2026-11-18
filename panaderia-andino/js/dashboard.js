@@ -760,8 +760,8 @@
     if (button) selectAdminSection(button.dataset.adminTab);
   });
   selectAdminSection('overview');
-  $('#adminBackupButton').addEventListener('click', exportAdminBackup);
-  $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
+  $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);
+  $('#adminManageUsers')?.addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
