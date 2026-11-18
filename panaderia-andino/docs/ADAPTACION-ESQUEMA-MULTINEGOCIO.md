@@ -97,8 +97,8 @@ Se adaptó `api/[...path].js` para trabajar con el esquema real de desarrollo:
 - El archivo actualizado pasó una comprobación de sintaxis JavaScript.
 - Se verificaron estáticamente las rutas de negocio, la selección de ámbito, las operaciones `ON CONFLICT(business_id)`, la revocación de sesiones y la eliminación de las referencias al esquema paralelo.
 - **Pendiente:** pruebas de integración ejecutando las rutas HTTP contra la rama Neon aislada, incluyendo intentos de acceso cruzado y CRUD de negocios/usuarios.
-- **Pendiente:** adaptar la interfaz para que el administrador global pueda seleccionar el negocio activo y enviar `X-Business-Id`; el formulario actual de alta de usuarios aún no envía `businessId`.
-- No se desplegó la API, no se modificaron variables de entorno ni se tocó producción.
+- **Completado:** selector global de negocio, encabezado `X-Business-Id` y asignación obligatoria de negocio al crear usuarios (detallado en la sección de interfaz global).
+- La API y la interfaz se desplegaron únicamente en Preview; las variables de entorno configuradas son exclusivas de esta rama y producción permanece intacta.
 
 
 ## Interfaz de administración global (18 nov 2026)
@@ -114,7 +114,7 @@ Se añadió en la rama feature:
 
 ### Validación estática posterior
 
-Los tres archivos modificados (`api/[...path].js`, `js/auth.js` y `js/dashboard.js`) pasaron comprobación de sintaxis JavaScript. La comparación con `main` confirma que la rama feature está 19 commits por delante y no está detrás.
+Los tres archivos modificados (`api/[...path].js`, `js/auth.js` y `js/dashboard.js`) pasaron comprobación de sintaxis JavaScript. La comparación con `main` confirma que la rama feature continúa por delante y no está detrás; los cambios permanecen sin fusionar.
 
 Se volvió a consultar únicamente el recuento de la rama Neon aislada: 1 negocio, 0 usuarios, 0 estados y 2 intentos de acceso. No se insertaron ni eliminaron datos durante esta comprobación.
 
@@ -136,5 +136,16 @@ Se volvió a consultar únicamente el recuento de la rama Neon aislada: 1 negoci
 
 - Prueba de inserción con dos negocios usando la estructura real de `app_state`: aprobada.
 - Limpieza de datos QA: aprobada; permanecen 1 negocio preexistente, 0 usuarios, 0 estados y 2 intentos de inicio de sesión.
-- Prueba sintáctica de los archivos fuente y del paquete generado: pendiente de confirmación en el siguiente build de Vercel.
+- Prueba sintáctica de los archivos fuente y de los dos bloques JavaScript inline: aprobada; el build de Vercel ejecutó el generador del paquete correctamente.
 - Pruebas HTTP de autenticación, administración y aislamiento entre sesiones: pendientes; no se deben considerar aprobadas hasta ejecutarlas contra la vista previa.
+
+
+## Estado actualizado de la vista previa (18 nov 2026)
+
+- Vercel Preview para `feature/gestion-panaderia-multinegocio`: compilación `READY`.
+- La compilación ejecuta `npm run build`, valida los dos archivos JavaScript y regenera `app.bundle.html`.
+- Se corrigió la salida de Vercel para servir desde la raíz del proyecto (`outputDirectory: "."`).
+- Se configuraron `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_BOOTSTRAP_TOKEN` y `ADMIN_EMAIL` únicamente en el entorno Preview de esta rama. La URL de base apunta a la rama Neon aislada `gestion-panaderia-dev-20261118`.
+- La rama de producción sigue en el commit base anterior; no se fusionó el PR ni se hizo despliegue de producción.
+- Las pruebas de esquema y separación de datos de dos negocios están aprobadas.
+- **Pendiente antes de considerar lista la aplicación:** ejecutar pruebas HTTP y funcionales de bootstrap/login, creación y asignación de usuarios, cambio de negocio, restablecimiento de contraseña y aislamiento de datos con dos sesiones distintas. No se han declarado aprobadas esas pruebas.
