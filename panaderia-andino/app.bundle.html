@@ -299,6 +299,15 @@ input[type="date"], input[type="month"] {
   .invoice-tab { padding:8px; }
 }
 
+
+/* Menú lateral accesible en pantallas pequeñas y de poca altura. */
+.sidebar{height:100vh;height:100dvh;max-height:100dvh;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(239,207,173,.45) transparent}
+.nav-menu{flex:0 0 auto;gap:5px}
+.nav-menu .nav-link{min-height:42px;flex:0 0 auto}
+.sidebar-bottom{flex:0 0 auto;margin-top:18px}
+.brand{padding-bottom:20px}
+@media(max-height:760px){.sidebar{padding-top:16px;padding-bottom:12px}.brand{padding-bottom:14px}.brand-mark{width:52px;height:48px;font-size:27px}.brand-name{font-size:23px}.sidebar-label{padding-bottom:7px}.nav-menu .nav-link{min-height:38px}}
+
 </style>
 </head>
 <body>
