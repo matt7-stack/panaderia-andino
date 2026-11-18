@@ -96,18 +96,31 @@
     document.body.classList.add('auth-locked');
     content.innerHTML = '<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1 id="authTitle">Preparando enlace</h1><p>Estamos validando el acceso y preparando tu formulario de contraseña.</p></div><div class="auth-form"><div class="auth-help">No cierres esta página hasta que aparezca el formulario.</div><div id="authError" class="auth-error" role="alert" hidden></div></div>';
     try {
-      const result = await api('/api/auth/create-recovery', {
-        method: 'POST',
-        headers: { 'X-Admin-Recovery': recoveryIssueSecret },
-        body: '{}'
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      let result;
+      try {
+        result = await api('/api/auth/create-recovery', {
+          method: 'POST',
+          headers: { 'X-Admin-Recovery': recoveryIssueSecret },
+          body: '{}',
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
       recoveryIssueSecret = '';
       recoveryToken = result.token;
       history.replaceState(null, '', window.location.pathname + window.location.search + '#recuperar=' + encodeURIComponent(recoveryToken));
       showRecovery();
     } catch (error) {
       const box = document.getElementById('authError');
-      if (box) { box.textContent = error.message; box.hidden = false; }
+      if (box) {
+        box.textContent = error.name === 'AbortError'
+          ? 'El servidor tardó demasiado en responder. Recargá esta página para intentar nuevamente.'
+          : error.message;
+        box.hidden = false;
+      }
     }
   }
 
