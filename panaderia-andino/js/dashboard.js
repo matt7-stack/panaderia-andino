@@ -118,7 +118,7 @@
   }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
-    if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
+    if (page === 'administracion' && window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
