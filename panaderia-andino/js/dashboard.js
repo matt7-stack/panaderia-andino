@@ -61,6 +61,7 @@
   };
   const saveState = (syncCloud = true) => {
     try {
+      if (!window.__gpAuditSaving) { window.__gpAuditSaving = true; addAuditEntry('Datos guardados', 'Cambios del negocio sincronizados o guardados localmente'); window.__gpAuditSaving = false; }
       localStorage.setItem(scopedStorageKey(), JSON.stringify(state));
       if (syncCloud && cloudReady && !cloudSwitching && window.PanaderiaAuth?.user) {
         clearTimeout(cloudSaveTimer);
@@ -77,6 +78,7 @@
       }
       return true;
     } catch (error) {
+      window.__gpAuditSaving = false;
       console.error('No se pudo guardar la información local.', error);
       notify('No se pudo guardar la información.');
       return false;
@@ -358,10 +360,67 @@
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
+  function addAuditEntry(action, detail = '') {
+    state.auditLog = Array.isArray(state.auditLog) ? state.auditLog : [];
+    const user = window.PanaderiaAuth?.user;
+    state.auditLog.unshift({ id: makeId(), at: new Date().toISOString(), user: user?.name || user?.email || 'Usuario', action, detail: String(detail).slice(0, 220) });
+    state.auditLog = state.auditLog.slice(0, 300);
+  }
+
+  function exportMovementsCSV() {
+    const rows = [['Fecha','Tipo','Descripción','Categoría','Método','Importe']];
+    (state.movements || []).forEach(item => rows.push([item.date || '', item.type || '', item.description || '', item.category || '', item.payment || '', Number(item.amount || 0)]));
+    const csv = '\uFEFF' + rows.map(row => row.map(value => '"' + String(value).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'gestion-panaderia-movimientos-' + todayISO() + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify('Reporte CSV descargado.');
+  }
+
+  async function restoreAdminBackup(file) {
+    if (!file || file.size > 10 * 1024 * 1024) { notify('Seleccioná un respaldo JSON de hasta 10 MB.'); return; }
+    try {
+      const parsed = JSON.parse(await file.text());
+      const data = parsed?.data;
+      if (!data || !Array.isArray(data.movements) || !Array.isArray(data.invoices) || !Array.isArray(data.employees)) throw new Error('El archivo no tiene el formato de respaldo de Gestión Panadería.');
+      if (!window.confirm('¿Restaurar este respaldo en la panadería seleccionada? Los datos operativos actuales serán reemplazados. Primero descargá una copia si querés conservarlos.')) return;
+      const safe = { ...createEmptyState(data.business?.name || 'Mi panadería'), ...data };
+      delete safe.users;
+      state = safe; addAuditEntry('Restauración de respaldo', 'Respaldo importado: ' + file.name);
+      saveState(); renderAll(); renderAdminPanel(); notify('Respaldo restaurado correctamente.');
+    } catch (error) { notify(error.message || 'No se pudo leer el respaldo.'); }
+  }
+
+  function notifyUpcomingPayroll() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const today = todayISO();
+    (state.employees || []).filter(e => e.active !== false && e.nextPaymentDate).forEach(employee => {
+      const days = Math.ceil((new Date(employee.nextPaymentDate + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000);
+      const key = 'payroll-notice:' + employee.id + ':' + employee.nextPaymentDate;
+      if (days >= 0 && days <= 3 && !localStorage.getItem(key)) {
+        new Notification('Próximo pago de ' + employee.name, { body: days === 0 ? 'El pago vence hoy.' : 'El pago vence en ' + days + ' día(s).', tag: key });
+        localStorage.setItem(key, '1');
+      }
+    });
+  }
+
+  function renderBusinessAdminList() {
+    const body = $('#adminBusinessesBody'); if (!body) return;
+    body.innerHTML = cloudBusinesses.map(b => '<tr><td>' + escapeHTML(b.name) + '</td><td>' + (b.userCount || 0) + '</td><td>' + (b.active ? 'Activa' : 'Inactiva') + '</td><td><div class="table-actions"><button type="button" class="icon-action" data-edit-business="' + escapeHTML(b.id) + '" title="Renombrar"><i class="bi bi-pencil"></i></button><button type="button" class="icon-action" data-toggle-business="' + escapeHTML(b.id) + '" data-active="' + String(!!b.active) + '" title="' + (b.active ? 'Desactivar' : 'Activar') + '"><i class="bi bi-power"></i></button></div></td></tr>').join('') || '<tr><td colspan="4" class="text-center text-muted">No hay panaderías registradas.</td></tr>';
+  }
+
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
     $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
     $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    const income = sumType(state.movements || [], 'income'), expense = sumType(state.movements || [], 'expense');
+    if ($('#adminIncomeTotal')) $('#adminIncomeTotal').textContent = money(income);
+    if ($('#adminExpenseTotal')) $('#adminExpenseTotal').textContent = money(expense);
+    if ($('#adminNetTotal')) $('#adminNetTotal').textContent = money(income - expense);
+    if ($('#adminAuditBody')) $('#adminAuditBody').innerHTML = (state.auditLog || []).slice(0, 30).map(item => '<tr><td>' + dateFormat(item.at?.slice(0,10)) + ' ' + new Date(item.at).toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit'}) + '</td><td>' + escapeHTML(item.user) + '</td><td>' + escapeHTML(item.action) + '</td><td>' + escapeHTML(item.detail || '—') + '</td></tr>').join('') || '<tr><td colspan="4" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
+    renderBusinessAdminList();
+    const status = $('#adminNotificationStatus');
+    if (status) status.textContent = !('Notification' in window) ? 'Este navegador no admite notificaciones.' : Notification.permission === 'granted' ? 'Avisos activados en este dispositivo.' : Notification.permission === 'denied' ? 'Avisos bloqueados por el navegador.' : 'Avisos desactivados.';
+    notifyUpcomingPayroll();
   }
 
   function exportAdminBackup() {
@@ -649,6 +708,31 @@
     if (pay) openSimpleModal('employee-payment', { employeeId: pay.dataset.payEmployee });
     if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
     if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
+  });
+  $('#adminExportCsvButton')?.addEventListener('click', exportMovementsCSV);
+  $('#adminRestoreBackupInput')?.addEventListener('change', async event => { await restoreAdminBackup(event.target.files?.[0]); event.target.value = ''; });
+  $('#adminEnableNotifications')?.addEventListener('click', async () => {
+    if (!('Notification' in window)) { notify('Este navegador no admite notificaciones.'); return; }
+    const permission = await Notification.requestPermission();
+    renderAdminPanel();
+    if (permission === 'granted') { notifyUpcomingPayroll(); notify('Avisos activados para este dispositivo.'); }
+    else notify('No se concedió permiso para las notificaciones.');
+  });
+  $('#adminBusinessesBody')?.addEventListener('click', async event => {
+    const edit = event.target.closest('[data-edit-business]');
+    const toggle = event.target.closest('[data-toggle-business]');
+    if (edit) {
+      const business = cloudBusinesses.find(b => b.id === edit.dataset.editBusiness); if (!business) return;
+      const name = window.prompt('Nuevo nombre de la panadería:', business.name);
+      if (!name || !name.trim() || name.trim() === business.name) return;
+      try { await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'PATCH', body: JSON.stringify({ id: business.id, name: name.trim() }) }); await refreshCloudBusinesses(selectedBusinessId); renderAdminPanel(); notify('Panadería actualizada.'); } catch (error) { notify(error.message); }
+    }
+    if (toggle) {
+      const business = cloudBusinesses.find(b => b.id === toggle.dataset.toggleBusiness); if (!business) return;
+      const active = toggle.dataset.active !== 'true';
+      if (!window.confirm((active ? '¿Activar' : '¿Desactivar') + ' la panadería ' + business.name + '?')) return;
+      try { await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'PATCH', body: JSON.stringify({ id: business.id, active }) }); await refreshCloudBusinesses(selectedBusinessId); renderAdminPanel(); notify('Estado de la panadería actualizado.'); } catch (error) { notify(error.message); }
+    }
   });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);
   $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
