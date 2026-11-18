@@ -1,0 +1,25 @@
+{
+  "id": "/admin/",
+  "name": "Gestión Panadería · Administrador",
+  "short_name": "GP Admin",
+  "description": "Administración global de Gestión Panadería.",
+  "lang": "es-PY",
+  "start_url": "/admin/",
+  "scope": "/admin/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#fbf5eb",
+  "theme_color": "#512b19",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
