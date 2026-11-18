@@ -295,66 +295,44 @@
   }
 
   function renderInvoices() {
-    const issued = state.invoices.filter((invoice) => invoice.direction === 'issued');
-    const received = state.invoices.filter((invoice) => invoice.direction === 'received');
-    const sales = issued.reduce((sum, item) => sum + Number(item.amount), 0);
-    const purchases = received.reduce((sum, item) => sum + Number(item.amount), 0);
-    const pending = state.invoices.reduce((sum, item) => ['pending', 'partial'].includes(item.status) ? sum + outstanding(item) : sum, 0);
-    $('#invoiceSalesTotal').textContent = money(sales);
-    $('#invoicePurchasesTotal').textContent = money(purchases);
-    $('#invoicePendingTotal').textContent = money(pending);
-    $('#invoiceSalesCount').textContent = `${issued.length} notas de venta`;
-    $('#invoicePurchasesCount').textContent = `${received.length} notas de compra`;
-    $('#issuedCount').textContent = issued.length;
-    $('#receivedCount').textContent = received.length;
-    $$('.invoice-tab').forEach((tab) => {
-      const active = tab.dataset.invoiceTab === activeInvoiceTab;
-      tab.classList.toggle('active', active);
-      tab.setAttribute('aria-selected', String(active));
-    });
-    $('#invoicePartyHeading').textContent = activeInvoiceTab === 'issued' ? 'CLIENTE' : 'PROVEEDOR';
+    // Esta versión administra exclusivamente notas emitidas.
+    const issued = (state.invoices || []).filter((invoice) => invoice.direction === 'issued');
     const search = $('#invoiceSearch').value.trim().toLowerCase();
-    const status = $('#invoiceStatusFilter').value;
-    const rows = [...state.invoices].filter((invoice) => invoice.direction === activeInvoiceTab)
+    const rows = issued
       .filter((invoice) => !search || `${invoice.number} ${invoice.party} ${invoice.description || ''}`.toLowerCase().includes(search))
-      .filter((invoice) => status === 'all' || invoice.status === status)
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const statusLabels = { draft: 'Borrador', pending: 'Pendiente', partial: 'Pago parcial', paid: 'Pagada', cancelled: 'Anulada' };
-    const statusClasses = { draft: 'status-draft', pending: 'status-pending', partial: 'status-partial', paid: 'status-paid', cancelled: 'status-cancelled' };
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     $('#invoicesTableBody').innerHTML = rows.map((invoice) => `<tr>
       <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
-      <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td><td>${dateFormat(invoice.dueDate)}</td>
-      <td class="text-end table-amount">${money(invoice.amount)}</td><td><span class="status-pill ${statusClasses[invoice.status] || 'status-draft'}">${statusLabels[invoice.status] || 'Borrador'}</span>${invoice.status === 'partial' ? `<span class="table-sub-text">Restan ${money(outstanding(invoice))}</span>` : ''}</td>
-      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>${['pending', 'partial'].includes(invoice.status) ? `<button class="icon-action" type="button" title="Marcar pagada" aria-label="Marcar nota pagada" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-check2-circle"></i></button>` : ''}<button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
+      <td>${escapeHTML(invoice.party)}</td>
+      <td>${dateFormat(invoice.date)}</td>
+      <td class="text-end table-amount">${money(invoice.amount)}</td>
+      <td><div class="table-actions">
+        <button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>
+        <button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button>
+      </div></td>
     </tr>`).join('');
-    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${activeInvoiceTab === 'issued' ? issued.length : received.length} notas`;
+    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
   }
 
-  function openInvoiceModal(id = '', direction = activeInvoiceTab) {
+  function openInvoiceModal(id = '') {
     $('#invoiceForm').reset();
     $('#invoiceId').value = '';
+    $('#invoiceDirection').value = 'issued';
     $('#invoiceDate').value = todayISO();
-    $('#invoiceDueDate').value = todayISO();
-    $('#invoicePaidAmount').value = 0;
-    const invoice = id ? state.invoices.find((item) => item.id === id) : null;
+    const invoice = id ? (state.invoices || []).find((item) => item.id === id && item.direction === 'issued') : null;
     if (invoice) {
-      $('#invoiceModalTitle').textContent = 'Editar nota';
+      $('#invoiceModalTitle').textContent = 'Editar nota emitida';
       $('#invoiceId').value = invoice.id;
-      $('#invoiceDirection').value = invoice.direction;
       $('#invoiceNumber').value = invoice.number;
       $('#invoiceParty').value = invoice.party;
-      $('#invoiceStatus').value = invoice.status;
       $('#invoiceDate').value = invoice.date;
-      $('#invoiceDueDate').value = invoice.dueDate || '';
       $('#invoiceAmount').value = invoice.amount;
-      $('#invoicePaidAmount').value = invoice.paidAmount || 0;
       $('#invoiceDescription').value = invoice.description || '';
     } else {
-      $('#invoiceModalTitle').textContent = 'Nueva nota';
-      $('#invoiceDirection').value = direction;
-      $('#invoiceNumber').value = nextInvoiceNumber(direction);
+      $('#invoiceModalTitle').textContent = 'Nueva nota emitida';
+      $('#invoiceNumber').value = nextInvoiceNumber('issued');
     }
     invoiceModal.show();
   }
@@ -596,43 +574,40 @@
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-panaderia-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
-  // Notas
+  // Notas: esta versión trabaja únicamente con notas emitidas.
   $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $$('.invoice-tab').forEach((tab) => tab.addEventListener('click', () => { activeInvoiceTab = tab.dataset.invoiceTab; $('#invoiceSearch').value = ''; $('#invoiceStatusFilter').value = 'all'; renderInvoices(); }));
   $('#invoiceSearch').addEventListener('input', renderInvoices);
-  $('#invoiceStatusFilter').addEventListener('change', renderInvoices);
   $('#invoiceForm').addEventListener('submit', (event) => {
     event.preventDefault();
     const id = $('#invoiceId').value;
+    const number = $('#invoiceNumber').value.trim();
+    const party = $('#invoiceParty').value.trim();
+    const date = $('#invoiceDate').value;
     const amount = Number($('#invoiceAmount').value);
-    const paidAmount = Number($('#invoicePaidAmount').value || 0);
-    if (!$('#invoiceNumber').value.trim() || !$('#invoiceParty').value.trim() || !$('#invoiceDate').value || amount <= 0 || paidAmount < 0 || paidAmount > amount) {
-      notify('Revisá los datos. El monto pagado no puede superar el total de la nota.'); return;
+    if (!/^\\d{5}$/.test(number) || !party || !date || !Number.isFinite(amount) || amount <= 0) {
+      notify('Completá el número de cinco dígitos, cliente, fecha y total válido.'); return;
     }
-    let status = $('#invoiceStatus').value;
-    if (paidAmount >= amount) status = 'paid';
-    else if (paidAmount > 0 && status === 'pending') status = 'partial';
-    const invoice = { id: id || makeId(), direction: $('#invoiceDirection').value, number: $('#invoiceNumber').value.trim(), party: $('#invoiceParty').value.trim(), status, date: $('#invoiceDate').value, dueDate: $('#invoiceDueDate').value, amount, paidAmount, description: $('#invoiceDescription').value.trim() };
-    const duplicate = state.invoices.some((item) => item.id !== id && item.direction === invoice.direction && item.number.toLowerCase() === invoice.number.toLowerCase());
-    if (duplicate) { notify('Ya existe una nota con ese número en esta lista.'); return; }
+    const invoice = {
+      id: id || makeId(), direction: 'issued', number, party, date, amount,
+      description: $('#invoiceDescription').value.trim()
+    };
+    const duplicate = (state.invoices || []).some((item) => item.id !== id && item.direction === 'issued' && String(item.number).toLowerCase() === number.toLowerCase());
+    if (duplicate) { notify('Ya existe una nota emitida con ese número.'); return; }
+    state.invoices = state.invoices || [];
     if (id) state.invoices = state.invoices.map((item) => item.id === id ? invoice : item);
     else state.invoices.push(invoice);
-    activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Nota actualizada correctamente.' : 'Nota registrada correctamente.');
+    saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard();
+    notify(id ? 'Nota emitida actualizada.' : 'Nota emitida registrada.');
   });
   $('#invoicesTableBody').addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-invoice]');
-    const pay = event.target.closest('[data-pay-invoice]');
     const remove = event.target.closest('[data-delete-invoice]');
     if (edit) openInvoiceModal(edit.dataset.editInvoice);
-    if (pay) {
-      const id = pay.dataset.payInvoice;
-      state.invoices = state.invoices.map((invoice) => invoice.id === id ? { ...invoice, paidAmount: invoice.amount, status: 'paid' } : invoice);
-      saveState(); renderInvoices(); renderDashboard(); notify('Nota marcada como pagada.');
-    }
     if (remove) {
       const id = remove.dataset.deleteInvoice;
-      if (!confirmDelete('¿Eliminar esta nota? Esta acción no se puede deshacer.')) return;
-      state.invoices = state.invoices.filter((invoice) => invoice.id !== id); saveState(); renderInvoices(); renderDashboard(); notify('Nota eliminada.');
+      if (!confirmDelete('¿Eliminar esta nota emitida? Esta acción no se puede deshacer.')) return;
+      state.invoices = (state.invoices || []).filter((invoice) => invoice.id !== id);
+      saveState(); renderInvoices(); renderDashboard(); notify('Nota emitida eliminada.');
     }
   });
 
