@@ -11,10 +11,25 @@ function db() {
 }
 async function ensureSchema() {
   const sql = db();
+  await sql`CREATE TABLE IF NOT EXISTS businesses (id UUID PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`INSERT INTO businesses (id,name,slug,active) VALUES ('00000000-0000-4000-8000-000000000001','Panadería Andino','panaderia-andino',TRUE) ON CONFLICT (id) DO NOTHING`;
   await sql`CREATE TABLE IF NOT EXISTS app_users (id UUID PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','supervisor','employee')), active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS business_id UUID REFERENCES businesses(id)`;
+  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE`;
+  await sql`UPDATE app_users SET business_id='00000000-0000-4000-8000-000000000001' WHERE business_id IS NULL`;
+  await sql`ALTER TABLE app_users ALTER COLUMN business_id SET NOT NULL`;
+  await sql`UPDATE app_users SET is_platform_admin=TRUE WHERE role='admin' AND LOWER(email)=LOWER(${String(process.env.ADMIN_EMAIL || '')}) AND ${Boolean(process.env.ADMIN_EMAIL)}`;
   await sql`CREATE TABLE IF NOT EXISTS app_state (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id=1), data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`ALTER TABLE app_state ADD COLUMN IF NOT EXISTS business_id UUID REFERENCES businesses(id)`;
+  await sql`ALTER TABLE app_state DROP CONSTRAINT IF EXISTS app_state_id_check`;
+  await sql`CREATE SEQUENCE IF NOT EXISTS app_state_id_seq START WITH 2`;
+  await sql`ALTER TABLE app_state ALTER COLUMN id SET DEFAULT nextval('app_state_id_seq')`;
+  await sql`UPDATE app_state SET business_id='00000000-0000-4000-8000-000000000001' WHERE business_id IS NULL`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_state_business_id_uidx ON app_state(business_id)`;
+  await sql`ALTER TABLE app_state ALTER COLUMN business_id SET NOT NULL`;
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
+  await sql`DROP INDEX IF EXISTS app_users_single_admin`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin_per_business ON app_users(business_id) WHERE role='admin'`;
   return sql;
 }
 function send(res, status, data, headers = {}) {
@@ -79,7 +94,7 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active FROM app_users WHERE id = ${data.sub} LIMIT 1`;
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, b.name AS business_name FROM app_users u JOIN businesses b ON b.id=u.business_id WHERE u.id = ${data.sub} AND b.active=TRUE LIMIT 1`;
   return rows[0] && rows[0].active ? rows[0] : null;
 }
 async function authenticated(req, res, adminOnly = false) {
@@ -120,7 +135,7 @@ module.exports = async function handler(req, res) {
       const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
       if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
       const id = crypto.randomUUID(); const passwordHash = await hashPassword(password);
-      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE) RETURNING id,name,email,role,active`;
+      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,'00000000-0000-4000-8000-000000000001',TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
       return send(res,201,{user:rows[0]},{'Set-Cookie':sessionCookie(id)});
     }
     if (path === '/api/auth/login' && req.method === 'POST') {
@@ -129,13 +144,13 @@ module.exports = async function handler(req, res) {
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
-      const rows = await sql`SELECT id,name,email,password_hash,role,active FROM app_users WHERE email=${email} LIMIT 1`; const u = rows[0];
+      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,b.name AS business_name FROM app_users u JOIN businesses b ON b.id=u.business_id AND b.active=TRUE WHERE u.email=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
-      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
+      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active,business_id:u.business_id,is_platform_admin:u.is_platform_admin,business_name:u.business_name}},{'Set-Cookie':sessionCookie(u.id)});
     }
     if (path === '/api/auth/signup' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
@@ -190,14 +205,14 @@ module.exports = async function handler(req, res) {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
       if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,email,role,active,created_at FROM app_users ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
+        const rows = await sql`SELECT id,name,email,role,active,created_at FROM app_users WHERE business_id=${admin.business_id} ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
         const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=input.role==='supervisor'?'supervisor':'employee';
         if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
-        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${hash},${role},TRUE) RETURNING id,name,email,role,active,created_at`;
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${admin.business_id}) RETURNING id,name,email,role,active,created_at`;
         return send(res,201,{user:publicUser(rows[0])});
       }
       if (req.method === 'PATCH') {
@@ -208,7 +223,7 @@ module.exports = async function handler(req, res) {
       }
       if (req.method === 'DELETE') {
         const id=String(body(req).id||''); if (!id || id===admin.id) return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
-        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND role<>'admin' RETURNING id`;
+        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND role<>'admin' AND business_id=${admin.business_id} RETURNING id`;
         if (!rows.length) return send(res,404,{error:'No se encontró ese usuario o no se puede eliminar.'});
         return send(res,200,{ok:true});
       }
@@ -220,26 +235,26 @@ module.exports = async function handler(req, res) {
       const input = body(req);
       if (input.confirm !== true) return send(res,400,{error:'Confirmá la limpieza de datos.'});
       const sql = db();
-      const rows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
+      const rows = await sql`SELECT data FROM app_state WHERE business_id=${admin.business_id} LIMIT 1`;
       const current = rows[0]?.data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
       const data = { ...current, movements: [], invoices: [], employees: [], employeePayments: [] };
       delete data.users;
       const serialized = JSON.stringify(data);
-      const saved = await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+      const saved = await sql`INSERT INTO app_state(data,updated_by,updated_at,business_id) VALUES(${serialized}::jsonb,${admin.id},NOW(),${admin.business_id}) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
       return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at || null});
     }
     if (path === '/api/data') {
       const user = await authenticated(req,res,false); if (!user) return;
       const sql=db();
       if (req.method==='GET') {
-        const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`;
+        const rows=await sql`SELECT data,updated_at FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
         return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null});
       }
       if (req.method==='PUT') {
         const input=body(req); if (!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
         const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
         if (Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-        const saved=await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        const saved=await sql`INSERT INTO app_state(data,updated_by,updated_at,business_id) VALUES(${serialized}::jsonb,${user.id},NOW(),${user.business_id}) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
         return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
       }
       return send(res,405,{error:'Método no permitido.'});
