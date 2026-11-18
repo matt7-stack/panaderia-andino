@@ -42,6 +42,19 @@
 - Aplicar migraciones con transacciones y comprobaciones de recuentos antes/después.
 - Hacer copia de seguridad y probar en un entorno/branch de datos aislado antes de producción.
 
+## Estado del trabajo en esta rama
+
+- [x] Añadidas columnas de versión de sesión y pertenencia de negocio en el esquema de la API (sin asignar ni migrar datos existentes).
+- [x] Añadidas tablas base `app_businesses` y `app_business_state` (su creación es idempotente; todavía no se usan para servir datos).
+- [x] Añadida operación de restablecimiento de contraseña desde el endpoint administrativo de usuarios; usa scrypt y aumenta la versión de sesión para invalidar sesiones anteriores.
+- [x] Añadido el control de restablecimiento en el código fuente del panel de usuarios.
+- [x] Actualizados el acceso, el título inicial y el manifiesto a “Gestión Panadería”.
+- [ ] Aún falta migrar de forma controlada los datos históricos y cambiar `/api/data` para aislar cada negocio.
+- [ ] Aún falta el panel global de creación/selección/activación de panaderías y la asignación de usuarios a cada negocio.
+- [ ] Aún falta regenerar el paquete comprimido que sirve Vercel y validar la aplicación completa.
+
+**Esta rama es de desarrollo y no está publicada.** La creación de tablas se ejecutará cuando la API actualizada se despliegue; no se ha ejecutado ninguna migración sobre registros existentes ni se ha modificado Neon manualmente.
+
 ## Orden de implementación
 
 1. Preparar y probar la migración no destructiva.
