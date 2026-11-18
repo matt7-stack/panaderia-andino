@@ -75,4 +75,6 @@ Prueba transaccional con dos negocios ficticios, dos usuarios de distinto ámbit
 
 Recuento posterior: 1 negocio preexistente, 0 usuarios, 0 estados y 2 registros de intentos de acceso. No se alteraron los registros preexistentes.
 
+También se probaron las restricciones negativas: la base rechaza un empleado sin negocio y rechaza la creación de un segundo administrador global. Los intentos de prueba se ejecutaron sin dejar usuarios de prueba persistidos.
+
 Esta prueba valida restricciones y estructura de base de datos; todavía no valida el aislamiento de la API ni la interfaz. La API actual aún debe adaptarse antes de que el modelo pueda considerarse funcional.
