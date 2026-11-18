@@ -739,7 +739,8 @@
     businesses: 'Administrá las panaderías registradas: revisá usuarios, editá nombres y activá o suspendé negocios.',
     users: 'Gestioná cuentas, roles, accesos y restablecimiento de contraseñas desde la administración de usuarios.',
     finance: 'Consultá indicadores y descargá o restaurá copias de seguridad y reportes.',
-    security: 'Herramientas de seguridad, avisos de pagos y acciones sensibles del sistema.'
+    security: 'Herramientas de seguridad, avisos de pagos y acciones sensibles del sistema.',
+    activity: 'Historial de acciones recientes para supervisar cambios y operaciones.'
   };
   function selectAdminSection(name) {
     const page = $('#page-administracion'); if (!page) return;
