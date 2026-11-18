@@ -99,7 +99,7 @@ body.auth-locked .app-shell{visibility:hidden}
 .auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px}.auth-brand-icon{display:grid;place-items:center;width:48px;height:48px;border-radius:15px;background:#f6ead9;font-size:25px}.auth-brand strong{display:block;color:#4d2b18;font-family:'Playfair Display',serif;font-size:19px}.auth-brand small{display:block;margin-top:2px;color:#a17d5b;font-size:8px;font-weight:800;letter-spacing:1.5px}
 .auth-heading>span{color:#ad835c;font-size:9px;font-weight:800;letter-spacing:1.5px}.auth-heading h1{margin:6px 0 7px;color:#432817;font-family:'Playfair Display',serif;font-size:29px}.auth-heading p{margin:0 0 22px;color:#8c7c6d;font-size:12px;line-height:1.6}
 .auth-form{display:grid;gap:8px}.auth-form label{margin-top:7px;color:#654832;font-size:10px;font-weight:800}.auth-form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #e7dbce;border-radius:9px;outline:none;color:#4d3828;background:#fff;font-size:13px}.auth-form input:focus{border-color:#aa7a50;box-shadow:0 0 0 3px rgba(170,122,80,.12)}.auth-form input[readonly]{color:#887968;background:#f8f4ee}
-.auth-submit{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#704427;font-size:12px;font-weight:800}.auth-submit:hover{background:#59351e}.auth-submit:disabled{opacity:.65;cursor:wait}.auth-submit span{font-size:18px}.auth-error{padding:10px 12px;border:1px solid #f0c9c2;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}.auth-footnote{margin:22px 0 0;color:#a99a89;font-size:9px;text-align:center}
+.auth-submit{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#704427;font-size:12px;font-weight:800}.auth-submit:hover{background:#59351e}.auth-submit:disabled{opacity:.65;cursor:wait}.auth-submit span{font-size:18px}.auth-switch{width:100%;margin-top:13px;padding:8px;border:0;color:#80502f;background:transparent;font-size:11px;font-weight:700}.auth-switch:hover{text-decoration:underline}.auth-error{padding:10px 12px;border:1px solid #f0c9c2;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}.auth-footnote{margin:22px 0 0;color:#a99a89;font-size:9px;text-align:center}
 @media(max-width:480px){.auth-card{padding:25px 20px}.auth-heading h1{font-size:26px}}
 
 
@@ -627,8 +627,9 @@ input[type="date"], input[type="month"] {
 
   function showLogin(message = '') {
     document.body.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form>`;
+    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form><button type="button" class="auth-switch" id="showSignupButton">¿Tenés una panadería? Crear cuenta</button>`;
     showMessage(message);
+    document.getElementById('showSignupButton').addEventListener('click', showSignup);
     document.getElementById('loginForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = event.currentTarget.querySelector('button');
@@ -640,6 +641,31 @@ input[type="date"], input[type="month"] {
       } catch (error) { showMessage(error.message); button.disabled = false; }
     });
     document.getElementById('authEmail').focus();
+  }
+
+  function showSignup(message = '') {
+    document.body.classList.add('auth-locked');
+    content.innerHTML = `<div class="auth-heading"><span>COMENZÁ A UTILIZAR EL SISTEMA</span><h1 id="authTitle">Registrar panadería</h1><p>Creá un espacio independiente para administrar tu negocio.</p></div><form id="signupForm" class="auth-form"><label for="signupBusiness">Nombre de la panadería</label><input id="signupBusiness" required maxlength="100" placeholder="Mi Panadería"><label for="signupName">Tu nombre</label><input id="signupName" required maxlength="70" autocomplete="name" placeholder="Nombre y apellido"><label for="signupEmail">Correo electrónico</label><input id="signupEmail" type="email" required maxlength="254" autocomplete="email" placeholder="tu@correo.com"><label for="signupPassword">Crear contraseña</label><input id="signupPassword" type="password" required minlength="12" autocomplete="new-password" placeholder="Mínimo 12 caracteres"><label for="signupConfirm">Confirmar contraseña</label><input id="signupConfirm" type="password" required minlength="12" autocomplete="new-password"><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Crear mi cuenta <span>→</span></button></form><button type="button" class="auth-switch" id="backToLoginButton">Ya tengo una cuenta · Iniciar sesión</button>`;
+    showMessage(message);
+    document.getElementById('backToLoginButton').addEventListener('click', () => showLogin());
+    document.getElementById('signupForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button=event.currentTarget.querySelector('button[type="submit"]');
+      const password=document.getElementById('signupPassword').value;
+      if(password!==document.getElementById('signupConfirm').value) return showMessage('Las contraseñas no coinciden.');
+      if(password.length<12) return showMessage('Usá una contraseña de al menos 12 caracteres.');
+      button.disabled=true; showMessage('');
+      try {
+        const result=await api('/api/auth/signup',{method:'POST',body:JSON.stringify({
+          businessName:document.getElementById('signupBusiness').value.trim(),
+          name:document.getElementById('signupName').value.trim(),
+          email:document.getElementById('signupEmail').value.trim(),
+          password
+        })});
+        establish(result.user);
+      } catch(error) { showMessage(error.message); button.disabled=false; }
+    });
+    document.getElementById('signupBusiness').focus();
   }
 
   function showSetup() {
@@ -672,6 +698,8 @@ input[type="date"], input[type="month"] {
     if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.role !== 'admin';
+    const platformNav = document.getElementById('platformNavLink');
+    if (platformNav) platformNav.hidden = user.is_platform_admin !== true;
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
     if (usersTab) usersTab.hidden = user.role !== 'admin';
