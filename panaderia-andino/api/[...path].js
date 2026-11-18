@@ -390,8 +390,20 @@ module.exports = async function handler(req, res) {
 
     return send(res, 404, { error: 'Ruta no encontrada.' });
   } catch (err) {
-    if (err && err.code === '23505') return send(res, 409, { error: 'Ya existe un usuario o negocio con ese correo o identificador.' });
+    // Registrar detalles técnicos en Vercel para diagnosticar fallos sin exponer
+    // consultas, credenciales ni información interna al navegador.
+    console.error('[api] request failed', {
+      path,
+      method: req.method,
+      code: err && err.code,
+      message: err && err.message,
+      constraint: err && err.constraint,
+      detail: err && err.detail
+    });
+    if (err && err.code === '23505') return send(res, 409, { error: 'Ya existe una panadería con ese identificador. Probá con otro nombre.' });
     if (err && err.code === '23503') return send(res, 400, { error: 'El negocio indicado no existe o no puede utilizarse.' });
-    return send(res, 500, { error: 'No se pudo completar la solicitud. Verificá la conexión de la base de datos.' });
+    if (err && err.code === '42P01') return send(res, 500, { error: 'Falta una tabla de la base de datos. Se requiere revisar la migración del sistema.' });
+    if (err && err.code === '42703') return send(res, 500, { error: 'La estructura de la base de datos está desactualizada. Se requiere revisar la migración.' });
+    return send(res, 500, { error: 'No se pudo completar la solicitud. Se registró el error técnico para diagnosticarlo.' });
   }
 };
