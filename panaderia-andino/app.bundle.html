@@ -572,10 +572,14 @@ input[type="date"], input[type="month"] {
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
+  const currentUrl = new URL(window.location.href);
   const hash = window.location.hash || '';
-  if (hash.startsWith('#activar=')) {
-    activationToken = decodeURIComponent(hash.slice('#activar='.length));
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+  activationToken = currentUrl.searchParams.get('activar') || '';
+  if (!activationToken && hash.startsWith('#activar=')) activationToken = decodeURIComponent(hash.slice('#activar='.length));
+  if (activationToken) {
+    currentUrl.searchParams.delete('activar');
+    currentUrl.hash = '';
+    history.replaceState(null, '', currentUrl.pathname + currentUrl.search);
   }
 
   let selectedBusinessId = localStorage.getItem('pa_selected_business_id') || '';
