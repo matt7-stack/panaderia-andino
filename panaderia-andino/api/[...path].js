@@ -10,11 +10,9 @@ function db() {
   return sqlClient;
 }
 async function ensureSchema() {
+  // Schema changes are deployed only through versioned migrations.
   const sql = db();
-  await sql`CREATE TABLE IF NOT EXISTS app_users (id UUID PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','supervisor','employee')), active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_state (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id=1), data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
   return sql;
 }
 function send(res, status, data, headers = {}) {
@@ -66,8 +64,8 @@ async function verifyPassword(password, stored) {
     return expected.length === 64 && crypto.timingSafeEqual(actual, expected);
   } catch (_) { return false; }
 }
-function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 31536000000 })).toString('base64url');
+function sessionCookie(id, sessionVersion = 0) {
+  const payload = Buffer.from(JSON.stringify({ sub: id, sv: sessionVersion || 0, exp: Date.now() + 31536000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
   return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 }
@@ -79,32 +77,33 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active FROM app_users WHERE id = ${data.sub} LIMIT 1`;
-  return rows[0] && rows[0].active ? rows[0] : null;
+  const rows = await db()`SELECT id, name, email, role, active, business_id, is_platform_admin, session_version FROM app_users WHERE id = ${data.sub} LIMIT 1`;
+  const user = rows[0];
+  return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
 }
 async function authenticated(req, res, adminOnly = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
-  if (adminOnly && user.role !== 'admin') { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
+  if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
-const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, createdAt:u.created_at || u.createdAt });
+const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, businessId:u.business_id || null, isPlatformAdmin:u.is_platform_admin === true, createdAt:u.created_at || u.createdAt });
 
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
     if (path === '/api/auth/status' && req.method === 'GET') {
       const sql = await ensureSchema();
-      const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE role='admin'`;
+      const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE is_platform_admin=TRUE`;
       return send(res, 200, { adminExists:Number(rows[0].count)>0 });
     }
     if (path === '/api/auth/me' && req.method === 'GET') {
       await ensureSchema(); const user = await currentUser(req);
-      return user ? send(res,200,{authenticated:true,user}) : send(res,401,{authenticated:false});
+      return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
     if (path === '/api/auth/logout' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
@@ -113,14 +112,14 @@ module.exports = async function handler(req, res) {
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema();
-      const existing = await sql`SELECT id FROM app_users WHERE role='admin' LIMIT 1`;
+      const existing = await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE LIMIT 1`;
       if (existing.length) return send(res,409,{error:'La cuenta administradora ya fue activada. Iniciá sesión.'});
       const input = body(req); const token = String(input.token || ''); const expected = process.env.ADMIN_BOOTSTRAP_TOKEN || '';
       if (!expected || token.length < 32 || !safeEqual(token,expected)) return send(res,403,{error:'El enlace de activación no es válido.'});
       const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
       if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
       const id = crypto.randomUUID(); const passwordHash = await hashPassword(password);
-      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE) RETURNING id,name,email,role,active`;
+      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
       return send(res,201,{user:rows[0]},{'Set-Cookie':sessionCookie(id)});
     }
     if (path === '/api/auth/login' && req.method === 'POST') {
@@ -129,13 +128,13 @@ module.exports = async function handler(req, res) {
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
-      const rows = await sql`SELECT id,name,email,password_hash,role,active FROM app_users WHERE email=${email} LIMIT 1`; const u = rows[0];
+      const rows = await sql`SELECT id,name,email,password_hash,role,active,business_id,is_platform_admin,session_version FROM app_users WHERE lower(email)=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
-      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
+      return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
       // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
@@ -153,8 +152,8 @@ module.exports = async function handler(req, res) {
         return send(res,401,{error:'Iniciá sesión para continuar.'});
       }
       const sql = db();
-      const users = await sql`SELECT id,role,active FROM app_users WHERE id = ${session.sub} LIMIT 1`;
-      if (!users[0] || !users[0].active || users[0].role !== 'admin') {
+      const users = await sql`SELECT id,role,active,is_platform_admin FROM app_users WHERE id = ${session.sub} LIMIT 1`;
+      if (!users[0] || !users[0].active || users[0].is_platform_admin !== true) {
         return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
       }
       const rows = await sql`SELECT current_database() AS database, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
