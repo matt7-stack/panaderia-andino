@@ -137,6 +137,47 @@ module.exports = async function handler(req, res) {
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
     }
+    if (path === '/api/admin/database-info' && req.method === 'GET') {
+      // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
+      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      const token = cookie(req);
+      const [payload, signature, extra] = token.split('.');
+      if (!payload || !signature || extra) return send(res,401,{error:'Iniciá sesión para continuar.'});
+      const expected = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
+      if (!safeEqual(signature, expected)) return send(res,401,{error:'Iniciá sesión para continuar.'});
+      let session;
+      try { session = JSON.parse(Buffer.from(payload,'base64url').toString('utf8')); } catch (_) {
+        return send(res,401,{error:'Iniciá sesión para continuar.'});
+      }
+      if (!session.sub || !Number.isFinite(session.exp) || session.exp < Date.now()) {
+        return send(res,401,{error:'Iniciá sesión para continuar.'});
+      }
+      const sql = db();
+      const users = await sql`SELECT id,role,active FROM app_users WHERE id = ${session.sub} LIMIT 1`;
+      if (!users[0] || !users[0].active || users[0].role !== 'admin') {
+        return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
+      }
+      const rows = await sql`SELECT current_database() AS database, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
+      let configuredHost = null;
+      try { configuredHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : (process.env.PGHOST || process.env.POSTGRES_HOST || null); } catch (_) {}
+      const info = rows[0] || {};
+      return send(res,200,{
+        provider: configuredHost && configuredHost.includes('neon.tech') ? 'Neon' : (configuredHost ? 'PostgreSQL compatible' : 'unknown'),
+        configuredHost,
+        database: info.database || null,
+        databaseRole: info.database_role || null,
+        serverAddress: info.server_address || null,
+        serverPort: info.server_port || null,
+        serverVersion: info.server_version || null,
+        environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
+        vercelProject: process.env.VERCEL_PROJECT_NAME || null,
+        vercelRegion: process.env.VERCEL_REGION || null,
+        deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null,
+        gitCommit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+        gitBranch: process.env.VERCEL_GIT_COMMIT_REF || null,
+        readOnly: true
+      });
+    }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
