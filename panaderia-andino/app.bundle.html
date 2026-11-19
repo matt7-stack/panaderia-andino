@@ -590,7 +590,8 @@ input[type="date"], input[type="month"] {
     const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
     let result = {};
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
-    if (!response.ok) {
+    // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
+    if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
       if (response.status === 401 && window.PanaderiaAuth?.user) {
         window.PanaderiaAuth.user = null;
         document.body.classList.add('auth-locked');
