@@ -323,7 +323,7 @@ input[type="date"], input[type="month"] {
 
       <div class="sidebar-bottom">
         <div class="sidebar-help"><i class="bi bi-lightbulb-fill"></i><p>Organizá tus ingresos, gastos y notas en un solo lugar.</p></div>
-        <button class="logout-link" type="button" id="logoutButton"><i class="bi bi-box-arrow-left"></i><span>Cerrar sesión</span></button>
+        
       </div>
     </aside>
 
@@ -666,9 +666,14 @@ input[type="date"], input[type="month"] {
     get selectedBusinessId() { return selectedBusinessId; },
     selectBusiness(id) { selectedBusinessId = String(id || ''); if (selectedBusinessId) localStorage.setItem('pa_selected_business_id', selectedBusinessId); else localStorage.removeItem('pa_selected_business_id'); },
     async logout() {
-      try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch (_) { /* always clear local view */ }
+      const button = document.getElementById('logoutTopButton');
+      if (button) { button.disabled = true; button.setAttribute('aria-busy','true'); }
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      } catch (error) { console.error('No se pudo contactar el cierre de sesión:', error); }
       this.user = null;
-      window.location.replace(window.location.pathname);
+      try { localStorage.removeItem('pa_selected_business_id'); } catch (_) {}
+      window.location.replace(window.location.pathname + '?logout=' + Date.now());
     }
   };
 
@@ -1119,8 +1124,7 @@ input[type="date"], input[type="month"] {
   $('#sidebarBackdrop').addEventListener('click', () => {
     $('#sidebar').classList.remove('open'); $('#sidebarBackdrop').classList.remove('show'); $('#menuToggle').setAttribute('aria-expanded', 'false');
   });
-  $('#logoutButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
-  $('#logoutTopButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
+  document.addEventListener('click', (event) => { const button = event.target.closest('#logoutTopButton'); if (button) { event.preventDefault(); window.PanaderiaAuth?.logout(); } });
 
   // Formularios de movimientos
   $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
