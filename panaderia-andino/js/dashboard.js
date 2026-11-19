@@ -718,7 +718,7 @@
     const employee = (state.employees || []).find((item) => item.id === payment.employeeId);
     if (employee) {
       const latest = [...state.employeePayments].filter((item) => item.employeeId === employee.id).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
-      if (!latest) employee.nextPaymentDate = '';
+      if (!latest) employee.nextPaymentDate = payment.previousNextPaymentDate || '';
       else {
         const next = new Date(`${latest.date}T12:00:00`);
         if (employee.frequency === 'daily') next.setDate(next.getDate() + 1);
@@ -822,7 +822,7 @@
       const employee = (state.employees || []).find((item) => item.id === $('#paymentEmployee').value); const amount = Number($('#employeePaymentAmount').value); const date = $('#employeePaymentDate').value;
       if (!employee || !Number.isFinite(amount) || amount <= 0 || !date) { notify('Completá los datos del pago.'); return; }
       const paymentId = makeId(); const method = $('#employeePaymentMethod').value; const period = $('#employeePaymentPeriod').value.trim() || 'Pago de salario';
-      state.employeePayments = state.employeePayments || []; state.employeePayments.push({ id: paymentId, employeeId: employee.id, employeeName: employee.name, amount, date, method, period, createdAt: new Date().toISOString() });
+      state.employeePayments = state.employeePayments || []; state.employeePayments.push({ id: paymentId, employeeId: employee.id, employeeName: employee.name, amount, date, method, period, previousNextPaymentDate: employee.nextPaymentDate || '', createdAt: new Date().toISOString() });
        const nextPay = new Date(date + 'T12:00:00'); if (employee.frequency === 'daily') nextPay.setDate(nextPay.getDate() + 1); else if (employee.frequency === 'weekly') nextPay.setDate(nextPay.getDate() + 7); else nextPay.setMonth(nextPay.getMonth() + 1); employee.nextPaymentDate = nextPay.toISOString().slice(0, 10);
       state.movements.push({ id: makeId(), description: `Pago a ${employee.name}`, amount, date, type: 'expense', category: 'Salarios', payment: method, note: period, employeePaymentId: paymentId });
       saveState(); simpleModal.hide(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel(); notify('Pago registrado y contabilizado como gasto.'); return;
