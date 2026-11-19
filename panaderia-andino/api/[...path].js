@@ -20,6 +20,9 @@ function send(res, status, data, headers = {}) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
   res.end(JSON.stringify(data));
 }
@@ -29,15 +32,30 @@ function body(req) {
   return {};
 }
 function sameOrigin(req) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const fetchSite = String(req.headers['sec-fetch-site'] || '').toLowerCase();
+  if (fetchSite === 'cross-site') return false;
   const origin = req.headers.origin;
-  if (!origin) return true;
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  try { return new URL(origin).host === host; } catch (_) { return false; }
+  // Los navegadores envían Origin en las operaciones que modifican datos.
+  // No aceptar POST/PUT/PATCH/DELETE sin Origin: evita CSRF desde subdominios
+  // del mismo sitio y clientes que intenten omitir la comprobación.
+  if (!origin) return !unsafe;
+  const host = String(req.headers.host || '').toLowerCase();
+  try {
+    const parsed = new URL(origin);
+    const expectedProtocol = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+    return parsed.protocol === expectedProtocol + ':' &&
+      parsed.host.toLowerCase() === host &&
+      parsed.username === '' && parsed.password === '';
+  } catch (_) { return false; }
 }
 function cookie(req) {
   for (const part of String(req.headers.cookie || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > -1 && part.slice(0, i).trim() === 'pa_session') return decodeURIComponent(part.slice(i + 1).trim());
+    if (i > -1 && part.slice(0, i).trim() === 'pa_session') {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch (_) { return ''; }
+    }
   }
   return '';
 }
@@ -65,9 +83,9 @@ async function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 function sessionCookie(id, version = 0) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, ver: Number(version) || 0, exp: Date.now() + 31536000000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ sub: id, ver: Number(version) || 0, exp: Date.now() + 43200000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-  return 'pa_session=' + encodeURIComponent(payload + '.' + sig) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000';
+  return 'pa_session=' + encodeURIComponent(payload + '.' + sig) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=43200';
 }
 const clearCookie = 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 
@@ -220,8 +238,8 @@ module.exports = async function handler(req, res) {
       const sql = await ensureSchema();
       const input = body(req);
       const email = String(input.email || '').trim().toLowerCase();
-      const password = String(input.password || '');
-      if (!email || !password) return send(res, 400, { error: 'Ingresá tu correo y contraseña.' });
+      const password = typeof input.password === 'string' ? input.password : '';
+      if (!email || !password || password.length > 200) return send(res, 400, { error: 'Ingresá un correo y una contraseña válidos.' });
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime() > Date.now()) return send(res, 429, { error: 'Demasiados intentos. Probá nuevamente dentro de unos minutos.' });
       const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,
@@ -395,10 +413,7 @@ module.exports = async function handler(req, res) {
     console.error('[api] request failed', {
       path,
       method: req.method,
-      code: err && err.code,
-      message: err && err.message,
-      constraint: err && err.constraint,
-      detail: err && err.detail
+      code: err && err.code
     });
     if (err && err.code === '23505') return send(res, 409, { error: 'Ya existe una panadería con ese identificador. Probá con otro nombre.' });
     if (err && err.code === '23503') return send(res, 400, { error: 'El negocio indicado no existe o no puede utilizarse.' });
