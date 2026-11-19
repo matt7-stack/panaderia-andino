@@ -643,13 +643,15 @@ input[type="date"], input[type="month"] {
   }
 
   function establish(user) {
+    // Normalizar el indicador de administrador de plataforma; nunca inferirlo solo por role='admin'.
+    user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
     gate.classList.add('auth-gate-hidden');
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     const usersTab = document.querySelector('[data-settings-tab="users"]');
