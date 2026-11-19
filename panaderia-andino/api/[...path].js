@@ -142,50 +142,9 @@ module.exports = async function handler(req, res) {
       }
       return send(res,200,{ok:true,message:'Si la recuperación está habilitada, recibirás un correo con las instrucciones.'});
     }
-    if (path === '/api/auth/reset-password' && req.method === 'POST') {
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const sql=await ensureSchema(); const input=body(req); const token=String(input.token||''); const password=input.password;
-      if(token.length!==64 || !validPassword(password)) return send(res,400,{error:'El enlace no es válido o la contraseña debe tener al menos 12 caracteres.'});
-      const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-      const passwordHash=await hashPassword(password);
-      const consumed=await sql`UPDATE app_password_resets r SET used_at=NOW() FROM app_users u WHERE r.user_id=u.id AND r.token_hash=${tokenHash} AND r.used_at IS NULL AND r.expires_at>NOW() AND u.is_platform_admin=TRUE AND u.active=TRUE RETURNING r.user_id`;
-      if(!consumed[0]) return send(res,400,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
-      await sql`UPDATE app_users SET password_hash=${passwordHash},session_version=session_version+1 WHERE id=${consumed[0].user_id} AND is_platform_admin=TRUE`;
-      await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${consumed[0].user_id} AND used_at IS NULL`;
-      return send(res,200,{ok:true,message:'Contraseña actualizada. Ya podés iniciar sesión.'},{'Set-Cookie':clearCookie});
-    }
     if (path === '/api/auth/login' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema(); const input = body(req);
-      if (input.action === 'forgot-password') {
-        const destination=String(process.env.ADMIN_RECOVERY_EMAIL||'').trim().toLowerCase();
-        const admin=await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE AND active=TRUE LIMIT 1`;
-        if (admin[0] && validEmail(destination) && process.env.RESEND_API_KEY && process.env.AUTH_FROM_EMAIL && process.env.RESET_BASE_URL) {
-          const recent=await sql`SELECT COUNT(*)::int AS count FROM app_password_resets WHERE user_id=${admin[0].id} AND created_at>NOW()-INTERVAL '15 minutes'`;
-          if (Number(recent[0]?.count||0)<3) {
-            const token=crypto.randomBytes(32).toString('hex');
-            const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-            await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${admin[0].id} AND used_at IS NULL`;
-            await sql`INSERT INTO app_password_resets(user_id,token_hash,expires_at) VALUES(${admin[0].id},${tokenHash},NOW()+INTERVAL '30 minutes')`;
-            const base=String(process.env.RESET_BASE_URL).replace(/\/$/,'');
-            const link=base+'/#restablecer='+encodeURIComponent(token);
-            const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{'Authorization':'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.AUTH_FROM_EMAIL,to:[destination],subject:'Recuperar contraseña - Gestión Panadería',html:'<p>Solicitaste cambiar la contraseña de administrador.</p><p><a href="'+link+'">Crear una nueva contraseña</a></p><p>Este enlace vence en 30 minutos y solo se puede usar una vez. Si no solicitaste el cambio, ignorá este correo.</p>'})});
-            if(!mail.ok) { await sql`UPDATE app_password_resets SET used_at=NOW() WHERE token_hash=${tokenHash}`; throw new Error('No se pudo enviar el correo.'); }
-          }
-        }
-        return send(res,200,{ok:true,message:'Si la recuperación está habilitada, recibirás un correo con las instrucciones.'});
-      }
-      if (input.action === 'reset-password') {
-        const token=String(input.token||''); const newPassword=input.newPassword;
-        if(token.length!==64 || !validPassword(newPassword)) return send(res,400,{error:'El enlace no es válido o la contraseña debe tener al menos 12 caracteres.'});
-        const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-        const passwordHash=await hashPassword(newPassword);
-        const consumed=await sql`UPDATE app_password_resets r SET used_at=NOW() FROM app_users u WHERE r.user_id=u.id AND r.token_hash=${tokenHash} AND r.used_at IS NULL AND r.expires_at>NOW() AND u.is_platform_admin=TRUE AND u.active=TRUE RETURNING r.user_id`;
-        if(!consumed[0]) return send(res,400,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
-        await sql`UPDATE app_users SET password_hash=${passwordHash},session_version=session_version+1 WHERE id=${consumed[0].user_id} AND is_platform_admin=TRUE`;
-        await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${consumed[0].user_id} AND used_at IS NULL`;
-        return send(res,200,{ok:true,message:'Contraseña actualizada. Ya podés iniciar sesión.'},{'Set-Cookie':clearCookie});
-      }
       const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
