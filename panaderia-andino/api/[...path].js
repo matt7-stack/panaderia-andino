@@ -13,6 +13,7 @@ async function ensureSchema() {
   // Schema changes are deployed only through versioned migrations.
   const sql = db();
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`CREATE TABLE IF NOT EXISTS app_admin_setup_tokens (token_hash TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL, used_at TIMESTAMPTZ)`;
   return sql;
 }
 function send(res, status, data, headers = {}) {
@@ -119,10 +120,13 @@ module.exports = async function handler(req, res) {
       const sql = await ensureSchema();
       const existing = await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE LIMIT 1`;
       if (existing.length) return send(res,409,{error:'La cuenta administradora ya fue activada. Iniciá sesión.'});
-      const input = body(req); const token = String(input.token || ''); const expected = process.env.ADMIN_BOOTSTRAP_TOKEN || '';
-      if (!expected || token.length < 32 || !safeEqual(token,expected)) return send(res,403,{error:'El enlace de activación no es válido.'});
-      const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
-      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
+      const input = body(req); const token = String(input.token || '');
+      if (token.length < 32) return send(res,403,{error:'El enlace de activación no es válido.'});
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const claimed = await sql`UPDATE app_admin_setup_tokens SET used_at=NOW() WHERE token_hash=${tokenHash} AND used_at IS NULL AND expires_at>NOW() RETURNING token_hash`;
+      if (!claimed.length) return send(res,403,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
+      const email = String(input.email || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
+      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo válido y una contraseña de al menos 12 caracteres.'});
       const id = crypto.randomUUID(); const passwordHash = await hashPassword(password);
       const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
       return send(res,201,{user:publicUser(rows[0])},{'Set-Cookie':sessionCookie(id,0)});
