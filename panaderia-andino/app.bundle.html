@@ -1126,7 +1126,32 @@ input[type="date"], input[type="month"] {
   $('#sidebarBackdrop').addEventListener('click', () => {
     $('#sidebar').classList.remove('open'); $('#sidebarBackdrop').classList.remove('show'); $('#menuToggle').setAttribute('aria-expanded', 'false');
   });
-  document.addEventListener('click', (event) => { const button = event.target.closest('#logoutTopButton'); if (button) { event.preventDefault(); window.PanaderiaAuth?.logout(); } });
+  const logoutTopButton = document.getElementById('logoutTopButton');
+  if (logoutTopButton) {
+    logoutTopButton.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      logoutTopButton.disabled = true;
+      logoutTopButton.innerHTML = '<i class="bi bi-arrow-repeat"></i><span>Cerrando sesión…</span>';
+      try {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!response.ok) throw new Error('El servidor no pudo cerrar la sesión.');
+        window.PanaderiaAuth.user = null;
+        try { localStorage.removeItem('pa_selected_business_id'); } catch (_) {}
+        window.location.assign('/?signedout=' + Date.now());
+      } catch (error) {
+        logoutTopButton.disabled = false;
+        logoutTopButton.innerHTML = '<i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span>';
+        alert('No se pudo cerrar la sesión. Verificá tu conexión e intentá nuevamente.');
+      }
+    });
+  }
 
   // Formularios de movimientos
   $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
