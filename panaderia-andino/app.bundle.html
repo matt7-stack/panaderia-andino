@@ -572,7 +572,6 @@ input[type="date"], input[type="month"] {
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
-  let activationToken = '';
   const hash = window.location.hash || '';
   if (hash.startsWith('#activar=')) {
     activationToken = decodeURIComponent(hash.slice('#activar='.length));
