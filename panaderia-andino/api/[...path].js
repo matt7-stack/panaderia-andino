@@ -106,12 +106,13 @@ module.exports = async function handler(req, res) {
       return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
     if (path === '/api/auth/logout' && req.method === 'POST') {
-      await ensureSchema();
-      const user = await currentUser(req);
-      if (user) {
-        await db()`UPDATE app_users SET session_version = COALESCE(session_version,0) + 1 WHERE id = ${user.id}`;
-      }
-      return send(res, 200, { ok: true, authenticated: false }, { 'Set-Cookie': clearCookie, 'Clear-Site-Data': '"cache"' });
+      if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
+      // El cierre debe borrar la cookie inmediatamente y no depender de Neon.
+      return send(res, 200, { ok: true, authenticated: false }, {
+        'Set-Cookie': [clearCookie, 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT'],
+        'Clear-Site-Data': '"cache"',
+        'Pragma': 'no-cache'
+      });
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
