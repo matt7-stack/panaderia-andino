@@ -122,26 +122,6 @@ module.exports = async function handler(req, res) {
       const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
       return send(res,201,{user:publicUser(rows[0])},{'Set-Cookie':sessionCookie(id,0)});
     }
-    if (path === '/api/auth/forgot-password' && req.method === 'POST') {
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const sql=await ensureSchema();
-      const destination=String(process.env.ADMIN_RECOVERY_EMAIL||'').trim().toLowerCase();
-      const admin=await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE AND active=TRUE LIMIT 1`;
-      if (admin[0] && validEmail(destination) && process.env.RESEND_API_KEY && process.env.AUTH_FROM_EMAIL && process.env.RESET_BASE_URL) {
-        const recent=await sql`SELECT COUNT(*)::int AS count FROM app_password_resets WHERE user_id=${admin[0].id} AND created_at>NOW()-INTERVAL '15 minutes'`;
-        if (Number(recent[0]?.count||0)<3) {
-          const token=crypto.randomBytes(32).toString('hex');
-          const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-          await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${admin[0].id} AND used_at IS NULL`;
-          await sql`INSERT INTO app_password_resets(user_id,token_hash,expires_at) VALUES(${admin[0].id},${tokenHash},NOW()+INTERVAL '30 minutes')`;
-          const base=String(process.env.RESET_BASE_URL).replace(/\/$/,'');
-          const link=base+'/#restablecer='+encodeURIComponent(token);
-          const mail=await fetch('https://api.resend.com/emails',{method:'POST',headers:{'Authorization':'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.AUTH_FROM_EMAIL,to:[destination],subject:'Recuperar contraseña - Gestión Panadería',html:'<p>Solicitaste cambiar la contraseña de administrador.</p><p><a href="'+link+'">Crear una nueva contraseña</a></p><p>Este enlace vence en 30 minutos y solo se puede usar una vez. Si no solicitaste el cambio, ignorá este correo.</p>'})});
-          if(!mail.ok) { await sql`UPDATE app_password_resets SET used_at=NOW() WHERE token_hash=${tokenHash}`; throw new Error('No se pudo enviar el correo.'); }
-        }
-      }
-      return send(res,200,{ok:true,message:'Si la recuperación está habilitada, recibirás un correo con las instrucciones.'});
-    }
     if (path === '/api/auth/login' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema(); const input = body(req);
