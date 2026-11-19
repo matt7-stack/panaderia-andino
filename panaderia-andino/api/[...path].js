@@ -218,6 +218,48 @@ module.exports = async function handler(req, res) {
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.updated','business',${id},${JSON.stringify({active:input.active})}::jsonb)`;
         return send(res,200,{business:rows[0]});
       }
+      if(req.method==='DELETE'){
+        const input=body(req); const id=String(input.id||'');
+        if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
+        const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
+        if(!business[0]) return send(res,404,{error:'No se encontró la panadería.'});
+        const activeCount=await sql`SELECT COUNT(*)::int AS count FROM businesses WHERE active=TRUE`;
+        if(business[0].active && Number(activeCount[0].count)<=1) return send(res,409,{error:'No podés eliminar la única panadería activa. Registrá otra primero.'});
+        await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
+        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.archived','business',${id},${JSON.stringify({name:business[0].name,reason:'admin_delete'})}::jsonb)`;
+        return send(res,200,{ok:true,archived:true,message:'Panadería eliminada del acceso activo. Los registros históricos se conservaron.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/notifications') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      if(req.method!=='POST') return send(res,405,{error:'Método no permitido.'});
+      const input=body(req); const title=String(input.title||'').trim().slice(0,100); const message=String(input.message||'').trim().slice(0,2000);
+      const businessId=input.businessId==='all'?'':String(input.businessId||'');
+      if(!title||!message) return send(res,400,{error:'Completá el título y el mensaje.'});
+      if(businessId){
+        const target=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+        if(!target.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
+        const rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+        return send(res,201,{ok:true,recipients:rows.length});
+      }
+      const rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+      return send(res,201,{ok:true,recipients:rows.length});
+    }
+    if (path === '/api/notifications') {
+      const user=await authenticated(req,res,false); if(!user) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} ORDER BY n.created_at DESC LIMIT 100`;
+        return send(res,200,{notifications:rows});
+      }
+      if(req.method==='PATCH'){
+        const id=String(body(req).id||''); if(!id) return send(res,400,{error:'Falta la notificación.'});
+        const rows=await sql`UPDATE app_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=${id} AND user_id=${user.id} RETURNING id,read_at`;
+        if(!rows.length) return send(res,404,{error:'No se encontró la notificación.'});
+        return send(res,200,{ok:true,notification:rows[0]});
+      }
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/admin/users') {
