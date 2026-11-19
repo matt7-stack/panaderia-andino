@@ -671,11 +671,17 @@ input[type="date"], input[type="month"] {
       const button = document.getElementById('logoutTopButton');
       if (button) { button.disabled = true; button.setAttribute('aria-busy','true'); }
       try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      } catch (error) { console.error('No se pudo contactar el cierre de sesión:', error); }
-      this.user = null;
-      try { localStorage.removeItem('pa_selected_business_id'); } catch (_) {}
-      window.location.replace(window.location.pathname + '?logout=' + Date.now());
+        const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        if (!response.ok) throw new Error('El servidor rechazó el cierre de sesión (' + response.status + ').');
+        this.user = null;
+        try { localStorage.removeItem('pa_selected_business_id'); } catch (_) {}
+        document.body.classList.add('auth-locked');
+        showLogin('Sesión cerrada. Iniciá sesión para continuar.');
+      } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+        if (button) { button.disabled = false; button.removeAttribute('aria-busy'); button.innerHTML = '<i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span>'; }
+        alert(error.message || 'No se pudo cerrar la sesión.');
+      }
     }
   };
 
@@ -1131,10 +1137,8 @@ input[type="date"], input[type="month"] {
     logoutTopButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      logoutTopButton.disabled = true;
       logoutTopButton.innerHTML = '<i class="bi bi-arrow-repeat"></i><span>Cerrando sesión…</span>';
-      // Navegación de nivel superior: el navegador procesa Set-Cookie y elimina la cookie HttpOnly.
-      window.location.assign('/api/auth/logout');
+      window.PanaderiaAuth.logout();
     });
   }
 
