@@ -333,7 +333,7 @@ input[type="date"], input[type="month"] {
         <div class="breadcrumb-label"><span>Panadería Andino</span><i class="bi bi-chevron-right"></i><strong id="breadcrumbCurrent">Dashboard</strong></div>
         <div class="topbar-actions">
           <label class="month-picker" id="globalMonthPicker"><i class="bi bi-calendar3"></i><span class="visually-hidden">Mes del resumen</span><input type="month" id="monthFilter" aria-label="Seleccionar mes"></label>
-          <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div>
+          <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div><button class="btn" type="button" id="logoutTopButton" style="display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brown-800);font-size:11px;font-weight:700;white-space:nowrap"><i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span></button>
         </div>
       </header>
 
@@ -1120,6 +1120,7 @@ input[type="date"], input[type="month"] {
     $('#sidebar').classList.remove('open'); $('#sidebarBackdrop').classList.remove('show'); $('#menuToggle').setAttribute('aria-expanded', 'false');
   });
   $('#logoutButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
+  $('#logoutTopButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
 
   // Formularios de movimientos
   $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
