@@ -650,11 +650,11 @@ input[type="date"], input[type="month"] {
     const meta = document.querySelector('.user-meta small');
     if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
     const adminNav = document.getElementById('adminNavLink');
-    if (adminNav) adminNav.hidden = user.role !== 'admin';
+    if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
-    if (usersTab) usersTab.hidden = user.role !== 'admin';
-    if (usersPanel) usersPanel.hidden = user.role !== 'admin';
+    if (usersTab) usersTab.hidden = user.isPlatformAdmin !== true;
+    if (usersPanel) usersPanel.hidden = user.isPlatformAdmin !== true;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
@@ -1309,7 +1309,7 @@ input[type="date"], input[type="month"] {
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId: window.PanaderiaAuth.selectedBusinessId }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -1390,7 +1390,7 @@ input[type="date"], input[type="month"] {
     } catch (error) { console.warn('No se pudieron cargar las panaderías:', error.message); }
   }
   async function refreshCloudUsers() {
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel(); await refreshCloudBusinesses();
