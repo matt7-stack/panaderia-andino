@@ -4,11 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="refresh" content="0;url=/app.bundle.html">
   <title>Panadería Andino</title>
 </head>
 <body>
-  <p>Abriendo Panadería Andino… <a href="/app.bundle.html">Continuar</a></p>
-  <script>window.location.replace('/app.bundle.html');</script>
+  <p>Abriendo Panadería Andino… <a id="continueLink" href="/app.bundle.html">Continuar</a></p>
+  <script>
+    const destination = '/app.bundle.html' + window.location.search + window.location.hash;
+    document.getElementById('continueLink').href = destination;
+    window.location.replace(destination);
+  </script>
 </body>
 </html>
