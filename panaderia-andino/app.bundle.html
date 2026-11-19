@@ -664,12 +664,25 @@ input[type="date"], input[type="month"] {
     if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
+    // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de una panadería.
+    const platformAdmin = user.isPlatformAdmin === true;
+    document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
+      const page = link.dataset.pageLink;
+      link.hidden = platformAdmin ? page !== 'administracion' : page === 'administracion';
+    });
+    const sidebarLabel = document.querySelector('.sidebar-label');
+    if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
+    const sidebarHelp = document.querySelector('.sidebar-help');
+    if (sidebarHelp) sidebarHelp.hidden = platformAdmin;
+    const monthPicker = document.getElementById('globalMonthPicker');
+    if (monthPicker && platformAdmin) monthPicker.classList.add('d-none');
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
     if (usersTab) usersTab.hidden = user.isPlatformAdmin !== true;
     if (usersPanel) usersPanel.hidden = user.isPlatformAdmin !== true;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
-    if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
+    if (platformAdmin) window.location.hash = '#administracion';
+    else if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
 
   window.PanaderiaAuth = {
@@ -846,7 +859,9 @@ input[type="date"], input[type="month"] {
   }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
-    if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
+    const currentUser = window.PanaderiaAuth?.user;
+    if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
+    if (currentUser?.isPlatformAdmin === true && page !== 'administracion') page = 'administracion';
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
