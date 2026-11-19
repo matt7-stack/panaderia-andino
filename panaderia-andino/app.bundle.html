@@ -331,7 +331,7 @@ input[type="date"], input[type="month"] {
     <main class="main-content">
       <header class="topbar">
         <button class="btn icon-button mobile-menu-button" id="menuToggle" type="button" aria-label="Abrir menú" aria-expanded="false"><i class="bi bi-list"></i></button>
-        <div class="breadcrumb-label"><span>Panadería Andino</span><i class="bi bi-chevron-right"></i><strong id="breadcrumbCurrent">Dashboard</strong></div>
+        <div class="breadcrumb-label"><strong id="breadcrumbCurrent">Dashboard</strong></div>
         <div class="topbar-actions">
           <label class="month-picker" id="globalMonthPicker"><i class="bi bi-calendar3"></i><span class="visually-hidden">Mes del resumen</span><input type="month" id="monthFilter" aria-label="Seleccionar mes"></label>
           <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div><button class="btn" type="button" id="logoutTopButton" style="display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brown-800);font-size:11px;font-weight:700;white-space:nowrap"><i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span></button>
@@ -861,7 +861,7 @@ input[type="date"], input[type="month"] {
     if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
-    if (currentUser?.isPlatformAdmin === true && page !== 'administracion') page = 'administracion';
+    if (currentUser?.isPlatformAdmin === true && !['administracion','configuracion'].includes(page)) page = 'administracion';
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
@@ -1330,7 +1330,12 @@ input[type="date"], input[type="month"] {
       notify(error.message || 'No se pudo completar la limpieza. Verificá la conexión.');
     } finally { button.disabled = false; }
   });
-  $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
+  $('#adminManageUsers').addEventListener('click', () => {
+    pageNavigate('configuracion');
+    const tab = $('[data-settings-tab="users"]');
+    if (tab) tab.click();
+    refreshCloudUsers().catch(error => notify(error.message || 'No se pudieron cargar los usuarios.'));
+  });
   $('#addBusinessButton')?.addEventListener('click', async () => {
     const name=prompt('Nombre de la nueva panadería:'); if(!name||!name.trim()) return;
     const address=prompt('Dirección (opcional):')||''; const phone=prompt('Teléfono (opcional):')||'';
