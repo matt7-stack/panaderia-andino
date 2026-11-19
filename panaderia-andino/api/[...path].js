@@ -133,6 +133,44 @@ function slugify(value) {
   return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 }
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+function isAppendOnly(previous, next) {
+  if (!Array.isArray(previous) || !Array.isArray(next) || next.length < previous.length) return false;
+  const seen = new Set();
+  for (let index = 0; index < next.length; index++) {
+    const item = next[index];
+    if (!item || typeof item !== 'object' || Array.isArray(item) || !item.id || seen.has(String(item.id))) return false;
+    seen.add(String(item.id));
+    if (index < previous.length && stableJson(previous[index]) !== stableJson(item)) return false;
+  }
+  return true;
+}
+function employeeSafeData(current, incoming) {
+  const oldMovements = Array.isArray(current.movements) ? current.movements : [];
+  const newMovements = Array.isArray(incoming.movements) ? incoming.movements : oldMovements;
+  const oldInvoices = Array.isArray(current.invoices) ? current.invoices : [];
+  const newInvoices = Array.isArray(incoming.invoices) ? incoming.invoices : oldInvoices;
+  if (!isAppendOnly(oldMovements, newMovements) || !isAppendOnly(oldInvoices, newInvoices)) {
+    const error = new Error('Tu cuenta solo puede agregar movimientos y notas nuevas; no puede editar ni eliminar registros existentes.');
+    error.statusCode = 403;
+    throw error;
+  }
+  for (const item of newMovements.slice(oldMovements.length)) {
+    if (!['income', 'expense'].includes(item.type) || !String(item.description || '').trim() || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date || ''))) {
+      const error = new Error('El movimiento nuevo contiene datos inválidos.'); error.statusCode = 400; throw error;
+    }
+  }
+  for (const item of newInvoices.slice(oldInvoices.length)) {
+    if (item.direction !== 'issued' || !String(item.number || '').trim() || !String(item.party || '').trim() || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(String(item.date || ''))) {
+      const error = new Error('La nota nueva contiene datos inválidos.'); error.statusCode = 400; throw error;
+    }
+  }
+  return { ...current, movements: newMovements, invoices: newInvoices };
+}
 async function selectedBusiness(req, user) {
   if (!user.is_platform_admin) {
     const rows = await db()`SELECT id,name,slug,active FROM businesses WHERE id=${user.business_id} AND active=TRUE LIMIT 1`;
@@ -256,6 +294,30 @@ module.exports = async function handler(req, res) {
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       return send(res, 200, { user: publicSessionUser(u) }, { 'Set-Cookie': sessionCookie(u.id, u.session_version) });
+    }
+
+    if (path === '/api/admin/database-info') {
+      const admin = await authenticated(req, res, true);
+      if (!admin) return;
+      if (req.method !== 'GET') return send(res, 405, { error: 'Método no permitido.' });
+      const sql = db();
+      const identity = await sql`SELECT current_database() AS database_name, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
+      const row = identity[0] || {};
+      const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+      let host = null;
+      try { host = new URL(databaseUrl).hostname; } catch (_) { /* secret may be injected through another provider */ }
+      return send(res, 200, {
+        provider: host && host.includes('neon.tech') ? 'Neon' : (host ? 'PostgreSQL-compatible' : 'Managed PostgreSQL (host not exposed)'),
+        host,
+        database: row.database_name || null,
+        role: row.database_role || null,
+        serverAddress: row.server_address || null,
+        serverPort: row.server_port || null,
+        serverVersion: String(row.server_version || '').split(' ').slice(0, 2).join(' '),
+        environment: process.env.VERCEL_ENV || 'unknown',
+        project: process.env.VERCEL_PROJECT_NAME || null,
+        deployment: process.env.VERCEL_URL || null
+      });
     }
 
     if (path === '/api/admin/businesses') {
@@ -393,8 +455,14 @@ module.exports = async function handler(req, res) {
       if (req.method === 'PUT') {
         const input = body(req);
         if (!input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return send(res, 400, { error: 'No se recibieron datos válidos.' });
-        const data = { ...input.data };
+        let data = { ...input.data };
         delete data.users;
+        if (user.role === 'employee' && user.is_platform_admin !== true) {
+          const existing = await sql`SELECT data FROM app_state WHERE business_id=${business.id} LIMIT 1`;
+          const current = existing[0]?.data && typeof existing[0].data === 'object' && !Array.isArray(existing[0].data) ? existing[0].data : {};
+          data = employeeSafeData(current, data);
+          delete data.users;
+        }
         const serialized = JSON.stringify(data);
         if (Buffer.byteLength(serialized, 'utf8') > 900000) return send(res, 413, { error: 'El volumen de datos supera el límite permitido.' });
         const saved = await sql`INSERT INTO app_state(data,updated_by,updated_at,business_id)
@@ -415,6 +483,7 @@ module.exports = async function handler(req, res) {
       method: req.method,
       code: err && err.code
     });
+    if (err && Number.isInteger(err.statusCode)) return send(res, err.statusCode, { error: err.message });
     if (err && err.code === '23505') return send(res, 409, { error: 'Ya existe una panadería con ese identificador. Probá con otro nombre.' });
     if (err && err.code === '23503') return send(res, 400, { error: 'El negocio indicado no existe o no puede utilizarse.' });
     if (err && err.code === '42P01') return send(res, 500, { error: 'Falta una tabla de la base de datos. Se requiere revisar la migración del sistema.' });
