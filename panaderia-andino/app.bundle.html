@@ -1385,7 +1385,8 @@ input[type="date"], input[type="month"] {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
     try {
       const result = await window.PanaderiaAuth.api('/api/admin/businesses'); cloudBusinesses = result.businesses || [];
-      if (!window.PanaderiaAuth.selectedBusinessId && cloudBusinesses.length) window.PanaderiaAuth.selectBusiness(cloudBusinesses.find((b) => b.active)?.id || cloudBusinesses[0].id);
+      const selected = cloudBusinesses.find((b) => b.id === window.PanaderiaAuth.selectedBusinessId && b.active);
+      if (!selected) window.PanaderiaAuth.selectBusiness(cloudBusinesses.find((b) => b.active)?.id || '');
       renderCloudBusinesses();
     } catch (error) { console.warn('No se pudieron cargar las panaderías:', error.message); }
   }
