@@ -140,12 +140,16 @@ function stableJson(value) {
 }
 function isAppendOnly(previous, next) {
   if (!Array.isArray(previous) || !Array.isArray(next) || next.length < previous.length) return false;
-  const seen = new Set();
+  const seen = new Set(previous.filter(item => item && item.id).map(item => String(item.id)));
   for (let index = 0; index < next.length; index++) {
     const item = next[index];
-    if (!item || typeof item !== 'object' || Array.isArray(item) || !item.id || seen.has(String(item.id))) return false;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    if (index < previous.length) {
+      if (stableJson(previous[index]) !== stableJson(item)) return false;
+      continue;
+    }
+    if (!item.id || seen.has(String(item.id))) return false;
     seen.add(String(item.id));
-    if (index < previous.length && stableJson(previous[index]) !== stableJson(item)) return false;
   }
   return true;
 }
@@ -304,7 +308,7 @@ module.exports = async function handler(req, res) {
       const identity = await sql`SELECT current_database() AS database_name, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
       const row = identity[0] || {};
       const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
-      let host = null;
+      let host = String(process.env.PGHOST || process.env.POSTGRES_HOST || '').trim() || null;
       try { host = new URL(databaseUrl).hostname; } catch (_) { /* secret may be injected through another provider */ }
       return send(res, 200, {
         provider: host && host.includes('neon.tech') ? 'Neon' : (host ? 'PostgreSQL-compatible' : 'Managed PostgreSQL (host not exposed)'),
