@@ -208,30 +208,33 @@ module.exports = async function handler(req, res) {
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
-      const input = body(req);
-      if (input.confirm !== true) return send(res,400,{error:'Confirmá la limpieza de datos.'});
-      const sql = db();
-      const rows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
-      const current = rows[0]?.data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
-      const data = { ...current, movements: [], invoices: [], employees: [], employeePayments: [] };
-      delete data.users;
-      const serialized = JSON.stringify(data);
-      const saved = await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-      return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at || null});
+      const businessId=String(req.headers['x-business-id']||'');
+      if(!businessId) return send(res,400,{error:'Seleccioná una panadería para continuar.'});
+      const sql=db();
+      const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+      const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
+      const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
+      const serialized=JSON.stringify(data);
+      const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${admin.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+      return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at||null});
     }
     if (path === '/api/data') {
-      const user = await authenticated(req,res,false); if (!user) return;
+      const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
-      if (req.method==='GET') {
-        const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`;
+      const businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
+      if(!businessId) return send(res,400,{error:'No hay una panadería asignada a esta cuenta.'});
+      const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+      if(!allowed.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
+      if(req.method==='GET'){
+        const rows=await sql`SELECT data,updated_at FROM app_state WHERE business_id=${businessId} LIMIT 1`;
         return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null});
       }
-      if (req.method==='PUT') {
-        const input=body(req); if (!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+      if(req.method==='PUT'){
+        const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
         const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
-        if (Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-        const saved=await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-        return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+        if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
