@@ -147,11 +147,11 @@ module.exports = async function handler(req, res) {
       const sql=await ensureSchema(); const input=body(req); const token=String(input.token||''); const password=input.password;
       if(token.length!==64 || !validPassword(password)) return send(res,400,{error:'El enlace no es válido o la contraseña debe tener al menos 12 caracteres.'});
       const tokenHash=crypto.createHash('sha256').update(token).digest('hex');
-      const rows=await sql`SELECT r.id,r.user_id FROM app_password_resets r JOIN app_users u ON u.id=r.user_id WHERE r.token_hash=${tokenHash} AND r.used_at IS NULL AND r.expires_at>NOW() AND u.is_platform_admin=TRUE AND u.active=TRUE LIMIT 1`;
-      if(!rows[0]) return send(res,400,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
       const passwordHash=await hashPassword(password);
-      await sql`UPDATE app_users SET password_hash=${passwordHash},session_version=session_version+1 WHERE id=${rows[0].user_id} AND is_platform_admin=TRUE`;
-      await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${rows[0].user_id} AND used_at IS NULL`;
+      const consumed=await sql`UPDATE app_password_resets r SET used_at=NOW() FROM app_users u WHERE r.user_id=u.id AND r.token_hash=${tokenHash} AND r.used_at IS NULL AND r.expires_at>NOW() AND u.is_platform_admin=TRUE AND u.active=TRUE RETURNING r.user_id`;
+      if(!consumed[0]) return send(res,400,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
+      await sql`UPDATE app_users SET password_hash=${passwordHash},session_version=session_version+1 WHERE id=${consumed[0].user_id} AND is_platform_admin=TRUE`;
+      await sql`UPDATE app_password_resets SET used_at=NOW() WHERE user_id=${consumed[0].user_id} AND used_at IS NULL`;
       return send(res,200,{ok:true,message:'Contraseña actualizada. Ya podés iniciar sesión.'},{'Set-Cookie':clearCookie});
     }
     if (path === '/api/auth/login' && req.method === 'POST') {
