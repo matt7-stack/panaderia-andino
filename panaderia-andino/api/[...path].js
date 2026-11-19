@@ -105,22 +105,13 @@ module.exports = async function handler(req, res) {
       await ensureSchema(); const user = await currentUser(req);
       return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
-    if (path === '/api/auth/logout' && (req.method === 'GET' || req.method === 'POST')) {
-      // Invalida la sesión en la base de datos, incluso si el navegador no acepta la cookie de borrado.
+    if (path === '/api/auth/logout' && req.method === 'POST') {
       await ensureSchema();
       const user = await currentUser(req);
       if (user) {
         await db()`UPDATE app_users SET session_version = COALESCE(session_version,0) + 1 WHERE id = ${user.id}`;
       }
-      res.statusCode = 303;
-      res.setHeader('Set-Cookie', [
-        'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0',
-        'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT'
-      ]);
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Location', '/?signedout=' + Date.now());
-      return res.end();
+      return send(res, 200, { ok: true, authenticated: false }, { 'Set-Cookie': clearCookie, 'Clear-Site-Data': '"cache"' });
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
