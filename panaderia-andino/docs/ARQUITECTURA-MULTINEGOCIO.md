@@ -7,6 +7,8 @@
 - No se crean administradores por panadería.
 - Cada panadería es un espacio de datos independiente.
 - Los usuarios de tipo supervisor/empleado pertenecen a una sola panadería.
+- Supervisor: puede gestionar las operaciones y el personal de su propia panadería; no administra cuentas globales ni otros negocios.
+- Empleado: puede consultar el panel y agregar movimientos y notas emitidas; no puede editar ni eliminar registros existentes, gestionar personal, pagos, configuración ni usuarios.
 - El administrador global puede crear, consultar, activar/desactivar y seleccionar panaderías.
 - El administrador global puede restablecer la contraseña de los usuarios sin consultar ni recuperar la contraseña anterior.
 
@@ -50,8 +52,11 @@
 - [x] Añadido el control de restablecimiento en el código fuente del panel de usuarios.
 - [x] Actualizados el acceso, el título inicial y el manifiesto a “Gestión Panadería”.
 - [ ] Aún falta migrar de forma controlada los datos históricos y cambiar `/api/data` para aislar cada negocio.
-- [ ] Aún falta el panel global de creación/selección/activación de panaderías y la asignación de usuarios a cada negocio.
+- [x] El panel global de creación/selección/activación de panaderías y la asignación de usuarios a cada negocio están presentes en la rama de aplicaciones separadas.
 - [ ] Aún falta regenerar el paquete comprimido que sirve Vercel y validar la aplicación completa.
+- [x] Restaurada la acción de eliminar pagos: elimina el pago y su movimiento de gasto asociado, y recalcula la próxima fecha de pago.
+- [x] Aplicados permisos de empleado en la API: solo puede anexar movimientos y notas nuevas; el servidor conserva intactos los demás datos y rechaza cambios o eliminaciones.
+- [x] Añadido endpoint de diagnóstico de base de datos, solo para administrador global, que informa proveedor/host/base/entorno sin exponer credenciales.
 
 **Esta rama es de desarrollo y no está publicada.** La creación de tablas se ejecutará cuando la API actualizada se despliegue; no se ha ejecutado ninguna migración sobre registros existentes ni se ha modificado Neon manualmente.
 
@@ -64,6 +69,19 @@
 5. Aplicar el cambio de marca en todos los recursos visibles.
 6. Ejecutar pruebas de aislamiento con dos negocios y usuarios distintos.
 7. Publicar solo después de verificar que los datos históricos siguen intactos.
+
+## Matriz de permisos operativos
+
+| Acción | Administrador global | Supervisor | Empleado |
+|---|---:|---:|---:|
+| Seleccionar/administrar panaderías | Sí | No | No |
+| Crear, suspender y asignar usuarios | Sí | No | No |
+| Ver datos de su panadería | Sí, al seleccionarla | Sí | Sí |
+| Agregar movimientos y notas emitidas | Sí | Sí | Sí |
+| Editar/eliminar movimientos y notas | Sí | Sí | No |
+| Gestionar empleados y pagos | Sí | Sí, solo su negocio | No |
+| Configuración del negocio | Sí | Sí, solo su negocio | No |
+| Cambiar de negocio | Sí | No | No |
 
 ## Fuera de alcance de esta etapa
 
