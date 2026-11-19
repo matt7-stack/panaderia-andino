@@ -7,6 +7,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS app_products_business_id_id_uq ON app_products
 CREATE UNIQUE INDEX IF NOT EXISTS app_customers_business_id_id_uq ON app_customers(business_id,id);
 CREATE UNIQUE INDEX IF NOT EXISTS app_suppliers_business_id_id_uq ON app_suppliers(business_id,id);
 CREATE UNIQUE INDEX IF NOT EXISTS app_recipes_business_id_id_uq ON app_recipes(business_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS app_sales_business_id_id_uq ON app_sales(business_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS app_purchases_business_id_id_uq ON app_purchases(business_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_business_id_id_uq ON app_cash_sessions(business_id,id);
 
 DO $$
 BEGIN
