@@ -49,6 +49,9 @@
   let cloudSaving = false;
   let cloudSwitching = false;
   let cloudSyncInterval = null;
+  const currentUser = () => window.PanaderiaAuth?.user || null;
+  const isEmployee = () => currentUser()?.isPlatformAdmin !== true && currentUser()?.role === 'employee';
+  const canManageBusiness = () => !isEmployee();
   const scopedStorageKey = () => {
     const user = window.PanaderiaAuth?.user;
     const scope = user?.isPlatformAdmin === true ? selectedBusinessId : (user?.businessId || user?.id || 'anonymous');
@@ -118,6 +121,7 @@
   }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
+    if (isEmployee() && ['empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) page = 'dashboard';
     if (page === 'administracion' && window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
@@ -256,7 +260,7 @@
       <td><span class="status-pill ${item.type === 'income' ? 'status-income' : 'status-expense'}">${item.type === 'income' ? 'Ingreso' : 'Gasto'}</span></td>
       <td>${escapeHTML(item.payment || '—')}</td>
       <td class="text-end table-amount ${item.type === 'income' ? 'amount-income' : 'amount-expense'}">${money(item.amount)}</td>
-      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar" aria-label="Editar movimiento" data-edit-movement="${escapeHTML(item.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar movimiento" data-delete-movement="${escapeHTML(item.id)}"><i class="bi bi-trash3"></i></button></div></td>
+      <td>${canManageBusiness() ? `<div class="table-actions"><button class="icon-action" type="button" title="Editar" aria-label="Editar movimiento" data-edit-movement="${escapeHTML(item.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar movimiento" data-delete-movement="${escapeHTML(item.id)}"><i class="bi bi-trash3"></i></button></div>` : '<span class="text-muted">—</span>'}</td>
     </tr>`).join('');
     const income = sumType(rows, 'income');
     const expense = sumType(rows, 'expense');
@@ -308,10 +312,10 @@
       <td>${escapeHTML(invoice.party)}</td>
       <td>${dateFormat(invoice.date)}</td>
       <td class="text-end table-amount">${money(invoice.amount)}</td>
-      <td><div class="table-actions">
+      <td>${canManageBusiness() ? `<div class="table-actions">
         <button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button>
         <button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button>
-      </div></td>
+      </div>` : '<span class="text-muted">—</span>'}</td>
     </tr>`).join('');
     $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
@@ -357,7 +361,7 @@
       reminderBox.innerHTML = reminders.length ? `<div class="alert alert-warning mb-3"><strong><i class="bi bi-bell"></i> Próximos pagos</strong><ul class="mb-0 mt-2">${reminders.map((employee) => { const days = Math.ceil((new Date(employee.nextPaymentDate + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000); return `<li>${escapeHTML(employee.name)}: ${days < 0 ? 'vencido' : days === 0 ? 'hoy' : `en ${days} día(s)`} — ${dateFormat(employee.nextPaymentDate)}</li>`; }).join('')}</ul></div>` : '';
     }
     $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${frequencyLabel(employee.frequency)}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-employee="${escapeHTML(employee.id)}" data-active="${employee.active === false ? 'false' : 'true'}" title="${employee.active === false ? 'Activar' : 'Desactivar'}"><i class="bi ${employee.active === false ? 'bi-person-check' : 'bi-person-x'}"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
-    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
+    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td><button class="icon-action danger" type="button" title="Eliminar pago" aria-label="Eliminar pago de ${escapeHTML(payment.employeeName)}" data-delete-employee-payment="${escapeHTML(payment.id)}"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
   function addAuditEntry(action, detail = '') {
@@ -703,6 +707,29 @@
   $('#addUserButton').addEventListener('click', () => openSimpleModal('user'));
   $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
+  $('#employeePaymentsTableBody').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-delete-employee-payment]');
+    if (!button || !canManageBusiness()) return;
+    const paymentId = button.dataset.deleteEmployeePayment;
+    const payment = (state.employeePayments || []).find((item) => item.id === paymentId);
+    if (!payment || !confirmDelete(`¿Eliminar el pago de ${payment.employeeName || 'este empleado'} por ${money(payment.amount)}? También se quitará el gasto asociado.`)) return;
+    state.employeePayments = (state.employeePayments || []).filter((item) => item.id !== paymentId);
+    state.movements = (state.movements || []).filter((item) => item.employeePaymentId !== paymentId);
+    const employee = (state.employees || []).find((item) => item.id === payment.employeeId);
+    if (employee) {
+      const latest = [...state.employeePayments].filter((item) => item.employeeId === employee.id).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+      if (!latest) employee.nextPaymentDate = '';
+      else {
+        const next = new Date(`${latest.date}T12:00:00`);
+        if (employee.frequency === 'daily') next.setDate(next.getDate() + 1);
+        else if (employee.frequency === 'weekly') next.setDate(next.getDate() + 7);
+        else next.setMonth(next.getMonth() + 1);
+        employee.nextPaymentDate = next.toISOString().slice(0, 10);
+      }
+    }
+    saveState(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel();
+    notify('Pago eliminado y gasto asociado actualizado.');
+  });
   $('#employeesTableBody').addEventListener('click', (event) => {
     const pay = event.target.closest('[data-pay-employee]'); const edit = event.target.closest('[data-edit-employee]'); const toggle = event.target.closest('[data-toggle-employee]');
     if (pay) openSimpleModal('employee-payment', { employeeId: pay.dataset.payEmployee });
