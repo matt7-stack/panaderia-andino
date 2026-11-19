@@ -177,18 +177,52 @@ module.exports = async function handler(req, res) {
         readOnly: true
       });
     }
+    if (path === '/api/admin/businesses') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT b.id,b.name,b.slug,b.active,b.address,b.phone,b.email,b.ruc,b.owner_name,b.created_at,b.updated_at,
+          (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id) AS user_count,
+          (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS active_user_count,
+          (SELECT COALESCE(SUM(amount),0)::numeric(14,2) FROM app_financial_entries f WHERE f.business_id=b.id AND f.entry_type='income') AS recorded_income,
+          (SELECT COALESCE(SUM(amount),0)::numeric(14,2) FROM app_financial_entries f WHERE f.business_id=b.id AND f.entry_type='expense') AS recorded_expenses,
+          (SELECT COALESCE(SUM(total),0)::numeric(14,2) FROM app_sales v WHERE v.business_id=b.id AND v.status='completed') AS sales_total,
+          (SELECT updated_at FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS last_sync
+          FROM businesses b ORDER BY b.created_at DESC`;
+        return send(res,200,{businesses:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120);
+        const slug=String(input.slug||name).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de la panadería.'});
+        const id=crypto.randomUUID();
+        const rows=await sql`INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name) VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)}) RETURNING *`;
+        await sql`INSERT INTO app_state(data,business_id) VALUES('{}'::jsonb,${id}) ON CONFLICT(business_id) DO NOTHING`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.created','business',${id},${JSON.stringify({name,slug})}::jsonb)`;
+        return send(res,201,{business:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
+        const rows=await sql`UPDATE businesses SET name=COALESCE(${input.name===undefined?null:String(input.name).trim().slice(0,120)},name), address=COALESCE(${input.address===undefined?null:String(input.address).slice(0,250)},address), phone=COALESCE(${input.phone===undefined?null:String(input.phone).slice(0,60)},phone), email=COALESCE(${input.email===undefined?null:String(input.email).slice(0,254)},email), ruc=COALESCE(${input.ruc===undefined?null:String(input.ruc).slice(0,40)},ruc), owner_name=COALESCE(${input.ownerName===undefined?null:String(input.ownerName).slice(0,120)},owner_name), active=COALESCE(${typeof input.active==='boolean'?input.active:null},active), updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.updated','business',${id},${JSON.stringify({active:input.active})}::jsonb)`;
+        return send(res,200,{business:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
       if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,email,role,active,created_at FROM app_users ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
+        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
-        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=input.role==='supervisor'?'supervisor':'employee';
-        if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; const businessId=String(input.businessId||'');
+        if (!name || !validEmail(email) || !validPassword(password) || !businessId) return send(res,400,{error:'Completá nombre, correo, contraseña y panadería.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La panadería seleccionada no existe o está inactiva.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
-        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${hash},${role},TRUE) RETURNING id,name,email,role,active,created_at`;
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
         return send(res,201,{user:publicUser(rows[0])});
       }
       if (req.method === 'PATCH') {
