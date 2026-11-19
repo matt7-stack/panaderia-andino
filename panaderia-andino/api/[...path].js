@@ -105,8 +105,12 @@ module.exports = async function handler(req, res) {
       await ensureSchema(); const user = await currentUser(req);
       return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
-    if (path === '/api/auth/logout' && req.method === 'POST') {
-      return send(res,200,{ok:true},{'Set-Cookie':clearCookie});
+    if (path === '/api/auth/logout' && (req.method === 'GET' || req.method === 'POST')) {
+      res.statusCode = 303;
+      res.setHeader('Set-Cookie', clearCookie);
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.setHeader('Location', '/?signedout=1');
+      return res.end();
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
