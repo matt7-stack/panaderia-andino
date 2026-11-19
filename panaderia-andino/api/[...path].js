@@ -244,10 +244,10 @@ module.exports = async function handler(req, res) {
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
       let businessId=String(req.headers['x-business-id']||'');
       if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
       if(!businessId) return send(res,400,{error:'No hay panaderías registradas.'});
-      const sql=db();
       const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
       const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
       const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
