@@ -193,7 +193,7 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
-        const slug=String(input.slug||name).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de la panadería.'});
         const id=crypto.randomUUID();
         const rows=await sql`INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name) VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)}) RETURNING *`;
