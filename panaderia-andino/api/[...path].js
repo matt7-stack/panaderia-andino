@@ -106,7 +106,6 @@ module.exports = async function handler(req, res) {
       return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
     if (path === '/api/auth/logout' && req.method === 'POST') {
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       return send(res,200,{ok:true},{'Set-Cookie':clearCookie});
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
