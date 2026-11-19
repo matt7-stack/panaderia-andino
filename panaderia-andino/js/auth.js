@@ -178,6 +178,14 @@
       return;
     }
     window.PanaderiaAuth.user = user;
+    document.body.dataset.userRole = user.isPlatformAdmin === true ? 'platform-admin' : (user.role || 'employee');
+    const employeeRestricted = user.isPlatformAdmin !== true && user.role === 'employee';
+    ['empleados', 'configuracion', 'administracion', 'guia-uso'].forEach(page => {
+      document.querySelectorAll(`[data-page-link="${page}"]`).forEach(link => { link.hidden = employeeRestricted || (page === 'administracion' && user.isPlatformAdmin !== true); });
+      const view = document.getElementById(`page-${page}`);
+      if (view && employeeRestricted) view.hidden = true;
+    });
+    if (employeeRestricted && ['#empleados', '#configuracion', '#administracion', '#guia-uso'].includes(window.location.hash)) window.location.hash = '#dashboard';
     document.body.classList.remove('auth-locked');
     gate.classList.add('auth-gate-hidden');
     const name = document.getElementById('topUserName');
