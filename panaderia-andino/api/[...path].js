@@ -91,7 +91,7 @@ async function authenticated(req, res, adminOnly = false) {
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
-const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, businessId:u.business_id || null, isPlatformAdmin:u.is_platform_admin === true, createdAt:u.created_at || u.createdAt });
+const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, businessId:u.business_id || null, businessName:u.business_name || null, isPlatformAdmin:u.is_platform_admin === true, createdAt:u.created_at || u.createdAt });
 
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
@@ -218,8 +218,10 @@ module.exports = async function handler(req, res) {
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
-        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; const businessId=String(input.businessId||'');
-        if (!name || !validEmail(email) || !validPassword(password) || !businessId) return send(res,400,{error:'Completá nombre, correo, contraseña y panadería.'});
+        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; let businessId=String(input.businessId||'');
+        if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
+        if(!businessId) return send(res,400,{error:'Primero registrá una panadería.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La panadería seleccionada no existe o está inactiva.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
         const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
@@ -227,13 +229,13 @@ module.exports = async function handler(req, res) {
       }
       if (req.method === 'PATCH') {
         const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
-        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
+        const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
         if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
         return send(res,200,{user:publicUser(rows[0])});
       }
       if (req.method === 'DELETE') {
         const id=String(body(req).id||''); if (!id || id===admin.id) return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
-        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND role<>'admin' RETURNING id`;
+        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND is_platform_admin=FALSE RETURNING id`;
         if (!rows.length) return send(res,404,{error:'No se encontró ese usuario o no se puede eliminar.'});
         return send(res,200,{ok:true});
       }
@@ -242,8 +244,9 @@ module.exports = async function handler(req, res) {
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
-      const businessId=String(req.headers['x-business-id']||'');
-      if(!businessId) return send(res,400,{error:'Seleccioná una panadería para continuar.'});
+      let businessId=String(req.headers['x-business-id']||'');
+      if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
+      if(!businessId) return send(res,400,{error:'No hay panaderías registradas.'});
       const sql=db();
       const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
       const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
@@ -255,7 +258,8 @@ module.exports = async function handler(req, res) {
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
-      const businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
+      let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
+      if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
       if(!businessId) return send(res,400,{error:'No hay una panadería asignada a esta cuenta.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
