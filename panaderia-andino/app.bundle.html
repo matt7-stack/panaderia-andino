@@ -572,13 +572,10 @@ input[type="date"], input[type="month"] {
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
-  let recoveryToken = '';
+  let activationToken = '';
   const hash = window.location.hash || '';
   if (hash.startsWith('#activar=')) {
     activationToken = decodeURIComponent(hash.slice('#activar='.length));
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  } else if (hash.startsWith('#restablecer=')) {
-    recoveryToken = decodeURIComponent(hash.slice('#restablecer='.length));
     history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 
@@ -610,9 +607,8 @@ input[type="date"], input[type="month"] {
 
   function showLogin(message = '') {
     document.body.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button><button id="forgotPasswordLink" type="button" style="border:0;background:transparent;color:#8b4b2b;margin-top:14px;cursor:pointer">¿Olvidaste tu contraseña?</button></form>`;
+    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form>`;
     showMessage(message);
-    document.getElementById('forgotPasswordLink').addEventListener('click',showForgot);
     document.getElementById('loginForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = event.currentTarget.querySelector('button');
@@ -624,27 +620,6 @@ input[type="date"], input[type="month"] {
       } catch (error) { showMessage(error.message); button.disabled = false; }
     });
     document.getElementById('authEmail').focus();
-  }
-
-  function showForgot() {
-    content.innerHTML = `<div class="auth-heading"><span>RECUPERACIÓN</span><h1>¿Olvidaste tu contraseña?</h1><p>Te enviaremos un enlace seguro al correo de recuperación configurado para el administrador.</p></div><form id="forgotForm" class="auth-form"><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Enviar enlace de recuperación <span>→</span></button><button class="auth-submit" id="backToLogin" type="button" style="margin-top:10px;background:#eee;color:#333">Volver al inicio de sesión</button></form>`;
-    document.getElementById('backToLogin').addEventListener('click',()=>showLogin());
-    document.getElementById('forgotForm').addEventListener('submit',async(event)=>{
-      event.preventDefault(); const button=event.currentTarget.querySelector('button[type="submit"]'); button.disabled=true; showMessage('');
-      try { const result=await api('/api/auth/login',{method:'POST',body:JSON.stringify({action:'forgot-password'})}); showMessage(result.message||'Si la recuperación está habilitada, recibirás un correo.'); }
-      catch(error){showMessage(error.message);button.disabled=false;}
-    });
-  }
-
-  function showReset() {
-    content.innerHTML = `<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1>Crear nueva contraseña</h1><p>Elegí una contraseña nueva de al menos 12 caracteres.</p></div><form id="resetForm" class="auth-form"><label for="resetPassword">Nueva contraseña</label><input id="resetPassword" type="password" autocomplete="new-password" minlength="12" required><label for="resetConfirm">Confirmar contraseña</label><input id="resetConfirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Guardar contraseña <span>→</span></button></form>`;
-    document.getElementById('resetForm').addEventListener('submit',async(event)=>{
-      event.preventDefault(); const button=event.currentTarget.querySelector('button'); const password=document.getElementById('resetPassword').value;
-      if(password!==document.getElementById('resetConfirm').value)return showMessage('Las contraseñas no coinciden.');
-      button.disabled=true; showMessage('');
-      try { const result=await api('/api/auth/login',{method:'POST',body:JSON.stringify({action:'reset-password',token:recoveryToken,newPassword:password})}); recoveryToken=''; showLogin(result.message||'Contraseña actualizada. Iniciá sesión.'); }
-      catch(error){showMessage(error.message);button.disabled=false;}
-    });
   }
 
   function showSetup() {
@@ -702,8 +677,7 @@ input[type="date"], input[type="month"] {
       const current = await api('/api/auth/me');
       if (current.authenticated && current.user) { establish(current.user); return current.user; }
       const status = await api('/api/auth/status');
-      if (recoveryToken) showReset();
-      else if (!status.adminExists && activationToken) showSetup();
+      if (!status.adminExists && activationToken) showSetup();
       else if (!status.adminExists) showLogin('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
       else showLogin();
       return null;
