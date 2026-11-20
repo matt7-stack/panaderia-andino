@@ -116,12 +116,7 @@ CREATE INDEX IF NOT EXISTS app_sales_business_created_idx ON app_sales(business_
 CREATE INDEX IF NOT EXISTS app_financial_business_created_idx ON app_financial_entries(business_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS app_notifications_user_created_idx ON app_notifications(user_id,created_at DESC);
 
-INSERT INTO businesses(id,name,slug,active)
-VALUES(gen_random_uuid(),'Panadería Andino','panaderia-andino',TRUE)
-ON CONFLICT(slug) DO NOTHING;
-INSERT INTO app_state(data,business_id)
-SELECT '{}'::jsonb,id FROM businesses WHERE slug='panaderia-andino'
-ON CONFLICT(business_id) DO NOTHING;
+-- No se crea una panadería automáticamente. La cuenta principal debe registrarla desde Administración.
 
 INSERT INTO schema_migrations(version) VALUES('002_erp_modules')
 ON CONFLICT(version) DO NOTHING;
