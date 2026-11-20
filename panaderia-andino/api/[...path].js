@@ -461,12 +461,12 @@ module.exports = async function handler(req, res) {
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id) AS user_count,
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS active_user_count,
           (SELECT COUNT(DISTINCT lower(trim(item->>'party')))::int FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(trim(item->>'party'),'')<>'') AS customer_count,
-          (SELECT COUNT(*)::int FROM app_products p WHERE p.business_id=b.id) AS product_count,
+          (SELECT CASE WHEN jsonb_typeof(st.data->'products')='array' THEN jsonb_array_length(st.data->'products') ELSE 0 END::int FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS product_count,
           (SELECT COUNT(*)::int FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id  ) AS sales_count,
-          (SELECT COUNT(*)::int FROM app_purchases p WHERE p.business_id=b.id) AS purchase_count,
+          (SELECT CASE WHEN jsonb_typeof(st.data->'purchases')='array' THEN jsonb_array_length(st.data->'purchases') ELSE 0 END::int FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS purchase_count,
           (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='income') AS recorded_income,
           (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='expense') AS recorded_expenses,
-          (SELECT COALESCE(SUM(total),0)::numeric(14,2) FROM app_sales v WHERE v.business_id=b.id AND v.status='completed') AS sales_total,
+          (SELECT COALESCE(SUM(COALESCE(NULLIF(item->>'total','')::numeric,NULLIF(item->>'totalAmount','')::numeric,NULLIF(item->>'amount','')::numeric,0)),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(item->>'status','completed') NOT IN ('cancelled','void')) AS sales_total,
           (SELECT updated_at FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS last_sync
           FROM businesses b ORDER BY b.created_at DESC`;
         return send(res,200,{businesses:rows});
