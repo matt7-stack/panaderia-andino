@@ -1,4 +1,4 @@
-const CACHE_NAME = 'panaderia-andino-pwa-v2';
+const CACHE_NAME = 'panaderia-andino-pwa-v3';
 const APP_SHELL = ['/app.bundle.html', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -28,7 +28,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          if (response.ok && url.pathname === '/app.bundle.html') {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put('/app.bundle.html', copy));
           }
