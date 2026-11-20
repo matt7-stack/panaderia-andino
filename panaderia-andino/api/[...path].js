@@ -87,7 +87,7 @@ async function authenticated(req, res, adminOnly = false) {
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
-  try { await db()\`UPDATE app_users SET last_seen_at=NOW() WHERE id=\${user.id}\`; } catch (_) {}
+  try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
