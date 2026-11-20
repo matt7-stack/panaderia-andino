@@ -59,7 +59,7 @@
     if(loading)return;loading=true;
     if(!businessId){message.className='error';message.textContent='El enlace del catálogo no es válido.';grid.innerHTML='';loading=false;return;}
     try{
-      const response=await fetch('/api/public/catalog?businessId='+encodeURIComponent(businessId),{cache:'no-store'});
+      const response=await fetch('/api/data?catalogBusinessId='+encodeURIComponent(businessId),{cache:'no-store'});
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||'No se pudo cargar el catálogo.');
       document.title=result.business.name+' | Catálogo';
