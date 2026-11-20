@@ -82,7 +82,7 @@ button{cursor:pointer}
 .user-menu{display:flex;align-items:center;gap:9px}.avatar{width:35px;height:35px;display:grid;place-items:center;border-radius:50%;color:var(--brown-800);background:var(--cream-200);font-size:17px}
 .user-meta{display:grid;gap:1px}.user-meta strong{color:var(--brown-900);font-size:11px}.user-meta small{color:var(--muted);font-size:9px}.user-chevron{margin-left:3px;color:#a18d7b;font-size:10px}
 .mobile-menu-button{display:none}.page-content{max-width:1600px;margin:0 auto;padding:32px 36px 20px}.page-view{display:none;animation:pageIn .2s ease}.page-view.active{display:block}
-/* El administrador de plataforma nunca debe ver el dashboard operativo de una negocio. */
+/* El administrador de plataforma nunca debe ver el dashboard operativo de un negocio. */
 body.platform-admin:not(.admin-support-mode) #page-dashboard{display:none!important}
 body.platform-admin:not(.admin-support-mode) .nav-menu [data-page-link="dashboard"]{display:none!important}
 body.platform-admin .brand{justify-content:center}
@@ -749,7 +749,7 @@ img,svg,canvas,video{max-width:100%}
 
       <div class="page-content">
         <div id="adminSupportBanner" class="admin-support-banner" hidden>
-          <div class="admin-support-copy"><i class="bi bi-shield-check"></i><div><strong>Modo de asistencia</strong><span>Estás revisando <b id="adminSupportBusinessName">una negocio</b> como administrador principal. Los cambios que realices se guardarán en esta negocio.</span></div></div>
+          <div class="admin-support-copy"><i class="bi bi-shield-check"></i><div><strong>Modo de asistencia</strong><span>Estás revisando <b id="adminSupportBusinessName">un negocio</b> como administrador principal. Los cambios que realices se guardarán en este negocio.</span></div></div>
           <button type="button" class="btn btn-outline-bakery btn-sm" id="returnToAdministration"><i class="bi bi-arrow-left"></i> Volver a Administración</button>
         </div>
 
@@ -829,7 +829,7 @@ img,svg,canvas,video{max-width:100%}
             </div>
             <div class="col-lg-7">
               <article class="panel settings-card h-100">
-                <div class="panel-heading"><div><h3>Cómo funciona</h3><p>Un control simple para el día a día de la negocio.</p></div></div>
+                <div class="panel-heading"><div><h3>Cómo funciona</h3><p>Un control simple para el día a día de el negocio.</p></div></div>
                 <div class="availability-help-list">
                   <div><span class="availability-dot is-available"></span><div><strong>En stock</strong><p>El producto se muestra normalmente en el catálogo del cliente.</p></div></div>
                   <div><span class="availability-dot is-unavailable"></span><div><strong>Sin stock</strong><p>El producto permanece visible, en gris y con la etiqueta pequeña «Sin stock».</p></div></div>
@@ -842,7 +842,7 @@ img,svg,canvas,video{max-width:100%}
             <div class="panel-heading"><div><h3>Productos del catálogo</h3><p>Usá el interruptor para marcar si hay o no hay. No se manejan cantidades.</p></div></div>
             <div class="filter-bar"><div class="search-field"><i class="bi bi-search"></i><input id="productSearch" type="search" placeholder="Buscar por nombre..." aria-label="Buscar productos"></div><select class="form-select filter-select" id="productStatusFilter" aria-label="Filtrar disponibilidad"><option value="all">Todos</option><option value="available">En stock</option><option value="unavailable">Sin stock</option></select></div>
             <div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>PRODUCTO</th><th>CATEGORÍA</th><th>PRECIO</th><th>DISPONIBILIDAD</th><th>ACCIONES</th></tr></thead><tbody id="productsTableBody"></tbody></table></div>
-            <div class="table-bottom"><span id="productResultCount">0 productos</span><span class="text-muted">Los cambios se guardan en la negocio seleccionada.</span></div>
+            <div class="table-bottom"><span id="productResultCount">0 productos</span><span class="text-muted">Los cambios se guardan en el negocio seleccionada.</span></div>
             <div id="productsEmpty" class="empty-state d-none"><i class="bi bi-shop"></i><strong>El catálogo está vacío</strong><span>Agregá los productos que querés mostrar a tus clientes.</span></div>
           </article>
         </section>
@@ -857,7 +857,7 @@ img,svg,canvas,video{max-width:100%}
         <!-- ADMINISTRACIÓN -->
         <section class="page-view" id="page-administracion" data-page="administracion">
           <section class="admin-welcome">
-            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Administrador</h1><p>Gestioná todas las negocios, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
+            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Administrador</h1><p>Gestioná todas los negocios, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
             <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
           </section>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
@@ -865,7 +865,7 @@ img,svg,canvas,video{max-width:100%}
         </section>
 
         <section class="page-view" id="page-admin-panaderias" data-page="admin-panaderias">
-          <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Negocios</h1><p class="page-subtitle">Registrá, editá y supervisá las negocios de la plataforma.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Negocios</h1><p class="page-subtitle">Registrá, editá y supervisá los negocios de la plataforma.</p></div></div>
           <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registradas</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
         </section>
 
@@ -887,13 +887,13 @@ img,svg,canvas,video{max-width:100%}
 <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Licencias registradas</h3><p>Estado, pagos y negocio asociado.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshLicenses" type="button">Actualizar</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>CÓDIGO</th><th>NEGOCIO</th><th>SISTEMA</th><th>PLAN</th><th>ESTADO</th><th>INICIAL</th><th>MENSUAL</th><th>PAGADO</th><th>ACCIONES</th></tr></thead><tbody id="licensesTableBody"><tr><td colspan="9">Cargando…</td></tr></tbody></table></div></article></section>
 
 <section class="page-view" id="page-admin-notificaciones" data-page="admin-notificaciones">
-          <div class="page-heading"><div><p class="eyebrow">COMUNICACIÓN DE PLATAFORMA</p><h1><i class="bi bi-send heading-page-icon"></i> Notificaciones</h1><p class="page-subtitle">Enviá comunicados a todas las negocios o a un negocio en particular.</p></div></div>
-          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-megaphone"></i> Enviar notificación</h3><p>Escribí un aviso para todas las negocios o para una en particular.</p></div></div><form id="adminNotificationForm" class="settings-form"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="adminNotificationTarget">Destinatarios</label><select class="form-select" id="adminNotificationTarget" required><option value="all">Todas las negocios y sus usuarios</option></select></div><div class="col-md-7"><label class="form-label" for="adminNotificationTitle">Título</label><input class="form-control" id="adminNotificationTitle" maxlength="100" required placeholder="Ej.: Mantenimiento programado"></div><div class="col-12"><label class="form-label" for="adminNotificationMessage">Mensaje</label><textarea class="form-control" id="adminNotificationMessage" rows="3" maxlength="2000" required placeholder="Escribí el aviso que recibirán los usuarios…"></textarea></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-send"></i> Enviar notificación</button></div></form><div class="info-note"><i class="bi bi-info-circle"></i> El aviso aparecerá dentro de Notificaciones en las cuentas destinatarias.</div></article>
+          <div class="page-heading"><div><p class="eyebrow">COMUNICACIÓN DE PLATAFORMA</p><h1><i class="bi bi-send heading-page-icon"></i> Notificaciones</h1><p class="page-subtitle">Enviá comunicados a todas los negocios o a un negocio en particular.</p></div></div>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-megaphone"></i> Enviar notificación</h3><p>Escribí un aviso para todas los negocios o para una en particular.</p></div></div><form id="adminNotificationForm" class="settings-form"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="adminNotificationTarget">Destinatarios</label><select class="form-select" id="adminNotificationTarget" required><option value="all">Todas los negocios y sus usuarios</option></select></div><div class="col-md-7"><label class="form-label" for="adminNotificationTitle">Título</label><input class="form-control" id="adminNotificationTitle" maxlength="100" required placeholder="Ej.: Mantenimiento programado"></div><div class="col-12"><label class="form-label" for="adminNotificationMessage">Mensaje</label><textarea class="form-control" id="adminNotificationMessage" rows="3" maxlength="2000" required placeholder="Escribí el aviso que recibirán los usuarios…"></textarea></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-send"></i> Enviar notificación</button></div></form><div class="info-note"><i class="bi bi-info-circle"></i> El aviso aparecerá dentro de Notificaciones en las cuentas destinatarias.</div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Comunicados enviados</h3><p>Modificá o eliminá un comunicado; los cambios se aplicarán a todos sus destinatarios.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshAdminNotifications"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div><div id="adminSentNotifications" class="d-grid gap-2"><p class="text-muted">Cargando comunicados…</p></div></article>
         </section>
 
         <section class="page-view" id="page-admin-support" data-page="admin-support">
-          <div class="page-heading"><div><p class="eyebrow">ATENCIÓN AL CLIENTE</p><h1><i class="bi bi-headset heading-page-icon"></i> Configuración de soporte</h1><p class="page-subtitle">Configurá el canal de WhatsApp que verán los usuarios de todas las negocios.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">ATENCIÓN AL CLIENTE</p><h1><i class="bi bi-headset heading-page-icon"></i> Configuración de soporte</h1><p class="page-subtitle">Configurá el canal de WhatsApp que verán los usuarios de todas los negocios.</p></div></div>
           <article class="panel settings-card narrow-settings mt-3">
             <div class="panel-heading"><div><h3>Canal de contacto</h3><p>Los cambios se aplican a todas las cuentas operativas.</p></div><span class="panel-heading-icon"><i class="bi bi-whatsapp"></i></span></div>
             <form id="adminSupportSettingsForm" class="settings-form">
@@ -919,7 +919,7 @@ img,svg,canvas,video{max-width:100%}
           <div class="admin-quick-grid">
             <button class="admin-quick-card quick-primary" type="button" data-admin-go="admin-panaderias"><span class="quick-icon"><i class="bi bi-shop-window"></i></span><span class="quick-copy"><strong>Negocios</strong><small>Registrar, editar y supervisar negocios</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="admin-usuarios"><span class="quick-icon"><i class="bi bi-people"></i></span><span class="quick-copy"><strong>Usuarios y permisos</strong><small>Crear cuentas y administrar accesos</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
-            <button class="admin-quick-card" type="button" data-admin-go="admin-notificaciones"><span class="quick-icon"><i class="bi bi-send"></i></span><span class="quick-copy"><strong>Enviar comunicado</strong><small>Notificar a todas las negocios o elegir una</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="admin-notificaciones"><span class="quick-icon"><i class="bi bi-send"></i></span><span class="quick-copy"><strong>Enviar comunicado</strong><small>Notificar a todas los negocios o elegir una</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="actividad"><span class="quick-icon"><i class="bi bi-shield-check"></i></span><span class="quick-copy"><strong>Auditoría y actividad</strong><small>Revisar cambios, acciones y alertas</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="seguridad"><span class="quick-icon"><i class="bi bi-shield-lock"></i></span><span class="quick-copy"><strong>Centro de seguridad</strong><small>Revisar accesos, intentos fallidos y sesiones</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="reportes-globales"><span class="quick-icon"><i class="bi bi-bar-chart-line"></i></span><span class="quick-copy"><strong>Reportes globales</strong><small>Consultar ingresos, gastos y resultados</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
@@ -929,7 +929,7 @@ img,svg,canvas,video{max-width:100%}
         </section>
 
         <section class="page-view admin-activity-page" id="page-actividad" data-page="actividad">
-          <div class="page-heading admin-activity-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las negocios.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="adminActivityTable" data-export-name="actividad-administrativa"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
+          <div class="page-heading admin-activity-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas los negocios.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="adminActivityTable" data-export-name="actividad-administrativa"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
           <div class="summary-grid"><article class="summary-card pending-card"><p class="summary-label">Eventos recientes</p><h2 id="adminActivityTotal">0</h2></article><article class="summary-card income-card"><p class="summary-label">Alertas sin leer</p><h2 id="adminActivityUnread">0</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="alerts"><i class="bi bi-trash"></i> Eliminar alertas</button></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, negocio, acción y fecha.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="history"><i class="bi bi-trash"></i> Eliminar historial</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>NEGOCIO</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
@@ -942,7 +942,7 @@ img,svg,canvas,video{max-width:100%}
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-clock-history"></i> Historial de accesos</h3><p>Últimos accesos correctos, intentos fallidos y bloqueos registrados.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>CUENTA</th><th>EVENTO</th><th>IP</th><th>DETALLE</th></tr></thead><tbody id="securityEventsTable"><tr><td colspan="5" class="text-center text-muted">Cargando…</td></tr></tbody></table></div><div class="info-note mt-2"><i class="bi bi-info-circle"></i> El historial comienza a registrar estos eventos desde la publicación de esta mejora; no reconstruye accesos anteriores.</div></article>
         </section>
         <section class="page-view" id="page-reportes-globales" data-page="reportes-globales">
-          <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas las negocios registradas.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalReportsTable" data-export-name="reporte-global-panaderias"><i class="bi bi-download"></i> Exportar negocios</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalClientsTable" data-export-name="reporte-global-clientes"><i class="bi bi-download"></i> Exportar clientes</button></div></div>
+          <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas los negocios registrados.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalReportsTable" data-export-name="reporte-global-panaderias"><i class="bi bi-download"></i> Exportar negocios</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalClientsTable" data-export-name="reporte-global-clientes"><i class="bi bi-download"></i> Exportar clientes</button></div></div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Ingresos registrados</p><h2 id="globalIncomeTotal">Gs. 0</h2></article><article class="summary-card expense-card"><p class="summary-label">Gastos registrados</p><h2 id="globalExpenseTotal">Gs. 0</h2></article><article class="summary-card profit-card"><p class="summary-label">Resultado registrado</p><h2 id="globalProfitTotal">Gs. 0</h2></article><article class="summary-card pending-card"><p class="summary-label">Negocios activas</p><h2 id="globalBusinessCount">0</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Rendimiento por negocio</h3><p>Totales históricos disponibles en la plataforma.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>ESTADO</th><th>INGRESOS</th><th>GASTOS</th><th>RESULTADO</th><th>CLIENTES*</th><th>NOTAS</th><th>PRODUCTOS</th><th>COMPRAS</th><th>USUARIOS</th><th>ACCESO</th></tr></thead><tbody id="globalReportsTable"><tr><td colspan="11" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Clientes registrados en notas</h3><p>Clientes identificados por nombre o razón social en las notas de cada negocio.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>CLIENTE</th><th>NEGOCIO</th><th>NOTAS</th><th>TOTAL REGISTRADO</th><th>ÚLTIMA NOTA</th></tr></thead><tbody id="globalClientsTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
@@ -979,7 +979,7 @@ img,svg,canvas,video{max-width:100%}
             <ul class="mb-0">
               <li><strong>Iniciar sesión:</strong> ingresá tu correo y contraseña. En el primer acceso, si la plataforma todavía no tiene administrador, completá el formulario de activación con el token autorizado y creá la cuenta principal.</li>
               <li><strong>Administrador principal:</strong> al iniciar sesión entra al centro de Administración. Desde allí administra negocios, usuarios, comunicados, actividad, seguridad y reportes globales.</li>
-              <li><strong>Usuarios de una negocio:</strong> acceden a los módulos operativos habilitados para su negocio. Los datos de cada negocio se mantienen separados.</li>
+              <li><strong>Usuarios de un negocio:</strong> acceden a los módulos operativos habilitados para su negocio. Los datos de cada negocio se mantienen separados.</li>
               <li><strong>Menú lateral:</strong> seleccioná el nombre de una sección para abrirla. En teléfonos y pantallas pequeñas, ☰ abre o cierra el menú; tocá el fondo oscuro para cerrarlo.</li>
               <li><strong>Barra superior:</strong> muestra la sección y el usuario conectado. En la vista Dashboard, el selector de mes cambia el período del resumen.</li>
               <li><strong>Actualizar:</strong> vuelve a solicitar los datos del apartado al servidor. Si una tabla muestra información desactualizada o un error temporal, utilizá este botón antes de repetir una operación.</li>
@@ -1075,12 +1075,12 @@ img,svg,canvas,video{max-width:100%}
             <ul class="mb-0">
               <li><strong>Notificaciones:</strong> abrí esta sección desde el menú para consultar comunicados dirigidos a tu negocio.</li>
               <li><strong>Actualizar:</strong> vuelve a consultar los avisos disponibles en el servidor.</li>
-              <li><strong>Lectura:</strong> revisá el título y el contenido de cada comunicado. Los avisos se distribuyen a los usuarios de la negocio seleccionada por el administrador o a todos los negocios si el comunicado fue general.</li>
+              <li><strong>Lectura:</strong> revisá el título y el contenido de cada comunicado. Los avisos se distribuyen a los usuarios de el negocio seleccionada por el administrador o a todos los negocios si el comunicado fue general.</li>
             </ul>
           </div>
 
           <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>6. Configuración de la negocio</h3><p>Esta sección corresponde a las cuentas operativas, no al administrador principal de plataforma.</p></div></div>
+            <div class="panel-heading"><div><h3>6. Configuración de el negocio</h3><p>Esta sección corresponde a las cuentas operativas, no al administrador principal de plataforma.</p></div></div>
             <ul class="mb-0">
               <li><strong>Datos del negocio:</strong> modificá nombre, dirección, teléfono, correo, RUC y responsable. Cambiar logo permite seleccionar una imagen del dispositivo. La vista previa muestra el resultado; Guardar cambios aplica la información.</li>
               <li><strong>Categorías de ingresos:</strong> Agregar crea una categoría para clasificar ingresos. Utilizá las acciones de cada elemento para editarla o eliminarla.</li>
@@ -1109,15 +1109,15 @@ img,svg,canvas,video{max-width:100%}
           <div class="panel settings-card mb-3">
             <div class="panel-heading"><div><h3>8. Negocios</h3><p>Alta, edición, estado y acceso a cada negocio.</p></div></div>
             <ul class="mb-0">
-              <li><strong>Agregar negocio:</strong> solo el administrador principal puede crear negocios. Presioná el botón, completá los datos solicitados y guardá. No se crea una negocio automáticamente.</li>
+              <li><strong>Agregar negocio:</strong> solo el administrador principal puede crear negocios. Presioná el botón, completá los datos solicitados y guardá. No se crea un negocio automáticamente.</li>
               <li><strong>Buscar:</strong> escribí nombre, RUC o correo para localizar un negocio.</li>
               <li><strong>Filtro de estado:</strong> elegí Todos los estados, Activas o Desactivadas.</li>
               <li><strong>Actualizar:</strong> vuelve a cargar la lista y sus indicadores.</li>
-              <li><strong>Editar:</strong> permite actualizar la información identificatoria de la negocio.</li>
+              <li><strong>Editar:</strong> permite actualizar la información identificatoria de el negocio.</li>
               <li><strong>Abrir:</strong> selecciona el negocio para ingresar a sus módulos operativos. Revisá el nombre del negocio antes de registrar o modificar información.</li>
               <li><strong>Desactivar:</strong> suspende el acceso de los usuarios de esa negocio sin eliminar su historial.</li>
               <li><strong>Reactivar:</strong> vuelve a habilitar el negocio y sus accesos.</li>
-              <li><strong>Eliminar definitivamente:</strong> es distinto de desactivar. La eliminación requiere que la negocio esté desactivada y que no tenga registros operativos que deban conservarse. Confirmá cuidadosamente cualquier eliminación.</li>
+              <li><strong>Eliminar definitivamente:</strong> es distinto de desactivar. La eliminación requiere que el negocio esté desactivada y que no tenga registros operativos que deban conservarse. Confirmá cuidadosamente cualquier eliminación.</li>
               <li><strong>Resumen:</strong> la tabla muestra usuarios, ingresos, gastos, ventas y estado para ayudar a supervisar los negocios.</li>
             </ul>
             <div class="info-note"><i class="bi bi-shield-lock"></i> Desactivar es la opción recomendada cuando un negocio deja de operar temporalmente. Conserva su historial para una posible reactivación.</div>
@@ -1127,7 +1127,7 @@ img,svg,canvas,video{max-width:100%}
             <div class="panel-heading"><div><h3>9. Usuarios y permisos</h3><p>Creación y control de cuentas de acceso.</p></div></div>
             <ul class="mb-0">
               <li><strong>Agregar usuario:</strong> solo el administrador principal puede crear cuentas. Completá nombre, correo, contraseña o credenciales solicitadas, rol y negocio a la que pertenecerá.</li>
-              <li><strong>Asignar negocio:</strong> elegí el negocio al que se vinculará la cuenta. Si todavía no existe una negocio activa, primero registrá una desde el apartado Negocios.</li>
+              <li><strong>Asignar negocio:</strong> elegí el negocio al que se vinculará la cuenta. Si todavía no existe un negocio activa, primero registrá una desde el apartado Negocios.</li>
               <li><strong>Rol:</strong> seleccioná el nivel de acceso que corresponda a las tareas de la persona. Asigná únicamente los permisos necesarios.</li>
               <li><strong>Actualizar:</strong> vuelve a cargar la lista de usuarios.</li>
               <li><strong>Tabla de usuarios:</strong> permite revisar nombre, correo, rol, negocio/estado y acciones disponibles.</li>
@@ -1140,7 +1140,7 @@ img,svg,canvas,video{max-width:100%}
           <div class="panel settings-card mb-3">
             <div class="panel-heading"><div><h3>10. Notificaciones administrativas</h3><p>Envío y mantenimiento de comunicados.</p></div></div>
             <ul class="mb-0">
-              <li><strong>Destinatarios:</strong> seleccioná Todas las negocios y sus usuarios o elegí una negocio específica.</li>
+              <li><strong>Destinatarios:</strong> seleccioná Todas los negocios y sus usuarios o elegí un negocio específica.</li>
               <li><strong>Título:</strong> escribí un encabezado breve y reconocible, de hasta 100 caracteres.</li>
               <li><strong>Mensaje:</strong> redactá el contenido del comunicado, hasta 2.000 caracteres.</li>
               <li><strong>Enviar notificación:</strong> presioná el botón una vez y esperá la confirmación. El aviso aparece en la sección Notificaciones de las cuentas destinatarias.</li>
@@ -1180,7 +1180,7 @@ img,svg,canvas,video{max-width:100%}
           </div>
 
           <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>13. Reportes globales</h3><p>Indicadores consolidados de las negocios registradas.</p></div></div>
+            <div class="panel-heading"><div><h3>13. Reportes globales</h3><p>Indicadores consolidados de los negocios registrados.</p></div></div>
             <ul class="mb-0">
               <li><strong>Ingresos registrados:</strong> suma de ingresos guardados en los negocios.</li>
               <li><strong>Gastos registrados:</strong> suma de gastos guardados.</li>
@@ -1374,9 +1374,9 @@ img,svg,canvas,video{max-width:100%}
     if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
-    // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de una negocio.
+    // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de un negocio.
     const platformAdmin = user.isPlatformAdmin === true;
-    // Una sesión principal nunca debe heredar la negocio seleccionada en una sesión anterior.
+    // Una sesión principal nunca debe heredar el negocio seleccionada en una sesión anterior.
     if (platformAdmin) window.PanaderiaAuth.selectBusiness('');
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
@@ -1937,7 +1937,7 @@ img,svg,canvas,video{max-width:100%}
   $('#copyCatalogLink')?.addEventListener('click',async()=>{
     const auth=window.PanaderiaAuth||{};
     const businessId=auth.selectedBusinessId||auth.user?.businessId||auth.user?.business_id;
-    if(!businessId){notify('No se pudo identificar la negocio. Ingresá con una cuenta vinculada a un negocio.');return;}
+    if(!businessId){notify('No se pudo identificar el negocio. Ingresá con una cuenta vinculada a un negocio.');return;}
     const link=window.location.origin+'/catalogo.html?businessId='+encodeURIComponent(businessId);
     try{await navigator.clipboard.writeText(link);notify('Enlace del catálogo copiado. Compartilo con tus clientes.');}
     catch(error){window.prompt('Copiá el enlace del catálogo:',link);}
@@ -2020,12 +2020,12 @@ img,svg,canvas,video{max-width:100%}
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'business') {
       setText('#simpleModalTitle', 'Registrar negocio');
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre de la negocio</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Negocios Central"></div><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div>';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre de el negocio</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Negocios Central"></div><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div>';
     } else if (mode === 'user') {
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
       const businessOptions = activeBusinesses.map((business) => '<option value="' + escapeHTML(business.id) + '">' + escapeHTML(business.name) + '</option>').join('');
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Negocio asignado</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná un negocio</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a la negocio seleccionada y no podrá administrar ni crear otras cuentas.</small>';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Negocio asignado</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná un negocio</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a el negocio seleccionada y no podrá administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -2262,7 +2262,7 @@ img,svg,canvas,video{max-width:100%}
       try{
         await window.PanaderiaAuth.api('/api/admin/businesses',{method:'PATCH',body:JSON.stringify({id:b.id,active:nextActive})});
         await refreshCloudBusinesses(); await refreshCloudUsers();
-        notify(nextActive?'Negocios reactivada correctamente.':'Negocios desactivada. Sus datos siguen guardados.');
+        notify(nextActive?'Negocio reactivado correctamente.':'Negocio desactivado. Sus datos siguen guardados.');
       }catch(error){notify(error.message||'No se pudo cambiar el estado.');}
       return;
     }
@@ -2275,7 +2275,7 @@ img,svg,canvas,video{max-width:100%}
       try{
         await window.PanaderiaAuth.api('/api/admin/businesses',{method:'DELETE',body:JSON.stringify({id:b.id})});
         await refreshCloudBusinesses(); await refreshCloudUsers();
-        notify('Negocios eliminada definitivamente.');
+        notify('Negocio eliminado definitivamente.');
       }catch(error){notify(error.message||'No se pudo eliminar. Si tiene historial, primero debe conservarse desactivada.');}
       finally{permanent.disabled=false;}
       return;
@@ -2284,7 +2284,7 @@ img,svg,canvas,video{max-width:100%}
     if(open){await openBusinessForSupport(open);return;}
     const edit=event.target.closest('[data-edit-business]');
     if(edit){const b=cloudBusinesses.find((item)=>item.id===edit.dataset.editBusiness); if(!b)return;
-      const name=prompt('Nombre de la negocio:',b.name); if(name===null||!name.trim())return;
+      const name=prompt('Nombre de el negocio:',b.name); if(name===null||!name.trim())return;
       const address=prompt('Dirección:',b.address||''); if(address===null)return;
       const phone=prompt('Teléfono:',b.phone||''); if(phone===null)return;
       const email=prompt('Correo:',b.email||''); if(email===null)return;
@@ -2333,7 +2333,7 @@ img,svg,canvas,video{max-width:100%}
       const sum=key=>rows.reduce((n,b)=>n+Number(b[key]||0),0);
       const income=sum('recorded_income'),expense=sum('recorded_expenses');
       setText('#globalIncomeTotal', money(income));setText('#globalExpenseTotal', money(expense));setText('#globalProfitTotal', money(income-expense));setText('#globalBusinessCount', rows.filter(b=>b.active).length);
-      $('#globalReportsTable').innerHTML=rows.map(b=>'<tr><td>'+escapeHTML(b.name)+'</td><td>'+(b.active?'Activa':'Inactiva')+'</td><td>'+money(b.recorded_income)+'</td><td>'+money(b.recorded_expenses)+'</td><td>'+money(Number(b.recorded_income||0)-Number(b.recorded_expenses||0))+'</td><td>'+Number(b.customer_count||0)+'</td><td>'+Number(b.sales_count||0)+'</td><td>'+Number(b.product_count||0)+'</td><td>'+Number(b.purchase_count||0)+'</td><td>'+Number(b.active_user_count||0)+'</td><td>'+(b.active?'<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button>':'—')+'</td></tr>').join('')||'<tr><td colspan="11" class="text-center text-muted">No hay negocios registradas.</td></tr>';
+      $('#globalReportsTable').innerHTML=rows.map(b=>'<tr><td>'+escapeHTML(b.name)+'</td><td>'+(b.active?'Activa':'Inactiva')+'</td><td>'+money(b.recorded_income)+'</td><td>'+money(b.recorded_expenses)+'</td><td>'+money(Number(b.recorded_income||0)-Number(b.recorded_expenses||0))+'</td><td>'+Number(b.customer_count||0)+'</td><td>'+Number(b.sales_count||0)+'</td><td>'+Number(b.product_count||0)+'</td><td>'+Number(b.purchase_count||0)+'</td><td>'+Number(b.active_user_count||0)+'</td><td>'+(b.active?'<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button>':'—')+'</td></tr>').join('')||'<tr><td colspan="11" class="text-center text-muted">No hay negocios registrados.</td></tr>';
       const clientResult=await window.PanaderiaAuth.api('/api/admin/clients');
       const clientRows=clientResult.clients||[];
       $('#globalClientsTable').innerHTML=clientRows.map(c=>'<tr><td>'+escapeHTML(c.customer_name||'—')+'</td><td>'+escapeHTML(c.business_name||'—')+'</td><td>'+Number(c.note_count||0)+'</td><td>'+money(c.note_total||0)+'</td><td>'+escapeHTML(c.last_note_date?new Date(c.last_note_date+'T00:00:00').toLocaleDateString('es-PY'):'—')+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">No hay clientes registrados en notas.</td></tr>';
@@ -2362,7 +2362,7 @@ img,svg,canvas,video{max-width:100%}
     try{
       const result=await window.PanaderiaAuth.api('/api/admin/notifications');
       const items=result.notifications||[];
-      target.innerHTML=items.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between align-items-start gap-3 flex-wrap"><div class="flex-grow-1"><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(n.business_name||'Todas las negocios')+' · '+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+' · '+Number(n.recipients||0)+' destinatarios · '+Number(n.read_count||0)+' leídas</small></div><div class="d-flex gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" data-edit-admin-notification="'+escapeHTML(n.id)+'"><i class="bi bi-pencil"></i> Modificar</button><button class="btn btn-outline-danger btn-sm" type="button" data-delete-admin-notification="'+escapeHTML(n.id)+'"><i class="bi bi-trash"></i> Eliminar</button></div></div></article>').join('')||'<p class="text-muted">Todavía no se enviaron comunicados.</p>';
+      target.innerHTML=items.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between align-items-start gap-3 flex-wrap"><div class="flex-grow-1"><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(n.business_name||'Todas los negocios')+' · '+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+' · '+Number(n.recipients||0)+' destinatarios · '+Number(n.read_count||0)+' leídas</small></div><div class="d-flex gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" data-edit-admin-notification="'+escapeHTML(n.id)+'"><i class="bi bi-pencil"></i> Modificar</button><button class="btn btn-outline-danger btn-sm" type="button" data-delete-admin-notification="'+escapeHTML(n.id)+'"><i class="bi bi-trash"></i> Eliminar</button></div></div></article>').join('')||'<p class="text-muted">Todavía no se enviaron comunicados.</p>';
     }catch(error){target.innerHTML='<p class="text-danger">No se pudieron cargar los comunicados: '+escapeHTML(error.message||'Error de conexión')+'</p>';}
   }
   $('#refreshAdminNotifications')?.addEventListener('click',refreshAdminNotifications);
@@ -2533,7 +2533,7 @@ img,svg,canvas,video{max-width:100%}
         simpleModal.hide();
         await refreshCloudBusinesses();
         notify('Negocios registrada correctamente. Ahora podés asignarle usuarios.');
-      } catch (error) { notify('No se pudo crear la negocio: ' + error.message); }
+      } catch (error) { notify('No se pudo crear el negocio: ' + error.message); }
       finally { if (button) { button.disabled = false; button.textContent = 'Guardar'; } }
       return;
     } else if (simpleModalMode === 'category') {
@@ -2546,7 +2546,7 @@ img,svg,canvas,video{max-width:100%}
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        const businessId = $('#simpleBusiness')?.value || ''; if (!businessId) { notify('Seleccioná la negocio a la que pertenecerá el usuario.'); return; } await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId }) });
+        const businessId = $('#simpleBusiness')?.value || ''; if (!businessId) { notify('Seleccioná el negocio a la que pertenecerá el usuario.'); return; } await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -2629,22 +2629,22 @@ img,svg,canvas,video{max-width:100%}
         ? '<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button><button class="btn btn-outline-warning btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Desactivar</button>'
         : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Eliminar definitivamente</button>';
       return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
-    }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay negocios que coincidan con el filtro.':'Todavía no hay negocios registradas.')+'</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay negocios que coincidan con el filtro.':'Todavía no hay negocios registrados.')+'</td></tr>';
   }
   async function refreshCloudBusinesses() {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
     try {
       const result = await window.PanaderiaAuth.api('/api/admin/businesses'); cloudBusinesses = result.businesses || [];
-      // No seleccionar automáticamente la primera negocio: la cuenta principal permanece en Administración.
+      // No seleccionar automáticamente el primer negocio: la cuenta principal permanece en Administración.
       const selected = cloudBusinesses.find((b) => b.id === window.PanaderiaAuth.selectedBusinessId && b.active);
       if (!selected && window.PanaderiaAuth.selectedBusinessId) window.PanaderiaAuth.selectBusiness('');
       renderCloudBusinesses();
       const target=$('#adminNotificationTarget');
-      if(target){const selected=target.value;target.innerHTML='<option value="all">Todas las negocios y sus usuarios</option>'+cloudBusinesses.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');if([...target.options].some(o=>o.value===selected))target.value=selected;}
+      if(target){const selected=target.value;target.innerHTML='<option value="all">Todas los negocios y sus usuarios</option>'+cloudBusinesses.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');if([...target.options].some(o=>o.value===selected))target.value=selected;}
     } catch (error) {
-      console.error('No se pudieron cargar las negocios:', error);
+      console.error('No se pudieron cargar los negocios:', error);
       const body = $('#businessesTableBody');
-      if (body) body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudieron cargar las negocios. ' + escapeHTML(error.message || 'Error de conexión.') + ' <button class="btn btn-outline-bakery btn-sm ms-2" type="button" data-retry-businesses>Reintentar</button></td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudieron cargar los negocios. ' + escapeHTML(error.message || 'Error de conexión.') + ' <button class="btn btn-outline-bakery btn-sm ms-2" type="button" data-retry-businesses>Reintentar</button></td></tr>';
       throw error;
     }
   }
@@ -2666,13 +2666,13 @@ img,svg,canvas,video{max-width:100%}
     const user = window.PanaderiaAuth?.user;
     if (!user) return;
     if (user.isPlatformAdmin === true && loadSelectedBusiness) {
-      if (!window.PanaderiaAuth.selectedBusinessId) throw new Error('Seleccioná una negocio antes de abrirla.');
+      if (!window.PanaderiaAuth.selectedBusinessId) throw new Error('Seleccioná un negocio antes de abrirla.');
       if (cloudSyncInterval) clearInterval(cloudSyncInterval);
       cloudSyncInterval = null;
       cloudReady = false;
     }
 
-    // La cuenta principal administra la plataforma, no pertenece a una negocio.
+    // La cuenta principal administra la plataforma, no pertenece a un negocio.
     // Primero carga el catálogo y los usuarios; solo abre datos operativos al pulsar "Abrir".
     if (user.isPlatformAdmin === true && !loadSelectedBusiness) {
       cloudReady = false;
@@ -2704,7 +2704,7 @@ img,svg,canvas,video{max-width:100%}
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
       else {
-        if (user.isPlatformAdmin === true && loadSelectedBusiness) throw new Error('No se encontraron datos guardados para esta negocio. Por seguridad, no se creó información nueva.');
+        if (user.isPlatformAdmin === true && loadSelectedBusiness) throw new Error('No se encontraron datos guardados para este negocio. Por seguridad, no se creó información nueva.');
         const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null;
       }
       delete state.users; cloudReady = true; saveState(false); renderAll();
@@ -2812,10 +2812,15 @@ img,svg,canvas,video{max-width:100%}
   window.addEventListener('panaderia:authenticated', (event) => {
     startAuthenticatedHydration(event.detail || window.PanaderiaAuth?.user).catch(error => console.error('Error al cargar la sesión:',error));
   });
-  // [deploy] Refrescar siempre los datos al entrar a los módulos administrativos.
+  // Recargar datos al entrar a cada sección administrativa; un fallo no deja la vista vacía.
   window.addEventListener('panaderia:pagenavigate', (event) => {
-    if (event.detail?.page === 'admin-panaderias' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) {
+    const page = event.detail?.page;
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+    if (page === 'admin-panaderias') {
       refreshCloudBusinesses().catch(error => notify('No se pudieron cargar los negocios: ' + (error.message || 'Error de conexión.')));
+    }
+    if (page === 'admin-usuarios') {
+      refreshCloudUsers().catch(error => notify('No se pudieron cargar los usuarios: ' + (error.message || 'Error de conexión.')));
     }
   });
 
@@ -2927,7 +2932,11 @@ img,svg,canvas,video{max-width:100%}
    if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData(true);
  });
  window.addEventListener('panaderia:pagenavigate', event => {
-   if (event.detail?.page === 'admin-licencias' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadLicenses();
+   if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+   if (event.detail?.page === 'admin-licencias') loadLicenses();
+   if (['administracion','admin-panaderias','admin-usuarios','admin-licencias'].includes(event.detail?.page)) {
+     loadPlatformAdminData(true).catch(error => console.error('No se pudieron actualizar los módulos administrativos:', error));
+   }
  });
  window.addEventListener('hashchange', () => {
    if (location.hash === '#admin-licencias' || location.hash === '#administracion' || location.hash === '#admin-panaderias') {
