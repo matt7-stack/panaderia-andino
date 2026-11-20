@@ -1,12 +1,12 @@
 'use strict';
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
 let sqlClient;
 function db() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing');
-  if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
+  if (!sqlClient) sqlClient = postgres(process.env.DATABASE_URL, { max: 1, idle_timeout: 20, connect_timeout: 10 });
   return sqlClient;
 }
 async function ensureSchema() {
