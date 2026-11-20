@@ -474,7 +474,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
-        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de la panadería.'});
+        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de la negocio.'});
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
@@ -490,7 +490,7 @@ module.exports = async function handler(req, res) {
         return send(res,201,{business:rows[0]});
       }
       if(req.method==='PATCH'){
-        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
+        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador de la negocio.'});
         if(typeof input.active==='boolean'){
           const rows=await sql`WITH changed AS (
             UPDATE businesses SET active=${input.active},updated_at=NOW() WHERE id=${id} RETURNING *
@@ -502,8 +502,8 @@ module.exports = async function handler(req, res) {
               'business',id,${JSON.stringify({active:input.active})}::jsonb FROM changed RETURNING id
           )
           SELECT * FROM changed`;
-          if(!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
-          return send(res,200,{business:rows[0],message:input.active?'Panadería reactivada.':'Panadería desactivada. El acceso de sus usuarios quedó bloqueado.'});
+          if(!rows[0]) return send(res,404,{error:'No se encontró la negocio.'});
+          return send(res,200,{business:rows[0],message:input.active?'Negocios reactivada.':'Negocios desactivada. El acceso de sus usuarios quedó bloqueado.'});
         }
         const rows=await sql`WITH changed AS (
           UPDATE businesses SET name=COALESCE(${input.name===undefined?null:String(input.name).trim().slice(0,120)},name),
@@ -518,15 +518,15 @@ module.exports = async function handler(req, res) {
           SELECT id,${admin.id},'business.updated','business',id,'{}'::jsonb FROM changed RETURNING id
         )
         SELECT * FROM changed`;
-        if(!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
+        if(!rows[0]) return send(res,404,{error:'No se encontró la negocio.'});
         return send(res,200,{business:rows[0]});
       }
       if(req.method==='DELETE'){
         const id=String(body(req).id||'');
-        if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
+        if(!id) return send(res,400,{error:'Falta el identificador de la negocio.'});
         const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
-        if(!business[0]) return send(res,404,{error:'No se encontró la panadería.'});
-        if(business[0].active) return send(res,409,{error:'Primero desactivá la panadería. Después podrás solicitar su eliminación definitiva.'});
+        if(!business[0]) return send(res,404,{error:'No se encontró la negocio.'});
+        if(business[0].active) return send(res,409,{error:'Primero desactivá la negocio. Después podrás solicitar su eliminación definitiva.'});
         const snapshot=await sql`SELECT * FROM businesses WHERE id=${id} LIMIT 1`;
         await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('business',${id},${id},${JSON.stringify(snapshot[0])}::jsonb,${admin.id})`;
         await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
@@ -565,8 +565,8 @@ module.exports = async function handler(req, res) {
         )
         SELECT EXISTS(SELECT 1 FROM deleted_business) AS deleted,
           (SELECT records FROM usage) AS records`;
-        if(!result[0]?.deleted) return send(res,409,{error:'No se puede eliminar definitivamente: la panadería tiene registros operativos o ya no está disponible. Se conservaron sus datos. Podés mantenerla desactivada.',records:Number(result[0]?.records||0)});
-        return send(res,200,{ok:true,deleted:true,message:'Panadería eliminada definitivamente. Solo se permite esta acción cuando no existen registros operativos.'});
+        if(!result[0]?.deleted) return send(res,409,{error:'No se puede eliminar definitivamente: la negocio tiene registros operativos o ya no está disponible. Se conservaron sus datos. Podés mantenerla desactivada.',records:Number(result[0]?.records||0)});
+        return send(res,200,{ok:true,deleted:true,message:'Negocios eliminada definitivamente. Solo se permite esta acción cuando no existen registros operativos.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
@@ -613,13 +613,13 @@ module.exports = async function handler(req, res) {
         let rows;
         if(businessId){
           const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
-          if(!target.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
+          if(!target.length) return send(res,404,{error:'La negocio seleccionada no existe o está inactiva.'});
           rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-          if(!rows.length) return send(res,409,{error:'La panadería seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
+          if(!rows.length) return send(res,409,{error:'La negocio seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
         } else {
           rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-          if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ninguna panadería para recibir el aviso.'});
+          if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ninguna negocio para recibir el aviso.'});
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:'all'})}::jsonb)`;
         }
         return send(res,201,{ok:true,recipients:rows.length});
@@ -669,8 +669,8 @@ module.exports = async function handler(req, res) {
       if (req.method === 'POST') {
         const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; let businessId=String(input.businessId||'');
         if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
-        if(!businessId) return send(res,400,{error:'Seleccioná la panadería a la que pertenecerá el usuario.'});
-        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La panadería seleccionada no existe o está inactiva.'});
+        if(!businessId) return send(res,400,{error:'Seleccioná la negocio a la que pertenecerá el usuario.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La negocio seleccionada no existe o está inactiva.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
         const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
         return send(res,201,{user:publicUser(rows[0])});
@@ -697,7 +697,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       let businessId=String(req.headers['x-business-id']||'');
       if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay panaderías registradas.'});
+      if(!businessId) return send(res,400,{error:'No hay negocios registradas.'});
       const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
       const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
       const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
@@ -708,10 +708,10 @@ module.exports = async function handler(req, res) {
 
     if (path === '/api/data' && req.method === 'GET' && new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.has('catalogBusinessId')) {
       const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
-      if(!businessId) return send(res,400,{error:'Falta identificar la panadería.'});
+      if(!businessId) return send(res,400,{error:'Falta identificar la negocio.'});
       const sql=db();
       const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
-      if(!rows.length) return send(res,404,{error:'No se encontró una panadería activa.'});
+      if(!rows.length) return send(res,404,{error:'No se encontró una negocio activa.'});
       const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
       const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
         id:String(p.id||''),name:String(p.name||'').slice(0,100),category:String(p.category||'').slice(0,60),
@@ -725,9 +725,9 @@ module.exports = async function handler(req, res) {
       const sql=db();
       let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
       if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay una panadería asignada a esta cuenta.'});
+      if(!businessId) return send(res,400,{error:'No hay una negocio asignada a esta cuenta.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
-      if(!allowed.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
+      if(!allowed.length) return send(res,404,{error:'La negocio seleccionada no existe o está inactiva.'});
       if(req.method==='GET'){
         const rows=await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
@@ -744,7 +744,7 @@ module.exports = async function handler(req, res) {
         const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
         if(user.is_platform_admin!==true){
           const biz=await sql`SELECT name FROM businesses WHERE id=${businessId} LIMIT 1`;
-          const title='Actividad en '+(biz[0]?.name||'una panadería');
+          const title='Actividad en '+(biz[0]?.name||'una negocio');
           const message=user.name+' ('+user.email+') modificó información operativa. Revisá el historial para ver cuándo ocurrió.';
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${businessId},${user.id},'business.data_updated','business_data',${businessId},${JSON.stringify({businessName:biz[0]?.name||'',updatedAt:saved[0]?.updated_at||null})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
           await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'system_activity',${title},${message} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE AND NOT EXISTS (SELECT 1 FROM app_notifications n WHERE n.user_id=u.id AND n.type='system_activity' AND n.title=${title} AND n.message=${message} AND n.created_at>NOW()-INTERVAL '2 minutes')`;
@@ -757,7 +757,7 @@ module.exports = async function handler(req, res) {
   } catch (err) {
     if (err && err.code==='23505') {
       const constraint=String(err.constraint||'');
-      if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe una panadería con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
+      if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe una negocio con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
       if (constraint.includes('app_users_email')) return send(res,409,{error:'Ya existe un usuario con ese correo.'});
       return send(res,409,{error:'Ya existe un registro con esos datos. Revisá los campos e intentá nuevamente.'});
     }
