@@ -1661,7 +1661,7 @@ input[type="date"], input[type="month"] {
   renderAll();
   const applyInitialRoute = (user) => {
     const hashPage = window.location.hash.replace('#', '');
-    if (user?.isPlatformAdmin === true) pageNavigate(['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
+    if (user?.isPlatformAdmin === true) pageNavigate('administracion');
     else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
     else pageNavigate('dashboard');
   };
