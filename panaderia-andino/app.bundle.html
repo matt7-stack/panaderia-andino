@@ -191,6 +191,20 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 }
 
 [hidden]{display:none!important}
+/* Centro de accesos rápidos del administrador */
+.admin-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
+.admin-quick-card{display:flex;align-items:center;gap:14px;min-width:0;min-height:112px;padding:19px;border:1px solid var(--border,#eadfd2);border-radius:16px;background:var(--surface,#fff);color:var(--text,#3d3027);text-align:left;box-shadow:0 5px 18px rgba(65,42,24,.045);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.admin-quick-card:hover{transform:translateY(-2px);border-color:#c9a77f;box-shadow:0 10px 25px rgba(65,42,24,.09)}
+.admin-quick-card.quick-primary{background:linear-gradient(135deg,#fff8ef,#fff);border-color:#dfc6a8}
+.quick-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:14px;background:#f5eadc;color:#87552d;font-size:21px}
+.quick-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
+.quick-copy strong{font-size:14px;font-weight:750}
+.quick-copy small{color:var(--muted,#81756b);font-size:11px;line-height:1.45}
+.quick-arrow{align-self:flex-start;color:#a58b72;font-size:14px}
+.admin-quick-note{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:14px 16px;border:1px solid #e9e1d6;border-radius:12px;background:#faf7f2;color:#75695e;font-size:12px;line-height:1.55}
+.admin-quick-note i{color:#9b7149;font-size:16px}
+@media(max-width:900px){.admin-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.admin-quick-grid{grid-template-columns:1fr;gap:10px}.admin-quick-card{min-height:88px;padding:14px}.quick-icon{flex-basis:42px;width:42px;height:42px}}
 /* Empleados y panel de administración */
 #page-administracion .summary-card,#page-empleados .summary-card{min-height:108px}
 #page-administracion .summary-card h2,#page-empleados .summary-card h2{overflow-wrap:anywhere}
@@ -323,6 +337,7 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
+        <a class="nav-link" href="#accesos-rapidos" data-page-link="accesos-rapidos" id="adminQuickNav" hidden><i class="bi bi-lightning-charge-fill"></i><span>Accesos rápidos</span></a>
         <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
@@ -412,6 +427,19 @@ input[type="date"], input[type="month"] {
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-megaphone"></i> Enviar notificación</h3><p>Escribí un aviso para todas las panaderías o para una en particular.</p></div></div><form id="adminNotificationForm" class="settings-form"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="adminNotificationTarget">Destinatarios</label><select class="form-select" id="adminNotificationTarget" required><option value="all">Todas las panaderías y sus usuarios</option></select></div><div class="col-md-7"><label class="form-label" for="adminNotificationTitle">Título</label><input class="form-control" id="adminNotificationTitle" maxlength="100" required placeholder="Ej.: Mantenimiento programado"></div><div class="col-12"><label class="form-label" for="adminNotificationMessage">Mensaje</label><textarea class="form-control" id="adminNotificationMessage" rows="3" maxlength="2000" required placeholder="Escribí el aviso que recibirán los usuarios…"></textarea></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-send"></i> Enviar notificación</button></div></form><div class="info-note"><i class="bi bi-info-circle"></i> El aviso aparecerá dentro de Notificaciones en las cuentas destinatarias.</div></article>
           <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Usuarios y permisos</h3><p>Creá cuentas, desactivá accesos y administrá roles.</p></div><span class="panel-heading-icon"><i class="bi bi-person-gear"></i></span></div><p class="page-subtitle mb-3">Solo el administrador principal puede gestionar las cuentas de acceso.</p><button class="btn btn-bakery" type="button" id="adminManageUsers"><i class="bi bi-people"></i> Gestionar usuarios</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Copia de seguridad</h3><p>Descargá una copia de los datos compartidos.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-arrow-down"></i></span></div><p class="page-subtitle mb-3">Guardá el archivo JSON en un lugar seguro. Esta acción no modifica la base de datos.</p><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-download"></i> Descargar respaldo</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Limpiar datos operativos</h3><p>Prepará el sistema para comenzar desde cero.</p></div><span class="panel-heading-icon"><i class="bi bi-trash3"></i></span></div><p class="page-subtitle mb-3">Elimina movimientos, notas emitidas y recibidas, empleados y pagos históricos. Conserva el administrador, las credenciales y la configuración del negocio.</p><div class="info-note mb-3"><i class="bi bi-exclamation-triangle"></i> Esta acción afecta a todos los dispositivos conectados y no se puede deshacer. Descargá primero un respaldo si necesitás conservar los registros.</div><button class="btn btn-outline-danger" type="button" id="adminResetDataButton"><i class="bi bi-trash3"></i> Limpiar datos operativos</button></article></div>
 <article class="panel settings-card mt-3" id="platformUsersPanel"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Usuarios del sistema</h3><p>Solo el administrador puede crear, desactivar y eliminar cuentas de acceso.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addUserButton"><i class="bi bi-person-plus"></i> Agregar usuario</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>ROL</th><th>ESTADO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="usersTableBody"></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Administración protegida: las cuentas y los permisos se controlan en el servidor.</div></article></article>
+        </section>
+
+        <section class="page-view" id="page-accesos-rapidos" data-page="accesos-rapidos">
+          <div class="page-heading"><div><p class="eyebrow">CENTRO DE CONTROL</p><h1><i class="bi bi-lightning-charge-fill heading-page-icon"></i> Accesos rápidos</h1><p class="page-subtitle">Tus herramientas principales, organizadas para administrar la plataforma sin perder tiempo.</p></div></div>
+          <div class="admin-quick-grid">
+            <button class="admin-quick-card quick-primary" type="button" data-admin-focus="businessesTableBody"><span class="quick-icon"><i class="bi bi-shop-window"></i></span><span class="quick-copy"><strong>Panaderías</strong><small>Registrar, editar y supervisar negocios</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-focus="platformUsersPanel"><span class="quick-icon"><i class="bi bi-people"></i></span><span class="quick-copy"><strong>Usuarios y permisos</strong><small>Crear cuentas y administrar accesos</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-focus="adminNotificationForm"><span class="quick-icon"><i class="bi bi-send"></i></span><span class="quick-copy"><strong>Enviar comunicado</strong><small>Notificar a todas las panaderías o elegir una</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="actividad"><span class="quick-icon"><i class="bi bi-shield-check"></i></span><span class="quick-copy"><strong>Auditoría y actividad</strong><small>Revisar cambios, acciones y alertas</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="reportes-globales"><span class="quick-icon"><i class="bi bi-bar-chart-line"></i></span><span class="quick-copy"><strong>Reportes globales</strong><small>Consultar ingresos, gastos y resultados</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="administracion"><span class="quick-icon"><i class="bi bi-speedometer2"></i></span><span class="quick-copy"><strong>Resumen administrativo</strong><small>Volver al centro principal de administración</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+          </div>
+          <div class="admin-quick-note"><i class="bi bi-info-circle"></i><span>Los accesos respetan los permisos de administrador de plataforma. Las acciones y los datos siguen centralizados en sus módulos correspondientes.</span></div>
         </section>
 
         <section class="page-view" id="page-actividad" data-page="actividad">
@@ -695,10 +723,10 @@ input[type="date"], input[type="month"] {
     const platformAdmin = user.isPlatformAdmin === true;
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','actividad','reportes-globales'];
+      const adminPages = ['administracion','accesos-rapidos','actividad','reportes-globales'];
       link.hidden = platformAdmin ? !adminPages.includes(page) : (page === 'administracion' || page === 'actividad' || page === 'reportes-globales');
     });
-    ['adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminQuickNav','adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
     const sidebarHelp = document.querySelector('.sidebar-help');
@@ -888,11 +916,11 @@ input[type="date"], input[type="month"] {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'configuracion', 'actividad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'accesos-rapidos', 'configuracion', 'actividad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true) return;
-    if (currentUser?.isPlatformAdmin === true && !['administracion','actividad','reportes-globales'].includes(page)) page = 'administracion';
+    if (currentUser?.isPlatformAdmin === true && !['administracion','accesos-rapidos','actividad','reportes-globales'].includes(page)) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
     if (currentUser?.isPlatformAdmin !== true && ['actividad','reportes-globales'].includes(page)) return;
     selectedPage = page;
@@ -903,7 +931,7 @@ input[type="date"], input[type="month"] {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración', actividad: 'Actividad y alertas', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administración', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -913,6 +941,7 @@ input[type="date"], input[type="month"] {
     if (page === 'notas') renderInvoices();
     if (page === 'empleados') renderEmployees();
     if (page === 'administracion') renderAdminPanel();
+    if (page === 'accesos-rapidos') renderAdminPanel();
     if (page === 'notificaciones') refreshNotifications();
     if (page === 'actividad') refreshAdminActivity();
     if (page === 'reportes-globales') refreshGlobalReports();
@@ -1603,7 +1632,7 @@ input[type="date"], input[type="month"] {
   renderAll();
   const applyInitialRoute = (user) => {
     const hashPage = window.location.hash.replace('#', '');
-    if (user?.isPlatformAdmin === true) pageNavigate(['administracion','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
+    if (user?.isPlatformAdmin === true) pageNavigate(['administracion','accesos-rapidos','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
     else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
     else pageNavigate('dashboard');
   };
