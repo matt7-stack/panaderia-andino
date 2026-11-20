@@ -14,6 +14,8 @@ async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS app_users (id UUID PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','supervisor','employee')), active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_state (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id=1), data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`CREATE TABLE IF NOT EXISTS app_bakeries (id UUID PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', ruc TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE, archived BOOLEAN NOT NULL DEFAULT FALSE, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`CREATE TABLE IF NOT EXISTS app_audit_log (id BIGSERIAL PRIMARY KEY, actor_id UUID, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
   return sql;
 }
@@ -177,6 +179,59 @@ module.exports = async function handler(req, res) {
         gitBranch: process.env.VERCEL_GIT_COMMIT_REF || null,
         readOnly: true
       });
+    }
+    if (path === '/api/admin/bakeries') {
+      const admin = await authenticated(req,res,true); if (!admin) return;
+      const sql = db();
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at FROM app_bakeries WHERE archived=FALSE ORDER BY created_at DESC`;
+        return send(res,200,{bakeries:rows});
+      }
+      if (req.method === 'POST') {
+        const input=body(req);
+        const name=String(input.name||'').trim().slice(0,100);
+        const owner=String(input.owner||'').trim().slice(0,100);
+        const email=String(input.email||'').trim().toLowerCase().slice(0,254);
+        const phone=String(input.phone||'').trim().slice(0,40);
+        const address=String(input.address||'').trim().slice(0,180);
+        const ruc=String(input.ruc||'').trim().slice(0,30);
+        if (!name || !owner || (email && !validEmail(email))) return send(res,400,{error:'Ingresá el nombre, responsable y un correo válido.'});
+        const id=crypto.randomUUID();
+        const rows=await sql`INSERT INTO app_bakeries(id,name,owner,email,phone,address,ruc,created_by) VALUES(${id},${name},${owner},${email},${phone},${address},${ruc},${admin.id}) RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','bakery',${id},${JSON.stringify({name,owner})}::jsonb)`;
+        return send(res,201,{bakery:rows[0]});
+      }
+      if (req.method === 'PATCH') {
+        const input=body(req); const id=String(input.id||'');
+        if (!id) return send(res,400,{error:'Falta identificar la panadería.'});
+        let rows;
+        if (typeof input.active === 'boolean' && Object.keys(input).length===2) {
+          rows=await sql`UPDATE app_bakeries SET active=${input.active},updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
+        } else {
+          const name=String(input.name||'').trim().slice(0,100), owner=String(input.owner||'').trim().slice(0,100);
+          const email=String(input.email||'').trim().toLowerCase().slice(0,254);
+          if (!name || !owner || (email && !validEmail(email))) return send(res,400,{error:'Ingresá el nombre, responsable y un correo válido.'});
+          rows=await sql`UPDATE app_bakeries SET name=${name},owner=${owner},email=${email},phone=${String(input.phone||'').trim().slice(0,40)},address=${String(input.address||'').trim().slice(0,180)},ruc=${String(input.ruc||'').trim().slice(0,30)},updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
+        }
+        if (!rows[0]) return send(res,404,{error:'No se encontró esa panadería.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'updated','bakery',${id},${JSON.stringify({name:rows[0].name,active:rows[0].active})}::jsonb)`;
+        return send(res,200,{bakery:rows[0]});
+      }
+      if (req.method === 'DELETE') {
+        const id=String(body(req).id||'');
+        if (!id) return send(res,400,{error:'Falta identificar la panadería.'});
+        const rows=await sql`UPDATE app_bakeries SET active=FALSE,archived=TRUE,updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name`;
+        if (!rows[0]) return send(res,404,{error:'No se encontró esa panadería.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'archived','bakery',${id},${JSON.stringify({name:rows[0].name})}::jsonb)`;
+        return send(res,200,{ok:true});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/audit') {
+      const admin = await authenticated(req,res,true); if (!admin) return;
+      if (req.method !== 'GET') return send(res,405,{error:'Método no permitido.'});
+      const rows=await db()`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name FROM app_audit_log l LEFT JOIN app_users u ON u.id=l.actor_id ORDER BY l.created_at DESC LIMIT 100`;
+      return send(res,200,{events:rows});
     }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
