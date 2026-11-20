@@ -21,7 +21,7 @@ services:
       - key: ADMIN_EMAIL
         value: matt7atx@gmail.com
       - key: ADMIN_BOOTSTRAP_TOKEN
-        sync: false
+        generateValue: true
 
 databases:
   - name: panaderia-andino-db
