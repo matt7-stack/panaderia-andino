@@ -1586,12 +1586,12 @@ img,svg,canvas,video{max-width:100%}
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'administracion', 'admin-panaderias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
-    const platformPages=['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
@@ -1606,7 +1606,7 @@ img,svg,canvas,video{max-width:100%}
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -1624,6 +1624,7 @@ img,svg,canvas,video{max-width:100%}
     if (page === 'reportes-globales') refreshGlobalReports();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
+    window.dispatchEvent(new CustomEvent('panaderia:pagenavigate', { detail: { page } }));
   }
 
   function updateCounters() {
@@ -2811,6 +2812,11 @@ img,svg,canvas,video{max-width:100%}
   window.addEventListener('panaderia:authenticated', (event) => {
     startAuthenticatedHydration(event.detail || window.PanaderiaAuth?.user).catch(error => console.error('Error al cargar la sesión:',error));
   });
+  window.addEventListener('panaderia:pagenavigate', (event) => {
+    if (event.detail?.page === 'admin-panaderias' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) {
+      refreshCloudBusinesses().catch(error => notify('No se pudieron cargar los negocios: ' + (error.message || 'Error de conexión.')));
+    }
+  });
 
   // Valores iniciales de filtros y navegación solicitada por URL
   const initialMonth = monthFilter.value;
@@ -2918,6 +2924,9 @@ img,svg,canvas,video{max-width:100%}
  };
  window.addEventListener('panaderia:authenticated', event => {
    if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData(true);
+ });
+ window.addEventListener('panaderia:pagenavigate', event => {
+   if (event.detail?.page === 'admin-licencias' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadLicenses();
  });
  window.addEventListener('hashchange', () => {
    if (location.hash === '#admin-licencias' || location.hash === '#administracion' || location.hash === '#admin-panaderias') {
