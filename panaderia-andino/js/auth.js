@@ -141,7 +141,9 @@
       else showLogin();
       return null;
     } catch (error) {
-      showLogin('No se pudo conectar con el servidor. Verificá la conexión y volvé a cargar la página.');
+      const message = error && error.message ? error.message : 'Error de red desconocido.';
+      console.error('Panadería auth initialization failed:', error);
+      showLogin(message.includes('Failed to fetch') || message.includes('NetworkError') ? 'No se pudo alcanzar la API. El servidor web responde, pero la ruta /api no está respondiendo. Probá recargar en unos segundos.' : 'Error de autenticación: ' + message);
       return null;
     }
   })();
