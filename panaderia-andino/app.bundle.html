@@ -676,7 +676,15 @@ input[type="date"], input[type="month"] {
     const headers = { ...(options.headers || {}) };
     if (selectedBusinessId && !headers['x-business-id']) headers['x-business-id'] = selectedBusinessId;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options, headers, signal: controller.signal });
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Reintentá en unos segundos.');
+      throw new Error('No se pudo conectar con el servidor. Revisá tu conexión e intentá nuevamente.');
+    } finally { clearTimeout(timeout); }
     let result = {};
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
     // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
@@ -1634,7 +1642,6 @@ input[type="date"], input[type="month"] {
   }
   async function refreshCloudUsers() {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
-    await refreshCloudBusinesses();
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel();
@@ -1656,14 +1663,16 @@ input[type="date"], input[type="month"] {
     if (user.isPlatformAdmin === true && !loadSelectedBusiness) {
       cloudReady = false;
       try {
-        await refreshCloudBusinesses();
-        await refreshCloudUsers();
-        await refreshAdminActivity(true);
+        // Cargar el catálogo y las cuentas en paralelo: son consultas independientes.
+        await Promise.all([refreshCloudBusinesses(), refreshCloudUsers()]);
+        // El historial y las notificaciones no deben bloquear la apertura del panel.
+        refreshAdminActivity(true);
+        refreshNotifications();
         if (cloudSyncInterval) clearInterval(cloudSyncInterval);
         cloudSyncInterval = setInterval(() => {
           refreshAdminActivity(true);
           refreshNotifications();
-        }, 15000);
+        }, 60000);
       } catch (error) {
         console.error('No se pudo cargar la administración.', error);
         notify('No se pudo cargar la administración: ' + (error.message || 'Error de conexión.'));
