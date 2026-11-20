@@ -371,11 +371,25 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/admin/activity') {
       const admin=await authenticated(req,res,true); if(!admin) return;
-      if(req.method!=='GET') return send(res,405,{error:'Método no permitido.'});
       const sql=db();
-      const rows=await sql`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name,u.email AS actor_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 250`;
-      const notifications=await sql`SELECT n.id,n.title,n.message,n.type,n.read_at,n.created_at FROM app_notifications n WHERE n.user_id=${admin.id} AND n.type='system_activity' ORDER BY n.created_at DESC LIMIT 100`;
-      return send(res,200,{activities:rows,notifications});
+      if(req.method==='GET'){
+        const rows=await sql`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name,u.email AS actor_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 250`;
+        const notifications=await sql`SELECT n.id,n.title,n.message,n.type,n.read_at,n.created_at FROM app_notifications n WHERE n.user_id=${admin.id} AND n.type='system_activity' ORDER BY n.created_at DESC LIMIT 100`;
+        return send(res,200,{activities:rows,notifications});
+      }
+      if(req.method==='DELETE'){
+        const target=String(body(req).target||'');
+        if(target==='history'){
+          const removed=await sql`DELETE FROM app_audit_logs RETURNING id`;
+          return send(res,200,{ok:true,deleted:removed.length,target});
+        }
+        if(target==='alerts'){
+          const removed=await sql`DELETE FROM app_notifications WHERE user_id=${admin.id} AND type='system_activity' RETURNING id`;
+          return send(res,200,{ok:true,deleted:removed.length,target});
+        }
+        return send(res,400,{error:'Seleccioná si querés eliminar el historial o las alertas.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/admin/notifications') {
       const admin=await authenticated(req,res,true); if(!admin) return;
