@@ -413,8 +413,8 @@
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
-      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
-      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
+      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'owner' ? 'Titular' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
+      const actions = ['admin','owner'].includes(user.role) ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
     $('#prefDateFormat').value = state.preferences.dateFormat || 'es-PY';
@@ -627,7 +627,7 @@
       if (state.paymentMethods.some((item) => item.toLowerCase() === name.toLowerCase())) { notify('Ese método de pago ya existe.'); return; }
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'bakery') {
-      const bakeryData={name,owner:$('#bakeryOwner').value.trim(),email:$('#simpleEmail').value.trim(),phone:$('#bakeryPhone').value.trim(),address:$('#bakeryAddress').value.trim(),ruc:$('#bakeryRuc').value.trim()};
+      const bakeryData={name,owner:$('#bakeryOwner').value.trim(),email:$('#simpleEmail').value.trim(),phone:$('#bakeryPhone').value.trim(),address:$('#bakeryAddress').value.trim(),ruc:$('#bakeryRuc').value.trim()}; if(!simpleModalData.bakeryId) bakeryData.password=$('#bakeryPassword').value;
       try {
         if(simpleModalData.bakeryId) await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:simpleModalData.bakeryId,...bakeryData})});
         else await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'POST',body:JSON.stringify(bakeryData)});
@@ -636,7 +636,8 @@
       return;
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users';
+        await window.PanaderiaAuth.api(usersEndpoint, { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -665,12 +666,12 @@
     try {
       if (toggle) {
         const active = toggle.dataset.active !== 'true';
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
+        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users'; await window.PanaderiaAuth.api(usersEndpoint, { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
         await refreshCloudUsers();
         notify(active ? 'Usuario activado.' : 'Usuario desactivado.');
       } else if (remove) {
         if (!confirmDelete('¿Eliminar definitivamente este usuario?')) return;
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ id: remove.dataset.deleteUser }) });
+        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users'; await window.PanaderiaAuth.api(usersEndpoint, { method: 'DELETE', body: JSON.stringify({ id: remove.dataset.deleteUser }) });
         await refreshCloudUsers();
         notify('Usuario eliminado.');
       }
@@ -704,8 +705,8 @@
   }
 
   async function refreshCloudUsers() {
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
-    const result = await window.PanaderiaAuth.api('/api/admin/users');
+    const role=window.PanaderiaAuth?.user?.role; if (!['admin','owner','supervisor'].includes(role)) { cloudUsers = []; renderSettings(); return; }
+    const result = await window.PanaderiaAuth.api(role==='admin'?'/api/admin/users':'/api/bakery/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel();
   }
