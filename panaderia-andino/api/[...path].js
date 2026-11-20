@@ -243,16 +243,22 @@ module.exports = async function handler(req, res) {
     if (path === '/api/admin/notifications') {
       const admin=await authenticated(req,res,true); if(!admin) return;
       if(req.method!=='POST') return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
       const input=body(req); const title=String(input.title||'').trim().slice(0,100); const message=String(input.message||'').trim().slice(0,2000);
       const businessId=input.businessId==='all'?'':String(input.businessId||'');
       if(!title||!message) return send(res,400,{error:'Completá el título y el mensaje.'});
+      let rows;
       if(businessId){
-        const target=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+        const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
         if(!target.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
-        const rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-        return send(res,201,{ok:true,recipients:rows.length});
+        rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+        if(!rows.length) return send(res,409,{error:'La panadería seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
+      } else {
+        rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+        if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ninguna panadería para recibir el aviso.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:'all'})}::jsonb)`;
       }
-      const rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
       return send(res,201,{ok:true,recipients:rows.length});
     }
     if (path === '/api/notifications') {
