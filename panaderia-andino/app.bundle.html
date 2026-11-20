@@ -574,11 +574,11 @@ input[type="date"], input[type="month"] {
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
+  let recoveryToken = '';
   const hash = window.location.hash || '';
-  if (hash.startsWith('#activar=')) {
-    activationToken = decodeURIComponent(hash.slice('#activar='.length));
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-  }
+  if (hash.startsWith('#activar=')) activationToken = decodeURIComponent(hash.slice('#activar='.length));
+  if (hash.startsWith('#recuperar=')) recoveryToken = decodeURIComponent(hash.slice('#recuperar='.length));
+  if (activationToken || recoveryToken) history.replaceState(null, '', window.location.pathname + window.location.search);
 
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -641,6 +641,25 @@ input[type="date"], input[type="month"] {
     document.getElementById('authName').focus();
   }
 
+  function showRecovery() {
+    document.body.classList.add('auth-locked');
+    content.innerHTML = `<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1 id="authTitle">Recuperar administrador</h1><p>Creá una contraseña nueva para la cuenta administradora.</p></div><form id="recoveryForm" class="auth-form"><label for="authName">Nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><label for="authPassword">Nueva contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Restablecer acceso <span>→</span></button></form>`;
+    document.getElementById('recoveryForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button=event.currentTarget.querySelector('button');
+      const password=document.getElementById('authPassword').value;
+      if(password!==document.getElementById('authConfirm').value) return showMessage('Las contraseñas no coinciden.');
+      if(password.length<12) return showMessage('Usá al menos 12 caracteres.');
+      button.disabled=true; showMessage('');
+      try {
+        const result=await api('/api/auth/recover-admin',{method:'POST',body:JSON.stringify({token:recoveryToken,name:document.getElementById('authName').value,password})});
+        recoveryToken='';
+        establish(result.user);
+      } catch(error) { showMessage(error.message); button.disabled=false; }
+    });
+    document.getElementById('authName').focus();
+  }
+
   function establish(user) {
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
@@ -674,6 +693,8 @@ input[type="date"], input[type="month"] {
 
   window.PanaderiaAuthReady = (async () => {
     try {
+      // Recovery must take precedence over an existing or stale browser session.
+      if (recoveryToken) { showRecovery(); return null; }
       const current = await api('/api/auth/me');
       if (current.authenticated && current.user) { establish(current.user); return current.user; }
       const status = await api('/api/auth/status');
