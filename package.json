@@ -2,7 +2,13 @@
   "name": "panaderia-andino-render",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node server.js" },
-  "dependencies": { "@neondatabase/serverless": "1.2.0" }
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  }
 }
