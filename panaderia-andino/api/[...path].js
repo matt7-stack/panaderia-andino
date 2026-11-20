@@ -103,8 +103,8 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active, bakery_id FROM app_users WHERE id = ${data.sub} LIMIT 1`;
-  return rows[0] && rows[0].active ? rows[0] : null;
+  const rows = await db()`SELECT u.id,u.name,u.email,u.role,u.active,u.bakery_id,b.active AS bakery_active,b.archived AS bakery_archived FROM app_users u LEFT JOIN app_bakeries b ON b.id=u.bakery_id WHERE u.id = ${data.sub} LIMIT 1`;
+  return rows[0] && rows[0].active && (rows[0].role==='admin' || (rows[0].bakery_active && !rows[0].bakery_archived)) ? rows[0] : null;
 }
 async function authenticated(req, res, adminOnly = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
@@ -153,8 +153,8 @@ module.exports = async function handler(req, res) {
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
-      const rows = await sql`SELECT id,name,email,password_hash,role,active FROM app_users WHERE email=${email} LIMIT 1`; const u = rows[0];
-      if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
+      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.bakery_id,b.active AS bakery_active,b.archived AS bakery_archived FROM app_users u LEFT JOIN app_bakeries b ON b.id=u.bakery_id WHERE u.email=${email} LIMIT 1`; const u = rows[0];
+      if (!u || !u.active || (u.role!=='admin' && (!u.bakery_active || u.bakery_archived)) || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
