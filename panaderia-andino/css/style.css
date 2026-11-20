@@ -79,3 +79,31 @@ body.auth-locked .app-shell{visibility:hidden}
 .auth-form{display:grid;gap:8px}.auth-form label{margin-top:7px;color:#654832;font-size:10px;font-weight:800}.auth-form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #e7dbce;border-radius:9px;outline:none;color:#4d3828;background:#fff;font-size:13px}.auth-form input:focus{border-color:#aa7a50;box-shadow:0 0 0 3px rgba(170,122,80,.12)}.auth-form input[readonly]{color:#887968;background:#f8f4ee}
 .auth-submit{display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#704427;font-size:12px;font-weight:800}.auth-submit:hover{background:#59351e}.auth-submit:disabled{opacity:.65;cursor:wait}.auth-submit span{font-size:18px}.auth-error{padding:10px 12px;border:1px solid #f0c9c2;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}.auth-footnote{margin:22px 0 0;color:#a99a89;font-size:9px;text-align:center}
 @media(max-width:480px){.auth-card{padding:25px 20px}.auth-heading h1{font-size:26px}}
+
+
+/* Responsive safeguards: desktop, tablet and touch devices */
+html,body{max-width:100%;overflow-x:hidden}
+.app-shell,.main-content,.page-content,.page-view,.panel,.content-grid,.summary-grid{min-width:0;max-width:100%}
+button,a,input,select,textarea{touch-action:manipulation}
+img,canvas,svg{max-width:100%}
+@media(max-width:767.98px){
+  .page-content{width:100%;overflow-x:clip}
+  .content-grid{grid-template-columns:minmax(0,1fr)}
+  .panel:has(.data-table),.panel:has(.invoice-table){max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .data-table{max-width:none}
+  .filter-bar,.invoice-toolbar,.settings-tabs{max-width:100%}
+  .auth-gate{place-items:start center;overflow-y:auto;padding: max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom))}
+  .auth-card{margin:auto 0;width:min(100%,430px)}
+  .auth-form input,.auth-submit{min-height:48px;font-size:16px}
+  .sidebar{max-height:100dvh;overflow-y:auto;padding-bottom:max(18px,env(safe-area-inset-bottom))}
+}
+@media(max-width:390px){
+  .page-content{padding-right:11px;padding-left:11px}
+  .topbar{padding-right:10px;padding-left:10px}
+  .auth-card{padding:22px 17px}
+}
+@media(min-width:768px) and (max-width:1100px){
+  .main-content{min-width:0}
+  .page-content{padding-right:20px;padding-left:20px}
+  .content-grid{grid-template-columns:minmax(0,1fr)}
+}
