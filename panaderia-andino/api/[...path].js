@@ -447,8 +447,8 @@ module.exports = async function handler(req, res) {
       return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at||null});
     }
 
-    if (path === '/api/public/catalog' && req.method === 'GET') {
-      const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('businessId')||'').trim();
+    if (path === '/api/data' && req.method === 'GET' && new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.has('catalogBusinessId')) {
+      const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
       if(!businessId) return send(res,400,{error:'Falta identificar la panadería.'});
       const sql=db();
       const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
