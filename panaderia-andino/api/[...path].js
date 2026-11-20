@@ -337,7 +337,7 @@ module.exports = async function handler(req, res) {
           const title='Actividad en '+(biz[0]?.name||'una panadería');
           const message=user.name+' ('+user.email+') modificó información operativa. Revisá el historial para ver cuándo ocurrió.';
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${businessId},${user.id},'business.data_updated','business_data',${businessId},${JSON.stringify({businessName:biz[0]?.name||'',updatedAt:saved[0]?.updated_at||null})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
-          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'system_activity',${title},${message} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'system_activity',${title},${message} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE AND NOT EXISTS (SELECT 1 FROM app_notifications n WHERE n.user_id=u.id AND n.type='system_activity' AND n.title=${title} AND n.message=${message} AND n.created_at>NOW()-INTERVAL '2 minutes')`;
         }
         return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
       }
