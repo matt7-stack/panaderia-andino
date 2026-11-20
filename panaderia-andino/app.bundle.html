@@ -2812,6 +2812,7 @@ img,svg,canvas,video{max-width:100%}
   window.addEventListener('panaderia:authenticated', (event) => {
     startAuthenticatedHydration(event.detail || window.PanaderiaAuth?.user).catch(error => console.error('Error al cargar la sesión:',error));
   });
+  // [deploy] Refrescar siempre los datos al entrar a los módulos administrativos.
   window.addEventListener('panaderia:pagenavigate', (event) => {
     if (event.detail?.page === 'admin-panaderias' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) {
       refreshCloudBusinesses().catch(error => notify('No se pudieron cargar los negocios: ' + (error.message || 'Error de conexión.')));
