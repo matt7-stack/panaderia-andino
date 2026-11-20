@@ -365,10 +365,28 @@
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
+  let adminBakeries = [];
+  async function refreshAdminBakeries() {
+    const body = $('#bakeriesTableBody'); if (!body || window.PanaderiaAuth?.user?.role !== 'admin') return;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/admin/bakeries');
+      adminBakeries = result.bakeries || [];
+      body.innerHTML = adminBakeries.map((b) => `<tr><td><span class="table-main-text">${escapeHTML(b.name)}</span><span class="table-sub-text">${escapeHTML(b.email || 'Sin correo')}</span></td><td>${escapeHTML(b.owner)}</td><td>${escapeHTML(b.phone || '—')}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Suspendida'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-edit-bakery="${escapeHTML(b.id)}" title="Editar"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-bakery="${escapeHTML(b.id)}" data-active="${b.active ? 'true' : 'false'}" title="${b.active ? 'Suspender' : 'Activar'}"><i class="bi ${b.active ? 'bi-pause-circle' : 'bi-play-circle'}"></i></button><button class="icon-action danger" type="button" data-delete-bakery="${escapeHTML(b.id)}" title="Archivar"><i class="bi bi-archive"></i></button></div></td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
+    } catch (error) { body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">No se pudieron cargar las panaderías.</td></tr>'; notify(error.message); }
+  }
+  function openBakeryModal(id = '') {
+    const bakery = adminBakeries.find((item) => item.id === id) || {};
+    simpleModalMode = 'bakery'; simpleModalData = { bakeryId: id };
+    $('#simpleModalTitle').textContent = id ? 'Editar panadería' : 'Registrar panadería';
+    $('#simpleModalFields').innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre de la panadería</label><input id="simpleName" maxlength="100" required value="${escapeHTML(bakery.name || '')}"></div><div class="simple-modal-field"><label for="bakeryOwner">Responsable</label><input id="bakeryOwner" maxlength="100" required value="${escapeHTML(bakery.owner || '')}"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" value="${escapeHTML(bakery.email || '')}"></div><div class="simple-modal-field"><label for="bakeryPhone">Teléfono</label><input id="bakeryPhone" maxlength="40" value="${escapeHTML(bakery.phone || '')}"></div><div class="simple-modal-field"><label for="bakeryAddress">Dirección</label><input id="bakeryAddress" maxlength="180" value="${escapeHTML(bakery.address || '')}"></div><div class="simple-modal-field"><label for="bakeryRuc">RUC</label><input id="bakeryRuc" maxlength="30" value="${escapeHTML(bakery.ruc || '')}"></div>`;
+    simpleModal.show();
+  }
+
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
     $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
-    $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    $('#adminMovementCount').textContent = (state.movements || []).length;
+    if ($('#bakeriesTableBody') && !adminBakeries.length) refreshAdminBakeries(); $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
   }
 
   function exportAdminBackup() {
@@ -565,6 +583,21 @@
     if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
     if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
   });
+  $('#adminAddBakery')?.addEventListener('click', () => openBakeryModal());
+  $('#bakeriesTableBody')?.addEventListener('click', async (event) => {
+    const edit=event.target.closest('[data-edit-bakery]'), toggle=event.target.closest('[data-toggle-bakery]'), remove=event.target.closest('[data-delete-bakery]');
+    try {
+      if(edit) openBakeryModal(edit.dataset.editBakery);
+      else if(toggle) {
+        const active=toggle.dataset.active!=='true';
+        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:toggle.dataset.toggleBakery,active})});
+        await refreshAdminBakeries(); notify(active?'Panadería activada.':'Panadería suspendida.');
+      } else if(remove && confirmDelete('¿Archivar esta panadería? No se borrarán registros de auditoría.')) {
+        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'DELETE',body:JSON.stringify({id:remove.dataset.deleteBakery})});
+        await refreshAdminBakeries(); notify('Panadería archivada.');
+      }
+    } catch(error) { notify(error.message); }
+  });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);
   $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
@@ -593,6 +626,14 @@
     } else if (simpleModalMode === 'payment') {
       if (state.paymentMethods.some((item) => item.toLowerCase() === name.toLowerCase())) { notify('Ese método de pago ya existe.'); return; }
       state.paymentMethods.push(name);
+    } else if (simpleModalMode === 'bakery') {
+      const bakeryData={name,owner:$('#bakeryOwner').value.trim(),email:$('#simpleEmail').value.trim(),phone:$('#bakeryPhone').value.trim(),address:$('#bakeryAddress').value.trim(),ruc:$('#bakeryRuc').value.trim()};
+      try {
+        if(simpleModalData.bakeryId) await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:simpleModalData.bakeryId,...bakeryData})});
+        else await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'POST',body:JSON.stringify(bakeryData)});
+        simpleModal.hide(); await refreshAdminBakeries(); notify(simpleModalData.bakeryId?'Panadería actualizada.':'Panadería registrada.');
+      } catch(error) { notify(error.message); }
+      return;
     } else if (simpleModalMode === 'user') {
       try {
         await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
