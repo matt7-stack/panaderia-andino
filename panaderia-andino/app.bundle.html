@@ -1326,7 +1326,7 @@ img,svg,canvas,video{max-width:100%}
     updateAdminSupportBanner();
     if (page === 'admin-support') loadAdminSupportSettings();
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
-    $('.nav-menu [data-page-link]').forEach((link) => {
+    $$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page');
