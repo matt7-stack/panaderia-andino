@@ -641,6 +641,7 @@ input[type="date"], input[type="month"] {
   }
 
   function showLogin(message = '') {
+    gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
     content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form>`;
     showMessage(message);
@@ -709,7 +710,8 @@ input[type="date"], input[type="month"] {
     if (usersTab) usersTab.hidden = user.isPlatformAdmin === true;
     if (usersPanel) usersPanel.hidden = user.isPlatformAdmin === true;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
-    if (platformAdmin) { window.location.hash = '#administracion'; pageNavigate('administracion'); }
+    // La navegación se ejecuta desde el segundo módulo cuando ya está inicializado.
+    if (platformAdmin) window.location.hash = '#administracion';
     else if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
 
@@ -1395,7 +1397,7 @@ input[type="date"], input[type="month"] {
       catch(error){notify(error.message);}
     }
   });
-  async function refreshAdminActivity(){
+  async function refreshAdminActivity(quiet=false){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
     try{
       const result=await window.PanaderiaAuth.api('/api/admin/activity');
@@ -1406,7 +1408,7 @@ input[type="date"], input[type="month"] {
       $('#adminActivityCount').classList.toggle('d-none',!alerts.some(x=>!x.read_at));
       $('#adminActivityAlerts').innerHTML=alerts.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between gap-2"><div><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div><div class="text-end"><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm d-block mt-2" type="button" data-admin-read-alert="'+escapeHTML(n.id)+'">Marcar leída</button>':'')+'</div></div></article>').join('')||'<p class="text-muted">No hay alertas nuevas.</p>';
       $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
-    }catch(error){notify('No se pudo cargar la actividad: '+error.message);}
+    }catch(error){const target=$('#adminActivityAlerts');if(target)target.innerHTML='<p class="text-danger">No se pudo cargar la actividad. Usá Actualizar para volver a intentar.</p>';if(!quiet)notify('No se pudo cargar la actividad: '+error.message);console.error('Error al cargar actividad administrativa:',error);}
   }
   async function refreshGlobalReports(){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
@@ -1585,7 +1587,7 @@ input[type="date"], input[type="month"] {
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
       else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
       delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
-      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(()=>{refreshCloudData();refreshNotifications();if(window.PanaderiaAuth?.user?.isPlatformAdmin===true)refreshAdminActivity();}, 10000); await refreshNotifications();
+      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(()=>{refreshCloudData();refreshNotifications();if(window.PanaderiaAuth?.user?.isPlatformAdmin===true)refreshAdminActivity(true);}, 10000); await refreshNotifications();
     } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
@@ -1599,9 +1601,15 @@ input[type="date"], input[type="month"] {
   $('#movementEndDate').value = todayISO();
   setInterval(updateGreeting, 60000);
   renderAll();
-  const hashPage = window.location.hash.replace('#', '');
-  if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) pageNavigate(['administracion','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
-  else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'actividad', 'reportes-globales'].includes(hashPage)) pageNavigate(hashPage);
+  const applyInitialRoute = (user) => {
+    const hashPage = window.location.hash.replace('#', '');
+    if (user?.isPlatformAdmin === true) pageNavigate(['administracion','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
+    else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+    else pageNavigate('dashboard');
+  };
+  if (window.PanaderiaAuthReady && typeof window.PanaderiaAuthReady.then === 'function') {
+    window.PanaderiaAuthReady.then(applyInitialRoute).catch(() => applyInitialRoute(null));
+  } else applyInitialRoute(window.PanaderiaAuth?.user || null);
 })();
 
   if ('serviceWorker' in navigator) {
