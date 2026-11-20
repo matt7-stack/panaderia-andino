@@ -70,6 +70,7 @@ body.platform-admin .brand{justify-content:center}
 body.platform-admin .brand-name,body.platform-admin .brand-caption{display:none!important}
 .brand-icon-only{justify-content:center;min-height:66px}
 .nav-menu .admin-menu-primary{margin-top:8px;border-radius:10px;background:#f4eadf;color:#67452f;font-weight:750}
+.nav-menu .admin-only-menu{border-left:2px solid rgba(221,184,143,.35);padding-left:17px}
 .nav-menu .admin-menu-shortcut{border-radius:10px}
 .nav-menu .nav-menu-hint{display:block;margin-left:auto;color:#a58b72;font-size:8px;font-weight:800;letter-spacing:.6px}
 body.platform-admin .nav-menu .admin-menu-primary{background:#ead8c5;color:#553721}
@@ -355,7 +356,9 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
-        <a class="nav-link admin-menu-shortcut" href="#accesos-rapidos" data-page-link="accesos-rapidos" id="adminQuickNav" hidden><i class="bi bi-lightning-charge-fill"></i><span>Atajos rápidos</span><span class="nav-menu-hint">CENTRO DE HERRAMIENTAS</span></a>
+        <a class="nav-link admin-only-menu" href="#administracion" data-admin-focus="businessesTableBody" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Panaderías</span></a>
+        <a class="nav-link admin-only-menu" href="#administracion" data-admin-focus="platformUsersPanel" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
+        <a class="nav-link admin-only-menu" href="#administracion" data-admin-focus="adminNotificationForm" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
         <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
@@ -434,24 +437,9 @@ input[type="date"], input[type="month"] {
         <!-- ADMINISTRACIÓN -->
         <section class="page-view" id="page-administracion" data-page="administracion">
           <section class="admin-welcome">
-            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Panel de administración</h1><p>Gestioná todas las panaderías, usuarios, comunicaciones y actividad desde un solo lugar.</p><div class="admin-welcome-actions"><button class="btn btn-light btn-sm" type="button" data-admin-go="accesos-rapidos"><i class="bi bi-lightning-charge-fill"></i> Ver atajos rápidos</button><button class="btn btn-outline-light btn-sm" type="button" data-admin-focus="businessesTableBody"><i class="bi bi-shop"></i> Gestionar panaderías</button></div></div>
+            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Panel de administración</h1><p>Gestioná todas las panaderías, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
             <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
           </section>
-          <div class="admin-section-heading"><div><p class="eyebrow">GESTIÓN DIARIA</p><h2>Accesos directos</h2><p>Las tareas más utilizadas, a un solo clic.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="accesos-rapidos">Ver todos <i class="bi bi-arrow-right"></i></button></div>
-          <div class="admin-home-shortcuts">
-            <button type="button" class="admin-home-shortcut" data-admin-focus="businessesTableBody"><span class="admin-home-icon"><i class="bi bi-shop-window"></i></span><strong>Panaderías</strong><small>Crear, editar y supervisar</small></button>
-            <button type="button" class="admin-home-shortcut" data-admin-focus="platformUsersPanel"><span class="admin-home-icon"><i class="bi bi-people"></i></span><strong>Usuarios y permisos</strong><small>Altas y control de acceso</small></button>
-            <button type="button" class="admin-home-shortcut" data-admin-focus="adminNotificationForm"><span class="admin-home-icon"><i class="bi bi-send"></i></span><strong>Notificaciones</strong><small>Enviar comunicados</small></button>
-            <button type="button" class="admin-home-shortcut" data-admin-go="actividad"><span class="admin-home-icon"><i class="bi bi-shield-check"></i></span><strong>Actividad</strong><small>Auditoría y alertas</small></button>
-            <button type="button" class="admin-home-shortcut" data-admin-go="reportes-globales"><span class="admin-home-icon"><i class="bi bi-bar-chart-line"></i></span><strong>Reportes</strong><small>Resultados globales</small></button>
-            <button type="button" class="admin-home-shortcut" data-admin-go="accesos-rapidos"><span class="admin-home-icon"><i class="bi bi-grid"></i></span><strong>Todos los atajos</strong><small>Centro de herramientas</small></button>
-          </div>
-          <div class="settings-grid mb-3">
-            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-shield-check"></i> Seguridad y auditoría</h3><p>Supervisá cambios, accesos y acciones registradas en toda la plataforma.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="actividad">Abrir auditoría y alertas</button></article>
-            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-graph-up"></i> Rendimiento global</h3><p>Compará ingresos, gastos y actividad de las panaderías registradas.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="reportes-globales">Ver reportes globales</button></article>
-            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Centro de notificaciones</h3><p>Enviá comunicados generales o dirigidos a una panadería.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-focus="adminNotificationForm">Redactar comunicado</button></article>
-            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-people"></i> Control de cuentas</h3><p>Administrá altas, permisos y estado de los usuarios.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-focus="platformUsersPanel">Gestionar cuentas</button></article>
-          </div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Panaderías registradas</h3><p>Administrá los negocios y consultá sus ingresos, gastos y ventas.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar panadería</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando panaderías…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada panadería trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-megaphone"></i> Enviar notificación</h3><p>Escribí un aviso para todas las panaderías o para una en particular.</p></div></div><form id="adminNotificationForm" class="settings-form"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="adminNotificationTarget">Destinatarios</label><select class="form-select" id="adminNotificationTarget" required><option value="all">Todas las panaderías y sus usuarios</option></select></div><div class="col-md-7"><label class="form-label" for="adminNotificationTitle">Título</label><input class="form-control" id="adminNotificationTitle" maxlength="100" required placeholder="Ej.: Mantenimiento programado"></div><div class="col-12"><label class="form-label" for="adminNotificationMessage">Mensaje</label><textarea class="form-control" id="adminNotificationMessage" rows="3" maxlength="2000" required placeholder="Escribí el aviso que recibirán los usuarios…"></textarea></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-send"></i> Enviar notificación</button></div></form><div class="info-note"><i class="bi bi-info-circle"></i> El aviso aparecerá dentro de Notificaciones en las cuentas destinatarias.</div></article>
@@ -753,10 +741,10 @@ input[type="date"], input[type="month"] {
     const platformAdmin = user.isPlatformAdmin === true;
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','accesos-rapidos','actividad','reportes-globales'];
+      const adminPages = ['administracion','actividad','reportes-globales'];
       link.hidden = platformAdmin ? !adminPages.includes(page) : (page === 'administracion' || page === 'actividad' || page === 'reportes-globales');
     });
-    ['adminQuickNav','adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
     const sidebarHelp = document.querySelector('.sidebar-help');
