@@ -880,6 +880,8 @@ input[type="date"], input[type="month"] {
 
   let state = createEmptyState();
   let cloudUsers = [];
+  // Debe inicializarse antes de cualquier render o modal que consulte el catálogo.
+  let cloudBusinesses = [];
   let cloudReady = false;
   let cloudSaveTimer = null;
   let cloudUpdatedAt = null;
@@ -1611,7 +1613,6 @@ input[type="date"], input[type="month"] {
     renderDashboard(); renderMovements(); renderInvoices(); renderEmployees(); renderAdminPanel(); renderSettings(); updateCounters();
   }
 
-  let cloudBusinesses = [];
   function renderCloudBusinesses() {
     const body = $('#businessesTableBody'); if (!body) return;
     body.innerHTML = cloudBusinesses.map((b) => `<tr><td><strong>${escapeHTML(b.name)}</strong><small class="table-sub-text">${escapeHTML(b.slug || '')}</small></td><td>${Number(b.active_user_count || 0)} / ${Number(b.user_count || 0)}</td><td class="amount-income">${money(b.recorded_income)}</td><td class="amount-expense">${money(b.recorded_expenses)}</td><td>${money(b.sales_total)}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Inactiva'}</span></td><td><div class="table-actions"><button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="${escapeHTML(b.id)}">Abrir</button><button class="icon-action" type="button" data-edit-business="${escapeHTML(b.id)}" title="Editar panadería"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-business="${escapeHTML(b.id)}" title="Eliminar panadería"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
@@ -1713,11 +1714,19 @@ input[type="date"], input[type="month"] {
   $('#movementEndDate').value = todayISO();
   setInterval(updateGreeting, 60000);
   renderAll();
-  const applyInitialRoute = (user) => {
-    if (user) startAuthenticatedHydration(user);
+  const applyInitialRoute = async (user) => {
     const hashPage = window.location.hash.replace('#', '');
-    if (user?.isPlatformAdmin === true) pageNavigate('administracion');
-    else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+    if (user?.isPlatformAdmin === true) {
+      document.body.classList.add('platform-admin');
+      pageNavigate('administracion');
+      await startAuthenticatedHydration(user);
+      // Reafirma la ruta después de hidratar para evitar que una restauración de sesión
+      // o una navegación tardía deje visible el dashboard del negocio.
+      pageNavigate('administracion');
+      return;
+    }
+    if (user) await startAuthenticatedHydration(user);
+    if (['dashboard', 'movimientos', 'notas', 'empleados', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
     else pageNavigate('dashboard');
   };
   if (window.PanaderiaAuthReady && typeof window.PanaderiaAuthReady.then === 'function') {
