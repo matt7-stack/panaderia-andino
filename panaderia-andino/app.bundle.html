@@ -394,6 +394,7 @@ input[type="date"], input[type="month"] {
         <section class="page-view" id="page-administracion" data-page="administracion">
           <div class="page-heading"><div><p class="eyebrow">CONTROL Y SEGURIDAD</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Administración</h1><p class="page-subtitle">Herramientas para supervisar el sistema y administrar el negocio.</p></div></div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
+          <section class="panel settings-card mb-3"><div class="panel-heading"><div><h3>Panaderías registradas</h3><p>Alta, edición, activación y suspensión de negocios.</p></div><button class="btn btn-bakery" type="button" id="adminAddBakery"><i class="bi bi-plus-lg"></i> Registrar panadería</button></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>PANADERÍA</th><th>RESPONSABLE</th><th>CONTACTO</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="bakeriesTableBody"><tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr></tbody></table></div></section>
           <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Usuarios y permisos</h3><p>Creá cuentas, desactivá accesos y administrá roles.</p></div><span class="panel-heading-icon"><i class="bi bi-person-gear"></i></span></div><p class="page-subtitle mb-3">Solo el administrador principal puede gestionar las cuentas de acceso.</p><button class="btn btn-bakery" type="button" id="adminManageUsers"><i class="bi bi-people"></i> Gestionar usuarios</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Copia de seguridad</h3><p>Descargá una copia de los datos compartidos.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-arrow-down"></i></span></div><p class="page-subtitle mb-3">Guardá el archivo JSON en un lugar seguro. Esta acción no modifica la base de datos.</p><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-download"></i> Descargar respaldo</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Limpiar datos operativos</h3><p>Prepará el sistema para comenzar desde cero.</p></div><span class="panel-heading-icon"><i class="bi bi-trash3"></i></span></div><p class="page-subtitle mb-3">Elimina movimientos, notas emitidas y recibidas, empleados y pagos históricos. Conserva el administrador, las credenciales y la configuración del negocio.</p><div class="info-note mb-3"><i class="bi bi-exclamation-triangle"></i> Esta acción afecta a todos los dispositivos conectados y no se puede deshacer. Descargá primero un respaldo si necesitás conservar los registros.</div><button class="btn btn-outline-danger" type="button" id="adminResetDataButton"><i class="bi bi-trash3"></i> Limpiar datos operativos</button></article></div>
         </section>
 
@@ -1029,10 +1030,28 @@ input[type="date"], input[type="month"] {
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td class="text-center"><button class="icon-action danger" type="button" data-delete-employee-payment="${escapeHTML(payment.id)}" title="Eliminar pago" aria-label="Eliminar pago"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
+  let adminBakeries = [];
+  async function refreshAdminBakeries() {
+    const body = $('#bakeriesTableBody'); if (!body || window.PanaderiaAuth?.user?.role !== 'admin') return;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/admin/bakeries');
+      adminBakeries = result.bakeries || [];
+      body.innerHTML = adminBakeries.map((b) => `<tr><td><span class="table-main-text">${escapeHTML(b.name)}</span><span class="table-sub-text">${escapeHTML(b.email || 'Sin correo')}</span></td><td>${escapeHTML(b.owner)}</td><td>${escapeHTML(b.phone || '—')}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Suspendida'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-edit-bakery="${escapeHTML(b.id)}" title="Editar"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-bakery="${escapeHTML(b.id)}" data-active="${b.active ? 'true' : 'false'}" title="${b.active ? 'Suspender' : 'Activar'}"><i class="bi ${b.active ? 'bi-pause-circle' : 'bi-play-circle'}"></i></button><button class="icon-action danger" type="button" data-delete-bakery="${escapeHTML(b.id)}" title="Archivar"><i class="bi bi-archive"></i></button></div></td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
+    } catch (error) { body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">No se pudieron cargar las panaderías.</td></tr>'; notify(error.message); }
+  }
+  function openBakeryModal(id = '') {
+    const bakery = adminBakeries.find((item) => item.id === id) || {};
+    simpleModalMode = 'bakery'; simpleModalData = { bakeryId: id };
+    $('#simpleModalTitle').textContent = id ? 'Editar panadería' : 'Registrar panadería';
+    $('#simpleModalFields').innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre de la panadería</label><input id="simpleName" maxlength="100" required value="${escapeHTML(bakery.name || '')}"></div><div class="simple-modal-field"><label for="bakeryOwner">Responsable</label><input id="bakeryOwner" maxlength="100" required value="${escapeHTML(bakery.owner || '')}"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" value="${escapeHTML(bakery.email || '')}"></div><div class="simple-modal-field"><label for="bakeryPhone">Teléfono</label><input id="bakeryPhone" maxlength="40" value="${escapeHTML(bakery.phone || '')}"></div><div class="simple-modal-field"><label for="bakeryAddress">Dirección</label><input id="bakeryAddress" maxlength="180" value="${escapeHTML(bakery.address || '')}"></div><div class="simple-modal-field"><label for="bakeryRuc">RUC</label><input id="bakeryRuc" maxlength="30" value="${escapeHTML(bakery.ruc || '')}"></div>`;
+    simpleModal.show();
+  }
+
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
     $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
-    $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    $('#adminMovementCount').textContent = (state.movements || []).length;
+    if ($('#bakeriesTableBody') && !adminBakeries.length) refreshAdminBakeries(); $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
   }
 
   function exportAdminBackup() {
@@ -1236,6 +1255,21 @@ input[type="date"], input[type="month"] {
     saveState(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel();
     notify('Pago y gasto asociado eliminados. El empleado y los demás registros se conservaron.');
   });
+  $('#adminAddBakery')?.addEventListener('click', () => openBakeryModal());
+  $('#bakeriesTableBody')?.addEventListener('click', async (event) => {
+    const edit=event.target.closest('[data-edit-bakery]'), toggle=event.target.closest('[data-toggle-bakery]'), remove=event.target.closest('[data-delete-bakery]');
+    try {
+      if(edit) openBakeryModal(edit.dataset.editBakery);
+      else if(toggle) {
+        const active=toggle.dataset.active!=='true';
+        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:toggle.dataset.toggleBakery,active})});
+        await refreshAdminBakeries(); notify(active?'Panadería activada.':'Panadería suspendida.');
+      } else if(remove && confirmDelete('¿Archivar esta panadería? No se borrarán registros de auditoría.')) {
+        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'DELETE',body:JSON.stringify({id:remove.dataset.deleteBakery})});
+        await refreshAdminBakeries(); notify('Panadería archivada.');
+      }
+    } catch(error) { notify(error.message); }
+  });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);  $('#adminResetDataButton').addEventListener('click', async () => {
     const button = $('#adminResetDataButton');
     if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede realizar esta acción.'); return; }
@@ -1282,6 +1316,14 @@ input[type="date"], input[type="month"] {
     } else if (simpleModalMode === 'payment') {
       if (state.paymentMethods.some((item) => item.toLowerCase() === name.toLowerCase())) { notify('Ese método de pago ya existe.'); return; }
       state.paymentMethods.push(name);
+    } else if (simpleModalMode === 'bakery') {
+      const bakeryData={name,owner:$('#bakeryOwner').value.trim(),email:$('#simpleEmail').value.trim(),phone:$('#bakeryPhone').value.trim(),address:$('#bakeryAddress').value.trim(),ruc:$('#bakeryRuc').value.trim()};
+      try {
+        if(simpleModalData.bakeryId) await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:simpleModalData.bakeryId,...bakeryData})});
+        else await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'POST',body:JSON.stringify(bakeryData)});
+        simpleModal.hide(); await refreshAdminBakeries(); notify(simpleModalData.bakeryId?'Panadería actualizada.':'Panadería registrada.');
+      } catch(error) { notify(error.message); }
+      return;
     } else if (simpleModalMode === 'user') {
       try {
         await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
