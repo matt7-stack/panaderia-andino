@@ -2121,6 +2121,18 @@ img,svg,canvas,video{max-width:100%}
       catch(error){notify('No se pudo eliminar el comunicado: '+error.message);}
     }
   });
+  document.querySelector('#page-actividad')?.addEventListener('click',async(event)=>{
+    const button=event.target.closest('[data-clear-admin-activity]');if(!button)return;
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true){notify('Solo el administrador principal puede realizar esta acción.');return;}
+    const target=button.dataset.clearAdminActivity;
+    const isHistory=target==='history';
+    const question=isHistory?'¿Eliminar todo el historial de actividad de la plataforma? Esta acción no se puede deshacer.':'¿Eliminar todas las alertas de actividad de tu cuenta de administrador? Esta acción no se puede deshacer.';
+    if(!window.confirm(question))return;
+    button.disabled=true;
+    try{const result=await window.PanaderiaAuth.api('/api/admin/activity',{method:'DELETE',body:JSON.stringify({target})});notify(isHistory?'Historial eliminado ('+Number(result.deleted||0)+' registros).':'Alertas eliminadas ('+Number(result.deleted||0)+').');await refreshAdminActivity(true);}
+    catch(error){notify('No se pudo eliminar: '+error.message);}
+    finally{button.disabled=false;}
+  });
   $('#adminActivityAlerts')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-admin-read-alert]');if(!button)return;try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.adminReadAlert})});await refreshAdminActivity();}catch(error){notify(error.message);}});
   document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');document.querySelectorAll('.nav-menu [data-admin-focus]').forEach(link=>link.classList.toggle('active',link===focus));requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
   $('#securityUsersTable')?.addEventListener('click',async(event)=>{
