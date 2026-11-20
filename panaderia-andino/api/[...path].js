@@ -17,8 +17,12 @@ async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS app_bakeries (id UUID PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', ruc TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE, archived BOOLEAN NOT NULL DEFAULT FALSE, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_audit_log (id BIGSERIAL PRIMARY KEY, actor_id UUID, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bakery_id UUID REFERENCES app_bakeries(id) ON DELETE SET NULL`;
-  await sql`ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check`;
-  await sql`ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('admin','owner','supervisor','employee'))`;
+  const roleChecks = await sql`SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='app_users'::regclass AND contype='c'`;
+  const roleCheck = roleChecks.find(item => String(item.definition||'').includes('role'));
+  if (!roleCheck || !String(roleCheck.definition).includes('owner')) {
+    if (roleCheck?.conname) await sql`ALTER TABLE app_users DROP CONSTRAINT app_users_role_check`;
+    await sql`ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('admin','owner','supervisor','employee'))`;
+  }
   await sql`CREATE INDEX IF NOT EXISTS app_users_bakery_idx ON app_users(bakery_id,role,active)`;
   await sql`CREATE TABLE IF NOT EXISTS app_bakery_state (bakery_id UUID PRIMARY KEY REFERENCES app_bakeries(id) ON DELETE CASCADE, data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_notifications (id UUID PRIMARY KEY, bakery_id UUID REFERENCES app_bakeries(id) ON DELETE CASCADE, title TEXT NOT NULL, message TEXT NOT NULL, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
