@@ -97,6 +97,94 @@ const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, act
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if(path==='/api/support/tickets'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=user.is_platform_admin===true
+          ? await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by ORDER BY t.updated_at DESC LIMIT 200`
+          : await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by WHERE t.business_id=${user.business_id} ORDER BY t.updated_at DESC LIMIT 100`;
+        return send(res,200,{tickets:rows});
+      }
+      if(req.method==='POST'){
+        if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Solo las cuentas de negocio pueden crear solicitudes.'});
+        const input=body(req),subject=String(input.subject||'').trim().slice(0,120),message=String(input.message||'').trim().slice(0,3000);
+        if(!subject||!message)return send(res,400,{error:'Completá el asunto y el mensaje.'});
+        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING *`;
+        return send(res,201,{ticket:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        if(user.is_platform_admin!==true)return send(res,403,{error:'Solo el administrador puede cambiar el estado.'});
+        const input=body(req),id=String(input.id||''),status=String(input.status||'');
+        if(!['open','in_progress','resolved','closed'].includes(status))return send(res,400,{error:'Estado no válido.'});
+        const rows=await sql`UPDATE app_support_tickets SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(!rows.length)return send(res,404,{error:'Solicitud no encontrada.'});
+        return send(res,200,{ticket:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/support/tickets/reply'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),ticketId=String(input.ticketId||''),message=String(input.message||'').trim().slice(0,3000);
+      if(!ticketId||!message)return send(res,400,{error:'Falta la solicitud o el mensaje.'});
+      const sql=db();
+      const tickets=user.is_platform_admin===true
+        ? await sql`SELECT id FROM app_support_tickets WHERE id=${ticketId}`
+        : await sql`SELECT id FROM app_support_tickets WHERE id=${ticketId} AND business_id=${user.business_id}`;
+      if(!tickets.length)return send(res,404,{error:'Solicitud no encontrada.'});
+      const rows=await sql`INSERT INTO app_support_replies(ticket_id,author_user_id,message,is_admin) VALUES(${ticketId},${user.id},${message},${user.is_platform_admin===true}) RETURNING *`;
+      await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
+      return send(res,201,{reply:rows[0]});
+    }
+    if(path==='/api/admin/overview'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
+      const businesses=await sql`SELECT b.id,b.name,b.active,b.created_at,MAX(u.last_seen_at) AS last_seen_at,COUNT(u.id)::int AS users,COUNT(*) FILTER(WHERE u.active)::int AS active_users FROM businesses b LEFT JOIN app_users u ON u.business_id=b.id GROUP BY b.id ORDER BY b.created_at DESC`;
+      const ticketCounts=await sql`SELECT status,COUNT(*)::int AS total FROM app_support_tickets GROUP BY status`;
+      return send(res,200,{businesses,ticketCounts,totals:{businesses:businesses.length,active:businesses.filter(x=>x.active).length,inactive:businesses.filter(x=>!x.active).length,needsAttention:businesses.filter(x=>x.active&&(!x.last_seen_at||Date.now()-new Date(x.last_seen_at).getTime()>30*86400000)).length}});
+    }
+    if(path==='/api/notification-preferences'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT preferences FROM app_notification_preferences WHERE user_id=${user.id}`;
+        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true}});
+      }
+      if(req.method==='PUT'){
+        const p=body(req).preferences||{};
+        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false};
+        const rows=await sql`INSERT INTO app_notification_preferences(user_id,preferences,updated_at) VALUES(${user.id},${JSON.stringify(preferences)}::jsonb,NOW()) ON CONFLICT(user_id) DO UPDATE SET preferences=EXCLUDED.preferences,updated_at=NOW() RETURNING preferences`;
+        return send(res,200,{preferences:rows[0].preferences});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/trash'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT id,entity_type,entity_id,business_id,payload,deleted_at FROM app_trash WHERE restored_at IS NULL ORDER BY deleted_at DESC LIMIT 200`;
+        return send(res,200,{items:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),id=String(input.id||'');
+        if(input.action!=='restore'||!id)return send(res,400,{error:'Acción no válida.'});
+        const rows=await sql`SELECT * FROM app_trash WHERE id=${id} AND restored_at IS NULL`;
+        if(!rows.length)return send(res,404,{error:'Elemento no disponible.'});
+        const item=rows[0],p=item.payload||{};
+        if(item.entity_type==='business'){
+          const restored=await sql`UPDATE businesses SET active=TRUE,updated_at=NOW() WHERE id=${item.entity_id} RETURNING id`;
+          if(!restored.length)return send(res,409,{error:'El negocio ya no existe; no se puede restaurar automáticamente.'});
+        }else if(item.entity_type==='user'){
+          const restored=await sql`UPDATE app_users SET active=TRUE,session_version=session_version+1 WHERE id=${item.entity_id} AND is_platform_admin=FALSE RETURNING id`;
+          if(!restored.length)return send(res,409,{error:'El usuario no existe o no se puede restaurar.'});
+        }else return send(res,409,{error:'Este tipo de comunicado requiere restauración manual.'});
+        await sql`UPDATE app_trash SET restored_at=NOW() WHERE id=${id}`;
+        return send(res,200,{ok:true});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/support' && req.method === 'GET') {
       const sql=db();
       const rows=await sql`SELECT whatsapp_phone,enabled,welcome_message,display_name FROM app_platform_settings WHERE setting_key='support' LIMIT 1`;
