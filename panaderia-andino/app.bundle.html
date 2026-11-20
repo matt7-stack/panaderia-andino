@@ -1299,12 +1299,12 @@ input[type="date"], input[type="month"] {
   // Navegación principal
   $$('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
   $$('[data-go-page]').forEach((button) => button.addEventListener('click', () => pageNavigate(button.dataset.goPage)));
-  $('#menuToggle').addEventListener('click', () => {
+  $('#menuToggle')?.addEventListener('click', () => {
     const open = $('#sidebar').classList.toggle('open');
     $('#sidebarBackdrop').classList.toggle('show', open);
     $('#menuToggle').setAttribute('aria-expanded', String(open));
   });
-  $('#sidebarBackdrop').addEventListener('click', () => {
+  $('#sidebarBackdrop')?.addEventListener('click', () => {
     $('#sidebar').classList.remove('open'); $('#sidebarBackdrop').classList.remove('show'); $('#menuToggle').setAttribute('aria-expanded', 'false');
   });
   const logoutTopButton = document.getElementById('logoutTopButton');
@@ -1320,7 +1320,7 @@ input[type="date"], input[type="month"] {
   // Formularios de movimientos
   $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
   $$('.type-option').forEach((button) => button.addEventListener('click', () => setMovementType(button.dataset.type)));
-  $('#movementForm').addEventListener('submit', (event) => {
+  $('#movementForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const id = $('#movementId').value;
     const description = $('#movementDescription').value.trim();
@@ -1333,10 +1333,10 @@ input[type="date"], input[type="month"] {
     else state.movements.push(record);
     saveState(); movementModal.hide(); renderDashboard(); renderMovements(); notify(id ? 'Movimiento actualizado correctamente.' : 'Movimiento registrado correctamente.');
   });
-  $('#movementSearch').addEventListener('input', renderMovements);
+  $('#movementSearch')?.addEventListener('input', renderMovements);
   ['movementTypeFilter', 'movementCategoryFilter', 'movementStartDate', 'movementEndDate'].forEach((id) => $(`#${id}`).addEventListener('change', () => { if (id === 'movementTypeFilter') refreshMovementFilters(); renderMovements(); }));
-  $('#clearMovementFilters').addEventListener('click', () => { $('#movementSearch').value = ''; $('#movementTypeFilter').value = 'all'; $('#movementCategoryFilter').value = 'all'; $('#movementStartDate').value = ''; $('#movementEndDate').value = ''; renderMovements(); });
-  $('#movementsTableBody').addEventListener('click', (event) => {
+  $('#clearMovementFilters')?.addEventListener('click', () => { $('#movementSearch').value = ''; $('#movementTypeFilter').value = 'all'; $('#movementCategoryFilter').value = 'all'; $('#movementStartDate').value = ''; $('#movementEndDate').value = ''; renderMovements(); });
+  $('#movementsTableBody')?.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-movement]');
     const remove = event.target.closest('[data-delete-movement]');
     if (edit) openMovementModal('income', edit.dataset.editMovement);
@@ -1346,7 +1346,7 @@ input[type="date"], input[type="month"] {
       state.movements = state.movements.filter((item) => item.id !== id); saveState(); renderDashboard(); renderMovements(); notify('Movimiento eliminado.');
     }
   });
-  $('#exportMovements').addEventListener('click', () => {
+  $('#exportMovements')?.addEventListener('click', () => {
     const rows = [...$('#movementsTableBody').querySelectorAll('tr')];
     if (!rows.length) { notify('No hay movimientos para exportar con los filtros actuales.'); return; }
     const search = $('#movementSearch').value.trim().toLowerCase();
@@ -1360,9 +1360,9 @@ input[type="date"], input[type="month"] {
   });
 
   // Notas
-  $('#newInvoiceButton').addEventListener('click', () => openInvoiceModal());
-  $('#invoiceSearch').addEventListener('input', renderInvoices);
-  $('#invoiceForm').addEventListener('submit', (event) => {
+  $('#newInvoiceButton')?.addEventListener('click', () => openInvoiceModal());
+  $('#invoiceSearch')?.addEventListener('input', renderInvoices);
+  $('#invoiceForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const id = $('#invoiceId').value;
     if (!$('#invoiceNumber').value.trim() || !$('#invoiceParty').value.trim() || !$('#invoiceDate').value || $('#invoiceAmount').value === '' || !Number.isFinite(Number($('#invoiceAmount').value)) || Number($('#invoiceAmount').value) < 0) {
@@ -1376,7 +1376,7 @@ input[type="date"], input[type="month"] {
     else state.invoices.push(invoice);
     activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Nota actualizada correctamente.' : 'Nota registrada correctamente.');
   });
-  $('#invoicesTableBody').addEventListener('click', (event) => {
+  $('#invoicesTableBody')?.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-invoice]');
     const remove = event.target.closest('[data-delete-invoice]');
     if (edit) openInvoiceModal(edit.dataset.editInvoice);
@@ -1393,12 +1393,12 @@ input[type="date"], input[type="month"] {
     $$('.settings-tab').forEach((item) => item.classList.toggle('active', item === tab));
     $$('[data-settings-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.settingsPanel === target));
   }));
-  $('#businessForm').addEventListener('submit', (event) => {
+  $('#businessForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     state.business = { ...state.business, name: $('#businessName').value.trim(), address: $('#businessAddress').value.trim(), phone: $('#businessPhone').value.trim(), email: $('#businessEmail').value.trim(), ruc: $('#businessRuc').value.trim(), owner: $('#businessOwner').value.trim() };
     saveState(); renderSettings(); updateCounters(); notify('Datos del negocio guardados.');
   });
-  $('#businessLogo').addEventListener('change', (event) => {
+  $('#businessLogo')?.addEventListener('change', (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { notify('Seleccioná un archivo de imagen válido.'); return; }
@@ -1409,11 +1409,11 @@ input[type="date"], input[type="month"] {
     reader.readAsDataURL(file);
   });
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
-  $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
-  $('#addUserButton').addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses().catch(()=>{}); return; } openSimpleModal('user'); });
-  $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
-  $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
-  $('#employeesTableBody').addEventListener('click', (event) => {
+  $('#addPaymentMethod')?.addEventListener('click', () => openSimpleModal('payment'));
+  $('#addUserButton')?.addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses().catch(()=>{}); return; } openSimpleModal('user'); });
+  $('#addEmployeeButton')?.addEventListener('click', () => openSimpleModal('employee'));
+  $('#payEmployeeButton')?.addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
+  $('#employeesTableBody')?.addEventListener('click', (event) => {
     const pay = event.target.closest('[data-pay-employee]'); const edit = event.target.closest('[data-edit-employee]'); const remove = event.target.closest('[data-delete-employee]');
     if (pay) openSimpleModal('employee-payment', { employeeId: pay.dataset.payEmployee });
     if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
@@ -1425,7 +1425,7 @@ input[type="date"], input[type="month"] {
       saveState(); renderEmployees(); renderAdminPanel(); notify('Empleado eliminado. Los pagos históricos se conservaron.');
     }
   });
-  $('#employeePaymentsTableBody').addEventListener('click', (event) => {
+  $('#employeePaymentsTableBody')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-delete-employee-payment]');
     if (!button) return;
     if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede eliminar pagos.'); return; }
@@ -1438,7 +1438,7 @@ input[type="date"], input[type="month"] {
     saveState(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel();
     notify('Pago y gasto asociado eliminados. El empleado y los demás registros se conservaron.');
   });
-  $('#adminBackupButton').addEventListener('click', exportAdminBackup);  $('#adminResetDataButton').addEventListener('click', async () => {
+  $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);  $('#adminResetDataButton')?.addEventListener('click', async () => {
     const button = $('#adminResetDataButton');
     if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede realizar esta acción.'); return; }
     if (!window.confirm('¿Confirmás limpiar los datos operativos de Panadería Andino? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
@@ -1457,7 +1457,7 @@ input[type="date"], input[type="month"] {
       notify(error.message || 'No se pudo completar la limpieza. Verificá la conexión.');
     } finally { button.disabled = false; }
   });
-  $('#adminManageUsers').addEventListener('click', () => {
+  $('#adminManageUsers')?.addEventListener('click', () => {
     const panel=$('#platformUsersPanel'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
     refreshCloudUsers().catch(error => notify(error.message || 'No se pudieron cargar los usuarios.'));
   });
@@ -1570,7 +1570,7 @@ input[type="date"], input[type="month"] {
     catch(error){notify(error.message);}
   });
   $('#refreshNotificationsButton')?.addEventListener('click',refreshNotifications);
-    $('#simpleForm').addEventListener('submit', async (event) => {
+    $('#simpleForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
     if (!name && simpleModalMode !== 'employee-payment') return;
@@ -1619,21 +1619,21 @@ input[type="date"], input[type="month"] {
     }
     saveState(); simpleModal.hide(); renderSettings(); notify('Información agregada correctamente.');
   });
-  $('#settings-categories').addEventListener('click', (event) => {
+  $('#settings-categories')?.addEventListener('click', (event) => {
     const remove = event.target.closest('[data-delete-category]');
     if (!remove) return;
     const name = remove.dataset.deleteCategory; const type = remove.dataset.categoryType;
     if (!confirmDelete(`¿Eliminar la categoría "${name}"?`)) return;
     state.categories[type] = state.categories[type].filter((item) => item !== name); saveState(); renderSettings(); refreshMovementFilters(); notify('Categoría eliminada. Los movimientos anteriores conservan su categoría.');
   });
-  $('#paymentMethodsList').addEventListener('click', (event) => {
+  $('#paymentMethodsList')?.addEventListener('click', (event) => {
     const remove = event.target.closest('[data-delete-payment]');
     if (!remove) return;
     const name = remove.dataset.deletePayment;
     if (!confirmDelete(`¿Eliminar el método de pago "${name}"?`)) return;
     state.paymentMethods = state.paymentMethods.filter((item) => item !== name); saveState(); renderSettings(); notify('Método de pago eliminado.');
   });
-  $('#usersTableBody').addEventListener('click', async (event) => {
+  $('#usersTableBody')?.addEventListener('click', async (event) => {
     const remove = event.target.closest('[data-delete-user]');
     const toggle = event.target.closest('[data-toggle-user]');
     try {
@@ -1650,13 +1650,13 @@ input[type="date"], input[type="month"] {
       }
     } catch (error) { notify(error.message); }
   });
-  $('#preferencesForm').addEventListener('submit', (event) => {
+  $('#preferencesForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
     state.preferences = { ...state.preferences, dateFormat: $('#prefDateFormat').value, invoiceAlerts: $('#prefInvoiceAlerts').checked, confirmDelete: $('#prefConfirmDelete').checked };
     saveState(); renderDashboard(); renderMovements(); renderInvoices(); notify('Preferencias guardadas.');
   });
   $('#resetDemoData').hidden = true;
-  $('#resetDemoData').addEventListener('click', () => {
+  $('#resetDemoData')?.addEventListener('click', () => {
     if (!window.confirm('Esto reemplazará todos los movimientos, notas y ajustes por los datos de ejemplo. ¿Continuar?')) return;
     notify('La carga de datos de demostración está deshabilitada para proteger la información real.');
   });
