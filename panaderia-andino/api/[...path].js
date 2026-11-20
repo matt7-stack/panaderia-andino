@@ -659,6 +659,50 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/business/users') {
+      const user = await authenticated(req,res,false); if (!user) return;
+      if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
+        return send(res,403,{error:'Solo el Supervisor del negocio puede administrar sus empleados.'});
+      const sql = db();
+      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','reports.view'];
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
+        const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+        const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
+        return send(res,200,{employees:rows,limits:{plan,employeeLimit:limit,activeEmployees:Number(count[0]?.total||0),remaining:limit===null?null:Math.max(0,limit-Number(count[0]?.total||0))}});
+      }
+      if (req.method === 'POST') {
+        const input=body(req),name=String(input.name||'').trim().slice(0,70),email=String(input.email||'').trim().toLowerCase(),password=input.password;
+        if(!name||!validEmail(email)||!validPassword(password))return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+        const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
+        if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'Alcanzaste el límite de empleados de tu plan. Podés ampliar tu licencia desde el administrador.'});
+        const requested=input.permissions&&typeof input.permissions==='object'&&!Array.isArray(input.permissions)?input.permissions:{};
+        const permissions={}; for(const key of permissionKeys) permissions[key]=requested[key]===true;
+        const id=crypto.randomUUID(),hash=await hashPassword(password);
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin,permissions) VALUES(${id},${name},${email},${hash},'employee',TRUE,${user.business_id},FALSE,${JSON.stringify(permissions)}::jsonb) RETURNING id,name,email,role,active,permissions,created_at`;
+        return send(res,201,{employee:rows[0]});
+      }
+      if (req.method === 'PATCH') {
+        const input=body(req),id=String(input.id||'');
+        if(!id)return send(res,400,{error:'Falta identificar al empleado.'});
+        const target=await sql`SELECT id FROM app_users WHERE id=${id} AND business_id=${user.business_id} AND role='employee' AND is_platform_admin=FALSE LIMIT 1`;
+        if(!target.length)return send(res,404,{error:'No se encontró el empleado de este negocio.'});
+        if(typeof input.active==='boolean'){
+          const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
+          return send(res,200,{employee:rows[0]});
+        }
+        if(input.permissions&&typeof input.permissions==='object'&&!Array.isArray(input.permissions)){
+          const permissions={}; for(const key of permissionKeys) permissions[key]=input.permissions[key]===true;
+          const rows=await sql`UPDATE app_users SET permissions=${JSON.stringify(permissions)}::jsonb,session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
+          return send(res,200,{employee:rows[0]});
+        }
+        return send(res,400,{error:'No se recibieron permisos o estado válidos.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
