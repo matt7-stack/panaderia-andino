@@ -355,7 +355,7 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#notas" data-page-link="notas"><i class="bi bi-receipt-cutoff"></i><span>Notas</span><span class="nav-count" id="invoiceNavCount">0</span></a>
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
-        <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
+        <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administrador</span></a>
         <a class="nav-link admin-only-menu" href="#admin-panaderias" data-page-link="admin-panaderias" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Panaderías</span></a>
         <a class="nav-link admin-only-menu" href="#admin-usuarios" data-page-link="admin-usuarios" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
@@ -437,7 +437,7 @@ input[type="date"], input[type="month"] {
         <!-- ADMINISTRACIÓN -->
         <section class="page-view" id="page-administracion" data-page="administracion">
           <section class="admin-welcome">
-            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Panel de administración</h1><p>Gestioná todas las panaderías, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
+            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Administrador</h1><p>Gestioná todas las panaderías, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
             <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
           </section>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
@@ -972,7 +972,7 @@ input[type="date"], input[type="month"] {
     if (page === 'empleados') renderEmployees();
     if (['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos'].includes(page)) renderAdminPanel();
     if (page === 'notificaciones') refreshNotifications();
-    if (page === 'actividad') refreshAdminActivity();
+    if (page === 'actividad') refreshAdminActivity(true);
     if (page === 'reportes-globales') refreshGlobalReports();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
@@ -1481,7 +1481,7 @@ input[type="date"], input[type="month"] {
   }
   $('#adminActivityAlerts')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-admin-read-alert]');if(!button)return;try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.adminReadAlert})});await refreshAdminActivity();}catch(error){notify(error.message);}});
   document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');document.querySelectorAll('.nav-menu [data-admin-focus]').forEach(link=>link.classList.toggle('active',link===focus));requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
-  $('#refreshAdminActivity')?.addEventListener('click',refreshAdminActivity);
+  $('#refreshAdminActivity')?.addEventListener('click',()=>refreshAdminActivity(false));
   $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
     async function refreshNotifications(){
     if(!window.PanaderiaAuth?.user)return;
