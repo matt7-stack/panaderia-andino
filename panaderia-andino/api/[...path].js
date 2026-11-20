@@ -272,10 +272,11 @@ module.exports = async function handler(req, res) {
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
-        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=input.role==='supervisor'?'supervisor':'employee';
-        if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=input.role==='supervisor'?'supervisor':'employee'; const bakeryId=String(input.bakeryId||'');
+        if (!name || !validEmail(email) || !validPassword(password) || !bakeryId) return send(res,400,{error:'Completá nombre, correo, contraseña y panadería.'});
+        const bakery=await sql`SELECT id FROM app_bakeries WHERE id=${bakeryId} AND active=TRUE AND archived=FALSE LIMIT 1`; if(!bakery.length) return send(res,404,{error:'Seleccioná una panadería activa.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
-        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${hash},${role},TRUE) RETURNING id,name,email,role,active,created_at`;
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${bakeryId}) RETURNING id,name,email,role,active,created_at,bakery_id`;
         return send(res,201,{user:publicUser(rows[0])});
       }
       if (req.method === 'PATCH') {
