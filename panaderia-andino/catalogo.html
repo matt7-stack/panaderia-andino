@@ -31,7 +31,25 @@
     footer{text-align:center;padding:20px;color:#a09388;font-size:10px}
     @media(max-width:520px){main{padding:18px 12px 36px}.grid{grid-template-columns:1fr 1fr;gap:9px}.item{padding:13px;min-height:140px}.item h2{font-size:14px}}
     @media(max-width:360px){.grid{grid-template-columns:1fr}}
-  </style>
+  
+/* Ajustes móviles para catálogo público */
+@media(max-width:520px){
+  html,body{width:100%;max-width:100%;overflow-x:clip}
+  .top{padding:24px 14px 22px}
+  .top p{line-height:1.5;overflow-wrap:anywhere}
+  main{width:100%;max-width:100%;padding:16px 12px 32px}
+  .toolbar{align-items:flex-start;flex-wrap:wrap;gap:9px}
+  .toolbar>*{min-width:0;max-width:100%}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .item{min-width:0;max-width:100%;padding:12px;overflow-wrap:anywhere}
+  .item h2,.description,.price{overflow-wrap:anywhere}
+}
+@media(max-width:360px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .item{min-height:0;padding:14px}
+}
+
+</style>
 </head>
 <body>
   <header class="top">
