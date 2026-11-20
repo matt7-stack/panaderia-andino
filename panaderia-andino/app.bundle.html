@@ -1265,6 +1265,9 @@ input[type="date"], input[type="month"] {
       const employeeSelect = fields.querySelector('#paymentEmployee'); const amountInput = fields.querySelector('#employeePaymentAmount');
       const setDefaultAmount = () => { const employee = (state.employees || []).find((item) => item.id === employeeSelect.value); if (employee && !amountInput.value) amountInput.value = employee.salary || ''; };
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
+    } else if (mode === 'business') {
+      $('#simpleModalTitle').textContent = 'Registrar panadería';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre de la panadería</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Panadería Central"></div><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div>';
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
@@ -1388,7 +1391,7 @@ input[type="date"], input[type="month"] {
   });
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
-  $('#addUserButton').addEventListener('click', async () => { await refreshCloudBusinesses(); if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); return; } openSimpleModal('user'); });
+  $('#addUserButton').addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses(); return; } openSimpleModal('user'); });
   $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
   $('#employeesTableBody').addEventListener('click', (event) => {
@@ -1439,11 +1442,9 @@ input[type="date"], input[type="month"] {
     const panel=$('#platformUsersPanel'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
     refreshCloudUsers().catch(error => notify(error.message || 'No se pudieron cargar los usuarios.'));
   });
-  $('#addBusinessButton')?.addEventListener('click', async () => {
-    const name=prompt('Nombre de la nueva panadería:'); if(!name||!name.trim()) return;
-    const address=prompt('Dirección (opcional):')||''; const phone=prompt('Teléfono (opcional):')||'';
-    try { await window.PanaderiaAuth.api('/api/admin/businesses',{method:'POST',body:JSON.stringify({name:name.trim(),address,phone})}); await refreshCloudBusinesses(); notify('Panadería registrada correctamente.'); }
-    catch(error){notify(error.message);}
+  $('#addBusinessButton')?.addEventListener('click', () => {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede crear panaderías.'); return; }
+    openSimpleModal('business');
   });
   $('#businessesTableBody')?.addEventListener('click', async (event) => {
     if (event.target.closest('[data-retry-businesses]')) { await refreshCloudBusinesses(); return; }
@@ -1544,6 +1545,18 @@ input[type="date"], input[type="month"] {
       state.employeePayments = state.employeePayments || []; state.employeePayments.push({ id: paymentId, employeeId: employee.id, employeeName: employee.name, amount, date, method, period, createdAt: new Date().toISOString() });
       state.movements.push({ id: makeId(), description: `Pago a ${employee.name}`, amount, date, type: 'expense', category: 'Salarios', payment: method, note: period, employeePaymentId: paymentId });
       saveState(); simpleModal.hide(); renderEmployees(); renderDashboard(); renderMovements(); renderAdminPanel(); notify('Pago registrado y contabilizado como gasto.'); return;
+    } else if (simpleModalMode === 'business') {
+      const button = $('#simpleForm').querySelector('button[type="submit"]');
+      if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede crear panaderías.'); return; }
+      if (button) { button.disabled = true; button.textContent = 'Registrando…'; }
+      try {
+        await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, address: $('#simpleAddress').value.trim(), phone: $('#simplePhone').value.trim(), email: $('#simpleEmail').value.trim(), ruc: $('#simpleRuc').value.trim(), ownerName: $('#simpleOwner').value.trim() }) });
+        simpleModal.hide();
+        await refreshCloudBusinesses();
+        notify('Panadería registrada correctamente. Ahora podés asignarle usuarios.');
+      } catch (error) { notify('No se pudo crear la panadería: ' + error.message); }
+      finally { if (button) { button.disabled = false; button.textContent = 'Guardar'; } }
+      return;
     } else if (simpleModalMode === 'category') {
       const inferredType = $('#simpleModalTitle').textContent.toLowerCase().includes('ingreso') ? 'income' : 'expense';
       const target = state.categories[inferredType];
@@ -1728,9 +1741,9 @@ input[type="date"], input[type="month"] {
     if (user?.isPlatformAdmin === true) {
       document.body.classList.add('platform-admin');
       pageNavigate('administracion');
-      await startAuthenticatedHydration(user);
-      // Reafirma la ruta después de hidratar para evitar que una restauración de sesión
-      // o una navegación tardía deje visible el dashboard del negocio.
+      // No bloquear el primer render mientras Neon responde: la pantalla administrativa
+      // debe aparecer de inmediato y los datos se hidratan en segundo plano.
+      startAuthenticatedHydration(user).catch(error => console.error('Error al iniciar administración:', error));
       pageNavigate('administracion');
       return;
     }
