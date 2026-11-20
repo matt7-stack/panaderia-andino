@@ -573,9 +573,9 @@ module.exports = async function handler(req, res) {
       }
       if (req.method === 'DELETE') {
         const id=String(body(req).id||''); if(!id||id===admin.id)return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
-        const target=await sql`SELECT * FROM app_users WHERE id=${id} AND is_platform_admin=FALSE LIMIT 1`;
+        const target=await sql`SELECT u.*,to_jsonb(u)-'password_hash' AS safe_payload FROM app_users u WHERE u.id=${id} AND u.is_platform_admin=FALSE LIMIT 1`;
         if(!target.length)return send(res,404,{error:'No se encontró ese usuario.'});
-        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('user',${id},${target[0].business_id},${JSON.stringify(target[0])}::jsonb,${admin.id})`;
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('user',${id},${target[0].business_id},${JSON.stringify(target[0].safe_payload)}::jsonb,${admin.id})`;
         await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE`;
         return send(res,200,{ok:true,trashed:true,message:'Usuario desactivado y enviado a la papelera. Puede restaurarse.'});
       }
