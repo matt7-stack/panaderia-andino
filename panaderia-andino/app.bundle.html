@@ -379,6 +379,7 @@ input[type="date"], input[type="month"] {
         <a class="nav-link admin-only-menu" href="#admin-usuarios" data-page-link="admin-usuarios" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
         <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
+        <a class="nav-link" href="#seguridad" data-page-link="seguridad" id="adminSecurityNav" hidden><i class="bi bi-shield-lock"></i><span>Centro de seguridad</span></a>
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
         <a class="nav-link" href="#guia-uso" data-page-link="guia-uso"><i class="bi bi-book-half"></i><span>Guía de uso</span></a>
@@ -486,6 +487,7 @@ input[type="date"], input[type="month"] {
             <button class="admin-quick-card" type="button" data-admin-go="admin-usuarios"><span class="quick-icon"><i class="bi bi-people"></i></span><span class="quick-copy"><strong>Usuarios y permisos</strong><small>Crear cuentas y administrar accesos</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="admin-notificaciones"><span class="quick-icon"><i class="bi bi-send"></i></span><span class="quick-copy"><strong>Enviar comunicado</strong><small>Notificar a todas las panaderías o elegir una</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="actividad"><span class="quick-icon"><i class="bi bi-shield-check"></i></span><span class="quick-copy"><strong>Auditoría y actividad</strong><small>Revisar cambios, acciones y alertas</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="seguridad"><span class="quick-icon"><i class="bi bi-shield-lock"></i></span><span class="quick-copy"><strong>Centro de seguridad</strong><small>Revisar accesos, intentos fallidos y sesiones</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="reportes-globales"><span class="quick-icon"><i class="bi bi-bar-chart-line"></i></span><span class="quick-copy"><strong>Reportes globales</strong><small>Consultar ingresos, gastos y resultados</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
             <button class="admin-quick-card" type="button" data-admin-go="administracion"><span class="quick-icon"><i class="bi bi-speedometer2"></i></span><span class="quick-copy"><strong>Resumen administrativo</strong><small>Volver al centro principal de administración</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
           </div>
@@ -497,6 +499,13 @@ input[type="date"], input[type="month"] {
           <div class="summary-grid"><article class="summary-card pending-card"><p class="summary-label">Eventos recientes</p><h2 id="adminActivityTotal">0</h2></article><article class="summary-card income-card"><p class="summary-label">Alertas sin leer</p><h2 id="adminActivityUnread">0</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, panadería, acción y fecha.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>PANADERÍA</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
+        </section>
+        <section class="page-view" id="page-seguridad" data-page="seguridad">
+          <div class="page-heading"><div><p class="eyebrow">PROTECCIÓN DE LA PLATAFORMA</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Centro de seguridad</h1><p class="page-subtitle">Supervisá accesos, intentos fallidos y sesiones de las cuentas de la plataforma.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminSecurity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios activos</p><h2 id="securityActiveUsers">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Accesos correctos · 24 h</p><h2 id="securitySuccessful24h">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Intentos fallidos · 24 h</p><h2 id="securityFailed24h">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Cuentas bloqueadas ahora</p><h2 id="securityLockedAccounts">0</h2></article></div>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-person-lock"></i> Control de sesiones</h3><p>Revocá todas las sesiones de una cuenta. El usuario deberá iniciar sesión nuevamente.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>PANADERÍA</th><th>ESTADO</th><th>ACCIÓN</th></tr></thead><tbody id="securityUsersTable"><tr><td colspan="5" class="text-center text-muted">Cargando…</td></tr></tbody></table></div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-exclamation-triangle"></i> Intentos fallidos y bloqueos</h3><p>Estado de los contadores de protección contra intentos repetidos.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>CORREO</th><th>INTENTOS</th><th>BLOQUEO</th><th>ÚLTIMO INTENTO</th></tr></thead><tbody id="securityAttemptsTable"><tr><td colspan="4" class="text-center text-muted">Cargando…</td></tr></tbody></table></div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-clock-history"></i> Historial de accesos</h3><p>Últimos accesos correctos, intentos fallidos y bloqueos registrados.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>CUENTA</th><th>EVENTO</th><th>IP</th><th>DETALLE</th></tr></thead><tbody id="securityEventsTable"><tr><td colspan="5" class="text-center text-muted">Cargando…</td></tr></tbody></table></div><div class="info-note mt-2"><i class="bi bi-info-circle"></i> El historial comienza a registrar estos eventos desde la publicación de esta mejora; no reconstruye accesos anteriores.</div></article>
         </section>
         <section class="page-view" id="page-reportes-globales" data-page="reportes-globales">
           <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas las panaderías registradas.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalReportsTable" data-export-name="reporte-global-panaderias"><i class="bi bi-download"></i> Exportar panaderías</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalClientsTable" data-export-name="reporte-global-clientes"><i class="bi bi-download"></i> Exportar clientes</button></div></div>
@@ -976,15 +985,15 @@ input[type="date"], input[type="month"] {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'admin-panaderias', 'admin-usuarios', 'admin-notificaciones', 'accesos-rapidos', 'configuracion', 'actividad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'admin-panaderias', 'admin-usuarios', 'admin-notificaciones', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true) return;
-    const platformPages=['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos','actividad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','empleados'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
-    if (currentUser?.isPlatformAdmin !== true && ['actividad','reportes-globales'].includes(page)) return;
+    if (currentUser?.isPlatformAdmin !== true && ['actividad','seguridad','reportes-globales'].includes(page)) return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
@@ -993,7 +1002,7 @@ input[type="date"], input[type="month"] {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Panaderías', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Panaderías', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -1005,6 +1014,7 @@ input[type="date"], input[type="month"] {
     if (['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos'].includes(page)) renderAdminPanel();
     if (page === 'notificaciones') refreshNotifications();
     if (page === 'actividad') refreshAdminActivity(true);
+    if (page === 'seguridad') refreshAdminSecurity(true);
     if (page === 'reportes-globales') refreshGlobalReports();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
@@ -1549,6 +1559,24 @@ input[type="date"], input[type="month"] {
       $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
     }catch(error){const target=$('#adminActivityAlerts');if(target)target.innerHTML='<p class="text-danger">No se pudo cargar la actividad. Usá Actualizar para volver a intentar.</p>';if(!quiet)notify('No se pudo cargar la actividad: '+error.message);console.error('Error al cargar actividad administrativa:',error);}
   }
+  async function refreshAdminSecurity(quiet=false){
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    try{
+      const result=await window.PanaderiaAuth.api('/api/admin/security');
+      const summary=result.summary||{},attempts=result.attempts||[],events=result.events||[],users=result.users||[];
+      $('#securityActiveUsers').textContent=Number(summary.active_users||0);
+      $('#securitySuccessful24h').textContent=Number(summary.successful_24h||0);
+      $('#securityFailed24h').textContent=Number(summary.failed_24h||0);
+      $('#securityLockedAccounts').textContent=Number(summary.locked_accounts||0);
+      $('#securityUsersTable').innerHTML=users.map(u=>'<tr><td><strong>'+escapeHTML(u.name)+'</strong><small class="d-block text-muted">'+escapeHTML(u.role||'usuario')+'</small></td><td>'+escapeHTML(u.email)+'</td><td>'+escapeHTML(u.business_name||'—')+'</td><td><span class="status-pill '+(u.active?'status-paid':'status-cancelled')+'">'+(u.active?'Activa':'Desactivada')+'</span></td><td>'+(u.active?'<button class="btn btn-outline-danger btn-sm" type="button" data-revoke-session="'+escapeHTML(u.id)+'"><i class="bi bi-shield-x"></i> Revocar sesiones</button>':'<span class="text-muted">Sin acceso</span>')+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">No hay usuarios registrados.</td></tr>';
+      $('#securityAttemptsTable').innerHTML=attempts.map(a=>{const locked=a.locked_until&&new Date(a.locked_until).getTime()>Date.now();return '<tr><td>'+escapeHTML(a.email)+'</td><td>'+Number(a.failures||0)+'</td><td><span class="status-pill '+(locked?'status-cancelled':'status-pending')+'">'+(locked?'Bloqueada hasta '+escapeHTML(new Date(a.locked_until).toLocaleString('es-PY')):'Sin bloqueo activo')+'</span></td><td>'+escapeHTML(new Date(a.updated_at).toLocaleString('es-PY'))+'</td></tr>';}).join('')||'<tr><td colspan="4" class="text-center text-muted">No hay intentos fallidos pendientes.</td></tr>';
+      $('#securityEventsTable').innerHTML=events.map(e=>{const details=e.details||{};const success=e.action==='auth.login_success';const blocked=e.action==='auth.login_blocked';const eventLabel=success?'Acceso correcto':(blocked?'Acceso bloqueado':'Intento fallido');return '<tr><td>'+escapeHTML(new Date(e.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(e.user_name||e.user_email||details.email||'Cuenta no identificada')+'</td><td><span class="status-pill '+(success?'status-paid':'status-cancelled')+'">'+eventLabel+'</span></td><td>'+escapeHTML(e.ip_address||'No disponible')+'</td><td>'+escapeHTML(blocked?'Se aplicó el límite de intentos.':(success?'Inicio de sesión validado.':'Credenciales no válidas.'))+'</td></tr>';}).join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay eventos de acceso registrados.</td></tr>';
+    }catch(error){
+      $('#securityEventsTable').innerHTML='<tr><td colspan="5" class="text-danger text-center">No se pudo cargar el centro de seguridad.</td></tr>';
+      if(!quiet)notify('No se pudo cargar seguridad: '+error.message);
+      console.error('Error al cargar seguridad:',error);
+    }
+  }
   async function refreshGlobalReports(){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
     try{
@@ -1610,6 +1638,15 @@ input[type="date"], input[type="month"] {
   });
   $('#adminActivityAlerts')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-admin-read-alert]');if(!button)return;try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.adminReadAlert})});await refreshAdminActivity();}catch(error){notify(error.message);}});
   document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');document.querySelectorAll('.nav-menu [data-admin-focus]').forEach(link=>link.classList.toggle('active',link===focus));requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
+  $('#securityUsersTable')?.addEventListener('click',async(event)=>{
+    const button=event.target.closest('[data-revoke-session]');if(!button)return;
+    const userId=button.dataset.revokeSession;
+    if(!window.confirm('¿Revocar todas las sesiones de este usuario? Tendrá que iniciar sesión nuevamente.'))return;
+    button.disabled=true;
+    try{const result=await window.PanaderiaAuth.api('/api/admin/security',{method:'POST',body:JSON.stringify({userId})});notify(result.message||'Sesiones revocadas.');await refreshAdminSecurity(true);}
+    catch(error){button.disabled=false;notify('No se pudieron revocar las sesiones: '+error.message);}
+  });
+  $('#refreshAdminSecurity')?.addEventListener('click',()=>refreshAdminSecurity(false));
   $('#refreshAdminActivity')?.addEventListener('click',()=>refreshAdminActivity(false));
   $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
     async function refreshNotifications(){
