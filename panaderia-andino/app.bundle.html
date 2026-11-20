@@ -1,4 +1,4 @@
-<!-- Panadería Andino | Versión 2.0.1 | Resumen de notas emitidas y guía actualizada -->
+<!-- Mattsystem | Versión 2.0.1 | Resumen de notas emitidas y guía actualizada -->
 <!doctype html>
 <html lang="es-PY">
 <head>
@@ -23,16 +23,16 @@
   </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Sistema de gestión para Panadería Andino: dashboard, ingresos, gastos, notas y configuración.">
+  <meta name="description" content="Sistema de gestión empresarial de Mattsystem: dashboard, ingresos, gastos, notas y configuración.">
   <meta name="theme-color" content="#653820">
-  <meta name="application-name" content="Panadería Andino">
+  <meta name="application-name" content="Mattsystem">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Panadería Andino">
+  <meta name="apple-mobile-web-app-title" content="Mattsystem">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
-  <title>Panadería Andino | Gestión</title>
+  <title>Mattsystem | Gestión</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -644,7 +644,7 @@ img,svg,canvas,video{max-width:100%}
             <form id="adminSupportSettingsForm" class="settings-form">
               <div class="row g-3">
                 <div class="col-12"><label class="form-label" for="supportWhatsappPhone">Número de WhatsApp</label><input class="form-control" id="supportWhatsappPhone" type="tel" inputmode="tel" maxlength="24" required placeholder="0987 426497" value="0987426497"><small class="text-muted">Podés escribir el número local o con código internacional. Para Paraguay se convierte automáticamente a +595.</small></div>
-                <div class="col-12"><label class="form-label" for="supportDisplayName">Nombre del soporte</label><input class="form-control" id="supportDisplayName" maxlength="80" required placeholder="Soporte Panadería Andino"></div>
+                <div class="col-12"><label class="form-label" for="supportDisplayName">Nombre del soporte</label><input class="form-control" id="supportDisplayName" maxlength="80" required placeholder="Soporte técnico"></div>
                 <div class="col-12"><label class="form-label" for="supportWelcomeMessage">Mensaje inicial de WhatsApp</label><textarea class="form-control" id="supportWelcomeMessage" rows="3" maxlength="500" required placeholder="Hola, necesito ayuda con el sistema…"></textarea></div>
                 <div class="col-12"><label class="d-flex align-items-center gap-2"><input id="supportContactEnabled" type="checkbox" checked> <span><strong>Mostrar «Contactar a soporte» en el menú</strong><small class="d-block text-muted">Desactivá esta opción para ocultar el contacto a todos los clientes.</small></span></label></div>
               </div>
@@ -705,7 +705,7 @@ img,svg,canvas,video{max-width:100%}
             <button class="settings-tab" type="button" data-settings-tab="preferences"><i class="bi bi-sliders"></i> Preferencias</button>
           </div>
 
-          <section class="settings-panel active" id="settings-business" data-settings-panel="business"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Datos de la panadería</h3><p>Información que identifica a tu negocio.</p></div><span class="panel-heading-icon"><i class="bi bi-shop-window"></i></span></div><form id="businessForm" class="settings-form"><div class="business-logo-row"><div class="business-logo-preview" id="businessLogoPreview"><i class="bi bi-basket2-fill"></i><span>ANDINO</span></div><div><strong>Identidad del negocio</strong><p>Podés cargar el logo de tu panadería.</p><label class="btn btn-outline-bakery btn-sm upload-button"><i class="bi bi-camera"></i> Cambiar logo<input id="businessLogo" type="file" accept="image/*" hidden></label></div></div><div class="row g-3"><div class="col-12"><label class="form-label" for="businessName">Nombre del negocio</label><input class="form-control" id="businessName" required maxlength="80"></div><div class="col-12"><label class="form-label" for="businessAddress">Dirección</label><input class="form-control" id="businessAddress" maxlength="120"></div><div class="col-md-6"><label class="form-label" for="businessPhone">Teléfono</label><input class="form-control" id="businessPhone" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessEmail">Correo electrónico</label><input class="form-control" id="businessEmail" type="email" maxlength="100"></div><div class="col-md-6"><label class="form-label" for="businessRuc">RUC</label><input class="form-control" id="businessRuc" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessOwner">Responsable</label><input class="form-control" id="businessOwner" maxlength="80"></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar cambios</button></div></form></article><article class="panel settings-side-card"><div class="panel-heading"><div><h3>Vista previa</h3><p>Así se verá la información principal.</p></div></div><div class="business-preview-card"><div class="preview-bread">🥐</div><h3 id="businessPreviewName">Panadería Andino</h3><p id="businessPreviewAddress">Dirección de tu negocio</p><div><i class="bi bi-telephone"></i><span id="businessPreviewPhone">Teléfono</span></div><div><i class="bi bi-envelope"></i><span id="businessPreviewEmail">Correo electrónico</span></div></div><div class="info-note"><i class="bi bi-info-circle"></i> Los datos se guardan en la base de datos compartida y se sincronizan entre los dispositivos conectados.</div></article></div></section>
+          <section class="settings-panel active" id="settings-business" data-settings-panel="business"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Datos de la panadería</h3><p>Información que identifica a tu negocio.</p></div><span class="panel-heading-icon"><i class="bi bi-shop-window"></i></span></div><form id="businessForm" class="settings-form"><div class="business-logo-row"><div class="business-logo-preview" id="businessLogoPreview"><i class="bi bi-basket2-fill"></i><span>ANDINO</span></div><div><strong>Identidad del negocio</strong><p>Podés cargar el logo de tu panadería.</p><label class="btn btn-outline-bakery btn-sm upload-button"><i class="bi bi-camera"></i> Cambiar logo<input id="businessLogo" type="file" accept="image/*" hidden></label></div></div><div class="row g-3"><div class="col-12"><label class="form-label" for="businessName">Nombre del negocio</label><input class="form-control" id="businessName" required maxlength="80"></div><div class="col-12"><label class="form-label" for="businessAddress">Dirección</label><input class="form-control" id="businessAddress" maxlength="120"></div><div class="col-md-6"><label class="form-label" for="businessPhone">Teléfono</label><input class="form-control" id="businessPhone" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessEmail">Correo electrónico</label><input class="form-control" id="businessEmail" type="email" maxlength="100"></div><div class="col-md-6"><label class="form-label" for="businessRuc">RUC</label><input class="form-control" id="businessRuc" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessOwner">Responsable</label><input class="form-control" id="businessOwner" maxlength="80"></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar cambios</button></div></form></article><article class="panel settings-side-card"><div class="panel-heading"><div><h3>Vista previa</h3><p>Así se verá la información principal.</p></div></div><div class="business-preview-card"><div class="preview-bread">🥐</div><h3 id="businessPreviewName">Mattsystem</h3><p id="businessPreviewAddress">Dirección de tu negocio</p><div><i class="bi bi-telephone"></i><span id="businessPreviewPhone">Teléfono</span></div><div><i class="bi bi-envelope"></i><span id="businessPreviewEmail">Correo electrónico</span></div></div><div class="info-note"><i class="bi bi-info-circle"></i> Los datos se guardan en la base de datos compartida y se sincronizan entre los dispositivos conectados.</div></article></div></section>
 
           <section class="settings-panel" id="settings-categories" data-settings-panel="categories"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Categorías de ingresos</h3><p>Clasificá el dinero que entra al negocio.</p></div><button class="btn btn-bakery btn-sm" type="button" data-add-category="income"><i class="bi bi-plus-lg"></i> Agregar</button></div><div class="category-list income-category-list" id="incomeCategoriesList"></div></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Categorías de gastos</h3><p>Organizá los costos y pagos del negocio.</p></div><button class="btn btn-bakery btn-sm" type="button" data-add-category="expense"><i class="bi bi-plus-lg"></i> Agregar</button></div><div class="category-list expense-category-list" id="expenseCategoriesList"></div></article></div></section>
 
@@ -718,7 +718,7 @@ img,svg,canvas,video{max-width:100%}
 
         <!-- GUÍA DE USO -->
         <section class="page-view" id="page-guia-uso" data-page="guia-uso">
-          <div class="page-heading"><div><p class="eyebrow">CENTRO DE AYUDA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Manual actualizado de los módulos, controles, botones y procedimientos de Panadería Andino.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">CENTRO DE AYUDA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Manual de uso de los módulos, controles, botones y procedimientos del sistema.</p></div></div>
           <div class="panel settings-card mb-3">
             <div class="panel-heading"><div><h3>Antes de comenzar</h3><p>Acceso, navegación y funcionamiento general.</p></div></div>
             <ul class="mb-0">
@@ -998,7 +998,7 @@ img,svg,canvas,video{max-width:100%}
   gate.setAttribute('role', 'dialog');
   gate.setAttribute('aria-modal', 'true');
   gate.setAttribute('aria-labelledby', 'authTitle');
-  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Panadería Andino</strong><small>GESTIÓN DEL NEGOCIO</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
+  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Mattsystem</strong><small>GESTIÓN DEL NEGOCIO</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
   document.body.appendChild(gate);
 
   const content = document.getElementById('authContent');
@@ -1225,7 +1225,7 @@ img,svg,canvas,video{max-width:100%}
     movements: [], invoices: [], employees: [], employeePayments: [], products: [], productMovements: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: 'Mi negocio', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
@@ -1681,9 +1681,9 @@ img,svg,canvas,video{max-width:100%}
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Mi negocio', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
-    link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
+    link.href = url; link.download = `respaldo-mattsystem-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
 
   function renderSettings() {
@@ -1811,7 +1811,7 @@ img,svg,canvas,video{max-width:100%}
     const csv = [['Fecha', 'Descripción', 'Categoría', 'Tipo', 'Método de pago', 'Importe', 'Observación'], ...filtered.map((item) => [item.date, item.description, item.category, item.type === 'income' ? 'Ingreso' : 'Gasto', item.payment, item.amount, item.note || ''])]
       .map((line) => line.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-panaderia-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-mattsystem-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
   // Notas
@@ -1920,7 +1920,7 @@ img,svg,canvas,video{max-width:100%}
   $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);  $('#adminResetDataButton')?.addEventListener('click', async () => {
     const button = $('#adminResetDataButton');
     if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede realizar esta acción.'); return; }
-    if (!window.confirm('¿Confirmás limpiar los datos operativos de Panadería Andino? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
+    if (!window.confirm('¿Confirmás limpiar los datos operativos de Mattsystem? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
     if (!window.confirm('Última confirmación: esta eliminación no se puede deshacer. ¿Continuar?')) return;
     button.disabled = true;
     try {
@@ -2130,7 +2130,7 @@ img,svg,canvas,video{max-width:100%}
     }catch(error){console.warn('No se pudieron cargar notificaciones:',error.message);}
   }
 
-  const defaultSupportSettings = { phone: '595987426497', enabled: true, message: 'Hola, necesito ayuda con el sistema de Panadería Andino.', displayName: 'Soporte Panadería Andino' };
+  const defaultSupportSettings = { phone: '595987426497', enabled: true, message: 'Hola, necesito ayuda con el sistema.', displayName: 'Soporte técnico' };
   function updateSupportContactLink(settings) {
     const link=document.getElementById('supportContactNav');if(!link)return;
     const cfg={...defaultSupportSettings,...(settings||{})};
