@@ -463,6 +463,18 @@ img,svg,canvas,video{max-width:100%}
   .nav-menu a,.nav-menu button{min-height:42px}
 }
 
+
+/* Gestión–Administración: paneles amplios y centrados */
+.admin-activity-page{width:100%;max-width:1560px;margin-inline:auto;padding-inline:clamp(10px,2.2vw,30px)}
+.admin-activity-page .page-heading{align-items:center;gap:18px;flex-wrap:wrap}
+.admin-activity-page .summary-grid{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(12px,2vw,22px)}
+.admin-activity-page .summary-card{min-height:116px;padding:clamp(18px,2vw,26px)}
+.admin-activity-page .panel{width:100%;padding:clamp(16px,2vw,26px);margin-top:clamp(16px,2vw,24px)!important}
+.admin-activity-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.admin-activity-page #adminActivityAlerts{width:100%;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px!important}
+.admin-activity-page #adminActivityAlerts>.panel{margin:0!important;height:100%}
+.admin-activity-page .table-responsive{width:100%}
+@media(max-width:767.98px){.admin-activity-page{padding-inline:0}.admin-activity-page .page-heading{align-items:stretch}.admin-activity-page .page-heading>div:last-child{width:100%}.admin-activity-page .page-heading .btn{flex:1}.admin-activity-panel-heading{align-items:stretch}.admin-activity-panel-heading .btn{width:100%}.admin-activity-page .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -673,11 +685,11 @@ img,svg,canvas,video{max-width:100%}
           <div class="admin-quick-note"><i class="bi bi-info-circle"></i><span>Los accesos respetan los permisos de administrador de plataforma. Las acciones y los datos siguen centralizados en sus módulos correspondientes.</span></div>
         </section>
 
-        <section class="page-view" id="page-actividad" data-page="actividad">
-          <div class="page-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las panaderías.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="adminActivityTable" data-export-name="actividad-administrativa"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
+        <section class="page-view admin-activity-page" id="page-actividad" data-page="actividad">
+          <div class="page-heading admin-activity-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las panaderías.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="adminActivityTable" data-export-name="actividad-administrativa"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
           <div class="summary-grid"><article class="summary-card pending-card"><p class="summary-label">Eventos recientes</p><h2 id="adminActivityTotal">0</h2></article><article class="summary-card income-card"><p class="summary-label">Alertas sin leer</p><h2 id="adminActivityUnread">0</h2></article></div>
-          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
-          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, panadería, acción y fecha.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>PANADERÍA</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="alerts"><i class="bi bi-trash"></i> Eliminar alertas</button></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, panadería, acción y fecha.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="history"><i class="bi bi-trash"></i> Eliminar historial</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>PANADERÍA</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
         </section>
         <section class="page-view" id="page-seguridad" data-page="seguridad">
           <div class="page-heading"><div><p class="eyebrow">PROTECCIÓN DE LA PLATAFORMA</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Centro de seguridad</h1><p class="page-subtitle">Supervisá accesos, intentos fallidos y sesiones de las cuentas de la plataforma.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminSecurity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
