@@ -1489,34 +1489,6 @@ input[type="date"], input[type="month"] {
   }
 
 
-  function productStockStatus(product) {
-    const stock=Number(product.stock||0), minimum=Number(product.minStock||0);
-    if(stock<=0)return 'out';
-    if(stock<=minimum)return 'low';
-    return 'ok';
-  }
-  function productStockLabel(product) {
-    const status=productStockStatus(product);
-    return status==='out'?'Agotado':status==='low'?'Stock bajo':'Disponible';
-  }
-  function renderProducts() {
-    state.products=Array.isArray(state.products)?state.products:[];
-    state.productMovements=Array.isArray(state.productMovements)?state.productMovements:[];
-    const search=($('#productSearch')?.value||'').trim().toLocaleLowerCase('es');
-    const status=$('#productStatusFilter')?.value||'all';
-    const visible=state.products.filter(product=>{
-      if(product.active===false)return false;
-      const textMatch=!search||[product.name,product.code,product.category].some(value=>String(value||'').toLocaleLowerCase('es').includes(search));
-      const currentStatus=productStockStatus(product);
-      const statusMatch=status==='all'||(status==='low'&&currentStatus==='low')||(status==='out'&&currentStatus==='out')||(status==='ok'&&currentStatus==='ok');
-      return textMatch&&statusMatch;
-    }).sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
-    const active=state.products.filter(product=>product.active!==false);
-    const low=active.filter(product=>productStockStatus(product)!=='ok');
-    const value=active.reduce((sum,product)=>sum+Number(product.stock||0)*Number(product.cost||0),0);
-    setText('#productCount',active.length);setText('#lowStockCount',low.length);setText('#inventoryValue',money(value));
-    setText('#productResultCount',`Mostrando ${visible.length} de ${active.length} productos`);
-    setText('#productLowStockHint',low.length?`${low.length} producto(s) requieren revisión`:'Todos los productos tienen stock suficie
   function renderProducts() {
     state.products=Array.isArray(state.products)?state.products:[];
     const search=($('#productSearch')?.value||'').trim().toLocaleLowerCase('es');
@@ -1590,7 +1562,14 @@ input[type="date"], input[type="month"] {
     catch(error){window.prompt('Copiá el enlace del catálogo:',link);}
   });
 
-a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td class="text-center"><button class="icon-action danger" type="button" data-delete-employee-payment="${escapeHTML(payment.id)}" title="Eliminar pago" aria-label="Eliminar pago"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
+
+  function renderEmployees() {
+    const employees = state.employees || []; const payments = state.employeePayments || [];
+    const active = employees.filter((employee) => employee.active !== false); const month = monthISO();
+    const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    setText('#employeeCount', active.length); setText('#employeePayrollTotal', money(payroll)); setText('#employeePaymentsCount', payments.length);
+    $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago" aria-label="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" type="button" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado" aria-label="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-employee="${escapeHTML(employee.id)}" title="Eliminar empleado" aria-label="Eliminar empleado"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
+    $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td class="text-center"><button class="icon-action danger" type="button" data-delete-employee-payment="${escapeHTML(payment.id)}" title="Eliminar pago" aria-label="Eliminar pago"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
   function renderAdminPanel() {
