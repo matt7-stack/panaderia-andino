@@ -138,6 +138,46 @@ module.exports = async function handler(req, res) {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       return send(res,200,{ok:true},{'Set-Cookie':clearCookie});
     }
+    if (path === '/api/auth/recover-admin' && req.method === 'POST') {
+      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      const sql = await ensureSchema();
+      const input = body(req);
+      const token = String(input.token || '');
+      const expected = process.env.ADMIN_RECOVERY_TOKEN || '';
+      const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+      const name = String(input.name || '').trim().slice(0,70);
+      const password = input.password;
+      if (!expected || token.length < 40 || !safeEqual(token,expected)) return send(res,403,{error:'El enlace de recuperación no es válido o ya venció.'});
+      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const passwordHash = await hashPassword(password);
+      let recovered;
+      try {
+        recovered = await sql.begin(async tx => {
+          await tx`CREATE TABLE IF NOT EXISTS app_admin_recovery_tokens (token_hash TEXT PRIMARY KEY, used_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+          const used = await tx`SELECT token_hash FROM app_admin_recovery_tokens WHERE token_hash=${tokenHash} LIMIT 1`;
+          if (used.length) throw new Error('RECOVERY_TOKEN_USED');
+          const admins = await tx`SELECT id,email FROM app_users WHERE role='admin' FOR UPDATE`;
+          let target = await tx`SELECT id FROM app_users WHERE email=${email} LIMIT 1 FOR UPDATE`;
+          if (admins.length && !admins.some(row => row.email === email)) throw new Error('ADMIN_ACCOUNT_MISMATCH');
+          const id = target[0]?.id || crypto.randomUUID();
+          if (target.length) {
+            await tx`UPDATE app_users SET name=${name},password_hash=${passwordHash},role='admin',active=TRUE WHERE id=${id}`;
+          } else {
+            await tx`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${passwordHash},'admin',TRUE)`;
+          }
+          await tx`DELETE FROM app_login_attempts WHERE email=${email}`;
+          await tx`INSERT INTO app_admin_recovery_tokens(token_hash) VALUES(${tokenHash})`;
+          await tx`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${id},'admin_recovered','user',${id},'{"method":"one_time_recovery"}'::jsonb)`;
+          return {id,name,email,role:'admin',active:true};
+        });
+      } catch (error) {
+        if (error.message === 'RECOVERY_TOKEN_USED') return send(res,409,{error:'Este enlace ya fue utilizado. Solicitá uno nuevo.'});
+        if (error.message === 'ADMIN_ACCOUNT_MISMATCH') return send(res,409,{error:'Existe otra cuenta administradora. No se modificó ninguna cuenta.'});
+        throw error;
+      }
+      return send(res,200,{user:recovered},{'Set-Cookie':sessionCookie(recovered.id)});
+    }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema();
