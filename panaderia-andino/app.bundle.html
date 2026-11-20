@@ -574,6 +574,20 @@ img,svg,canvas,video{max-width:100%}
   #page-notificaciones #notificationsList .panel{padding:11px!important}
 }
 
+
+/* Mantener compacto el acceso al Centro de seguridad en la navegación lateral. */
+#adminSecurityNav {
+  min-height: 38px;
+  padding: 0 10px;
+  gap: 9px;
+  font-size: 11px;
+  line-height: 1.15;
+}
+#adminSecurityNav i {
+  width: 16px;
+  font-size: 15px;
+  flex: 0 0 16px;
+}
 </style>
 </head>
 <body>
@@ -2751,19 +2765,21 @@ img,svg,canvas,video{max-width:100%}
    try{await api('/api/admin/license-payments',{method:'POST',body:JSON.stringify({licenseId:b.dataset.id,amount:Number(amount),paymentType:'monthly'})});await loadLicenses();alert('Pago registrado.');}
    catch(x){alert(x.message);}
  });
- // Esperar a que el módulo de autenticación confirme la sesión.
- // Antes de este evento /api/auth/me todavía puede estar respondiendo y las peticiones admin darían 401.
+ // Cargar los módulos administrativos una sola vez, después de confirmar la sesión.
+ // El evento puede ocurrir antes de que este módulo registre el listener; PanaderiaAuthReady cubre ese caso.
  let adminDataLoaded = false;
+ const loadPlatformAdminData = () => {
+   if (adminDataLoaded || window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+   adminDataLoaded = true;
+   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+ };
  window.addEventListener('panaderia:authenticated', event => {
-   if (event.detail?.isPlatformAdmin !== true) return;
-   adminDataLoaded = true;
-   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+   if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData();
  });
- // Compatibilidad si el módulo de autenticación ya terminó antes de registrar el listener.
- if (window.PanaderiaAuth?.user?.isPlatformAdmin === true && !adminDataLoaded) {
-   adminDataLoaded = true;
-   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
- }
+ Promise.resolve(window.PanaderiaAuthReady)
+   .then(user => { if (user?.isPlatformAdmin === true) loadPlatformAdminData(); })
+   .catch(error => console.error('No se pudo inicializar la administración:', error));
+ if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadPlatformAdminData();
 })();
 </script></body>
 </html>
