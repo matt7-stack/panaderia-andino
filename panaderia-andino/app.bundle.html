@@ -1469,7 +1469,7 @@ input[type="date"], input[type="month"] {
     }catch(error){notify('No se pudieron cargar los reportes: '+error.message);}
   }
   $('#adminActivityAlerts')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-admin-read-alert]');if(!button)return;try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.adminReadAlert})});await refreshAdminActivity();}catch(error){notify(error.message);}});
-  document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
+  document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');document.querySelectorAll('.nav-menu [data-admin-focus]').forEach(link=>link.classList.toggle('active',link===focus));requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
   $('#refreshAdminActivity')?.addEventListener('click',refreshAdminActivity);
   $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
     async function refreshNotifications(){
