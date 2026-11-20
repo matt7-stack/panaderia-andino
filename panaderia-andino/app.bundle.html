@@ -2,6 +2,25 @@
 <!doctype html>
 <html lang="es-PY">
 <head>
+  <script>
+    (function(){
+      const showBootError = (message) => {
+        const render = () => {
+          if (document.getElementById("paBootDiagnostic")) return;
+          const panel=document.createElement("div"); panel.id="paBootDiagnostic";
+          panel.style.cssText="position:fixed;z-index:20000;left:16px;right:16px;bottom:16px;padding:14px 16px;border:1px solid #e6b9a9;border-radius:12px;background:#fff8f5;color:#713326;box-shadow:0 8px 30px #0002;font:13px/1.5 system-ui,sans-serif";
+          const safe=String(message||"Error inesperado al iniciar la aplicación.").slice(0,700);
+          panel.innerHTML="<strong>Se detectó un problema al iniciar el sistema.</strong><div style=\"margin-top:5px;overflow-wrap:anywhere\"></div><button type=\"button\" style=\"margin-top:9px;padding:6px 10px;border:0;border-radius:7px;background:#713326;color:white\">Recargar aplicación</button>";
+          panel.querySelector("div").textContent=safe;
+          panel.querySelector("button").addEventListener("click",()=>location.reload());
+          (document.body||document.documentElement).appendChild(panel);
+        };
+        if(document.body) render(); else document.addEventListener("DOMContentLoaded",render,{once:true});
+      };
+      window.addEventListener("error",event=>{ if(event.message) showBootError(event.message); });
+      window.addEventListener("unhandledrejection",event=>{ const reason=event.reason; showBootError(reason&&reason.message?reason.message:String(reason||"Error en una solicitud asíncrona.")); });
+    })();
+  </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Sistema de gestión para Panadería Andino: dashboard, ingresos, gastos, notas y configuración.">
@@ -446,7 +465,7 @@ input[type="date"], input[type="month"] {
 
         <section class="page-view" id="page-admin-panaderias" data-page="admin-panaderias">
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Panaderías</h1><p class="page-subtitle">Registrá, editá y supervisá las panaderías de la plataforma.</p></div></div>
-          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Panaderías registradas</h3><p>Administrá los negocios y consultá sus ingresos, gastos y ventas.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar panadería</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando panaderías…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada panadería trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Panaderías registradas</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar panadería</button></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando panaderías…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada panadería trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
         </section>
 
         <section class="page-view" id="page-admin-notificaciones" data-page="admin-notificaciones">
@@ -1446,14 +1465,38 @@ input[type="date"], input[type="month"] {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede crear panaderías.'); return; }
     openSimpleModal('business');
   });
+  $('#businessSearch')?.addEventListener('input',renderCloudBusinesses);
+  $('#businessStatusFilter')?.addEventListener('change',renderCloudBusinesses);
   $('#businessesTableBody')?.addEventListener('click', async (event) => {
-    if (event.target.closest('[data-retry-businesses]')) { await refreshCloudBusinesses(); return; }
-    const remove=event.target.closest('[data-delete-business]');
-    if(remove){const b=cloudBusinesses.find(item=>item.id===remove.dataset.deleteBusiness);if(!b)return;
-      const confirmText='¿Eliminar '+b.name+'? Se desactivarán sus usuarios y perderán el acceso. Los movimientos, ventas y demás registros históricos se conservarán. Esta acción no elimina definitivamente los datos.';
-      if(!window.confirm(confirmText))return;
-      try{await window.PanaderiaAuth.api('/api/admin/businesses',{method:'DELETE',body:JSON.stringify({id:b.id})});await refreshCloudBusinesses();await refreshCloudUsers();notify('Panadería eliminada del acceso activo. Los datos históricos se conservaron.');}
-      catch(error){notify(error.message);}
+    if (event.target.closest('[data-retry-businesses]')) { await refreshCloudBusinesses().catch(()=>{}); return; }
+    const toggle=event.target.closest('[data-toggle-business]');
+    if(toggle){
+      const b=cloudBusinesses.find(item=>item.id===toggle.dataset.toggleBusiness); if(!b)return;
+      const nextActive=!b.active;
+      const question=nextActive
+        ? '¿Reactivar '+b.name+'? Sus usuarios activos podrán volver a ingresar.'
+        : '¿Desactivar '+b.name+'? Se bloqueará el acceso de todos sus usuarios, pero los datos y el historial se conservarán.';
+      if(!window.confirm(question))return;
+      toggle.disabled=true;
+      try{
+        await window.PanaderiaAuth.api('/api/admin/businesses',{method:'PATCH',body:JSON.stringify({id:b.id,active:nextActive})});
+        await refreshCloudBusinesses(); await refreshCloudUsers();
+        notify(nextActive?'Panadería reactivada correctamente.':'Panadería desactivada. Sus datos siguen guardados.');
+      }catch(error){notify(error.message||'No se pudo cambiar el estado.');}
+      return;
+    }
+    const permanent=event.target.closest('[data-permanent-delete-business]');
+    if(permanent){
+      const b=cloudBusinesses.find(item=>item.id===permanent.dataset.permanentDeleteBusiness); if(!b)return;
+      const typed=prompt('Esta acción es irreversible. Para confirmar, escribí exactamente: ELIMINAR '+b.name);
+      if(typed!=='ELIMINAR '+b.name)return;
+      permanent.disabled=true;
+      try{
+        await window.PanaderiaAuth.api('/api/admin/businesses',{method:'DELETE',body:JSON.stringify({id:b.id})});
+        await refreshCloudBusinesses(); await refreshCloudUsers();
+        notify('Panadería eliminada definitivamente.');
+      }catch(error){notify(error.message||'No se pudo eliminar. Si tiene historial, primero debe conservarse desactivada.');}
+      finally{permanent.disabled=false;}
       return;
     }
     const open=event.target.closest('[data-open-business]'); const edit=event.target.closest('[data-edit-business]');
@@ -1636,7 +1679,21 @@ input[type="date"], input[type="month"] {
 
   function renderCloudBusinesses() {
     const body = $('#businessesTableBody'); if (!body) return;
-    body.innerHTML = cloudBusinesses.map((b) => `<tr><td><strong>${escapeHTML(b.name)}</strong><small class="table-sub-text">${escapeHTML(b.slug || '')}</small></td><td>${Number(b.active_user_count || 0)} / ${Number(b.user_count || 0)}</td><td class="amount-income">${money(b.recorded_income)}</td><td class="amount-expense">${money(b.recorded_expenses)}</td><td>${money(b.sales_total)}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Inactiva'}</span></td><td><div class="table-actions"><button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="${escapeHTML(b.id)}">Abrir</button><button class="icon-action" type="button" data-edit-business="${escapeHTML(b.id)}" title="Editar panadería"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-business="${escapeHTML(b.id)}" title="Eliminar panadería"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
+    const search=($('#businessSearch')?.value||'').trim().toLocaleLowerCase('es');
+    const status=$('#businessStatusFilter')?.value||'all';
+    const visible=cloudBusinesses.filter(b=>{
+      const matchesText=!search||[b.name,b.slug,b.email,b.ruc,b.owner_name].some(v=>String(v||'').toLocaleLowerCase('es').includes(search));
+      const matchesStatus=status==='all'||(status==='active'&&b.active)||(status==='inactive'&&!b.active);
+      return matchesText&&matchesStatus;
+    });
+    const total=cloudBusinesses.length, active=cloudBusinesses.filter(b=>b.active).length;
+    const summary=$('#businessSummary'); if(summary) summary.textContent=total+' registradas · '+active+' activas · '+(total-active)+' desactivadas';
+    body.innerHTML = visible.map((b) => {
+      const actions=b.active
+        ? '<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button><button class="btn btn-outline-warning btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Desactivar</button>'
+        : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Eliminar definitivamente</button>';
+      return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar panadería"><i class="bi bi-pencil"></i></button></div></td></tr>';
+    }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay panaderías que coincidan con el filtro.':'Todavía no hay panaderías registradas.')+'</td></tr>';
   }
   async function refreshCloudBusinesses() {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
@@ -1651,6 +1708,7 @@ input[type="date"], input[type="month"] {
       console.error('No se pudieron cargar las panaderías:', error);
       const body = $('#businessesTableBody');
       if (body) body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudieron cargar las panaderías. ' + escapeHTML(error.message || 'Error de conexión.') + ' <button class="btn btn-outline-bakery btn-sm ms-2" type="button" data-retry-businesses>Reintentar</button></td></tr>';
+      throw error;
     }
   }
   async function refreshCloudUsers() {
@@ -1689,6 +1747,7 @@ input[type="date"], input[type="month"] {
       } catch (error) {
         console.error('No se pudo cargar la administración.', error);
         notify('No se pudo cargar la administración: ' + (error.message || 'Error de conexión.'));
+        throw error;
       }
       return;
     }
@@ -1722,11 +1781,12 @@ input[type="date"], input[type="month"] {
   async function startAuthenticatedHydration(user) {
     if (!user || !user.id || authenticatedUserHydrated === user.id) return;
     authenticatedUserHydrated = user.id;
-    await hydrateCloudData(false);
+    try { await hydrateCloudData(false); }
+    catch (error) { authenticatedUserHydrated = ''; throw error; }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
   window.addEventListener('panaderia:authenticated', (event) => {
-    startAuthenticatedHydration(event.detail || window.PanaderiaAuth?.user);
+    startAuthenticatedHydration(event.detail || window.PanaderiaAuth?.user).catch(error => console.error('Error al cargar la sesión:',error));
   });
 
   // Valores iniciales de filtros y navegación solicitada por URL
