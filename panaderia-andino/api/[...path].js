@@ -163,8 +163,9 @@ module.exports = async function handler(req, res) {
           const used = await tx`SELECT token_hash FROM app_admin_recovery_tokens WHERE token_hash=${tokenHash} LIMIT 1`;
           if (used.length) throw new Error('RECOVERY_TOKEN_USED');
           const target = await tx`SELECT id FROM app_users WHERE lower(email)=${email} LIMIT 1 FOR UPDATE`;
-          // Preserve every existing account and its data; ensure exactly one administrator.
-          await tx`UPDATE app_users SET role='supervisor' WHERE role='admin' AND lower(email)<>${email}`;
+          // Never demote, delete, or rewrite another account during recovery.
+          const otherAdmins = await tx`SELECT id FROM app_users WHERE role='admin' AND lower(email)<>${email} FOR UPDATE`;
+          if (otherAdmins.length) throw new Error('ADMIN_ACCOUNT_MISMATCH');
           const id = target[0]?.id || crypto.randomUUID();
           if (target.length) {
             await tx`UPDATE app_users SET name=${name},password_hash=${passwordHash},role='admin',active=TRUE WHERE id=${id}`;
