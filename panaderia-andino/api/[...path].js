@@ -279,12 +279,15 @@ module.exports = async function handler(req, res) {
           SELECT target.id FROM target CROSS JOIN usage WHERE usage.records=0
         ), deleted_audit AS (
           DELETE FROM app_audit_logs WHERE business_id IN (SELECT id FROM eligible) RETURNING id
+        ), deleted_backups AS (
+          DELETE FROM app_backup_log WHERE business_id IN (SELECT id FROM eligible) RETURNING id
         ), deleted_users AS (
           DELETE FROM app_users WHERE business_id IN (SELECT id FROM eligible) AND is_platform_admin=FALSE
             AND (SELECT COUNT(*) FROM deleted_audit)>=0 RETURNING id
         ), deleted_business AS (
           DELETE FROM businesses WHERE id IN (SELECT id FROM eligible)
-            AND (SELECT COUNT(*) FROM deleted_users)>=0 RETURNING id
+            AND (SELECT COUNT(*) FROM deleted_users)>=0
+            AND (SELECT COUNT(*) FROM deleted_backups)>=0 RETURNING id
         )
         SELECT EXISTS(SELECT 1 FROM deleted_business) AS deleted,
           (SELECT records FROM usage) AS records`;
