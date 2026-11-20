@@ -194,6 +194,10 @@ module.exports = async function handler(req, res) {
         const rows=await sql`SELECT b.id,b.name,b.slug,b.active,b.address,b.phone,b.email,b.ruc,b.owner_name,b.created_at,b.updated_at,
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id) AS user_count,
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS active_user_count,
+          (SELECT COUNT(*)::int FROM app_customers c WHERE c.business_id=b.id) AS customer_count,
+          (SELECT COUNT(*)::int FROM app_products p WHERE p.business_id=b.id) AS product_count,
+          (SELECT COUNT(*)::int FROM app_sales v WHERE v.business_id=b.id AND v.status='completed') AS sales_count,
+          (SELECT COUNT(*)::int FROM app_purchases p WHERE p.business_id=b.id) AS purchase_count,
           (SELECT COALESCE(SUM(amount),0)::numeric(14,2) FROM app_financial_entries f WHERE f.business_id=b.id AND f.entry_type='income') AS recorded_income,
           (SELECT COALESCE(SUM(amount),0)::numeric(14,2) FROM app_financial_entries f WHERE f.business_id=b.id AND f.entry_type='expense') AS recorded_expenses,
           (SELECT COALESCE(SUM(total),0)::numeric(14,2) FROM app_sales v WHERE v.business_id=b.id AND v.status='completed') AS sales_total,
@@ -306,24 +310,46 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/admin/notifications') {
       const admin=await authenticated(req,res,true); if(!admin) return;
-      if(req.method!=='POST') return send(res,405,{error:'Método no permitido.'});
       const sql=db();
-      const input=body(req); const title=String(input.title||'').trim().slice(0,100); const message=String(input.message||'').trim().slice(0,2000);
-      const businessId=input.businessId==='all'?'':String(input.businessId||'');
-      if(!title||!message) return send(res,400,{error:'Completá el título y el mensaje.'});
-      let rows;
-      if(businessId){
-        const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
-        if(!target.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
-        rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-        if(!rows.length) return send(res,409,{error:'La panadería seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
-      } else {
-        rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-        if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ninguna panadería para recibir el aviso.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:'all'})}::jsonb)`;
+      if(req.method==='GET'){
+        const rows=await sql`SELECT (ARRAY_AGG(n.id::text ORDER BY n.id))[1] AS id,n.title,n.message,n.business_id,b.name AS business_name,MIN(n.created_at) AS created_at,COUNT(*)::int AS recipients,COUNT(n.read_at)::int AS read_count FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.type='admin_message' GROUP BY n.title,n.message,n.business_id,b.name,n.created_at ORDER BY n.created_at DESC LIMIT 100`;
+        return send(res,200,{notifications:rows});
       }
-      return send(res,201,{ok:true,recipients:rows.length});
+      if(req.method==='POST'){
+        const input=body(req); const title=String(input.title||'').trim().slice(0,100); const message=String(input.message||'').trim().slice(0,2000);
+        const businessId=input.businessId==='all'?'':String(input.businessId||'');
+        if(!title||!message) return send(res,400,{error:'Completá el título y el mensaje.'});
+        let rows;
+        if(businessId){
+          const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+          if(!target.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
+          rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+          if(!rows.length) return send(res,409,{error:'La panadería seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
+        } else {
+          rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+          if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ninguna panadería para recibir el aviso.'});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:'all'})}::jsonb)`;
+        }
+        return send(res,201,{ok:true,recipients:rows.length});
+      }
+      if(req.method==='PATCH'||req.method==='DELETE'){
+        const input=body(req),id=String(input.id||''); if(!id)return send(res,400,{error:'Falta la notificación.'});
+        const found=await sql`SELECT id,business_id,title,message,created_at FROM app_notifications WHERE id=${id} AND type='admin_message' LIMIT 1`;
+        if(!found.length)return send(res,404,{error:'No se encontró el comunicado.'});
+        const item=found[0];
+        if(req.method==='PATCH'){
+          const title=String(input.title||'').trim().slice(0,100),message=String(input.message||'').trim().slice(0,2000);
+          if(!title||!message)return send(res,400,{error:'El título y el mensaje son obligatorios.'});
+          const changed=await sql`UPDATE app_notifications SET title=${title},message=${message} WHERE type='admin_message' AND business_id IS NOT DISTINCT FROM ${item.business_id} AND created_at=${item.created_at} AND title=${item.title} AND message=${item.message} RETURNING id`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.updated','notification',${id},${JSON.stringify({title,recipients:changed.length})}::jsonb)`;
+          return send(res,200,{ok:true,updated:changed.length});
+        }
+        const removed=await sql`DELETE FROM app_notifications WHERE type='admin_message' AND business_id IS NOT DISTINCT FROM ${item.business_id} AND created_at=${item.created_at} AND title=${item.title} AND message=${item.message} RETURNING id`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.deleted','notification',${id},${JSON.stringify({recipients:removed.length})}::jsonb)`;
+        return send(res,200,{ok:true,deleted:removed.length});
+      }
+      return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/notifications') {
       const user=await authenticated(req,res,false); if(!user) return;
