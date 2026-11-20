@@ -83,8 +83,8 @@ button{cursor:pointer}
 .user-meta{display:grid;gap:1px}.user-meta strong{color:var(--brown-900);font-size:11px}.user-meta small{color:var(--muted);font-size:9px}.user-chevron{margin-left:3px;color:#a18d7b;font-size:10px}
 .mobile-menu-button{display:none}.page-content{max-width:1600px;margin:0 auto;padding:32px 36px 20px}.page-view{display:none;animation:pageIn .2s ease}.page-view.active{display:block}
 /* El administrador de plataforma nunca debe ver el dashboard operativo de una panadería. */
-body.platform-admin #page-dashboard{display:none!important}
-body.platform-admin .nav-menu [data-page-link="dashboard"]{display:none!important}
+body.platform-admin:not(.admin-support-mode) #page-dashboard{display:none!important}
+body.platform-admin:not(.admin-support-mode) .nav-menu [data-page-link="dashboard"]{display:none!important}
 body.platform-admin .brand{justify-content:center}
 body.platform-admin .brand-name,body.platform-admin .brand-caption{display:none!important}
 .brand-icon-only{justify-content:center;min-height:66px}
@@ -2309,6 +2309,7 @@ input[type="date"], input[type="month"] {
     const business=cloudBusinesses.find(item=>item.id===businessId);
     const visible=Boolean(user?.isPlatformAdmin===true&&businessId&&business);
     banner.hidden=!visible;
+    document.body.classList.toggle('admin-support-mode',visible);
     if(visible)setText('#adminSupportBusinessName',business.name);
   }
 
