@@ -1,7 +1,7 @@
 'use strict';
 
 (() => {
-  const STORAGE_KEY = 'negocioAndino_data_v2';
+  const STORAGE_KEY = 'panaderiaAndino_data_v2';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
