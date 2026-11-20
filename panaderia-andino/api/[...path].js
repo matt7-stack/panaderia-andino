@@ -181,6 +181,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
+        await sql`UPDATE app_licenses SET status='expired',updated_at=NOW() WHERE status='active' AND expires_at<CURRENT_DATE`;
         const rows=await sql`SELECT l.*,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
         return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
@@ -195,7 +196,28 @@ module.exports = async function handler(req, res) {
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
-        const input=body(req),id=String(input.id||''),status=String(input.status||'');
+        const input=body(req),id=String(input.id||'');
+        if(input.action==='renew'){
+          const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
+          const parsedDate=new Date(expiresAt+'T00:00:00Z');
+          if(!id||!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
+            return send(res,400,{error:'Ingresá una fecha futura válida y un importe igual o mayor que cero.'});
+          const rows=await sql`
+            WITH renewed AS (
+              UPDATE app_licenses SET status='active',expires_at=${expiresAt},updated_at=NOW()
+              WHERE id=${id} RETURNING *
+            ),
+            payment AS (
+              INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by)
+              SELECT id,${amount},'monthly',CURRENT_DATE,${expiresAt},'Renovación de licencia','Pago registrado al renovar la licencia.',${admin.id}
+              FROM renewed WHERE ${amount}>0 RETURNING id
+            )
+            SELECT renewed.*,(SELECT COUNT(*)::int FROM payment) AS payment_recorded FROM renewed
+          `;
+          if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
+          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0});
+        }
+        const status=String(input.status||'');
         if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
         const rows=await sql`UPDATE app_licenses SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
         if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
