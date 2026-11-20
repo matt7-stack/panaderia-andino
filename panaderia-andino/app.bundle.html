@@ -588,6 +588,36 @@ img,svg,canvas,video{max-width:100%}
   font-size: 15px;
   flex: 0 0 16px;
 }
+
+/* Compactar el acceso rápido Centro de seguridad, no solo el enlace lateral. */
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] {
+  min-height: 68px !important;
+  padding: 10px 12px !important;
+  gap: 9px !important;
+  border-radius: 12px !important;
+}
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] .quick-icon {
+  flex: 0 0 34px !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 10px !important;
+  font-size: 16px !important;
+}
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] .quick-copy strong {
+  font-size: 12px !important;
+}
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] .quick-copy small {
+  font-size: 10px !important;
+}
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] .quick-arrow {
+  font-size: 12px !important;
+}
+#adminSecurityNav {
+  min-height: 34px !important;
+  padding: 0 8px !important;
+  gap: 7px !important;
+  font-size: 10px !important;
+}
 </style>
 </head>
 <body>
@@ -2737,7 +2767,7 @@ img,svg,canvas,video{max-width:100%}
 <script>
 (function(){
  const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const api=async(path,options={})=>{const r=await fetch(path,{credentials:'same-origin',headers:{'Content-Type':'application/json'},...options});const j=await r.json();if(!r.ok)throw new Error(j.error||'Error de servidor');return j;};
+ const api=async(path,options={})=>{const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},...options});let j={};try{j=await r.json();}catch(_){throw new Error('El servidor devolvió una respuesta no válida ('+r.status+').');}if(!r.ok)throw new Error(j.error||('Error de servidor ('+r.status+').'));return j;};
  async function loadOverview(){if(!$('#adminBusinessOverview'))return;try{const r=await api('/api/admin/overview');$('#overviewActive').textContent=r.totals.active;$('#overviewInactive').textContent=r.totals.inactive;$('#overviewAttention').textContent=r.totals.needsAttention;$('#overviewOpenTickets').textContent=(r.ticketCounts||[]).filter(x=>x.status==='open'||x.status==='in_progress').reduce((a,x)=>a+x.total,0);}catch(e){console.warn(e);}}
  async function loadTickets(){if(!$('#adminSupportTickets'))return;try{const r=await api('/api/support/tickets');$('#adminSupportTickets').innerHTML=r.tickets.length?r.tickets.map(t=>'<div class="support-ticket" data-ticket="'+esc(t.id)+'"><div class="d-flex justify-content-between gap-2 flex-wrap"><strong>'+esc(t.subject)+'</strong><span class="badge bg-light text-dark">'+esc(t.status)+'</span></div><p class="mb-1">'+esc(t.message)+'</p><small class="text-muted">'+esc(t.business_name)+' · '+esc(t.creator_name)+' · '+new Date(t.created_at).toLocaleString('es-PY')+'</small>'+(t.replies||[]).map(r=>'<div class="border rounded p-2 mt-2"><small class="text-muted">'+esc(r.author_name)+' · '+new Date(r.created_at).toLocaleString('es-PY')+'</small><p class="mb-0">'+esc(r.message)+'</p></div>').join('')+'<div class="d-flex gap-2 mt-2 flex-wrap"><select class="form-select form-select-sm ticket-status" style="max-width:180px"><option value="open" '+(t.status==='open'?'selected':'')+'>Abierta</option><option value="in_progress" '+(t.status==='in_progress'?'selected':'')+'>En proceso</option><option value="resolved" '+(t.status==='resolved'?'selected':'')+'>Resuelta</option><option value="closed" '+(t.status==='closed'?'selected':'')+'>Cerrada</option></select><button class="btn btn-outline-bakery btn-sm ticket-status-save">Guardar estado</button></div><textarea class="form-control mt-2 ticket-reply" placeholder="Escribí una respuesta..." maxlength="3000"></textarea><button class="btn btn-bakery btn-sm mt-2 ticket-reply-send">Responder</button></div>').join(''):'<p class="text-muted">No hay solicitudes todavía.</p>';}catch(e){$('#adminSupportTickets').textContent=e.message;}}
  async function loadClientTickets(){if(!$('#clientSupportTickets'))return;try{const r=await api('/api/support/tickets');$('#clientSupportTickets').innerHTML=r.tickets.map(t=>'<div class="support-ticket"><strong>'+esc(t.subject)+'</strong><span class="badge bg-light text-dark ms-2">'+esc(t.status)+'</span><p>'+esc(t.message)+'</p><small class="text-muted">'+new Date(t.created_at).toLocaleString('es-PY')+'</small></div>').join('')||'<p class="text-muted">Todavía no enviaste solicitudes.</p>';}catch(e){$('#clientSupportTickets').textContent=e.message;}}
@@ -2745,7 +2775,31 @@ img,svg,canvas,video{max-width:100%}
  async function loadPrefs(){if(!$('#notificationPreferencesForm'))return;try{const r=await api('/api/notification-preferences');$('#prefSystem').checked=r.preferences.system!==false;$('#prefFinancial').checked=r.preferences.financial!==false;$('#prefSupport').checked=r.preferences.support!==false;}catch(e){console.warn(e);}}
  document.addEventListener('submit',async e=>{if(e.target.id==='clientSupportTicketForm'){e.preventDefault();try{await api('/api/support/tickets',{method:'POST',body:JSON.stringify({subject:$('#supportTicketSubject').value,message:$('#supportTicketMessage').value})});e.target.reset();await loadClientTickets();alert('Solicitud enviada correctamente.');}catch(x){alert(x.message);}}if(e.target.id==='notificationPreferencesForm'){e.preventDefault();try{await api('/api/notification-preferences',{method:'PUT',body:JSON.stringify({preferences:{system:$('#prefSystem').checked,financial:$('#prefFinancial').checked,support:$('#prefSupport').checked}})});alert('Preferencias guardadas.');}catch(x){alert(x.message);}}});
  document.addEventListener('click',async e=>{const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton');if(!t)return;try{if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
- async function loadLicenses(){if(!$('#licensesTableBody'))return;try{const r=await api('/api/admin/licenses'),b=await api('/api/admin/businesses');$('#licenseCount').textContent=r.totals.count;$('#licenseActive').textContent=r.totals.active;$('#licenseMonthly').textContent='Gs. '+Number(r.totals.monthly||0).toLocaleString('es-PY');const list=b.businesses||b.items||[];$('#licenseBusiness').innerHTML='<option value="">Seleccionar negocio</option>'+list.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');$('#licensesTableBody').innerHTML=r.licenses.map(x=>'<tr><td>'+esc(x.license_code)+'</td><td>'+esc(x.business_name)+'</td><td>'+esc(x.system_name||'Mattsystem')+'</td><td>'+esc(x.plan)+'</td><td><select class="form-select form-select-sm license-status" data-id="'+esc(x.id)+'">'+['pending','active','suspended','cancelled','expired'].map(s=>'<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></td><td>Gs. '+Number(x.setup_amount).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.monthly_amount).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.paid_total).toLocaleString('es-PY')+'</td><td><button class="btn btn-sm btn-outline-bakery license-renew" data-id="'+esc(x.id)+'">Renovar</button> <button class="btn btn-sm btn-outline-bakery license-payment" data-id="'+esc(x.id)+'">Registrar pago</button></td></tr>').join('')||'<tr><td colspan="9">Sin licencias registradas.</td></tr>';}catch(e){$('#licensesTableBody').innerHTML='<tr><td colspan="9">'+esc(e.message)+'</td></tr>';}}
+ async function loadLicenses(){
+   const table=$('#licensesTableBody'),businessSelect=$('#licenseBusiness');
+   if(!table||!businessSelect)return;
+   table.innerHTML='<tr><td colspan="9" class="text-center">Cargando licencias…</td></tr>';
+   try{
+     const user=await Promise.resolve(window.PanaderiaAuthReady);
+     if(!user?.isPlatformAdmin)throw new Error('La sesión de administrador todavía no está confirmada. Cerrá sesión y volvé a ingresar.');
+     const [r,b]=await Promise.all([api('/api/admin/licenses'),api('/api/admin/businesses')]);
+     const list=Array.isArray(b.businesses)?b.businesses:(Array.isArray(b.items)?b.items:[]);
+     const previous=businessSelect.value;
+     businessSelect.innerHTML='<option value="">Seleccionar negocio</option>'+list.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');
+     if(list.some(x=>String(x.id)===previous))businessSelect.value=previous;
+     $('#licenseCount').textContent=Number(r.totals?.count||0);
+     $('#licenseActive').textContent=Number(r.totals?.active||0);
+     $('#licenseMonthly').textContent='Gs. '+Number(r.totals?.monthly||0).toLocaleString('es-PY');
+     const licenses=Array.isArray(r.licenses)?r.licenses:[];
+     table.innerHTML=licenses.map(x=>'<tr><td>'+esc(x.license_code)+'</td><td>'+esc(x.business_name)+'</td><td>'+esc(x.system_name||'Mattsystem')+'</td><td>'+esc(x.plan)+'</td><td><select class="form-select form-select-sm license-status" data-id="'+esc(x.id)+'">'+['pending','active','suspended','cancelled','expired'].map(s=>'<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></td><td>Gs. '+Number(x.setup_amount||0).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.monthly_amount||0).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.paid_total||0).toLocaleString('es-PY')+'</td><td><button class="btn btn-sm btn-outline-bakery license-renew" data-id="'+esc(x.id)+'">Renovar</button> <button class="btn btn-sm btn-outline-bakery license-payment" data-id="'+esc(x.id)+'">Registrar pago</button></td></tr>').join('')||'<tr><td colspan="9" class="text-center">Sin licencias registradas.</td></tr>';
+     if(!list.length)businessSelect.innerHTML='<option value="">Primero registrá un negocio en Panaderías</option>';
+     return true;
+   }catch(e){
+     table.innerHTML='<tr><td colspan="9" class="text-danger">No se pudieron cargar las licencias: '+esc(e.message)+'</td></tr>';
+     console.error('Error al cargar licencias:',e);
+     return false;
+   }
+ }
  $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,setupAmount:Number($('#licenseSetup').value),monthlyAmount:Number($('#licenseMonthlyInput').value),billingDay:Number($('#licenseBillingDay').value),expiresAt:$('#licenseExpires').value||null,contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseSetup').value=1200000;$('#licenseMonthlyInput').value=120000;$('#licenseBillingDay').value=1;await loadLicenses();alert('Licencia creada.');}catch(x){alert(x.message);}});
  $('#refreshLicenses')?.addEventListener('click',loadLicenses);
  $('#licensesTableBody')?.addEventListener('change',async e=>{if(e.target.matches('.license-status'))try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({id:e.target.dataset.id,status:e.target.value})});await loadLicenses();}catch(x){alert(x.message);}});
@@ -2765,21 +2819,25 @@ img,svg,canvas,video{max-width:100%}
    try{await api('/api/admin/license-payments',{method:'POST',body:JSON.stringify({licenseId:b.dataset.id,amount:Number(amount),paymentType:'monthly'})});await loadLicenses();alert('Pago registrado.');}
    catch(x){alert(x.message);}
  });
- // Cargar los módulos administrativos una sola vez, después de confirmar la sesión.
- // El evento puede ocurrir antes de que este módulo registre el listener; PanaderiaAuthReady cubre ese caso.
- let adminDataLoaded = false;
+ // Inicializar los módulos administrativos luego de que el servidor confirme la cuenta principal.
+ let adminDataLoadPromise = null;
  const loadPlatformAdminData = () => {
-   if (adminDataLoaded || window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
-   adminDataLoaded = true;
-   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+   if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+   if (adminDataLoadPromise) return adminDataLoadPromise;
+   adminDataLoadPromise = (async()=>{
+     await Promise.allSettled([loadOverview(),loadTickets(),loadTrash(),loadClientTickets(),loadPrefs(),loadLicenses()]);
+   })().catch(error=>{
+     adminDataLoadPromise=null;
+     console.error('No se pudo inicializar la administración:',error);
+   });
+   return adminDataLoadPromise;
  };
  window.addEventListener('panaderia:authenticated', event => {
    if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData();
  });
  Promise.resolve(window.PanaderiaAuthReady)
-   .then(user => { if (user?.isPlatformAdmin === true) loadPlatformAdminData(); })
+   .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(); })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
- if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadPlatformAdminData();
 })();
 </script></body>
 </html>
