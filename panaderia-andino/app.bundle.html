@@ -2751,7 +2751,19 @@ img,svg,canvas,video{max-width:100%}
    try{await api('/api/admin/license-payments',{method:'POST',body:JSON.stringify({licenseId:b.dataset.id,amount:Number(amount),paymentType:'monthly'})});await loadLicenses();alert('Pago registrado.');}
    catch(x){alert(x.message);}
  });
- loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+ // Esperar a que el módulo de autenticación confirme la sesión.
+ // Antes de este evento /api/auth/me todavía puede estar respondiendo y las peticiones admin darían 401.
+ let adminDataLoaded = false;
+ window.addEventListener('panaderia:authenticated', event => {
+   if (event.detail?.isPlatformAdmin !== true) return;
+   adminDataLoaded = true;
+   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+ });
+ // Compatibilidad si el módulo de autenticación ya terminó antes de registrar el listener.
+ if (window.PanaderiaAuth?.user?.isPlatformAdmin === true && !adminDataLoaded) {
+   adminDataLoaded = true;
+   loadOverview();loadTickets();loadTrash();loadClientTickets();loadPrefs();loadLicenses();
+ }
 })();
 </script></body>
 </html>
