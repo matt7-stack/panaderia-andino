@@ -62,7 +62,14 @@ button{cursor:pointer}
 .month-picker input{width:112px;border:0;outline:0;color:var(--brown-900);background:transparent;font-size:11px;font-weight:600}
 .user-menu{display:flex;align-items:center;gap:9px}.avatar{width:35px;height:35px;display:grid;place-items:center;border-radius:50%;color:var(--brown-800);background:var(--cream-200);font-size:17px}
 .user-meta{display:grid;gap:1px}.user-meta strong{color:var(--brown-900);font-size:11px}.user-meta small{color:var(--muted);font-size:9px}.user-chevron{margin-left:3px;color:#a18d7b;font-size:10px}
-.mobile-menu-button{display:none}.page-content{max-width:1600px;margin:0 auto;padding:32px 36px 20px}.page-view{display:none;animation:pageIn .2s ease}.page-view.active{display:block}@keyframes pageIn{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.mobile-menu-button{display:none}.page-content{max-width:1600px;margin:0 auto;padding:32px 36px 20px}.page-view{display:none;animation:pageIn .2s ease}.page-view.active{display:block}
+/* El administrador de plataforma nunca debe ver el dashboard operativo de una panadería. */
+body.platform-admin #page-dashboard{display:none!important}
+body.platform-admin .nav-menu [data-page-link="dashboard"]{display:none!important}
+body.platform-admin .brand{justify-content:center}
+body.platform-admin .brand-name,body.platform-admin .brand-caption{display:none!important}
+.brand-icon-only{justify-content:center;min-height:66px}
+.brand-icon-only .brand-mark{margin:0}@keyframes pageIn{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:23px}
 .eyebrow{margin:0 0 6px;color:#a77a55;font-size:9px;font-weight:700;letter-spacing:1.6px}
 h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-family:'Playfair Display',serif;font-size:clamp(26px,3vw,33px);font-weight:700;letter-spacing:-.8px}.heading-icon{font-family:'DM Sans',sans-serif;font-size:23px}.heading-page-icon{margin-right:5px;color:var(--brown-700);font-family:'DM Sans',sans-serif;font-size:25px}
@@ -184,6 +191,20 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 }
 
 [hidden]{display:none!important}
+/* Centro de accesos rápidos del administrador */
+.admin-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
+.admin-quick-card{display:flex;align-items:center;gap:14px;min-width:0;min-height:112px;padding:19px;border:1px solid var(--border,#eadfd2);border-radius:16px;background:var(--surface,#fff);color:var(--text,#3d3027);text-align:left;box-shadow:0 5px 18px rgba(65,42,24,.045);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.admin-quick-card:hover{transform:translateY(-2px);border-color:#c9a77f;box-shadow:0 10px 25px rgba(65,42,24,.09)}
+.admin-quick-card.quick-primary{background:linear-gradient(135deg,#fff8ef,#fff);border-color:#dfc6a8}
+.quick-icon{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;border-radius:14px;background:#f5eadc;color:#87552d;font-size:21px}
+.quick-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
+.quick-copy strong{font-size:14px;font-weight:750}
+.quick-copy small{color:var(--muted,#81756b);font-size:11px;line-height:1.45}
+.quick-arrow{align-self:flex-start;color:#a58b72;font-size:14px}
+.admin-quick-note{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:14px 16px;border:1px solid #e9e1d6;border-radius:12px;background:#faf7f2;color:#75695e;font-size:12px;line-height:1.55}
+.admin-quick-note i{color:#9b7149;font-size:16px}
+@media(max-width:900px){.admin-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.admin-quick-grid{grid-template-columns:1fr;gap:10px}.admin-quick-card{min-height:88px;padding:14px}.quick-icon{flex-basis:42px;width:42px;height:42px}}
 /* Empleados y panel de administración */
 #page-administracion .summary-card,#page-empleados .summary-card{min-height:108px}
 #page-administracion .summary-card h2,#page-empleados .summary-card h2{overflow-wrap:anywhere}
@@ -304,10 +325,8 @@ input[type="date"], input[type="month"] {
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
-      <a class="brand" href="#dashboard" data-page-link="dashboard" aria-label="Panadería Andino, inicio">
+      <a class="brand brand-icon-only" href="#dashboard" data-page-link="dashboard" aria-label="Inicio">
         <span class="brand-mark"><i class="bi bi-basket2-fill"></i><span>✦</span></span>
-        <span class="brand-name">Panadería<br>Andino</span>
-        <span class="brand-caption">GESTIÓN DEL NEGOCIO</span>
       </a>
 
       <div class="sidebar-label">MENÚ PRINCIPAL</div>
@@ -315,25 +334,29 @@ input[type="date"], input[type="month"] {
         <a class="nav-link active" href="#dashboard" data-page-link="dashboard" aria-current="page"><i class="bi bi-house-door-fill"></i><span>Dashboard</span></a>
         <a class="nav-link" href="#movimientos" data-page-link="movimientos"><i class="bi bi-arrow-left-right"></i><span>Movimientos</span><span class="nav-count" id="movementNavCount">0</span></a>
         <a class="nav-link" href="#notas" data-page-link="notas"><i class="bi bi-receipt-cutoff"></i><span>Notas</span><span class="nav-count" id="invoiceNavCount">0</span></a>
+        <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
+        <a class="nav-link" href="#accesos-rapidos" data-page-link="accesos-rapidos" id="adminQuickNav" hidden><i class="bi bi-lightning-charge-fill"></i><span>Accesos rápidos</span></a>
+        <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
+        <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
         <a class="nav-link" href="#guia-uso" data-page-link="guia-uso"><i class="bi bi-book-half"></i><span>Guía de uso</span></a>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="sidebar-help"><i class="bi bi-lightbulb-fill"></i><p>Organizá tus ingresos, gastos y notas en un solo lugar.</p></div>
-        <button class="logout-link" type="button" id="logoutButton"><i class="bi bi-box-arrow-left"></i><span>Cerrar sesión</span></button>
+        
       </div>
     </aside>
 
     <main class="main-content">
       <header class="topbar">
         <button class="btn icon-button mobile-menu-button" id="menuToggle" type="button" aria-label="Abrir menú" aria-expanded="false"><i class="bi bi-list"></i></button>
-        <div class="breadcrumb-label"><span>Panadería Andino</span><i class="bi bi-chevron-right"></i><strong id="breadcrumbCurrent">Dashboard</strong></div>
+        <div class="breadcrumb-label"><strong id="breadcrumbCurrent">Dashboard</strong></div>
         <div class="topbar-actions">
           <label class="month-picker" id="globalMonthPicker"><i class="bi bi-calendar3"></i><span class="visually-hidden">Mes del resumen</span><input type="month" id="monthFilter" aria-label="Seleccionar mes"></label>
-          <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div>
+          <div class="user-menu"><span class="avatar"><i class="bi bi-person-fill"></i></span><span class="user-meta"><strong id="topUserName">Administrador</strong><small>Cuenta principal</small></span><i class="bi bi-chevron-down user-chevron"></i></div><button class="btn" type="button" id="logoutTopButton" style="display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--brown-800);font-size:11px;font-weight:700;white-space:nowrap"><i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span></button>
         </div>
       </header>
 
@@ -393,10 +416,47 @@ input[type="date"], input[type="month"] {
         <!-- ADMINISTRACIÓN -->
         <section class="page-view" id="page-administracion" data-page="administracion">
           <div class="page-heading"><div><p class="eyebrow">CONTROL Y SEGURIDAD</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Administración</h1><p class="page-subtitle">Herramientas para supervisar el sistema y administrar el negocio.</p></div></div>
+          <div class="settings-grid mb-3">
+            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-shield-check"></i> Seguridad y auditoría</h3><p>Supervisá cambios, accesos y acciones registradas en toda la plataforma.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="actividad">Abrir auditoría y alertas</button></article>
+            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-graph-up"></i> Rendimiento global</h3><p>Compará ingresos, gastos y actividad de las panaderías registradas.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="reportes-globales">Ver reportes globales</button></article>
+            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Centro de notificaciones</h3><p>Enviá comunicados generales o dirigidos a una panadería.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-focus="adminNotificationForm">Redactar comunicado</button></article>
+            <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-people"></i> Control de cuentas</h3><p>Administrá altas, permisos y estado de los usuarios.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-focus="platformUsersPanel">Gestionar cuentas</button></article>
+          </div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Panaderías registradas</h3><p>Administrá los negocios y consultá sus ingresos, gastos y ventas.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar panadería</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando panaderías…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada panadería trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-megaphone"></i> Enviar notificación</h3><p>Escribí un aviso para todas las panaderías o para una en particular.</p></div></div><form id="adminNotificationForm" class="settings-form"><div class="row g-3"><div class="col-md-5"><label class="form-label" for="adminNotificationTarget">Destinatarios</label><select class="form-select" id="adminNotificationTarget" required><option value="all">Todas las panaderías y sus usuarios</option></select></div><div class="col-md-7"><label class="form-label" for="adminNotificationTitle">Título</label><input class="form-control" id="adminNotificationTitle" maxlength="100" required placeholder="Ej.: Mantenimiento programado"></div><div class="col-12"><label class="form-label" for="adminNotificationMessage">Mensaje</label><textarea class="form-control" id="adminNotificationMessage" rows="3" maxlength="2000" required placeholder="Escribí el aviso que recibirán los usuarios…"></textarea></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-send"></i> Enviar notificación</button></div></form><div class="info-note"><i class="bi bi-info-circle"></i> El aviso aparecerá dentro de Notificaciones en las cuentas destinatarias.</div></article>
           <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Usuarios y permisos</h3><p>Creá cuentas, desactivá accesos y administrá roles.</p></div><span class="panel-heading-icon"><i class="bi bi-person-gear"></i></span></div><p class="page-subtitle mb-3">Solo el administrador principal puede gestionar las cuentas de acceso.</p><button class="btn btn-bakery" type="button" id="adminManageUsers"><i class="bi bi-people"></i> Gestionar usuarios</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Copia de seguridad</h3><p>Descargá una copia de los datos compartidos.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-arrow-down"></i></span></div><p class="page-subtitle mb-3">Guardá el archivo JSON en un lugar seguro. Esta acción no modifica la base de datos.</p><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-download"></i> Descargar respaldo</button></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Limpiar datos operativos</h3><p>Prepará el sistema para comenzar desde cero.</p></div><span class="panel-heading-icon"><i class="bi bi-trash3"></i></span></div><p class="page-subtitle mb-3">Elimina movimientos, notas emitidas y recibidas, empleados y pagos históricos. Conserva el administrador, las credenciales y la configuración del negocio.</p><div class="info-note mb-3"><i class="bi bi-exclamation-triangle"></i> Esta acción afecta a todos los dispositivos conectados y no se puede deshacer. Descargá primero un respaldo si necesitás conservar los registros.</div><button class="btn btn-outline-danger" type="button" id="adminResetDataButton"><i class="bi bi-trash3"></i> Limpiar datos operativos</button></article></div>
+<article class="panel settings-card mt-3" id="platformUsersPanel"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Usuarios del sistema</h3><p>Solo el administrador puede crear, desactivar y eliminar cuentas de acceso.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addUserButton"><i class="bi bi-person-plus"></i> Agregar usuario</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>ROL</th><th>ESTADO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="usersTableBody"></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Administración protegida: las cuentas y los permisos se controlan en el servidor.</div></article></article>
         </section>
 
+        <section class="page-view" id="page-accesos-rapidos" data-page="accesos-rapidos">
+          <div class="page-heading"><div><p class="eyebrow">CENTRO DE CONTROL</p><h1><i class="bi bi-lightning-charge-fill heading-page-icon"></i> Accesos rápidos</h1><p class="page-subtitle">Tus herramientas principales, organizadas para administrar la plataforma sin perder tiempo.</p></div></div>
+          <div class="admin-quick-grid">
+            <button class="admin-quick-card quick-primary" type="button" data-admin-focus="businessesTableBody"><span class="quick-icon"><i class="bi bi-shop-window"></i></span><span class="quick-copy"><strong>Panaderías</strong><small>Registrar, editar y supervisar negocios</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-focus="platformUsersPanel"><span class="quick-icon"><i class="bi bi-people"></i></span><span class="quick-copy"><strong>Usuarios y permisos</strong><small>Crear cuentas y administrar accesos</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-focus="adminNotificationForm"><span class="quick-icon"><i class="bi bi-send"></i></span><span class="quick-copy"><strong>Enviar comunicado</strong><small>Notificar a todas las panaderías o elegir una</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="actividad"><span class="quick-icon"><i class="bi bi-shield-check"></i></span><span class="quick-copy"><strong>Auditoría y actividad</strong><small>Revisar cambios, acciones y alertas</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="reportes-globales"><span class="quick-icon"><i class="bi bi-bar-chart-line"></i></span><span class="quick-copy"><strong>Reportes globales</strong><small>Consultar ingresos, gastos y resultados</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+            <button class="admin-quick-card" type="button" data-admin-go="administracion"><span class="quick-icon"><i class="bi bi-speedometer2"></i></span><span class="quick-copy"><strong>Resumen administrativo</strong><small>Volver al centro principal de administración</small></span><i class="bi bi-arrow-up-right quick-arrow"></i></button>
+          </div>
+          <div class="admin-quick-note"><i class="bi bi-info-circle"></i><span>Los accesos respetan los permisos de administrador de plataforma. Las acciones y los datos siguen centralizados en sus módulos correspondientes.</span></div>
+        </section>
+
+        <section class="page-view" id="page-actividad" data-page="actividad">
+          <div class="page-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las panaderías.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="summary-grid"><article class="summary-card pending-card"><p class="summary-label">Eventos recientes</p><h2 id="adminActivityTotal">0</h2></article><article class="summary-card income-card"><p class="summary-label">Alertas sin leer</p><h2 id="adminActivityUnread">0</h2></article></div>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, panadería, acción y fecha.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>PANADERÍA</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
+        </section>
+        <section class="page-view" id="page-reportes-globales" data-page="reportes-globales">
+          <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas las panaderías registradas.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Ingresos registrados</p><h2 id="globalIncomeTotal">Gs. 0</h2></article><article class="summary-card expense-card"><p class="summary-label">Gastos registrados</p><h2 id="globalExpenseTotal">Gs. 0</h2></article><article class="summary-card profit-card"><p class="summary-label">Resultado registrado</p><h2 id="globalProfitTotal">Gs. 0</h2></article><article class="summary-card pending-card"><p class="summary-label">Panaderías activas</p><h2 id="globalBusinessCount">0</h2></article></div>
+          <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Rendimiento por panadería</h3><p>Totales históricos disponibles en la plataforma.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>ESTADO</th><th>INGRESOS</th><th>GASTOS</th><th>RESULTADO</th><th>USUARIOS ACTIVOS</th></tr></thead><tbody id="globalReportsTable"><tr><td colspan="6" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
+        </section>
+        <section class="page-view" id="page-notificaciones" data-page="notificaciones">
+          <div class="page-heading"><div><p class="eyebrow">AVISOS DEL SISTEMA</p><h1><i class="bi bi-bell heading-page-icon"></i> Notificaciones</h1><p class="page-subtitle">Mensajes y avisos enviados por el administrador.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshNotificationsButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div id="notificationsList" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando notificaciones…</p></article></div>
+        </section>
         <section class="page-view" id="page-configuracion" data-page="configuracion">
           <div class="page-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h1><i class="bi bi-gear heading-page-icon"></i> Configuración</h1><p class="page-subtitle">Personalizá el sistema de tu panadería.</p></div></div>
           <div class="settings-tabs" role="tablist" aria-label="Opciones de configuración">
@@ -413,7 +473,7 @@ input[type="date"], input[type="month"] {
 
           <section class="settings-panel" id="settings-payments" data-settings-panel="payments"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Métodos de pago</h3><p>Elegí cómo se registran los cobros y pagos.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addPaymentMethod"><i class="bi bi-plus-lg"></i> Agregar método</button></div><div class="payment-methods-list" id="paymentMethodsList"></div></article></section>
 
-          <section class="settings-panel" id="settings-users" data-settings-panel="users"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Usuarios del sistema</h3><p>Solo el administrador puede crear, desactivar y eliminar cuentas de acceso.</p></div><button class="btn btn-bakery btn-sm" type="button" id="addUserButton"><i class="bi bi-person-plus"></i> Agregar usuario</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>ROL</th><th>ESTADO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="usersTableBody"></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Administración protegida: las cuentas y los permisos se controlan en el servidor.</div></article></section>
+          
 
           <section class="settings-panel" id="settings-preferences" data-settings-panel="preferences"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Preferencias generales</h3><p>Ajustá cómo se muestra la información.</p></div></div><form id="preferencesForm" class="settings-form"><div class="preference-row"><div><strong>Moneda</strong><p>Moneda utilizada para mostrar importes.</p></div><span class="preference-select preference-static">Guaraníes (Gs.)</span></div><div class="preference-row"><div><strong>Alertas de notas pendientes</strong><p>Mostrar avisos cuando existan saldos pendientes.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefInvoiceAlerts"></div></div><div class="preference-row"><div><strong>Confirmar antes de eliminar</strong><p>Solicitar confirmación antes de borrar registros.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefConfirmDelete"></div></div><div class="preference-row"><div><strong>Formato de fecha</strong><p>Formato utilizado en las tablas.</p></div><select class="form-select preference-select" id="prefDateFormat"><option value="es-PY">DD/MM/AAAA</option><option value="en-GB">DD/MM/AAAA (alternativo)</option><option value="en-US">MM/DD/AAAA</option></select></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar preferencias</button><button class="btn btn-outline-bakery" type="button" id="resetDemoData"><i class="bi bi-arrow-counterclockwise"></i> Restaurar datos de ejemplo</button></div></form></article></section>
         </section>
@@ -571,19 +631,26 @@ input[type="date"], input[type="month"] {
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
+  const currentUrl = new URL(window.location.href);
   const hash = window.location.hash || '';
-  if (hash.startsWith('#activar=')) {
-    activationToken = decodeURIComponent(hash.slice('#activar='.length));
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+  activationToken = currentUrl.searchParams.get('activar') || '';
+  if (!activationToken && hash.startsWith('#activar=')) activationToken = decodeURIComponent(hash.slice('#activar='.length));
+  if (activationToken) {
+    currentUrl.searchParams.delete('activar');
+    currentUrl.hash = '';
+    history.replaceState(null, '', currentUrl.pathname + currentUrl.search);
   }
 
+  let selectedBusinessId = localStorage.getItem('pa_selected_business_id') || '';
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
+    if (selectedBusinessId && !headers['x-business-id']) headers['x-business-id'] = selectedBusinessId;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     const response = await fetch(path, { credentials: 'same-origin', ...options, headers });
     let result = {};
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
-    if (!response.ok) {
+    // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
+    if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
       if (response.status === 401 && window.PanaderiaAuth?.user) {
         window.PanaderiaAuth.user = null;
         document.body.classList.add('auth-locked');
@@ -602,6 +669,7 @@ input[type="date"], input[type="month"] {
   }
 
   function showLogin(message = '') {
+    gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
     content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form>`;
     showMessage(message);
@@ -620,7 +688,7 @@ input[type="date"], input[type="month"] {
 
   function showSetup() {
     document.body.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>PRIMER ACCESO</span><h1 id="authTitle">Activar administrador</h1><p>Creá tu cuenta principal. Solo esta cuenta podrá agregar nuevos usuarios.</p></div><form id="setupForm" class="auth-form"><label for="authName">Tu nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><p class="auth-help">Se utilizará el correo de administrador configurado de forma segura en el servidor.</p><label for="authPassword">Crear contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Activar mi cuenta <span>→</span></button></form>`;
+    content.innerHTML = `<div class="auth-heading"><span>PRIMER ACCESO</span><h1 id="authTitle">Activar administrador</h1><p>Creá tu cuenta principal. Solo esta cuenta podrá agregar nuevos usuarios.</p></div><form id="setupForm" class="auth-form"><label for="authName">Tu nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><label for="authSetupEmail">Correo electrónico</label><input id="authSetupEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Crear contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Activar mi cuenta <span>→</span></button></form>`;
     document.getElementById('setupForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = event.currentTarget.querySelector('button');
@@ -630,7 +698,7 @@ input[type="date"], input[type="month"] {
       button.disabled = true;
       showMessage('');
       try {
-        const result = await api('/api/auth/bootstrap', { method: 'POST', body: JSON.stringify({ token: activationToken, name: document.getElementById('authName').value, password }) });
+        const result = await api('/api/auth/bootstrap', { method: 'POST', body: JSON.stringify({ token: activationToken, name: document.getElementById('authName').value, email: document.getElementById('authSetupEmail').value, password }) });
         activationToken = '';
         establish(result.user);
       } catch (error) { showMessage(error.message); button.disabled = false; }
@@ -639,30 +707,84 @@ input[type="date"], input[type="month"] {
   }
 
   function establish(user) {
+    // Normalizar el indicador de administrador de plataforma; nunca inferirlo solo por role='admin'.
+    user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
+    document.body.classList.toggle('platform-admin', user.isPlatformAdmin === true);
     gate.classList.add('auth-gate-hidden');
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
-    if (adminNav) adminNav.hidden = user.role !== 'admin';
+    if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
+    // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de una panadería.
+    const platformAdmin = user.isPlatformAdmin === true;
+    document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
+      const page = link.dataset.pageLink;
+      const adminPages = ['administracion','accesos-rapidos','actividad','reportes-globales'];
+      link.hidden = platformAdmin ? !adminPages.includes(page) : (page === 'administracion' || page === 'actividad' || page === 'reportes-globales');
+    });
+    ['adminQuickNav','adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    const sidebarLabel = document.querySelector('.sidebar-label');
+    if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
+    const sidebarHelp = document.querySelector('.sidebar-help');
+    if (sidebarHelp) sidebarHelp.hidden = platformAdmin;
+    const monthPicker = document.getElementById('globalMonthPicker');
+    if (monthPicker && platformAdmin) monthPicker.classList.add('d-none');
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
-    if (usersTab) usersTab.hidden = user.role !== 'admin';
-    if (usersPanel) usersPanel.hidden = user.role !== 'admin';
+    if (usersTab) usersTab.hidden = user.isPlatformAdmin === true;
+    if (usersPanel) usersPanel.hidden = user.isPlatformAdmin === true;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
-    if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
+    // La navegación se ejecuta desde el segundo módulo cuando ya está inicializado.
+    if (platformAdmin) window.location.hash = '#administracion';
+    else if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
 
   window.PanaderiaAuth = {
     user: null,
     api,
+    get selectedBusinessId() { return selectedBusinessId; },
+    selectBusiness(id) { selectedBusinessId = String(id || ''); if (selectedBusinessId) localStorage.setItem('pa_selected_business_id', selectedBusinessId); else localStorage.removeItem('pa_selected_business_id'); },
     async logout() {
-      try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch (_) { /* always clear local view */ }
-      this.user = null;
-      window.location.replace(window.location.pathname);
+      const button = document.getElementById('logoutTopButton');
+      if (button) { button.disabled = true; button.setAttribute('aria-busy','true'); }
+      let completed = false;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        let response;
+        try {
+          response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+            signal: controller.signal
+          });
+        } finally { clearTimeout(timeout); }
+        if (!response.ok) throw new Error('El servidor rechazó el cierre de sesión (' + response.status + ').');
+        this.user = null;
+        try { localStorage.removeItem('pa_selected_business_id'); } catch (_) {}
+        completed = true;
+        window.location.replace('/?signedout=' + Date.now());
+      } catch (error) {
+        console.error('Error al cerrar sesión:', error);
+        if (button) {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+          button.innerHTML = '<i class="bi bi-box-arrow-right"></i><span>Cerrar sesión</span>';
+        }
+        alert(error.name === 'AbortError' ? 'El servidor tardó demasiado en cerrar la sesión. Intentá nuevamente.' : (error.message || 'No se pudo cerrar la sesión.'));
+      } finally {
+        if (!completed && button) {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+        }
+      }
     }
   };
 
@@ -794,8 +916,13 @@ input[type="date"], input[type="month"] {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion', 'guia-uso'].includes(page)) return;
-    if (page === 'administracion' && window.PanaderiaAuth?.user?.role !== 'admin') return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'accesos-rapidos', 'configuracion', 'actividad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    const currentUser = window.PanaderiaAuth?.user;
+    if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
+    if (page === 'configuracion' && currentUser?.isPlatformAdmin === true) return;
+    if (currentUser?.isPlatformAdmin === true && !['administracion','accesos-rapidos','actividad','reportes-globales'].includes(page)) page = 'administracion';
+    if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
+    if (currentUser?.isPlatformAdmin !== true && ['actividad','reportes-globales'].includes(page)) return;
     selectedPage = page;
     $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
@@ -804,7 +931,7 @@ input[type="date"], input[type="month"] {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', empleados: 'Empleados', administracion: 'Administración', configuracion: 'Configuración', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administración', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
     $('#breadcrumbCurrent').textContent = titles[page];
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -814,6 +941,10 @@ input[type="date"], input[type="month"] {
     if (page === 'notas') renderInvoices();
     if (page === 'empleados') renderEmployees();
     if (page === 'administracion') renderAdminPanel();
+    if (page === 'accesos-rapidos') renderAdminPanel();
+    if (page === 'notificaciones') refreshNotifications();
+    if (page === 'actividad') refreshAdminActivity();
+    if (page === 'reportes-globales') refreshGlobalReports();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
   }
@@ -1113,7 +1244,15 @@ input[type="date"], input[type="month"] {
   $('#sidebarBackdrop').addEventListener('click', () => {
     $('#sidebar').classList.remove('open'); $('#sidebarBackdrop').classList.remove('show'); $('#menuToggle').setAttribute('aria-expanded', 'false');
   });
-  $('#logoutButton').addEventListener('click', () => window.PanaderiaAuth?.logout());
+  const logoutTopButton = document.getElementById('logoutTopButton');
+  if (logoutTopButton) {
+    logoutTopButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      logoutTopButton.innerHTML = '<i class="bi bi-arrow-repeat"></i><span>Cerrando sesión…</span>';
+      window.PanaderiaAuth.logout();
+    });
+  }
 
   // Formularios de movimientos
   $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
@@ -1255,8 +1394,97 @@ input[type="date"], input[type="month"] {
       notify(error.message || 'No se pudo completar la limpieza. Verificá la conexión.');
     } finally { button.disabled = false; }
   });
-  $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
-  $('#simpleForm').addEventListener('submit', async (event) => {
+  $('#adminManageUsers').addEventListener('click', () => {
+    const panel=$('#platformUsersPanel'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
+    refreshCloudUsers().catch(error => notify(error.message || 'No se pudieron cargar los usuarios.'));
+  });
+  $('#addBusinessButton')?.addEventListener('click', async () => {
+    const name=prompt('Nombre de la nueva panadería:'); if(!name||!name.trim()) return;
+    const address=prompt('Dirección (opcional):')||''; const phone=prompt('Teléfono (opcional):')||'';
+    try { await window.PanaderiaAuth.api('/api/admin/businesses',{method:'POST',body:JSON.stringify({name:name.trim(),address,phone})}); await refreshCloudBusinesses(); notify('Panadería registrada correctamente.'); }
+    catch(error){notify(error.message);}
+  });
+  $('#businessesTableBody')?.addEventListener('click', async (event) => {
+    const remove=event.target.closest('[data-delete-business]');
+    if(remove){const b=cloudBusinesses.find(item=>item.id===remove.dataset.deleteBusiness);if(!b)return;
+      const confirmText='¿Eliminar '+b.name+'? Se desactivarán sus usuarios y perderán el acceso. Los movimientos, ventas y demás registros históricos se conservarán. Esta acción no elimina definitivamente los datos.';
+      if(!window.confirm(confirmText))return;
+      try{await window.PanaderiaAuth.api('/api/admin/businesses',{method:'DELETE',body:JSON.stringify({id:b.id})});await refreshCloudBusinesses();await refreshCloudUsers();notify('Panadería eliminada del acceso activo. Los datos históricos se conservaron.');}
+      catch(error){notify(error.message);}
+      return;
+    }
+    const open=event.target.closest('[data-open-business]'); const edit=event.target.closest('[data-edit-business]');
+    if(open){window.PanaderiaAuth.selectBusiness(open.dataset.openBusiness); await hydrateCloudData(); notify('Panadería seleccionada.');}
+    if(edit){const b=cloudBusinesses.find((item)=>item.id===edit.dataset.editBusiness); if(!b)return;
+      const name=prompt('Nombre de la panadería:',b.name); if(name===null||!name.trim())return;
+      const address=prompt('Dirección:',b.address||''); if(address===null)return;
+      const phone=prompt('Teléfono:',b.phone||''); if(phone===null)return;
+      const email=prompt('Correo:',b.email||''); if(email===null)return;
+      const ruc=prompt('RUC:',b.ruc||''); if(ruc===null)return;
+      const ownerName=prompt('Responsable:',b.owner_name||''); if(ownerName===null)return;
+      try{await window.PanaderiaAuth.api('/api/admin/businesses',{method:'PATCH',body:JSON.stringify({id:b.id,name:name.trim(),address,phone,email,ruc,ownerName})});await refreshCloudBusinesses();notify('Datos de la panadería actualizados.');}
+      catch(error){notify(error.message);}
+    }
+  });
+  async function refreshAdminActivity(quiet=false){
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    try{
+      const result=await window.PanaderiaAuth.api('/api/admin/activity');
+      const rows=result.activities||[],alerts=result.notifications||[];
+      $('#adminActivityTotal').textContent=rows.length;
+      $('#adminActivityUnread').textContent=alerts.filter(x=>!x.read_at).length;
+      $('#adminActivityCount').textContent=alerts.filter(x=>!x.read_at).length;
+      $('#adminActivityCount').classList.toggle('d-none',!alerts.some(x=>!x.read_at));
+      $('#adminActivityAlerts').innerHTML=alerts.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between gap-2"><div><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div><div class="text-end"><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm d-block mt-2" type="button" data-admin-read-alert="'+escapeHTML(n.id)+'">Marcar leída</button>':'')+'</div></div></article>').join('')||'<p class="text-muted">No hay alertas nuevas.</p>';
+      $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
+    }catch(error){const target=$('#adminActivityAlerts');if(target)target.innerHTML='<p class="text-danger">No se pudo cargar la actividad. Usá Actualizar para volver a intentar.</p>';if(!quiet)notify('No se pudo cargar la actividad: '+error.message);console.error('Error al cargar actividad administrativa:',error);}
+  }
+  async function refreshGlobalReports(){
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    try{
+      const result=await window.PanaderiaAuth.api('/api/admin/businesses');
+      const rows=result.businesses||[];
+      const sum=key=>rows.reduce((n,b)=>n+Number(b[key]||0),0);
+      const income=sum('recorded_income'),expense=sum('recorded_expenses');
+      $('#globalIncomeTotal').textContent=money(income);$('#globalExpenseTotal').textContent=money(expense);$('#globalProfitTotal').textContent=money(income-expense);$('#globalBusinessCount').textContent=rows.filter(b=>b.active).length;
+      $('#globalReportsTable').innerHTML=rows.map(b=>'<tr><td>'+escapeHTML(b.name)+'</td><td>'+ (b.active?'Activa':'Inactiva')+'</td><td>'+money(b.recorded_income)+'</td><td>'+money(b.recorded_expenses)+'</td><td>'+money(Number(b.recorded_income||0)-Number(b.recorded_expenses||0))+'</td><td>'+escapeHTML(b.active_user_count)+'</td></tr>').join('')||'<tr><td colspan="6" class="text-center text-muted">No hay panaderías registradas.</td></tr>';
+    }catch(error){notify('No se pudieron cargar los reportes: '+error.message);}
+  }
+  $('#adminActivityAlerts')?.addEventListener('click',async(event)=>{const button=event.target.closest('[data-admin-read-alert]');if(!button)return;try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.adminReadAlert})});await refreshAdminActivity();}catch(error){notify(error.message);}});
+  document.addEventListener('click',(event)=>{const go=event.target.closest('[data-admin-go]');if(go){pageNavigate(go.dataset.adminGo);return;}const focus=event.target.closest('[data-admin-focus]');if(focus){const targetId=focus.dataset.adminFocus;pageNavigate('administracion');requestAnimationFrame(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth',block:'center'}));}});
+  $('#refreshAdminActivity')?.addEventListener('click',refreshAdminActivity);
+  $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
+    async function refreshNotifications(){
+    if(!window.PanaderiaAuth?.user)return;
+    try{
+      const result=await window.PanaderiaAuth.api('/api/notifications');
+      const items=result.notifications||[];
+      const unread=items.filter(n=>!n.read_at).length;
+      const badge=$('#notificationNavCount');if(badge){badge.textContent=unread;badge.classList.toggle('d-none',unread===0);}
+      const list=$('#notificationsList');if(!list)return;
+      list.innerHTML=items.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between align-items-start gap-3"><div><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span><h3 class="mt-2">'+escapeHTML(n.title)+'</h3><p class="mb-2" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm" type="button" data-read-notification="'+escapeHTML(n.id)+'">Marcar leída</button>':'')+'</div></article>').join('')||'<article class="panel settings-card"><p class="text-muted mb-0">Todavía no tenés notificaciones.</p></article>';
+    }catch(error){console.warn('No se pudieron cargar notificaciones:',error.message);}
+  }
+  $('#adminNotificationForm')?.addEventListener('submit',async(event)=>{
+    event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
+    try{
+      const target=$('#adminNotificationTarget')?.value||'all';
+      const title=$('#adminNotificationTitle')?.value.trim()||'';
+      const message=$('#adminNotificationMessage')?.value.trim()||'';
+      if(!title||!message)throw new Error('Completá el título y el mensaje antes de enviar.');
+      button.innerHTML='<i class="bi bi-hourglass-split"></i> Enviando…';
+      const result=await window.PanaderiaAuth.api('/api/admin/notifications',{method:'POST',body:JSON.stringify({businessId:target,title,message})});
+      $('#adminNotificationTitle').value='';$('#adminNotificationMessage').value='';
+      notify('Notificación enviada correctamente a '+result.recipients+' usuario(s).');
+    }catch(error){notify('No se pudo enviar la notificación: '+error.message);}finally{button.disabled=false;button.innerHTML='<i class="bi bi-send"></i> Enviar notificación';}
+  });
+  $('#notificationsList')?.addEventListener('click',async(event)=>{
+    const button=event.target.closest('[data-read-notification]');if(!button)return;
+    try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.readNotification})});await refreshNotifications();}
+    catch(error){notify(error.message);}
+  });
+  $('#refreshNotificationsButton')?.addEventListener('click',refreshNotifications);
+    $('#simpleForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
     if (!name && simpleModalMode !== 'employee-payment') return;
@@ -1284,7 +1512,7 @@ input[type="date"], input[type="month"] {
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId: window.PanaderiaAuth.selectedBusinessId }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -1351,11 +1579,27 @@ input[type="date"], input[type="month"] {
     renderDashboard(); renderMovements(); renderInvoices(); renderEmployees(); renderAdminPanel(); renderSettings(); updateCounters();
   }
 
+  let cloudBusinesses = [];
+  function renderCloudBusinesses() {
+    const body = $('#businessesTableBody'); if (!body) return;
+    body.innerHTML = cloudBusinesses.map((b) => `<tr><td><strong>${escapeHTML(b.name)}</strong><small class="table-sub-text">${escapeHTML(b.slug || '')}</small></td><td>${Number(b.active_user_count || 0)} / ${Number(b.user_count || 0)}</td><td class="amount-income">${money(b.recorded_income)}</td><td class="amount-expense">${money(b.recorded_expenses)}</td><td>${money(b.sales_total)}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Inactiva'}</span></td><td><div class="table-actions"><button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="${escapeHTML(b.id)}">Abrir</button><button class="icon-action" type="button" data-edit-business="${escapeHTML(b.id)}" title="Editar panadería"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-business="${escapeHTML(b.id)}" title="Eliminar panadería"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
+  }
+  async function refreshCloudBusinesses() {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
+    try {
+      const result = await window.PanaderiaAuth.api('/api/admin/businesses'); cloudBusinesses = result.businesses || [];
+      const selected = cloudBusinesses.find((b) => b.id === window.PanaderiaAuth.selectedBusinessId && b.active);
+      if (!selected) window.PanaderiaAuth.selectBusiness(cloudBusinesses.find((b) => b.active)?.id || '');
+      renderCloudBusinesses();
+      const target=$('#adminNotificationTarget');
+      if(target){const selected=target.value;target.innerHTML='<option value="all">Todas las panaderías y sus usuarios</option>'+cloudBusinesses.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');if([...target.options].some(o=>o.value===selected))target.value=selected;}
+    } catch (error) { console.warn('No se pudieron cargar las panaderías:', error.message); }
+  }
   async function refreshCloudUsers() {
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
-    renderSettings(); renderAdminPanel();
+    renderSettings(); renderAdminPanel(); await refreshCloudBusinesses();
   }
 
   async function refreshCloudData() {
@@ -1372,7 +1616,7 @@ input[type="date"], input[type="month"] {
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
       else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
       delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
-      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
+      if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(()=>{refreshCloudData();refreshNotifications();if(window.PanaderiaAuth?.user?.isPlatformAdmin===true)refreshAdminActivity(true);}, 10000); await refreshNotifications();
     } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
@@ -1386,8 +1630,15 @@ input[type="date"], input[type="month"] {
   $('#movementEndDate').value = todayISO();
   setInterval(updateGreeting, 60000);
   renderAll();
-  const hashPage = window.location.hash.replace('#', '');
-  if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+  const applyInitialRoute = (user) => {
+    const hashPage = window.location.hash.replace('#', '');
+    if (user?.isPlatformAdmin === true) pageNavigate(['administracion','accesos-rapidos','actividad','reportes-globales'].includes(hashPage)?hashPage:'administracion');
+    else if (['dashboard', 'movimientos', 'notas', 'empleados', 'administracion', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
+    else pageNavigate('dashboard');
+  };
+  if (window.PanaderiaAuthReady && typeof window.PanaderiaAuthReady.then === 'function') {
+    window.PanaderiaAuthReady.then(applyInitialRoute).catch(() => applyInitialRoute(null));
+  } else applyInitialRoute(window.PanaderiaAuth?.user || null);
 })();
 
   if ('serviceWorker' in navigator) {
