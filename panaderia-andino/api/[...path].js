@@ -16,6 +16,12 @@ async function ensureSchema() {
   await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_bakeries (id UUID PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', ruc TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE, archived BOOLEAN NOT NULL DEFAULT FALSE, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_audit_log (id BIGSERIAL PRIMARY KEY, actor_id UUID, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bakery_id UUID REFERENCES app_bakeries(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check`;
+  await sql`ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('admin','owner','supervisor','employee'))`;
+  await sql`CREATE INDEX IF NOT EXISTS app_users_bakery_idx ON app_users(bakery_id,role,active)`;
+  await sql`CREATE TABLE IF NOT EXISTS app_bakery_state (bakery_id UUID PRIMARY KEY REFERENCES app_bakeries(id) ON DELETE CASCADE, data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  await sql`CREATE TABLE IF NOT EXISTS app_notifications (id UUID PRIMARY KEY, bakery_id UUID REFERENCES app_bakeries(id) ON DELETE CASCADE, title TEXT NOT NULL, message TEXT NOT NULL, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
   return sql;
 }
@@ -81,7 +87,7 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active FROM app_users WHERE id = ${data.sub} LIMIT 1`;
+  const rows = await db()`SELECT id, name, email, role, active, bakery_id FROM app_users WHERE id = ${data.sub} LIMIT 1`;
   return rows[0] && rows[0].active ? rows[0] : null;
 }
 async function authenticated(req, res, adminOnly = false) {
@@ -94,7 +100,7 @@ async function authenticated(req, res, adminOnly = false) {
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
-const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, createdAt:u.created_at || u.createdAt });
+const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, bakeryId:u.bakery_id || u.bakeryId || null, createdAt:u.created_at || u.createdAt });
 
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
@@ -137,7 +143,7 @@ module.exports = async function handler(req, res) {
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
-      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active}},{'Set-Cookie':sessionCookie(u.id)});
+      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active,bakeryId:u.bakery_id || null}},{'Set-Cookie':sessionCookie(u.id)});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
       // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
@@ -195,11 +201,16 @@ module.exports = async function handler(req, res) {
         const phone=String(input.phone||'').trim().slice(0,40);
         const address=String(input.address||'').trim().slice(0,180);
         const ruc=String(input.ruc||'').trim().slice(0,30);
-        if (!name || !owner || (email && !validEmail(email))) return send(res,400,{error:'Ingresá el nombre, responsable y un correo válido.'});
-        const id=crypto.randomUUID();
+        const ownerPassword=input.password;
+        if (!name || !owner || !validEmail(email) || !validPassword(ownerPassword)) return send(res,400,{error:'Ingresá nombre, responsable, correo de acceso válido y contraseña de al menos 12 caracteres.'});
+        const duplicate=await sql`SELECT id FROM app_users WHERE email=${email} LIMIT 1`;
+        if (duplicate.length) return send(res,409,{error:'Ese correo ya tiene una cuenta. Usá otro correo.'});
+        const id=crypto.randomUUID(), userId=crypto.randomUUID();
+        const passwordHash=await hashPassword(ownerPassword);
         const rows=await sql`INSERT INTO app_bakeries(id,name,owner,email,phone,address,ruc,created_by) VALUES(${id},${name},${owner},${email},${phone},${address},${ruc},${admin.id}) RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','bakery',${id},${JSON.stringify({name,owner})}::jsonb)`;
-        return send(res,201,{bakery:rows[0]});
+        await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${userId},${owner},${email},${passwordHash},'owner',TRUE,${id})`;
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','bakery',${id},${JSON.stringify({name,owner,ownerUserId:userId})}::jsonb)`;
+        return send(res,201,{bakery:rows[0],owner:{id:userId,name:owner,email,role:'owner'}});
       }
       if (req.method === 'PATCH') {
         const input=body(req); const id=String(input.id||'');
@@ -261,6 +272,61 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/bakery/users') {
+      const user=await authenticated(req,res,false); if(!user) return;
+      if (!user.bakery_id || !['owner','supervisor'].includes(user.role)) return send(res,403,{error:'No tenés permisos para administrar usuarios de una panadería.'});
+      const sql=db();
+      if(req.method==='GET') {
+        const rows=await sql`SELECT id,name,email,role,active,created_at,bakery_id FROM app_users WHERE bakery_id=${user.bakery_id} ORDER BY created_at ASC`;
+        return send(res,200,{users:rows.map(publicUser)});
+      }
+      if(req.method==='POST') {
+        const input=body(req), name=String(input.name||'').trim().slice(0,70), email=String(input.email||'').trim().toLowerCase(), password=input.password;
+        const role=input.role==='supervisor' && user.role==='owner'?'supervisor':'employee';
+        if(!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña de al menos 12 caracteres.'});
+        const duplicate=await sql`SELECT id FROM app_users WHERE email=${email} LIMIT 1`; if(duplicate.length) return send(res,409,{error:'Ese correo ya está registrado.'});
+        const id=crypto.randomUUID(), hash=await hashPassword(password);
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${user.bakery_id}) RETURNING id,name,email,role,active,created_at,bakery_id`;
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'created','user',${id},${JSON.stringify({name,email,role,bakeryId:user.bakery_id})}::jsonb)`;
+        return send(res,201,{user:publicUser(rows[0])});
+      }
+      if(req.method==='PATCH') {
+        const input=body(req); if(!input.id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
+        const allowed=user.role==='owner' ? ['supervisor','employee'] : ['employee'];
+        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${input.id} AND bakery_id=${user.bakery_id} AND role=ANY(${allowed}) RETURNING id,name,email,role,active,created_at,bakery_id`;
+        if(!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no podés modificarlo.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'status_changed','user',${input.id},${JSON.stringify({active:input.active})}::jsonb)`;
+        return send(res,200,{user:publicUser(rows[0])});
+      }
+      if(req.method==='DELETE') {
+        const input=body(req), allowed=user.role==='owner'?['supervisor','employee']:['employee'];
+        const rows=await sql`DELETE FROM app_users WHERE id=${input.id} AND bakery_id=${user.bakery_id} AND role=ANY(${allowed}) RETURNING id`;
+        if(!rows.length) return send(res,404,{error:'No se encontró ese usuario o no podés eliminarlo.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'deleted','user',${input.id},'{}'::jsonb)`;
+        return send(res,200,{ok:true});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/notifications') {
+      const user=await authenticated(req,res,false); if(!user) return;
+      const sql=db();
+      if(req.method==='GET') {
+        const rows=user.role==='admin'
+          ? await sql`SELECT n.id,n.bakery_id,n.title,n.message,n.created_at,b.name AS bakery_name FROM app_notifications n LEFT JOIN app_bakeries b ON b.id=n.bakery_id ORDER BY n.created_at DESC LIMIT 200`
+          : await sql`SELECT id,title,message,created_at FROM app_notifications WHERE bakery_id IS NULL OR bakery_id=${user.bakery_id} ORDER BY created_at DESC LIMIT 100`;
+        return send(res,200,{notifications:rows});
+      }
+      if(req.method==='POST' && user.role==='admin') {
+        const input=body(req), title=String(input.title||'').trim().slice(0,120), message=String(input.message||'').trim().slice(0,3000), bakeryId=input.bakeryId||null;
+        if(!title || !message) return send(res,400,{error:'Completá el título y el mensaje.'});
+        if(bakeryId) { const found=await sql`SELECT id FROM app_bakeries WHERE id=${bakeryId} AND archived=FALSE`; if(!found.length) return send(res,404,{error:'Panadería no encontrada.'}); }
+        const id=crypto.randomUUID();
+        await sql`INSERT INTO app_notifications(id,bakery_id,title,message,created_by) VALUES(${id},${bakeryId},${title},${message},${user.id})`;
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'created','notification',${id},${JSON.stringify({title,bakeryId})}::jsonb)`;
+        return send(res,201,{ok:true,id});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
@@ -278,16 +344,27 @@ module.exports = async function handler(req, res) {
     if (path === '/api/data') {
       const user = await authenticated(req,res,false); if (!user) return;
       const sql=db();
-      if (req.method==='GET') {
-        const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`;
-        return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null});
-      }
-      if (req.method==='PUT') {
-        const input=body(req); if (!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
-        const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
-        if (Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-        const saved=await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-        return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+      if(user.role==='admin') {
+        if (req.method==='GET') { const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`; return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null}); }
+        if (req.method==='PUT') {
+          const input=body(req); if(!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+          const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
+          if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+          const saved=await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+          return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+        }
+      } else {
+        if(!user.bakery_id) return send(res,403,{error:'Tu cuenta todavía no está vinculada a una panadería. Contactá al administrador.'});
+        const bakery=await sql`SELECT id FROM app_bakeries WHERE id=${user.bakery_id} AND active=TRUE AND archived=FALSE LIMIT 1`;
+        if(!bakery.length) return send(res,403,{error:'El acceso a esta panadería está suspendido. Contactá al administrador.'});
+        if(req.method==='GET') { const rows=await sql`SELECT data,updated_at FROM app_bakery_state WHERE bakery_id=${user.bakery_id} LIMIT 1`; return send(res,200,{data:rows[0]?.data || null,updatedAt:rows[0]?.updated_at || null}); }
+        if(req.method==='PUT') {
+          const input=body(req); if(!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+          const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
+          if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+          const saved=await sql`INSERT INTO app_bakery_state(bakery_id,data,updated_by,updated_at) VALUES(${user.bakery_id},${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(bakery_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+          return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+        }
       }
       return send(res,405,{error:'Método no permitido.'});
     }
