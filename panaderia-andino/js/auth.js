@@ -131,9 +131,10 @@
 
   window.PanaderiaAuthReady = (async () => {
     try {
+      // Recovery must take precedence over an existing or stale browser session.
+      if (recoveryToken) { showRecovery(); return null; }
       const current = await api('/api/auth/me');
       if (current.authenticated && current.user) { establish(current.user); return current.user; }
-      if (recoveryToken) { showRecovery(); return null; }
       const status = await api('/api/auth/status');
       if (!status.adminExists && activationToken) showSetup();
       else if (!status.adminExists) showLogin('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
