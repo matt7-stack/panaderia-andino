@@ -87,6 +87,7 @@ async function authenticated(req, res, adminOnly = false) {
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
+  try { await db()\`UPDATE app_users SET last_seen_at=NOW() WHERE id=\${user.id}\`; } catch (_) {}
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
@@ -179,7 +180,12 @@ module.exports = async function handler(req, res) {
         }else if(item.entity_type==='user'){
           const restored=await sql`UPDATE app_users SET active=TRUE,session_version=session_version+1 WHERE id=${item.entity_id} AND is_platform_admin=FALSE RETURNING id`;
           if(!restored.length)return send(res,409,{error:'El usuario no existe o no se puede restaurar.'});
-        }else return send(res,409,{error:'Este tipo de comunicado requiere restauración manual.'});
+        }else if(item.entity_type==='announcement'){
+          const title=String(p.title||''),message=String(p.message||''),businessId=p.business_id||item.business_id||null;
+          if(!title||!message)return send(res,409,{error:'No se pudo recuperar el contenido del comunicado.'});
+          if(businessId)await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE`;
+          else await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE`;
+        }
         await sql`UPDATE app_trash SET restored_at=NOW() WHERE id=${id}`;
         return send(res,200,{ok:true});
       }
@@ -520,6 +526,7 @@ module.exports = async function handler(req, res) {
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.updated','notification',${id},${JSON.stringify({title,recipients:changed.length})}::jsonb)`;
           return send(res,200,{ok:true,updated:changed.length});
         }
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) SELECT 'announcement',${id},business_id,jsonb_build_object('title',title,'message',message,'created_at',created_at),${admin.id} FROM app_notifications WHERE id=${id} AND type='admin_message'`;
         const removed=await sql`DELETE FROM app_notifications AS target USING app_notifications AS seed WHERE seed.id::text=${id} AND target.type='admin_message' AND target.business_id IS NOT DISTINCT FROM seed.business_id AND target.created_at=seed.created_at AND target.title=seed.title AND target.message=seed.message RETURNING target.id`;
         if(!removed.length)return send(res,404,{error:'El comunicado ya no existe o fue eliminado.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.deleted','notification',${id},${JSON.stringify({recipients:removed.length})}::jsonb)`;
