@@ -200,7 +200,7 @@ module.exports = async function handler(req, res) {
         if(input.action==='renew'){
           const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
           const parsedDate=new Date(expiresAt+'T00:00:00Z');
-          if(!id||!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
+          if(!id||!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
             return send(res,400,{error:'Ingresá una fecha futura válida y un importe igual o mayor que cero.'});
           const rows=await sql`
             WITH renewed AS (
