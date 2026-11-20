@@ -22,6 +22,22 @@ async function ensureSchema() {
   await sql`CREATE INDEX IF NOT EXISTS app_users_bakery_idx ON app_users(bakery_id,role,active)`;
   await sql`CREATE TABLE IF NOT EXISTS app_bakery_state (bakery_id UUID PRIMARY KEY REFERENCES app_bakeries(id) ON DELETE CASCADE, data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
   await sql`CREATE TABLE IF NOT EXISTS app_notifications (id UUID PRIMARY KEY, bakery_id UUID REFERENCES app_bakeries(id) ON DELETE CASCADE, title TEXT NOT NULL, message TEXT NOT NULL, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+  // One-time migration: preserve the previous shared workspace for existing non-admin accounts.
+  const legacyUsers = await sql`SELECT id FROM app_users WHERE role<>'admin' AND bakery_id IS NULL LIMIT 1`;
+  if (legacyUsers.length) {
+    const legacyRows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
+    const legacyData = legacyRows[0]?.data && typeof legacyRows[0].data==='object' ? legacyRows[0].data : {};
+    const business = legacyData.business && typeof legacyData.business==='object' ? legacyData.business : {};
+    const bakeryId = crypto.randomUUID();
+    const bakeryName = String(business.name || 'Panadería existente').slice(0,100);
+    const ownerName = String(business.owner || 'Responsable').slice(0,100);
+    const bakeryEmail = String(business.email || '').slice(0,254);
+    const admins = await sql`SELECT id FROM app_users WHERE role='admin' ORDER BY created_at ASC LIMIT 1`;
+    await sql`INSERT INTO app_bakeries(id,name,owner,email,phone,address,ruc,created_by) VALUES(${bakeryId},${bakeryName},${ownerName},${bakeryEmail},${String(business.phone||'').slice(0,40)},${String(business.address||'').slice(0,180)},${String(business.ruc||'').slice(0,30)},${admins[0]?.id || null})`;
+    await sql`UPDATE app_users SET bakery_id=${bakeryId} WHERE role<>'admin' AND bakery_id IS NULL`;
+    await sql`INSERT INTO app_bakery_state(bakery_id,data,updated_at) VALUES(${bakeryId},${JSON.stringify(legacyData)}::jsonb,NOW()) ON CONFLICT(bakery_id) DO NOTHING`;
+    await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admins[0]?.id || null},'migrated','bakery',${bakeryId},'{"source":"legacy_shared_workspace"}'::jsonb)`;
+  }
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
   return sql;
 }
