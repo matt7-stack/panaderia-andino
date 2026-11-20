@@ -137,13 +137,18 @@ module.exports = async function handler(req, res) {
       const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
-      if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
+      if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) {
+        try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_blocked','authentication',NULL,${JSON.stringify({email,failures:Number(attempts[0].failures||0)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el bloqueo de acceso:',logError); }
+        return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
+      }
       const rows = await sql`SELECT id,name,email,password_hash,role,active,business_id,is_platform_admin,session_version FROM app_users WHERE lower(email)=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
+        try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
+      try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
       return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
@@ -186,6 +191,29 @@ module.exports = async function handler(req, res) {
         gitBranch: process.env.VERCEL_GIT_COMMIT_REF || null,
         readOnly: true
       });
+    }
+    if (path === '/api/admin/security') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const [counts,attempts,events]=await Promise.all([
+          sql`SELECT COUNT(*)::int AS total_users,COUNT(*) FILTER(WHERE active=TRUE)::int AS active_users,COUNT(*) FILTER(WHERE active=FALSE)::int AS inactive_users FROM app_users WHERE is_platform_admin=FALSE`,
+          sql`SELECT email,failures,locked_until,updated_at FROM app_login_attempts WHERE failures>0 ORDER BY updated_at DESC LIMIT 100`,
+          sql`SELECT l.id,l.action,l.details,l.ip_address,l.created_at,u.name AS user_name,u.email AS user_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id WHERE l.action IN ('auth.login_success','auth.login_failed','auth.login_blocked') ORDER BY l.created_at DESC LIMIT 100`
+        ]);
+        const totals=await sql`SELECT COUNT(*) FILTER(WHERE action='auth.login_success' AND created_at>NOW()-INTERVAL '24 hours')::int AS successful_24h,COUNT(*) FILTER(WHERE action IN ('auth.login_failed','auth.login_blocked') AND created_at>NOW()-INTERVAL '24 hours')::int AS failed_24h FROM app_audit_logs WHERE action IN ('auth.login_success','auth.login_failed','auth.login_blocked')`;
+        return send(res,200,{summary:{...(counts[0]||{}),...(totals[0]||{}),locked_accounts:attempts.filter(x=>x.locked_until&&new Date(x.locked_until).getTime()>Date.now()).length},attempts,events});
+      }
+      if(req.method==='POST'){
+        const input=body(req),userId=String(input.userId||'');
+        if(!userId||userId===admin.id)return send(res,400,{error:'Seleccioná otro usuario. No podés revocar tu propia sesión desde este apartado.'});
+        const rows=await sql`UPDATE app_users SET session_version=session_version+1 WHERE id=${userId} AND is_platform_admin=FALSE RETURNING id,name,email,business_id`;
+        if(!rows.length)return send(res,404,{error:'No se encontró el usuario o no se puede revocar su sesión.'});
+        const target=rows[0];
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${target.business_id||null},${admin.id},'auth.sessions_revoked','user',${target.id},${JSON.stringify({name:target.name,email:target.email})}::jsonb)`;
+        return send(res,200,{ok:true,message:'Se revocaron las sesiones activas del usuario.',user:{id:target.id,name:target.name,email:target.email}});
+      }
+      return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/admin/businesses') {
       const admin=await authenticated(req,res,true); if(!admin) return;
