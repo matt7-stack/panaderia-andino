@@ -69,6 +69,11 @@ body.platform-admin .nav-menu [data-page-link="dashboard"]{display:none!importan
 body.platform-admin .brand{justify-content:center}
 body.platform-admin .brand-name,body.platform-admin .brand-caption{display:none!important}
 .brand-icon-only{justify-content:center;min-height:66px}
+.nav-menu .admin-menu-primary{margin-top:8px;border-radius:10px;background:#f4eadf;color:#67452f;font-weight:750}
+.nav-menu .admin-menu-shortcut{border-radius:10px}
+.nav-menu .nav-menu-hint{display:block;margin-left:auto;color:#a58b72;font-size:8px;font-weight:800;letter-spacing:.6px}
+body.platform-admin .nav-menu .admin-menu-primary{background:#ead8c5;color:#553721}
+
 .brand-icon-only .brand-mark{margin:0}@keyframes pageIn{from{opacity:.45;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:23px}
 .eyebrow{margin:0 0 6px;color:#a77a55;font-size:9px;font-weight:700;letter-spacing:1.6px}
@@ -191,6 +196,19 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 }
 
 [hidden]{display:none!important}
+/* Panel principal del administrador de plataforma */
+.admin-welcome{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:190px;margin-bottom:28px;padding:30px 34px;border-radius:20px;background:linear-gradient(120deg,#39271f 0%,#68442f 58%,#8c6243 100%);color:#fff;box-shadow:0 14px 34px rgba(58,38,27,.16);overflow:hidden}
+.admin-welcome-copy{max-width:680px}.admin-welcome-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;color:#f1d6b6;font-size:10px;font-weight:800;letter-spacing:1.5px}
+.admin-welcome h1{margin:0;color:#fff;font-family:'Playfair Display',serif;font-size:clamp(26px,3vw,36px);font-weight:700}.admin-welcome p{max-width:600px;margin:8px 0 18px;color:#f2e8df;font-size:13px;line-height:1.6}
+.admin-welcome-actions{display:flex;gap:9px;flex-wrap:wrap}.admin-welcome-art{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:170px;color:#f0d6ba}.admin-welcome-art i{font-size:74px;opacity:.9}.admin-welcome-art span{font-size:9px;font-weight:800;letter-spacing:1.3px}
+.admin-section-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 13px}.admin-section-heading h2{margin:0;color:var(--brown-950);font-size:19px;font-weight:750}.admin-section-heading p:not(.eyebrow){margin:4px 0 0;color:var(--muted);font-size:11px}
+.admin-home-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:26px}
+.admin-home-shortcut{display:grid;grid-template-columns:46px 1fr;grid-template-rows:auto auto;align-items:center;column-gap:12px;min-height:83px;padding:15px;border:1px solid var(--border,#eadfd2);border-radius:14px;background:var(--surface,#fff);text-align:left;box-shadow:0 4px 14px rgba(65,42,24,.035);transition:transform .18s,border-color .18s,box-shadow .18s}
+.admin-home-shortcut:hover{transform:translateY(-2px);border-color:#c9a77f;box-shadow:0 9px 22px rgba(65,42,24,.08)}
+.admin-home-icon{grid-row:1/3;display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:#f5eadc;color:#87552d;font-size:19px}
+.admin-home-shortcut strong{align-self:end;color:var(--text,#3d3027);font-size:12px}.admin-home-shortcut small{align-self:start;color:var(--muted,#81756b);font-size:10px}
+@media(max-width:760px){.admin-welcome{padding:23px;min-height:0}.admin-welcome-art{min-width:70px}.admin-welcome-art i{font-size:44px}.admin-welcome-art span{display:none}.admin-home-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-section-heading{align-items:center}}
+@media(max-width:420px){.admin-welcome-art{display:none}.admin-home-shortcuts{gap:8px}.admin-home-shortcut{padding:11px;grid-template-columns:38px 1fr;column-gap:8px}.admin-home-icon{width:36px;height:36px;font-size:16px}}
 /* Centro de accesos rápidos del administrador */
 .admin-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .admin-quick-card{display:flex;align-items:center;gap:14px;min-width:0;min-height:112px;padding:19px;border:1px solid var(--border,#eadfd2);border-radius:16px;background:var(--surface,#fff);color:var(--text,#3d3027);text-align:left;box-shadow:0 5px 18px rgba(65,42,24,.045);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
@@ -336,8 +354,8 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#notas" data-page-link="notas"><i class="bi bi-receipt-cutoff"></i><span>Notas</span><span class="nav-count" id="invoiceNavCount">0</span></a>
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
-        <a class="nav-link" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
-        <a class="nav-link" href="#accesos-rapidos" data-page-link="accesos-rapidos" id="adminQuickNav" hidden><i class="bi bi-lightning-charge-fill"></i><span>Accesos rápidos</span></a>
+        <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administración</span></a>
+        <a class="nav-link admin-menu-shortcut" href="#accesos-rapidos" data-page-link="accesos-rapidos" id="adminQuickNav" hidden><i class="bi bi-lightning-charge-fill"></i><span>Atajos rápidos</span><span class="nav-menu-hint">CENTRO DE HERRAMIENTAS</span></a>
         <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
@@ -415,7 +433,19 @@ input[type="date"], input[type="month"] {
 
         <!-- ADMINISTRACIÓN -->
         <section class="page-view" id="page-administracion" data-page="administracion">
-          <div class="page-heading"><div><p class="eyebrow">CONTROL Y SEGURIDAD</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Administración</h1><p class="page-subtitle">Herramientas para supervisar el sistema y administrar el negocio.</p></div></div>
+          <section class="admin-welcome">
+            <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Panel de administración</h1><p>Gestioná todas las panaderías, usuarios, comunicaciones y actividad desde un solo lugar.</p><div class="admin-welcome-actions"><button class="btn btn-light btn-sm" type="button" data-admin-go="accesos-rapidos"><i class="bi bi-lightning-charge-fill"></i> Ver atajos rápidos</button><button class="btn btn-outline-light btn-sm" type="button" data-admin-focus="businessesTableBody"><i class="bi bi-shop"></i> Gestionar panaderías</button></div></div>
+            <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
+          </section>
+          <div class="admin-section-heading"><div><p class="eyebrow">GESTIÓN DIARIA</p><h2>Accesos directos</h2><p>Las tareas más utilizadas, a un solo clic.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="accesos-rapidos">Ver todos <i class="bi bi-arrow-right"></i></button></div>
+          <div class="admin-home-shortcuts">
+            <button type="button" class="admin-home-shortcut" data-admin-focus="businessesTableBody"><span class="admin-home-icon"><i class="bi bi-shop-window"></i></span><strong>Panaderías</strong><small>Crear, editar y supervisar</small></button>
+            <button type="button" class="admin-home-shortcut" data-admin-focus="platformUsersPanel"><span class="admin-home-icon"><i class="bi bi-people"></i></span><strong>Usuarios y permisos</strong><small>Altas y control de acceso</small></button>
+            <button type="button" class="admin-home-shortcut" data-admin-focus="adminNotificationForm"><span class="admin-home-icon"><i class="bi bi-send"></i></span><strong>Notificaciones</strong><small>Enviar comunicados</small></button>
+            <button type="button" class="admin-home-shortcut" data-admin-go="actividad"><span class="admin-home-icon"><i class="bi bi-shield-check"></i></span><strong>Actividad</strong><small>Auditoría y alertas</small></button>
+            <button type="button" class="admin-home-shortcut" data-admin-go="reportes-globales"><span class="admin-home-icon"><i class="bi bi-bar-chart-line"></i></span><strong>Reportes</strong><small>Resultados globales</small></button>
+            <button type="button" class="admin-home-shortcut" data-admin-go="accesos-rapidos"><span class="admin-home-icon"><i class="bi bi-grid"></i></span><strong>Todos los atajos</strong><small>Centro de herramientas</small></button>
+          </div>
           <div class="settings-grid mb-3">
             <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-shield-check"></i> Seguridad y auditoría</h3><p>Supervisá cambios, accesos y acciones registradas en toda la plataforma.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="actividad">Abrir auditoría y alertas</button></article>
             <article class="panel settings-card"><div class="panel-heading"><div><h3><i class="bi bi-graph-up"></i> Rendimiento global</h3><p>Compará ingresos, gastos y actividad de las panaderías registradas.</p></div></div><button class="btn btn-outline-bakery btn-sm" type="button" data-admin-go="reportes-globales">Ver reportes globales</button></article>
