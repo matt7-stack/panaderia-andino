@@ -1325,8 +1325,8 @@ img,svg,canvas,video{max-width:100%}
     selectedPage = page;
     updateAdminSupportBanner();
     if (page === 'admin-support') loadAdminSupportSettings();
-    $('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
-    $$('.nav-menu [data-page-link]').forEach((link) => {
+    $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
+    $$$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
       if (active) link.setAttribute('aria-current', 'page');
@@ -2447,7 +2447,7 @@ img,svg,canvas,video{max-width:100%}
     document.body.classList.toggle('admin-support-mode',visible);
     // En asistencia se habilitan los módulos operativos; al salir se ocultan nuevamente.
     const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
-    $('.nav-menu [data-page-link]').forEach(link=>{
+    $$('.nav-menu [data-page-link]').forEach(link=>{
       if(businessPages.includes(link.dataset.pageLink)) link.hidden=user?.isPlatformAdmin===true?!visible:false;
     });
     const monthPicker=$('#globalMonthPicker');
