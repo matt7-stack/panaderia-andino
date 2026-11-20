@@ -451,7 +451,7 @@ module.exports = async function handler(req, res) {
       const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('businessId')||'').trim();
       if(!businessId) return send(res,400,{error:'Falta identificar la panadería.'});
       const sql=db();
-      const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
+      const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
       if(!rows.length) return send(res,404,{error:'No se encontró una panadería activa.'});
       const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
       const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
@@ -459,7 +459,7 @@ module.exports = async function handler(req, res) {
         description:String(p.description||'').slice(0,300),price:Math.max(0,Number(p.price)||0),
         available:typeof p.available==='boolean'?p.available:Number(p.stock||0)>0
       })).filter(p=>p.name);
-      return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].data?.updatedAt||null},{'Cache-Control':'no-store, max-age=0'});
+      return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
