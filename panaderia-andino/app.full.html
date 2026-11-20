@@ -183,7 +183,7 @@ h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-fa
           <section class="settings-panel" id="settings-preferences" data-settings-panel="preferences"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Preferencias generales</h3><p>Ajustá cómo se muestra la información.</p></div></div><form id="preferencesForm" class="settings-form"><div class="preference-row"><div><strong>Moneda</strong><p>Moneda utilizada para mostrar importes.</p></div><span class="preference-select preference-static">Guaraníes (Gs.)</span></div><div class="preference-row"><div><strong>Alertas de facturas pendientes</strong><p>Mostrar avisos cuando existan saldos pendientes.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefInvoiceAlerts"></div></div><div class="preference-row"><div><strong>Confirmar antes de eliminar</strong><p>Solicitar confirmación antes de borrar registros.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefConfirmDelete"></div></div><div class="preference-row"><div><strong>Formato de fecha</strong><p>Formato utilizado en las tablas.</p></div><select class="form-select preference-select" id="prefDateFormat"><option value="es-PY">DD/MM/AAAA</option><option value="en-GB">DD/MM/AAAA (alternativo)</option><option value="en-US">MM/DD/AAAA</option></select></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar preferencias</button><button class="btn btn-outline-bakery" type="button" id="resetDemoData"><i class="bi bi-arrow-counterclockwise"></i> Restaurar datos de ejemplo</button></div></form></article></section>
         </section>
 
-        <footer class="page-footer"><span>© <span id="footerYear">2026</span> <span id="footerBusinessName">Panadería Andino</span></span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
+        <footer class="page-footer"><span>© 2026 Mattsystem</span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
       </div>
     </main>
   </div>
@@ -356,7 +356,6 @@ h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-fa
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
     $('#topUserName').textContent = state.business.owner || 'Administrador';
   }
 
@@ -580,7 +579,6 @@ h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-fa
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
