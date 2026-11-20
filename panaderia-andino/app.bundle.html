@@ -979,7 +979,9 @@ input[type="date"], input[type="month"] {
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true) return;
-    if (currentUser?.isPlatformAdmin === true && !['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos','actividad','reportes-globales'].includes(page)) page = 'administracion';
+    const platformPages=['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos','actividad','reportes-globales'];
+    const businessPages=['dashboard','movimientos','notas','notificaciones','empleados'];
+    if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
     if (currentUser?.isPlatformAdmin !== true && ['actividad','reportes-globales'].includes(page)) return;
     selectedPage = page;
