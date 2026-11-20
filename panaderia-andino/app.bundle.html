@@ -441,7 +441,12 @@ input[type="date"], input[type="month"] {
         <section class="page-view" id="page-notas" data-page="notas">
           <div class="page-heading"><div><p class="eyebrow">DOCUMENTOS DEL NEGOCIO</p><h1><i class="bi bi-receipt heading-page-icon"></i> Notas</h1><p class="page-subtitle">Registrá y consultá las notas emitidas a tus clientes.</p></div><button class="btn btn-bakery" type="button" id="newInvoiceButton"><i class="bi bi-plus-lg"></i> Nueva nota</button></div>
           
-          <section class="panel invoices-panel"><div class="invoice-toolbar"><div class="search-field"><i class="bi bi-search"></i><input type="search" id="invoiceSearch" placeholder="Buscar por número de nota o cliente..." aria-label="Buscar notas"></div></div><div class="table-responsive"><table class="table data-table invoice-table align-middle mb-0"><thead><tr><th>N.º NOTA</th><th>CLIENTE</th><th>FECHA</th><th class="text-end">TOTAL</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="invoicesTableBody"></tbody></table></div><div class="table-bottom"><span id="invoiceResultCount">Mostrando 0 notas</span></div><div class="empty-state d-none" id="invoicesEmpty"><i class="bi bi-receipt"></i><strong>No hay notas emitidas para mostrar</strong><span>Agregá una nota nueva o cambiá la búsqueda.</span></div></section>
+          <div class="invoice-summary-grid">
+            <article class="invoice-summary-card"><span class="invoice-summary-icon sales"><i class="bi bi-receipt"></i></span><div><small>TOTAL EMITIDO</small><strong id="invoiceTotalIssued">Gs. 0</strong><span>Notas registradas</span></div></article>
+            <article class="invoice-summary-card"><span class="invoice-summary-icon sales"><i class="bi bi-cash-stack"></i></span><div><small>TOTAL COBRADO</small><strong id="invoiceTotalPaid">Gs. 0</strong><span>Pagos recibidos</span></div></article>
+            <article class="invoice-summary-card"><span class="invoice-summary-icon pending"><i class="bi bi-clock-history"></i></span><div><small>SALDO PENDIENTE</small><strong id="invoiceTotalPending">Gs. 0</strong><span>Importe por cobrar</span></div></article>
+          </div>
+          <section class="panel invoices-panel"><div class="invoice-toolbar"><div class="search-field"><i class="bi bi-search"></i><input type="search" id="invoiceSearch" placeholder="Buscar por número de nota o cliente..." aria-label="Buscar notas"></div></div><div class="table-responsive"><table class="table data-table invoice-table align-middle mb-0"><thead><tr><th>N.º NOTA</th><th>CLIENTE</th><th>FECHA</th><th class="text-end">TOTAL</th><th>ESTADO</th><th class="text-end">SALDO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="invoicesTableBody"></tbody></table></div><div class="table-bottom"><span id="invoiceResultCount">Mostrando 0 notas</span></div><div class="empty-state d-none" id="invoicesEmpty"><i class="bi bi-receipt"></i><strong>No hay notas emitidas para mostrar</strong><span>Agregá una nota nueva o cambiá la búsqueda.</span></div></section>
           
         </section>
 
@@ -666,6 +671,9 @@ input[type="date"], input[type="month"] {
 
   <!-- MODAL NOTA -->
   <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bakery-modal"><div class="modal-header"><div><span class="modal-kicker">DOCUMENTO COMERCIAL</span><h2 class="modal-title" id="invoiceModalTitle">Nueva nota</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><form id="invoiceForm"><div class="modal-body"><input type="hidden" id="invoiceId"><input type="hidden" id="invoiceDirection" value="issued"><div class="row g-3"><div class="col-md-6"><label class="form-label" for="invoiceNumber">N.º de nota</label><input class="form-control" id="invoiceNumber" placeholder="00001" maxlength="5" pattern="[0-9]{5}" inputmode="numeric" required></div><div class="col-md-7"><label class="form-label" for="invoiceParty">Cliente / Proveedor</label><input class="form-control" id="invoiceParty" placeholder="Nombre o razón social" maxlength="100" required></div><div class="col-md-6"><label class="form-label" for="invoiceDate">Fecha</label><input class="form-control" type="date" id="invoiceDate" required></div><div class="col-md-6"><label class="form-label" for="invoiceAmount">Total (Gs.)</label><input class="form-control" id="invoiceAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="0" required></div><div class="col-12"><label class="form-label" for="invoiceDescription">Concepto <span class="optional-label">(opcional)</span></label><input class="form-control" id="invoiceDescription" maxlength="140" placeholder="Descripción de la venta o compra"></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-bakery"><i class="bi bi-check2"></i> Guardar nota</button></div></form></div></div></div>
+
+  <!-- MODAL REGISTRAR PAGO DE NOTA -->
+  <div class="modal fade" id="invoicePaymentModal" tabindex="-1" aria-labelledby="invoicePaymentModalTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bakery-modal"><div class="modal-header"><div><span class="modal-kicker">COBRO DE NOTA</span><h2 class="modal-title" id="invoicePaymentModalTitle">Registrar pago</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><form id="invoicePaymentForm"><div class="modal-body"><input type="hidden" id="paymentInvoiceId"><div class="info-note mb-3" id="paymentInvoiceInfo"><i class="bi bi-info-circle"></i><span>Ingresá el importe recibido para esta nota.</span></div><div class="row g-3"><div class="col-md-6"><label class="form-label" for="invoicePaymentAmount">Importe recibido (Gs.)</label><input class="form-control" id="invoicePaymentAmount" type="number" min="1" step="1" required></div><div class="col-md-6"><label class="form-label" for="invoicePaymentDate">Fecha del pago</label><input class="form-control" id="invoicePaymentDate" type="date" required></div><div class="col-12"><label class="form-label" for="invoicePaymentMethod">Método de pago</label><select class="form-select" id="invoicePaymentMethod" required></select></div></div></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-bakery"><i class="bi bi-check2"></i> Confirmar pago</button></div></form></div></div></div>
 
   <!-- MODAL CATEGORÍA / MÉTODO / USUARIO -->
   <div class="modal fade" id="simpleModal" tabindex="-1" aria-labelledby="simpleModalTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content bakery-modal"><div class="modal-header"><h2 class="modal-title" id="simpleModalTitle">Agregar</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><form id="simpleForm"><div class="modal-body" id="simpleModalFields"></div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-bakery">Guardar</button></div></form></div></div></div>
@@ -956,11 +964,14 @@ input[type="date"], input[type="month"] {
   const movementModalEl = $('#movementModal');
   const invoiceModalEl = $('#invoiceModal');
   const simpleModalEl = $('#simpleModal');
+  const invoicePaymentModalEl = $('#invoicePaymentModal');
   const movementModal = bootstrap.Modal.getOrCreateInstance(movementModalEl);
   const invoiceModal = bootstrap.Modal.getOrCreateInstance(invoiceModalEl);
+  const invoicePaymentModal = bootstrap.Modal.getOrCreateInstance(invoicePaymentModalEl);
   const simpleModal = bootstrap.Modal.getOrCreateInstance(simpleModalEl);
   const appToast = bootstrap.Toast.getOrCreateInstance($('#appToast'), { delay: 3000 });
   let activeInvoiceTab = 'issued';
+  let activePaymentInvoiceId = '';
   let simpleModalMode = '';
   let simpleModalData = {};
   let chartInstance = null;
@@ -1174,21 +1185,61 @@ input[type="date"], input[type="month"] {
     movementModal.show();
   }
 
+  function invoiceStatus(invoice) {
+    const total = Math.max(0, Number(invoice.amount || 0));
+    const paid = Math.min(total, Math.max(0, Number(invoice.paidAmount || 0)));
+    if (paid <= 0) return 'pending';
+    return paid >= total ? 'paid' : 'partial';
+  }
+  function invoiceStatusLabel(status) {
+    return status === 'paid' ? 'Pagada' : status === 'partial' ? 'Parcialmente pagada' : 'Pendiente';
+  }
   function renderInvoices() {
     const issued = state.invoices.filter((invoice) => invoice.direction === 'issued');
     activeInvoiceTab = 'issued';
     const search = $('#invoiceSearch').value.trim().toLowerCase();
-    const rows = issued
-      .filter((invoice) => !search || `${invoice.number} ${invoice.party} ${invoice.description || ''}`.toLowerCase().includes(search))
+    const rows = issued.filter((invoice) => !search || `${invoice.number} ${invoice.party} ${invoice.description || ''}`.toLowerCase().includes(search))
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-    $('#invoicesTableBody').innerHTML = rows.map((invoice) => `<tr>
-      <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
-      <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td><td class="text-end table-amount">${money(invoice.amount || 0)}</td>
-      <td><div class="table-actions"><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
-    </tr>`).join('');
+    const totalIssued = issued.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.amount || 0)), 0);
+    const totalPaid = issued.reduce((sum, invoice) => sum + Math.min(Math.max(0, Number(invoice.amount || 0)), Math.max(0, Number(invoice.paidAmount || 0))), 0);
+    $('#invoiceTotalIssued').textContent = money(totalIssued);
+    $('#invoiceTotalPaid').textContent = money(totalPaid);
+    $('#invoiceTotalPending').textContent = money(Math.max(0, totalIssued - totalPaid));
+    $('#invoicesTableBody').innerHTML = rows.map((invoice) => {
+      const status = invoiceStatus(invoice), remaining = outstanding(invoice);
+      return `<tr>
+        <td><span class="table-main-text">${escapeHTML(invoice.number)}</span>${invoice.description ? `<span class="table-sub-text">${escapeHTML(invoice.description)}</span>` : ''}</td>
+        <td>${escapeHTML(invoice.party)}</td><td>${dateFormat(invoice.date)}</td><td class="text-end table-amount">${money(invoice.amount || 0)}</td>
+        <td><span class="status-pill status-${status}">${invoiceStatusLabel(status)}</span></td><td class="text-end table-amount">${money(remaining)}</td>
+        <td><div class="table-actions">${remaining > 0 ? `<button class="icon-action" type="button" title="Registrar pago" aria-label="Registrar pago" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-cash-coin"></i></button>` : ''}<button class="icon-action" type="button" title="Ver historial de pagos" aria-label="Ver historial de pagos" data-payment-history="${escapeHTML(invoice.id)}"><i class="bi bi-clock-history"></i></button><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
+      </tr>`;
+    }).join('');
     $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
+  }
+  function openInvoicePaymentModal(id) {
+    const invoice = state.invoices.find((item) => item.id === id && item.direction === 'issued');
+    if (!invoice) { notify('No se encontró la nota seleccionada.'); return; }
+    const remaining = outstanding(invoice);
+    if (remaining <= 0) { notify('Esta nota ya está completamente pagada.'); return; }
+    activePaymentInvoiceId = invoice.id;
+    $('#invoicePaymentForm').reset();
+    $('#paymentInvoiceId').value = invoice.id;
+    $('#invoicePaymentDate').value = todayISO();
+    $('#invoicePaymentAmount').max = String(remaining);
+    $('#invoicePaymentAmount').value = remaining;
+    $('#invoicePaymentMethod').innerHTML = paymentOptions(state.paymentMethods[0] || '');
+    $('#paymentInvoiceInfo').innerHTML = `<i class="bi bi-info-circle"></i><span>Nota <strong>${escapeHTML(invoice.number)}</strong> · ${escapeHTML(invoice.party)}<br>Total: ${money(invoice.amount)} · Abonado: ${money(invoice.paidAmount || 0)} · Saldo: <strong>${money(remaining)}</strong></span>`;
+    invoicePaymentModal.show();
+  }
+  function showInvoicePaymentHistory(id) {
+    const invoice = state.invoices.find((item) => item.id === id);
+    if (!invoice) return;
+    const history = Array.isArray(invoice.paymentHistory) ? invoice.paymentHistory : [];
+    if (!history.length) { notify('Esta nota no tiene abonos registrados en el historial.'); return; }
+    const details = history.map((payment) => `${dateFormat(payment.date)} · ${payment.method || 'Sin método'} · ${money(payment.amount)}`).join('\n');
+    window.alert(`Historial de pagos · Nota ${invoice.number} · ${invoice.party}\n\n${details}\n\nTotal abonado: ${money(invoice.paidAmount || 0)}\nSaldo: ${money(outstanding(invoice))}`);
   }
 
   function openInvoiceModal(id = '', direction = 'issued') {
@@ -1380,16 +1431,40 @@ input[type="date"], input[type="month"] {
       notify('Completá el número de nota, el cliente o proveedor, la fecha y un total válido.'); return;
     }
     const existing = id ? state.invoices.find((item) => item.id === id) : null;
-    const invoice = { ...(existing || {}), id: id || makeId(), direction: $('#invoiceDirection').value, number: $('#invoiceNumber').value.trim(), party: $('#invoiceParty').value.trim(), date: $('#invoiceDate').value, description: $('#invoiceDescription').value.trim(), amount: Number($('#invoiceAmount').value), paidAmount: Number(existing?.paidAmount || 0) };
+    const paidAmount = Math.max(0, Number(existing?.paidAmount || 0));
+    const amount = Number($('#invoiceAmount').value);
+    if (amount < paidAmount) { notify('El total de la nota no puede ser menor que los pagos ya registrados.'); return; }
+    const invoice = { ...(existing || {}), id: id || makeId(), direction: $('#invoiceDirection').value, number: $('#invoiceNumber').value.trim(), party: $('#invoiceParty').value.trim(), date: $('#invoiceDate').value, description: $('#invoiceDescription').value.trim(), amount, paidAmount, status: paidAmount <= 0 ? 'pending' : paidAmount >= amount ? 'paid' : 'partial', paymentHistory: Array.isArray(existing?.paymentHistory) ? existing.paymentHistory : [] };
     const duplicate = state.invoices.some((item) => item.id !== id && item.direction === invoice.direction && item.number.toLowerCase() === invoice.number.toLowerCase());
     if (duplicate) { notify('Ya existe una nota con ese número en esta lista.'); return; }
     if (id) state.invoices = state.invoices.map((item) => item.id === id ? invoice : item);
     else state.invoices.push(invoice);
     activeInvoiceTab = invoice.direction; saveState(); invoiceModal.hide(); renderInvoices(); renderDashboard(); notify(id ? 'Nota actualizada correctamente.' : 'Nota registrada correctamente.');
   });
+  $('#invoicePaymentForm')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const invoice = state.invoices.find((item) => item.id === activePaymentInvoiceId && item.direction === 'issued');
+    if (!invoice) { notify('No se encontró la nota para registrar el pago.'); return; }
+    const amount = Number($('#invoicePaymentAmount').value), date = $('#invoicePaymentDate').value, method = $('#invoicePaymentMethod').value;
+    const remaining = outstanding(invoice);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > remaining || !date || !method) { notify('Ingresá un importe válido que no supere el saldo pendiente.'); return; }
+    const payment = { id: makeId(), amount, date, method, createdAt: new Date().toISOString() };
+    const paidAmount = Math.min(Number(invoice.amount || 0), Number(invoice.paidAmount || 0) + amount);
+    invoice.paymentHistory = [...(Array.isArray(invoice.paymentHistory) ? invoice.paymentHistory : []), payment];
+    invoice.paidAmount = paidAmount;
+    invoice.status = paidAmount >= Number(invoice.amount || 0) ? 'paid' : 'partial';
+    state.movements.push({ id: makeId(), description: `Cobro nota ${invoice.number} - ${invoice.party}`, amount, date, type: 'income', category: 'Ventas', payment: method, note: `Pago automático de nota ${invoice.number}`, invoiceId: invoice.id, invoicePaymentId: payment.id });
+    saveState(); invoicePaymentModal.hide(); renderInvoices(); renderDashboard(); renderMovements();
+    notify(`Pago de ${money(amount)} registrado como ingreso.`);
+    activePaymentInvoiceId = '';
+  });
   $('#invoicesTableBody')?.addEventListener('click', (event) => {
     const edit = event.target.closest('[data-edit-invoice]');
     const remove = event.target.closest('[data-delete-invoice]');
+    const pay = event.target.closest('[data-pay-invoice]');
+    const history = event.target.closest('[data-payment-history]');
+    if (pay) openInvoicePaymentModal(pay.dataset.payInvoice);
+    if (history) showInvoicePaymentHistory(history.dataset.paymentHistory);
     if (edit) openInvoiceModal(edit.dataset.editInvoice);
     if (remove) {
       const id = remove.dataset.deleteInvoice;
