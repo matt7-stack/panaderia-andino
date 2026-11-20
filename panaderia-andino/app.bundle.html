@@ -556,7 +556,7 @@ img,svg,canvas,video{max-width:100%}
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
         <a class="nav-link" href="#guia-uso" data-page-link="guia-uso"><i class="bi bi-book-half"></i><span>Guía de uso</span></a>
-        <a class="nav-link" href="https://wa.me/595987426497?text=Hola%2C%20necesito%20ayuda%20con%20el%20sistema%20de%20Panader%C3%ADa%20Andino." id="supportContactNav" data-support-contact-link target="_blank" rel="noopener noreferrer"><i class="bi bi-headset"></i><span>Contactar a soporte</span></a>
+        <a class="nav-link" href="https://wa.me/595987426497" id="supportContactNav" data-support-contact-link target="_blank" rel="noopener noreferrer"><i class="bi bi-headset"></i><span>Contactar a soporte</span></a>
         <a class="nav-link admin-only-menu" href="#admin-support" data-page-link="admin-support" id="adminSupportSettingsNav" hidden><i class="bi bi-headset"></i><span>Configuración de soporte</span></a>
       </nav>
 
@@ -764,7 +764,7 @@ img,svg,canvas,video{max-width:100%}
           <div id="notificationsList" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando notificaciones…</p></article></div>
         </section>
         <section class="page-view" id="page-configuracion" data-page="configuracion">
-          <div class="page-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h1><i class="bi bi-gear heading-page-icon"></i> Configuración</h1><p class="page-subtitle">Personalizá el sistema de tu panadería.</p></div></div>
+          <div class="page-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h1><i class="bi bi-gear heading-page-icon"></i> Configuración</h1><p class="page-subtitle">Personalizá el sistema de tu negocio.</p></div></div>
           <div class="settings-tabs" role="tablist" aria-label="Opciones de configuración">
             <button class="settings-tab active" type="button" data-settings-tab="business"><i class="bi bi-shop"></i> Datos del negocio</button>
             <button class="settings-tab" type="button" data-settings-tab="categories"><i class="bi bi-tags"></i> Categorías</button>
@@ -772,7 +772,7 @@ img,svg,canvas,video{max-width:100%}
             <button class="settings-tab" type="button" data-settings-tab="preferences"><i class="bi bi-sliders"></i> Preferencias</button>
           </div>
 
-          <section class="settings-panel active" id="settings-business" data-settings-panel="business"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Datos de la panadería</h3><p>Información que identifica a tu negocio.</p></div><span class="panel-heading-icon"><i class="bi bi-shop-window"></i></span></div><form id="businessForm" class="settings-form"><div class="business-logo-row"><div class="business-logo-preview" id="businessLogoPreview"><i class="bi bi-image"></i></div><div><strong>Identidad del negocio</strong><p>Podés cargar el logo de tu panadería.</p><label class="btn btn-outline-bakery btn-sm upload-button"><i class="bi bi-camera"></i> Cambiar logo<input id="businessLogo" type="file" accept="image/*" hidden></label></div></div><div class="row g-3"><div class="col-12"><label class="form-label" for="businessName">Nombre del negocio</label><input class="form-control" id="businessName" required maxlength="80"></div><div class="col-12"><label class="form-label" for="businessAddress">Dirección</label><input class="form-control" id="businessAddress" maxlength="120"></div><div class="col-md-6"><label class="form-label" for="businessPhone">Teléfono</label><input class="form-control" id="businessPhone" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessEmail">Correo electrónico</label><input class="form-control" id="businessEmail" type="email" maxlength="100"></div><div class="col-md-6"><label class="form-label" for="businessRuc">RUC</label><input class="form-control" id="businessRuc" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessOwner">Responsable</label><input class="form-control" id="businessOwner" maxlength="80"></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar cambios</button></div></form></article><article class="panel settings-side-card"><div class="panel-heading"><div><h3>Vista previa</h3><p>Así se verá la información principal.</p></div></div><div class="business-preview-card"><div class="preview-bread">🥐</div><h3 id="businessPreviewName">Mattsystem</h3><p id="businessPreviewAddress">Dirección de tu negocio</p><div><i class="bi bi-telephone"></i><span id="businessPreviewPhone">Teléfono</span></div><div><i class="bi bi-envelope"></i><span id="businessPreviewEmail">Correo electrónico</span></div></div><div class="info-note"><i class="bi bi-info-circle"></i> Los datos se guardan en la base de datos compartida y se sincronizan entre los dispositivos conectados.</div></article></div></section>
+          <section class="settings-panel active" id="settings-business" data-settings-panel="business"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Datos del negocio</h3><p>Información que identifica a tu negocio.</p></div><span class="panel-heading-icon"><i class="bi bi-shop-window"></i></span></div><form id="businessForm" class="settings-form"><div class="business-logo-row"><div class="business-logo-preview" id="businessLogoPreview"><i class="bi bi-image"></i></div><div><strong>Identidad del negocio</strong><p>Podés cargar el logo de tu negocio.</p><label class="btn btn-outline-bakery btn-sm upload-button"><i class="bi bi-camera"></i> Cambiar logo<input id="businessLogo" type="file" accept="image/*" hidden></label></div></div><div class="row g-3"><div class="col-12"><label class="form-label" for="businessName">Nombre del negocio</label><input class="form-control" id="businessName" required maxlength="80"></div><div class="col-12"><label class="form-label" for="businessAddress">Dirección</label><input class="form-control" id="businessAddress" maxlength="120"></div><div class="col-md-6"><label class="form-label" for="businessPhone">Teléfono</label><input class="form-control" id="businessPhone" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessEmail">Correo electrónico</label><input class="form-control" id="businessEmail" type="email" maxlength="100"></div><div class="col-md-6"><label class="form-label" for="businessRuc">RUC</label><input class="form-control" id="businessRuc" maxlength="30"></div><div class="col-md-6"><label class="form-label" for="businessOwner">Responsable</label><input class="form-control" id="businessOwner" maxlength="80"></div></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar cambios</button></div></form></article><article class="panel settings-side-card"><div class="panel-heading"><div><h3>Vista previa</h3><p>Así se verá la información principal.</p></div></div><div class="business-preview-card"><div class="preview-bread">🥐</div><h3 id="businessPreviewName"></h3><p id="businessPreviewAddress"></p><div><i class="bi bi-telephone"></i><span id="businessPreviewPhone"></span></div><div><i class="bi bi-envelope"></i><span id="businessPreviewEmail"></span></div></div><div class="info-note"><i class="bi bi-info-circle"></i> Los datos se guardan en la base de datos compartida y se sincronizan entre los dispositivos conectados.</div></article></div></section>
 
           <section class="settings-panel" id="settings-categories" data-settings-panel="categories"><div class="settings-grid"><article class="panel settings-card"><div class="panel-heading"><div><h3>Categorías de ingresos</h3><p>Clasificá el dinero que entra al negocio.</p></div><button class="btn btn-bakery btn-sm" type="button" data-add-category="income"><i class="bi bi-plus-lg"></i> Agregar</button></div><div class="category-list income-category-list" id="incomeCategoriesList"></div></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Categorías de gastos</h3><p>Organizá los costos y pagos del negocio.</p></div><button class="btn btn-bakery btn-sm" type="button" data-add-category="expense"><i class="bi bi-plus-lg"></i> Agregar</button></div><div class="category-list expense-category-list" id="expenseCategoriesList"></div></article></div></section>
 
@@ -1817,7 +1817,7 @@ img,svg,canvas,video{max-width:100%}
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
       const businessOptions = activeBusinesses.map((business) => '<option value="' + escapeHTML(business.id) + '">' + escapeHTML(business.name) + '</option>').join('');
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Panadería asignada</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná una panadería</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a la panadería seleccionada y no podrá administrar ni crear otras cuentas.</small>';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Negocio asignado</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná un negocio</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a la panadería seleccionada y no podrá administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -1960,7 +1960,7 @@ img,svg,canvas,video{max-width:100%}
   });
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod')?.addEventListener('click', () => openSimpleModal('payment'));
-  $('#addUserButton')?.addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses().catch(()=>{}); return; } openSimpleModal('user'); });
+  $('#addUserButton')?.addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá un negocio desde el apartado Negocios.'); refreshCloudBusinesses().catch(()=>{}); return; } openSimpleModal('user'); });
   $('#addEmployeeButton')?.addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton')?.addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
   $('#employeesTableBody')?.addEventListener('click', (event) => {
@@ -2082,7 +2082,7 @@ img,svg,canvas,video{max-width:100%}
       const email=prompt('Correo:',b.email||''); if(email===null)return;
       const ruc=prompt('RUC:',b.ruc||''); if(ruc===null)return;
       const ownerName=prompt('Responsable:',b.owner_name||''); if(ownerName===null)return;
-      try{await window.PanaderiaAuth.api('/api/admin/businesses',{method:'PATCH',body:JSON.stringify({id:b.id,name:name.trim(),address,phone,email,ruc,ownerName})});await refreshCloudBusinesses();notify('Datos de la panadería actualizados.');}
+      try{await window.PanaderiaAuth.api('/api/admin/businesses',{method:'PATCH',body:JSON.stringify({id:b.id,name:name.trim(),address,phone,email,ruc,ownerName})});await refreshCloudBusinesses();notify('Datos del negocio actualizados.');}
       catch(error){notify(error.message);}
     }
   });
@@ -2219,7 +2219,10 @@ img,svg,canvas,video{max-width:100%}
     const cfg={...defaultSupportSettings,...(settings||{})};
     const digits=String(cfg.phone||'').replace(/\D/g,'');
     link.hidden=window.PanaderiaAuth?.user?.isPlatformAdmin===true||cfg.enabled!==true||!digits;
-    link.href='https://wa.me/'+digits+'?text='+encodeURIComponent(cfg.message||defaultSupportSettings.message);
+    const businessName=String(window.PanaderiaAuth?.user?.isPlatformAdmin===true?'':(state?.business?.name||'')).trim();
+    const supportMessage=(cfg.message||defaultSupportSettings.message).trim();
+    const contextualMessage=(businessName?'Hola, soy de '+businessName+'. ':'')+supportMessage;
+    link.href='https://wa.me/'+digits+'?text='+encodeURIComponent(contextualMessage);
     link.setAttribute('aria-label','Contactar a '+(cfg.displayName||defaultSupportSettings.displayName)+' por WhatsApp');
   }
   async function loadSupportContact() {
@@ -2539,7 +2542,7 @@ img,svg,canvas,video{max-width:100%}
   async function openBusinessForSupport(button) {
     const businessId=button?.dataset.openBusiness;
     const business=cloudBusinesses.find(item=>item.id===businessId&&item.active);
-    if(!business){notify('La panadería no está disponible o se encuentra desactivada.');return;}
+    if(!business){notify('El negocio no está disponible o se encuentra desactivado.');return;}
     if(button.disabled)return;
     const original=button.innerHTML;
     button.disabled=true;
@@ -2547,7 +2550,7 @@ img,svg,canvas,video{max-width:100%}
     try{
       window.PanaderiaAuth.selectBusiness(business.id);
       await hydrateCloudData(true);
-      if(!cloudReady)throw new Error('No se pudo confirmar la carga de los datos de la panadería.');
+      if(!cloudReady)throw new Error('No se pudo confirmar la carga de los datos del negocio.');
       updateAdminSupportBanner();
       pageNavigate('dashboard');
       notify('Entraste al espacio de '+business.name+' en modo de asistencia.');
