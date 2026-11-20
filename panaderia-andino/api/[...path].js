@@ -103,8 +103,8 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const rows=user.is_platform_admin===true
-          ? await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by ORDER BY t.updated_at DESC LIMIT 200`
-          : await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by WHERE t.business_id=${user.business_id} ORDER BY t.updated_at DESC LIMIT 100`;
+          ? await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name,(SELECT COALESCE(json_agg(json_build_object('id',r.id,'message',r.message,'is_admin',r.is_admin,'created_at',r.created_at,'author_name',au.name) ORDER BY r.created_at),'[]'::json) FROM app_support_replies r JOIN app_users au ON au.id=r.author_user_id WHERE r.ticket_id=t.id) AS replies FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by ORDER BY t.updated_at DESC LIMIT 200`
+          : await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name,(SELECT COALESCE(json_agg(json_build_object('id',r.id,'message',r.message,'is_admin',r.is_admin,'created_at',r.created_at,'author_name',au.name) ORDER BY r.created_at),'[]'::json) FROM app_support_replies r JOIN app_users au ON au.id=r.author_user_id WHERE r.ticket_id=t.id) AS replies FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by WHERE t.business_id=${user.business_id} ORDER BY t.updated_at DESC LIMIT 100`;
         return send(res,200,{tickets:rows});
       }
       if(req.method==='POST'){
@@ -538,7 +538,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} ORDER BY n.created_at DESC LIMIT 100`;
+        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND CASE WHEN n.type='system_activity' OR n.type='admin_message' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
         return send(res,200,{notifications:rows});
       }
       if(req.method==='PATCH'){
