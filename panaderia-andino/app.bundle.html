@@ -643,7 +643,7 @@ img,svg,canvas,video{max-width:100%}
             <div class="panel-heading"><div><h3>Canal de contacto</h3><p>Los cambios se aplican a todas las cuentas operativas.</p></div><span class="panel-heading-icon"><i class="bi bi-whatsapp"></i></span></div>
             <form id="adminSupportSettingsForm" class="settings-form">
               <div class="row g-3">
-                <div class="col-12"><label class="form-label" for="supportWhatsappPhone">Número de WhatsApp</label><input class="form-control" id="supportWhatsappPhone" type="tel" inputmode="tel" maxlength="24" required placeholder="0987 426497"><small class="text-muted">Podés escribir el número local o con código internacional. Para Paraguay se convierte automáticamente a +595.</small></div>
+                <div class="col-12"><label class="form-label" for="supportWhatsappPhone">Número de WhatsApp</label><input class="form-control" id="supportWhatsappPhone" type="tel" inputmode="tel" maxlength="24" required placeholder="0987 426497" value="0987426497"><small class="text-muted">Podés escribir el número local o con código internacional. Para Paraguay se convierte automáticamente a +595.</small></div>
                 <div class="col-12"><label class="form-label" for="supportDisplayName">Nombre del soporte</label><input class="form-control" id="supportDisplayName" maxlength="80" required placeholder="Soporte Panadería Andino"></div>
                 <div class="col-12"><label class="form-label" for="supportWelcomeMessage">Mensaje inicial de WhatsApp</label><textarea class="form-control" id="supportWelcomeMessage" rows="3" maxlength="500" required placeholder="Hola, necesito ayuda con el sistema…"></textarea></div>
                 <div class="col-12"><label class="d-flex align-items-center gap-2"><input id="supportContactEnabled" type="checkbox" checked> <span><strong>Mostrar «Contactar a soporte» en el menú</strong><small class="d-block text-muted">Desactivá esta opción para ocultar el contacto a todos los clientes.</small></span></label></div>
@@ -1320,7 +1320,8 @@ img,svg,canvas,video{max-width:100%}
     if (currentUser?.isPlatformAdmin !== true && ['actividad','seguridad','reportes-globales'].includes(page)) return;
     selectedPage = page;
     updateAdminSupportBanner();
-    $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
+    if (page === 'admin-support') loadAdminSupportSettings();
+    $('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
@@ -2133,7 +2134,7 @@ img,svg,canvas,video{max-width:100%}
   function updateSupportContactLink(settings) {
     const link=document.getElementById('supportContactNav');if(!link)return;
     const cfg={...defaultSupportSettings,...(settings||{})};
-    const digits=String(cfg.phone||'').replace(/\\D/g,'');
+    const digits=String(cfg.phone||'').replace(/\D/g,'');
     link.hidden=window.PanaderiaAuth?.user?.isPlatformAdmin===true||cfg.enabled!==true||!digits;
     link.href='https://wa.me/'+digits+'?text='+encodeURIComponent(cfg.message||defaultSupportSettings.message);
     link.setAttribute('aria-label','Contactar a '+(cfg.displayName||defaultSupportSettings.displayName)+' por WhatsApp');
