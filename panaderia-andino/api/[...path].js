@@ -300,6 +300,13 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/clients') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
+      const rows=await sql`SELECT b.id AS business_id,b.name AS business_name,MIN(item->>'party') AS customer_name,COUNT(*)::int AS note_count,COALESCE(SUM(NULLIF(item->>'amount','')::numeric),0)::numeric(14,2) AS note_total,MAX(NULLIF(item->>'date','')::date) AS last_note_date FROM app_state st JOIN businesses b ON b.id=st.business_id CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE COALESCE(trim(item->>'party'),'')<>'' GROUP BY b.id,b.name,lower(trim(item->>'party')) ORDER BY b.name,customer_name LIMIT 1000`;
+      return send(res,200,{clients:rows});
+    }
     if (path === '/api/admin/activity') {
       const admin=await authenticated(req,res,true); if(!admin) return;
       if(req.method!=='GET') return send(res,405,{error:'Método no permitido.'});
