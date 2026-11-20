@@ -493,13 +493,13 @@ input[type="date"], input[type="month"] {
         </section>
 
         <section class="page-view" id="page-actividad" data-page="actividad">
-          <div class="page-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las panaderías.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="page-heading"><div><p class="eyebrow">SUPERVISIÓN Y SEGURIDAD</p><h1><i class="bi bi-activity heading-page-icon"></i> Actividad y alertas</h1><p class="page-subtitle">Cambios realizados por usuarios en todas las panaderías.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshAdminActivity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="adminActivityTable" data-export-name="actividad-administrativa"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
           <div class="summary-grid"><article class="summary-card pending-card"><p class="summary-label">Eventos recientes</p><h2 id="adminActivityTotal">0</h2></article><article class="summary-card income-card"><p class="summary-label">Alertas sin leer</p><h2 id="adminActivityUnread">0</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, panadería, acción y fecha.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>PANADERÍA</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
         </section>
         <section class="page-view" id="page-reportes-globales" data-page="reportes-globales">
-          <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas las panaderías registradas.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="page-heading"><div><p class="eyebrow">INDICADORES DE LA PLATAFORMA</p><h1><i class="bi bi-bar-chart-line heading-page-icon"></i> Reportes globales</h1><p class="page-subtitle">Comparación financiera y operativa de todas las panaderías registradas.</p></div><div class="d-flex gap-2 flex-wrap"><button class="btn btn-outline-bakery btn-sm" id="refreshGlobalReports" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalReportsTable" data-export-name="reporte-global-panaderias"><i class="bi bi-download"></i> Exportar panaderías</button><button class="btn btn-outline-bakery btn-sm" type="button" data-export-table="globalClientsTable" data-export-name="reporte-global-clientes"><i class="bi bi-download"></i> Exportar clientes</button></div></div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Ingresos registrados</p><h2 id="globalIncomeTotal">Gs. 0</h2></article><article class="summary-card expense-card"><p class="summary-label">Gastos registrados</p><h2 id="globalExpenseTotal">Gs. 0</h2></article><article class="summary-card profit-card"><p class="summary-label">Resultado registrado</p><h2 id="globalProfitTotal">Gs. 0</h2></article><article class="summary-card pending-card"><p class="summary-label">Panaderías activas</p><h2 id="globalBusinessCount">0</h2></article></div>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Rendimiento por panadería</h3><p>Totales históricos disponibles en la plataforma.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PANADERÍA</th><th>ESTADO</th><th>INGRESOS</th><th>GASTOS</th><th>RESULTADO</th><th>CLIENTES*</th><th>NOTAS</th><th>PRODUCTOS</th><th>COMPRAS</th><th>USUARIOS</th><th>ACCESO</th></tr></thead><tbody id="globalReportsTable"><tr><td colspan="11" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Clientes registrados en notas</h3><p>Clientes identificados por nombre o razón social en las notas de cada panadería.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>CLIENTE</th><th>PANADERÍA</th><th>NOTAS</th><th>TOTAL REGISTRADO</th><th>ÚLTIMA NOTA</th></tr></thead><tbody id="globalClientsTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
@@ -1563,6 +1563,23 @@ input[type="date"], input[type="month"] {
       $('#globalClientsTable').innerHTML=clientRows.map(c=>'<tr><td>'+escapeHTML(c.customer_name||'—')+'</td><td>'+escapeHTML(c.business_name||'—')+'</td><td>'+Number(c.note_count||0)+'</td><td>'+money(c.note_total||0)+'</td><td>'+escapeHTML(c.last_note_date?new Date(c.last_note_date+'T00:00:00').toLocaleDateString('es-PY'):'—')+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">No hay clientes registrados en notas.</td></tr>';
     }catch(error){notify('No se pudieron cargar los reportes: '+error.message);}
   }
+  function exportAdminTableCSV(tableId,fileBase){
+    const table=document.getElementById(tableId);
+    if(!table)throw new Error('No se encontró la tabla para exportar.');
+    const rows=[...table.querySelectorAll('tr')].map(row=>[...row.querySelectorAll('th,td')].map(cell=>{const value=(cell.innerText||cell.textContent||'').replace(/\\s+/g,' ').trim();return '"'+value.replace(/"/g,'""')+'"';}).join(';')).filter(row=>row.length>0);
+    if(!rows.length)throw new Error('No hay datos disponibles para exportar.');
+    const csv='\\uFEFF'+rows.join('\\r\\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);const link=document.createElement('a');
+    link.href=url;link.download=(fileBase||'reporte')+'-'+todayISO()+'.csv';
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  document.addEventListener('click',(event)=>{
+    const button=event.target.closest('[data-export-table]');if(!button)return;
+    try{exportAdminTableCSV(button.dataset.exportTable,button.dataset.exportName);notify('Reporte CSV descargado correctamente.');}
+    catch(error){notify(error.message||'No se pudo exportar el reporte.');}
+  });
   async function refreshAdminNotifications(){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
     const target=$('#adminSentNotifications'); if(!target)return;
