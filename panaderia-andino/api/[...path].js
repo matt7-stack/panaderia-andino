@@ -138,6 +138,42 @@ module.exports = async function handler(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/admin/licenses'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT l.*,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
+        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
+      }
+      if(req.method==='POST'){
+        const input=body(req),businessId=String(input.businessId||''),plan=String(input.plan||'basic'),status=String(input.status||'pending');
+        const setup=Math.max(0,Number(input.setupAmount)||0),monthly=Math.max(0,Number(input.monthlyAmount)||0),billingDay=Math.min(28,Math.max(1,Number(input.billingDay)||1));
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly))return send(res,400,{error:'Datos de licencia no válidos.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
+        if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
+        const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by) VALUES(${businessId},${code},${plan},${status},${input.expiresAt||null},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id}) RETURNING *`;
+        return send(res,201,{license:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||''),status=String(input.status||'');
+        if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
+        const rows=await sql`UPDATE app_licenses SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
+        return send(res,200,{license:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/license-payments'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),licenseId=String(input.licenseId||''),amount=Number(input.amount),type=String(input.paymentType||'monthly');
+      if(!licenseId||!Number.isFinite(amount)||amount<=0||!['setup','monthly','extra'].includes(type))return send(res,400,{error:'Datos de pago no válidos.'});
+      const sql=db(),exists=await sql`SELECT id FROM app_licenses WHERE id=${licenseId}`;
+      if(!exists.length)return send(res,404,{error:'Licencia no encontrada.'});
+      const rows=await sql`INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by) VALUES(${licenseId},${amount},${type},${input.periodStart||null},${input.periodEnd||null},${String(input.reference||'').slice(0,120)},${String(input.notes||'').slice(0,500)},${admin.id}) RETURNING *`;
+      return send(res,201,{payment:rows[0]});
+    }
     if(path==='/api/admin/overview'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
