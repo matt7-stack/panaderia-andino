@@ -97,6 +97,39 @@ const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, act
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if (path === '/api/support' && req.method === 'GET') {
+      const sql=db();
+      const rows=await sql`SELECT whatsapp_phone,enabled,welcome_message,display_name FROM app_platform_settings WHERE setting_key='support' LIMIT 1`;
+      const row=rows[0]||{whatsapp_phone:'595987426497',enabled:true,welcome_message:'Hola, necesito ayuda con el sistema de Panadería Andino.',display_name:'Soporte Panadería Andino'};
+      const localPhone=String(row.whatsapp_phone||'').startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):String(row.whatsapp_phone||'');
+      return send(res,200,{settings:{phone:row.whatsapp_phone,phoneDisplay:localPhone,enabled:row.enabled===true,message:row.welcome_message,displayName:row.display_name}});
+    }
+    if (path === '/api/admin/support-settings') {
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT whatsapp_phone,enabled,welcome_message,display_name FROM app_platform_settings WHERE setting_key='support' LIMIT 1`;
+        const row=rows[0]||{whatsapp_phone:'595987426497',enabled:true,welcome_message:'Hola, necesito ayuda con el sistema de Panadería Andino.',display_name:'Soporte Panadería Andino'};
+        const localPhone=String(row.whatsapp_phone||'').startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):String(row.whatsapp_phone||'');
+        return send(res,200,{settings:{phone:row.whatsapp_phone,phoneDisplay:localPhone,enabled:row.enabled===true,message:row.welcome_message,displayName:row.display_name}});
+      }
+      if(req.method==='PUT'){
+        const input=body(req);let phone=String(input.phone||'').replace(/[^0-9]/g,'');
+        if(phone.startsWith('0'))phone='595'+phone.slice(1);else if(!phone.startsWith('595'))phone='595'+phone;
+        const displayName=String(input.displayName||'').trim().slice(0,80);
+        const message=String(input.message||'').trim().slice(0,500);
+        const enabled=input.enabled===true;
+        if(phone.length<11||phone.length>15||!displayName||!message)return send(res,400,{error:'Ingresá un número válido, el nombre de soporte y un mensaje inicial.'});
+        const rows=await sql`INSERT INTO app_platform_settings(setting_key,whatsapp_phone,enabled,welcome_message,display_name,updated_by,updated_at)
+          VALUES('support',${phone},${enabled},${message},${displayName},${admin.id},NOW())
+          ON CONFLICT(setting_key) DO UPDATE SET whatsapp_phone=EXCLUDED.whatsapp_phone,enabled=EXCLUDED.enabled,welcome_message=EXCLUDED.welcome_message,display_name=EXCLUDED.display_name,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          RETURNING whatsapp_phone,enabled,welcome_message,display_name`;
+        const row=rows[0];const phoneDisplay=String(row.whatsapp_phone).startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):row.whatsapp_phone;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'platform.support_updated','platform_setting','support',${JSON.stringify({enabled:row.enabled,displayName:row.display_name})}::jsonb)`;
+        return send(res,200,{ok:true,settings:{phone:row.whatsapp_phone,phoneDisplay,enabled:row.enabled,message:row.welcome_message,displayName:row.display_name}});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/auth/status' && req.method === 'GET') {
       const sql = await ensureSchema();
       const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE is_platform_admin=TRUE`;
