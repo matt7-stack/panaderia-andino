@@ -1140,7 +1140,10 @@ input[type="date"], input[type="month"] {
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
+      const currentRole=window.PanaderiaAuth?.user?.role;
+      const canCreateSupervisor=['admin','owner'].includes(currentRole);
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="254" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role">'+(canCreateSupervisor?'<option value="supervisor">Supervisor</option>':'')+'<option value="employee">Empleado</option></select></div>'+(currentRole==='admin'?'<div class="simple-modal-field"><label for="simpleBakery">Panadería</label><select id="simpleBakery" required></select></div>':'')+'<small class="text-muted">Las cuentas quedan limitadas a una sola panadería.</small>';
+      const bakerySelect=$('#simpleBakery'); if(bakerySelect) bakerySelect.innerHTML=adminBakeries.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');
     }
     simpleModal.show();
   }
@@ -1359,7 +1362,7 @@ input[type="date"], input[type="month"] {
     } else if (simpleModalMode === 'user') {
       try {
         const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users';
-        await window.PanaderiaAuth.api(usersEndpoint, { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
+        await window.PanaderiaAuth.api(usersEndpoint, { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, bakeryId: $('#simpleBakery')?.value || null }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
