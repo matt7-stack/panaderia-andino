@@ -1410,7 +1410,7 @@ input[type="date"], input[type="month"] {
   });
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
-  $('#addUserButton').addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses(); return; } openSimpleModal('user'); });
+  $('#addUserButton').addEventListener('click', () => { if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); refreshCloudBusinesses().catch(()=>{}); return; } openSimpleModal('user'); });
   $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
   $('#employeesTableBody').addEventListener('click', (event) => {
