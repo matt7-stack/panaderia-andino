@@ -232,6 +232,14 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/activity') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      if(req.method!=='GET') return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
+      const rows=await sql`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name,u.email AS actor_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 250`;
+      const notifications=await sql`SELECT n.id,n.title,n.message,n.type,n.read_at,n.created_at FROM app_notifications n WHERE n.user_id=${admin.id} AND n.type='system_activity' ORDER BY n.created_at DESC LIMIT 100`;
+      return send(res,200,{activities:rows,notifications});
+    }
     if (path === '/api/admin/notifications') {
       const admin=await authenticated(req,res,true); if(!admin) return;
       if(req.method!=='POST') return send(res,405,{error:'Método no permitido.'});
@@ -324,6 +332,13 @@ module.exports = async function handler(req, res) {
         const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
         if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
         const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        if(user.is_platform_admin!==true){
+          const biz=await sql`SELECT name FROM businesses WHERE id=${businessId} LIMIT 1`;
+          const title='Actividad en '+(biz[0]?.name||'una panadería');
+          const message=user.name+' ('+user.email+') modificó información operativa. Revisá el historial para ver cuándo ocurrió.';
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${businessId},${user.id},'business.data_updated','business_data',${businessId},${JSON.stringify({businessName:biz[0]?.name||'',updatedAt:saved[0]?.updated_at||null})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'system_activity',${title},${message} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
+        }
         return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
       }
       return send(res,405,{error:'Método no permitido.'});
