@@ -446,6 +446,21 @@ module.exports = async function handler(req, res) {
       const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${admin.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
       return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at||null});
     }
+
+    if (path === '/api/public/catalog' && req.method === 'GET') {
+      const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('businessId')||'').trim();
+      if(!businessId) return send(res,400,{error:'Falta identificar la panadería.'});
+      const sql=db();
+      const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
+      if(!rows.length) return send(res,404,{error:'No se encontró una panadería activa.'});
+      const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
+      const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
+        id:String(p.id||''),name:String(p.name||'').slice(0,100),category:String(p.category||'').slice(0,60),
+        description:String(p.description||'').slice(0,300),price:Math.max(0,Number(p.price)||0),
+        available:typeof p.available==='boolean'?p.available:Number(p.stock||0)>0
+      })).filter(p=>p.name);
+      return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].data?.updatedAt||null},{'Cache-Control':'no-store, max-age=0'});
+    }
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
