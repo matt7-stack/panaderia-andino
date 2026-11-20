@@ -659,6 +659,7 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    // [deploy] Gestión de empleados aislada por negocio y limitada por licencia.
     if (path === '/api/business/users') {
       const user = await authenticated(req,res,false); if (!user) return;
       if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
