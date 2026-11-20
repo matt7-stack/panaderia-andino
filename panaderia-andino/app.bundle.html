@@ -475,6 +475,15 @@ img,svg,canvas,video{max-width:100%}
 .admin-activity-page #adminActivityAlerts>.panel{margin:0!important;height:100%}
 .admin-activity-page .table-responsive{width:100%}
 @media(max-width:767.98px){.admin-activity-page{padding-inline:0}.admin-activity-page .page-heading{align-items:stretch}.admin-activity-page .page-heading>div:last-child{width:100%}.admin-activity-page .page-heading .btn{flex:1}.admin-activity-panel-heading{align-items:stretch}.admin-activity-panel-heading .btn{width:100%}.admin-activity-page .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Gestión–Administración: usuarios con el mismo ancho que el panel principal */
+.admin-users-page{width:100%;max-width:1560px;margin-inline:auto;padding-inline:clamp(10px,2.2vw,30px)}
+.admin-users-page>#platformUsersPanel{width:100%;max-width:none;margin-inline:0;padding:clamp(16px,2.2vw,28px)}
+.admin-users-page #platformUsersPanel>.narrow-settings{width:100%;max-width:none;margin:0;padding:0;border:0;box-shadow:none}
+.admin-users-page .panel-heading{align-items:center;gap:16px;flex-wrap:wrap}
+.admin-users-page .table-responsive{width:100%}
+.admin-users-page #usersTableBody td{vertical-align:middle;padding-block:14px}
+@media(max-width:767.98px){.admin-users-page{padding-inline:0}.admin-users-page .page-heading{align-items:stretch}.admin-users-page #platformUsersPanel>.narrow-settings .panel-heading>div:last-child{width:100%}.admin-users-page #platformUsersPanel .panel-heading .btn{flex:1}.admin-users-page #platformUsersPanel{padding:12px}}
 </style>
 </head>
 <body>
@@ -666,7 +675,7 @@ img,svg,canvas,video{max-width:100%}
           </article>
         </section>
 
-        <section class="page-view" id="page-admin-usuarios" data-page="admin-usuarios">
+        <section class="page-view admin-users-page" id="page-admin-usuarios" data-page="admin-usuarios">
           <div class="page-heading"><div><p class="eyebrow">CONTROL DE ACCESO</p><h1><i class="bi bi-people heading-page-icon"></i> Usuarios y permisos</h1><p class="page-subtitle">Creá cuentas, controlá permisos y administrá el acceso a la plataforma.</p></div></div>
           <article class="panel settings-card mt-3" id="platformUsersPanel"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Usuarios del sistema</h3><p>Solo el administrador puede crear, desactivar y eliminar cuentas de acceso.</p></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshUsersButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-bakery btn-sm" type="button" id="addUserButton"><i class="bi bi-person-plus"></i> Agregar usuario</button></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>USUARIO</th><th>CORREO</th><th>ROL</th><th>ESTADO</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="usersTableBody"></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Administración protegida: las cuentas y los permisos se controlan en el servidor.</div></article></article>
         </section>
