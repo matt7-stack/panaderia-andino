@@ -590,11 +590,16 @@ img,svg,canvas,video{max-width:100%}
 }
 
 /* Compactar el acceso rápido Centro de seguridad, no solo el enlace lateral. */
-#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] {
-  min-height: 68px !important;
-  padding: 10px 12px !important;
-  gap: 9px !important;
-  border-radius: 12px !important;
+#page-accesos-rapidos [data-admin-go="seguridad"],
+#page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"],
+#page-accesos-rapidos button[data-admin-go="seguridad"],
+#page-accesos-rapidos a[data-admin-go="seguridad"] {
+  min-height: 52px !important;
+  height: auto !important;
+  padding: 7px 10px !important;
+  gap: 7px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
 }
 #page-accesos-rapidos .admin-quick-card[data-admin-go="seguridad"] .quick-icon {
   flex: 0 0 34px !important;
@@ -618,6 +623,10 @@ img,svg,canvas,video{max-width:100%}
   gap: 7px !important;
   font-size: 10px !important;
 }
+
+#page-accesos-rapidos [data-admin-go="seguridad"] .quick-icon { width:28px!important;height:28px!important;flex:0 0 28px!important;font-size:14px!important; }
+#page-accesos-rapidos [data-admin-go="seguridad"] .quick-copy strong { font-size:11px!important; }
+#page-accesos-rapidos [data-admin-go="seguridad"] .quick-copy small { font-size:9px!important; }
 </style>
 </head>
 <body>
@@ -2819,24 +2828,34 @@ img,svg,canvas,video{max-width:100%}
    try{await api('/api/admin/license-payments',{method:'POST',body:JSON.stringify({licenseId:b.dataset.id,amount:Number(amount),paymentType:'monthly'})});await loadLicenses();alert('Pago registrado.');}
    catch(x){alert(x.message);}
  });
- // Inicializar los módulos administrativos luego de que el servidor confirme la cuenta principal.
+ // Carga recuperable: un error de red no debe dejar el panel bloqueado para siempre.
  let adminDataLoadPromise = null;
- const loadPlatformAdminData = () => {
-   if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return;
-   if (adminDataLoadPromise) return adminDataLoadPromise;
-   adminDataLoadPromise = (async()=>{
-     await Promise.allSettled([loadOverview(),loadTickets(),loadTrash(),loadClientTickets(),loadPrefs(),loadLicenses()]);
-   })().catch(error=>{
-     adminDataLoadPromise=null;
-     console.error('No se pudo inicializar la administración:',error);
-   });
-   return adminDataLoadPromise;
+ const loadPlatformAdminData = async (force = false) => {
+   const user = await Promise.resolve(window.PanaderiaAuthReady).catch(() => null);
+   if (user?.isPlatformAdmin !== true || window.PanaderiaAuth?.user?.isPlatformAdmin !== true) return false;
+   if (adminDataLoadPromise && !force) return adminDataLoadPromise;
+   adminDataLoadPromise = (async () => {
+     const jobs = await Promise.allSettled([loadOverview(),loadTickets(),loadTrash(),loadClientTickets(),loadPrefs(),loadLicenses()]);
+     const failures = jobs.filter(x => x.status === 'rejected');
+     if (failures.length) console.error('Módulos administrativos con errores:', failures.map(x => x.reason));
+     return failures.length === 0;
+   })();
+   try { return await adminDataLoadPromise; }
+   finally { adminDataLoadPromise = null; }
  };
  window.addEventListener('panaderia:authenticated', event => {
-   if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData();
+   if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData(true);
+ });
+ window.addEventListener('hashchange', () => {
+   if (location.hash === '#admin-licencias' || location.hash === '#administracion' || location.hash === '#admin-panaderias') {
+     loadPlatformAdminData(true);
+   }
+ });
+ document.addEventListener('visibilitychange', () => {
+   if (document.visibilityState === 'visible' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadPlatformAdminData(true);
  });
  Promise.resolve(window.PanaderiaAuthReady)
-   .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(); })
+   .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
 })();
 </script></body>
