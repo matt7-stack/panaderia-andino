@@ -1551,19 +1551,38 @@ input[type="date"], input[type="month"] {
       list.innerHTML=items.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between align-items-start gap-3"><div><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span><h3 class="mt-2">'+escapeHTML(n.title)+'</h3><p class="mb-2" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm" type="button" data-read-notification="'+escapeHTML(n.id)+'">Marcar leída</button>':'')+'</div></article>').join('')||'<article class="panel settings-card"><p class="text-muted mb-0">Todavía no tenés notificaciones.</p></article>';
     }catch(error){console.warn('No se pudieron cargar notificaciones:',error.message);}
   }
-  $('#adminNotificationForm')?.addEventListener('submit',async(event)=>{
-    event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
-    try{
-      const target=$('#adminNotificationTarget')?.value||'all';
-      const title=$('#adminNotificationTitle')?.value.trim()||'';
-      const message=$('#adminNotificationMessage')?.value.trim()||'';
-      if(!title||!message)throw new Error('Completá el título y el mensaje antes de enviar.');
-      button.innerHTML='<i class="bi bi-hourglass-split"></i> Enviando…';
-      const result=await window.PanaderiaAuth.api('/api/admin/notifications',{method:'POST',body:JSON.stringify({businessId:target,title,message})});
-      $('#adminNotificationTitle').value='';$('#adminNotificationMessage').value='';
-      notify('Notificación enviada correctamente a '+result.recipients+' usuario(s).');
-    }catch(error){notify('No se pudo enviar la notificación: '+error.message);}finally{button.disabled=false;button.innerHTML='<i class="bi bi-send"></i> Enviar notificación';}
-  });
+  // Capturar el envío desde el documento evita que el navegador haga un submit
+  // tradicional y abandone la vista si el formulario se vuelve a renderizar.
+  document.addEventListener('submit', async (event) => {
+    const form = event.target;
+    if (!form || form.id !== 'adminNotificationForm') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const button = form.querySelector('button[type="submit"]');
+    if (!button || button.disabled) return;
+    const originalButtonHTML = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando…';
+    try {
+      const target = document.getElementById('adminNotificationTarget')?.value || 'all';
+      const title = document.getElementById('adminNotificationTitle')?.value.trim() || '';
+      const message = document.getElementById('adminNotificationMessage')?.value.trim() || '';
+      if (!title || !message) throw new Error('Completá el título y el mensaje antes de enviar.');
+      const result = await window.PanaderiaAuth.api('/api/admin/notifications', {
+        method: 'POST',
+        body: JSON.stringify({ businessId: target, title, message })
+      });
+      document.getElementById('adminNotificationTitle').value = '';
+      document.getElementById('adminNotificationMessage').value = '';
+      notify('Notificación enviada correctamente a ' + Number(result.recipients || 0) + ' usuario(s).');
+    } catch (error) {
+      console.error('Error al enviar la notificación administrativa:', error);
+      notify('No se pudo enviar la notificación: ' + (error.message || 'Error de conexión.'));
+    } finally {
+      button.disabled = false;
+      button.innerHTML = originalButtonHTML;
+    }
+  }, true);
   $('#notificationsList')?.addEventListener('click',async(event)=>{
     const button=event.target.closest('[data-read-notification]');if(!button)return;
     try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.readNotification})});await refreshNotifications();}
