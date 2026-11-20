@@ -1257,7 +1257,9 @@ input[type="date"], input[type="month"] {
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
+      const activeBusinesses = cloudBusinesses.filter((business) => business.active);
+      const businessOptions = activeBusinesses.map((business) => '<option value="' + escapeHTML(business.id) + '">' + escapeHTML(business.name) + '</option>').join('');
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Panadería asignada</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná una panadería</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a la panadería seleccionada y no podrá administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -1376,7 +1378,7 @@ input[type="date"], input[type="month"] {
   });
   $$('[data-add-category]').forEach((button) => button.addEventListener('click', () => openSimpleModal('category', { type: button.dataset.addCategory })));
   $('#addPaymentMethod').addEventListener('click', () => openSimpleModal('payment'));
-  $('#addUserButton').addEventListener('click', () => openSimpleModal('user'));
+  $('#addUserButton').addEventListener('click', async () => { await refreshCloudBusinesses(); if (!cloudBusinesses.some((business) => business.active)) { notify('Primero registrá una panadería desde el apartado Panaderías.'); return; } openSimpleModal('user'); });
   $('#addEmployeeButton').addEventListener('click', () => openSimpleModal('employee'));
   $('#payEmployeeButton').addEventListener('click', () => { if (!(state.employees || []).some((employee) => employee.active !== false)) { notify('Primero registrá un empleado activo.'); return; } openSimpleModal('employee-payment'); });
   $('#employeesTableBody').addEventListener('click', (event) => {
@@ -1541,7 +1543,7 @@ input[type="date"], input[type="month"] {
       state.paymentMethods.push(name);
     } else if (simpleModalMode === 'user') {
       try {
-        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId: window.PanaderiaAuth.selectedBusinessId }) });
+        const businessId = $('#simpleBusiness')?.value || ''; if (!businessId) { notify('Seleccioná la panadería a la que pertenecerá el usuario.'); return; } await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, businessId }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
