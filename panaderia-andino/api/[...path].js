@@ -196,13 +196,14 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin) return;
       const sql=db();
       if(req.method==='GET'){
-        const [counts,attempts,events]=await Promise.all([
+        const [counts,attempts,events,users]=await Promise.all([
           sql`SELECT COUNT(*)::int AS total_users,COUNT(*) FILTER(WHERE active=TRUE)::int AS active_users,COUNT(*) FILTER(WHERE active=FALSE)::int AS inactive_users FROM app_users WHERE is_platform_admin=FALSE`,
           sql`SELECT email,failures,locked_until,updated_at FROM app_login_attempts WHERE failures>0 ORDER BY updated_at DESC LIMIT 100`,
-          sql`SELECT l.id,l.action,l.details,l.ip_address,l.created_at,u.name AS user_name,u.email AS user_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id WHERE l.action IN ('auth.login_success','auth.login_failed','auth.login_blocked') ORDER BY l.created_at DESC LIMIT 100`
+          sql`SELECT l.id,l.action,l.details,l.ip_address,l.created_at,u.name AS user_name,u.email AS user_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id WHERE l.action IN ('auth.login_success','auth.login_failed','auth.login_blocked') ORDER BY l.created_at DESC LIMIT 100`,
+          sql`SELECT u.id,u.name,u.email,u.role,u.active,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE u.is_platform_admin=FALSE ORDER BY u.active DESC,u.name`
         ]);
         const totals=await sql`SELECT COUNT(*) FILTER(WHERE action='auth.login_success' AND created_at>NOW()-INTERVAL '24 hours')::int AS successful_24h,COUNT(*) FILTER(WHERE action IN ('auth.login_failed','auth.login_blocked') AND created_at>NOW()-INTERVAL '24 hours')::int AS failed_24h FROM app_audit_logs WHERE action IN ('auth.login_success','auth.login_failed','auth.login_blocked')`;
-        return send(res,200,{summary:{...(counts[0]||{}),...(totals[0]||{}),locked_accounts:attempts.filter(x=>x.locked_until&&new Date(x.locked_until).getTime()>Date.now()).length},attempts,events});
+        return send(res,200,{summary:{...(counts[0]||{}),...(totals[0]||{}),locked_accounts:attempts.filter(x=>x.locked_until&&new Date(x.locked_until).getTime()>Date.now()).length},attempts,events,users});
       }
       if(req.method==='POST'){
         const input=body(req),userId=String(input.userId||'');
