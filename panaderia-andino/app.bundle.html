@@ -484,6 +484,52 @@ img,svg,canvas,video{max-width:100%}
 .admin-users-page .table-responsive{width:100%}
 .admin-users-page #usersTableBody td{vertical-align:middle;padding-block:14px}
 @media(max-width:767.98px){.admin-users-page{padding-inline:0}.admin-users-page .page-heading{align-items:stretch}.admin-users-page #platformUsersPanel>.narrow-settings .panel-heading>div:last-child{width:100%}.admin-users-page #platformUsersPanel .panel-heading .btn{flex:1}.admin-users-page #platformUsersPanel{padding:12px}}
+
+/* Ajustes visuales: dashboard, notas, notificaciones y filtros de movimientos */
+#page-dashboard .page-heading>.btn,
+#page-dashboard .quick-action,
+#page-notas .page-heading>.btn,
+#page-notificaciones .page-heading>.btn,
+#page-notificaciones button,
+#page-notas .invoice-toolbar button{
+  min-height:42px;padding:10px 16px;font-size:13px;line-height:1.25;border-radius:10px
+}
+#page-dashboard .quick-actions-grid{gap:14px}
+#page-dashboard .quick-action{width:100%;min-height:68px;gap:13px;padding:14px 16px}
+#page-dashboard .quick-action-icon{width:42px;height:42px;flex:0 0 42px;font-size:18px}
+#page-dashboard .quick-action strong{font-size:13px}
+#page-dashboard .quick-action small{font-size:11px}
+#page-notas .page-heading,#page-notificaciones .page-heading{align-items:center;gap:14px;flex-wrap:wrap}
+#page-notas .page-heading>.btn,#page-notificaciones .page-heading>.btn{min-width:124px}
+#page-notificaciones #notificationsList .panel{padding:clamp(16px,2vw,24px);width:100%}
+#page-notificaciones #notificationsList button{min-width:104px}
+#page-movimientos .filter-bar{display:grid;grid-template-columns:minmax(220px,1.5fr) minmax(130px,.8fr) minmax(150px,.9fr) minmax(300px,1.4fr) auto;align-items:stretch;gap:10px;padding:16px}
+#page-movimientos #movementSearch{min-height:44px;font-size:13px}
+#page-movimientos .filter-bar .search-field{min-width:0;min-height:44px;padding:10px 12px}
+#page-movimientos .filter-bar .search-field input{font-size:13px}
+#page-movimientos .filter-select{width:100%;max-width:none;min-width:0;min-height:44px;padding:9px 30px 9px 12px;font-size:12px}
+#page-movimientos .date-range{min-width:0;display:grid;grid-template-columns:auto repeat(2,minmax(0,1fr));align-items:center;gap:8px;padding:8px 10px}
+#page-movimientos .date-field{min-width:0;font-size:10px;gap:4px}
+#page-movimientos .date-field input{width:100%;min-width:0;min-height:42px;padding:7px 8px;font-size:13px;color:var(--brown-900);color-scheme:light}
+#page-movimientos .btn-filter{min-height:44px;padding:9px 14px;font-size:12px;white-space:nowrap}
+@media(max-width:1100px){
+ #page-movimientos .filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #page-movimientos .filter-bar>.search-field{grid-column:1/-1}
+ #page-movimientos .date-range{grid-column:1/-1}
+}
+@media(max-width:767.98px){
+ #page-dashboard .quick-actions-grid{grid-template-columns:1fr;gap:10px}
+ #page-dashboard .quick-action{min-height:64px}
+ #page-dashboard .page-heading>.btn,#page-notas .page-heading>.btn,#page-notificaciones .page-heading>.btn{width:100%;min-height:46px}
+ #page-notificaciones #notificationsList button{min-height:42px;flex:1}
+ #page-movimientos .filter-bar{grid-template-columns:1fr;padding:12px}
+ #page-movimientos .filter-bar>.search-field,#page-movimientos .date-range{grid-column:auto}
+ #page-movimientos .date-range{grid-template-columns:1fr 1fr;padding:10px}
+ #page-movimientos .date-range>i{grid-column:1/-1}
+ #page-movimientos .date-field input{min-height:46px;font-size:16px}
+ #page-movimientos .btn-filter{width:100%;min-height:46px}
+}
+
 </style>
 </head>
 <body>
