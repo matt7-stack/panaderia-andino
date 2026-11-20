@@ -162,18 +162,16 @@ module.exports = async function handler(req, res) {
           await tx`CREATE TABLE IF NOT EXISTS app_admin_recovery_tokens (token_hash TEXT PRIMARY KEY, used_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
           const used = await tx`SELECT token_hash FROM app_admin_recovery_tokens WHERE token_hash=${tokenHash} LIMIT 1`;
           if (used.length) throw new Error('RECOVERY_TOKEN_USED');
-          const admins = await tx`SELECT id,email FROM app_users WHERE role='admin' FOR UPDATE`;
-          let target = await tx`SELECT id FROM app_users WHERE email=${email} LIMIT 1 FOR UPDATE`;
-          if (admins.length && !admins.some(row => row.email === email)) throw new Error('ADMIN_ACCOUNT_MISMATCH');
+          const target = await tx`SELECT id FROM app_users WHERE lower(email)=${email} LIMIT 1 FOR UPDATE`;
+          // Preserve every existing account and its data; ensure exactly one administrator.
+          await tx`UPDATE app_users SET role='supervisor' WHERE role='admin' AND lower(email)<>${email}`;
           const id = target[0]?.id || crypto.randomUUID();
           if (target.length) {
             await tx`UPDATE app_users SET name=${name},password_hash=${passwordHash},role='admin',active=TRUE WHERE id=${id}`;
           } else {
             await tx`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${passwordHash},'admin',TRUE)`;
           }
-          await tx`DELETE FROM app_login_attempts WHERE email=${email}`;
           await tx`INSERT INTO app_admin_recovery_tokens(token_hash) VALUES(${tokenHash})`;
-          await tx`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${id},'admin_recovered','user',${id},'{"method":"one_time_recovery"}'::jsonb)`;
           return {id,name,email,role:'admin',active:true};
         });
       } catch (error) {
