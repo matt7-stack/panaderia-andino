@@ -10,11 +10,9 @@ function db() {
   return sqlClient;
 }
 async function ensureSchema() {
-  // Schema changes are deployed only through versioned migrations.
-  const sql = db();
-  await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_admin_setup_tokens (token_hash TEXT PRIMARY KEY, expires_at TIMESTAMPTZ NOT NULL, used_at TIMESTAMPTZ)`;
-  return sql;
+  // Las tablas de autenticación se crean mediante migraciones versionadas.
+  // No ejecutar DDL en cada request serverless: evita latencia y bloqueos innecesarios.
+  return db();
 }
 function send(res, status, data, headers = {}) {
   res.statusCode = status;
@@ -78,7 +76,9 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT id, name, email, role, active, business_id, is_platform_admin, session_version FROM app_users WHERE id = ${data.sub} LIMIT 1`;
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version
+    FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
+    WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
   const user = rows[0];
   return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
 }
@@ -203,32 +203,93 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
-        const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        const slug=String(input.slug||name).normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de la panadería.'});
         const id=crypto.randomUUID();
-        const rows=await sql`INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name) VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)}) RETURNING *`;
-        await sql`INSERT INTO app_state(data,business_id) VALUES('{}'::jsonb,${id}) ON CONFLICT(business_id) DO NOTHING`;
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.created','business',${id},${JSON.stringify({name,slug})}::jsonb)`;
+        const rows=await sql`WITH created AS (
+          INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
+          VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)})
+          RETURNING *
+        ), state_created AS (
+          INSERT INTO app_state(data,business_id) SELECT '{}'::jsonb,id FROM created ON CONFLICT(business_id) DO NOTHING RETURNING business_id
+        ), audit_created AS (
+          INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug})}::jsonb FROM created RETURNING id
+        )
+        SELECT * FROM created`;
         return send(res,201,{business:rows[0]});
       }
       if(req.method==='PATCH'){
         const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
-        const rows=await sql`UPDATE businesses SET name=COALESCE(${input.name===undefined?null:String(input.name).trim().slice(0,120)},name), address=COALESCE(${input.address===undefined?null:String(input.address).slice(0,250)},address), phone=COALESCE(${input.phone===undefined?null:String(input.phone).slice(0,60)},phone), email=COALESCE(${input.email===undefined?null:String(input.email).slice(0,254)},email), ruc=COALESCE(${input.ruc===undefined?null:String(input.ruc).slice(0,40)},ruc), owner_name=COALESCE(${input.ownerName===undefined?null:String(input.ownerName).slice(0,120)},owner_name), active=COALESCE(${typeof input.active==='boolean'?input.active:null},active), updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(typeof input.active==='boolean'){
+          const rows=await sql`WITH changed AS (
+            UPDATE businesses SET active=${input.active},updated_at=NOW() WHERE id=${id} RETURNING *
+          ), revoked AS (
+            UPDATE app_users SET session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE RETURNING id
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT id,${admin.id},CASE WHEN ${input.active} THEN 'business.reactivated' ELSE 'business.deactivated' END,
+              'business',id,${JSON.stringify({active:input.active})}::jsonb FROM changed RETURNING id
+          )
+          SELECT * FROM changed`;
+          if(!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
+          return send(res,200,{business:rows[0],message:input.active?'Panadería reactivada.':'Panadería desactivada. El acceso de sus usuarios quedó bloqueado.'});
+        }
+        const rows=await sql`WITH changed AS (
+          UPDATE businesses SET name=COALESCE(${input.name===undefined?null:String(input.name).trim().slice(0,120)},name),
+            address=COALESCE(${input.address===undefined?null:String(input.address).slice(0,250)},address),
+            phone=COALESCE(${input.phone===undefined?null:String(input.phone).slice(0,60)},phone),
+            email=COALESCE(${input.email===undefined?null:String(input.email).slice(0,254)},email),
+            ruc=COALESCE(${input.ruc===undefined?null:String(input.ruc).slice(0,40)},ruc),
+            owner_name=COALESCE(${input.ownerName===undefined?null:String(input.ownerName).slice(0,120)},owner_name),
+            updated_at=NOW() WHERE id=${id} RETURNING *
+        ), audit AS (
+          INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          SELECT id,${admin.id},'business.updated','business',id,'{}'::jsonb FROM changed RETURNING id
+        )
+        SELECT * FROM changed`;
         if(!rows[0]) return send(res,404,{error:'No se encontró la panadería.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.updated','business',${id},${JSON.stringify({active:input.active})}::jsonb)`;
         return send(res,200,{business:rows[0]});
       }
       if(req.method==='DELETE'){
-        const input=body(req); const id=String(input.id||'');
+        const id=String(body(req).id||'');
         if(!id) return send(res,400,{error:'Falta el identificador de la panadería.'});
         const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
         if(!business[0]) return send(res,404,{error:'No se encontró la panadería.'});
-        const activeCount=await sql`SELECT COUNT(*)::int AS count FROM businesses WHERE active=TRUE`;
-        if(business[0].active && Number(activeCount[0].count)<=1) return send(res,409,{error:'No podés eliminar la única panadería activa. Registrá otra primero.'});
-        await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
-        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.archived','business',${id},${JSON.stringify({name:business[0].name,reason:'admin_delete'})}::jsonb)`;
-        return send(res,200,{ok:true,archived:true,message:'Panadería eliminada del acceso activo. Los registros históricos se conservaron.'});
+        if(business[0].active) return send(res,409,{error:'Primero desactivá la panadería. Después podrás solicitar su eliminación definitiva.'});
+        const result=await sql`WITH target AS (
+          SELECT id FROM businesses WHERE id=${id} AND active=FALSE
+        ), usage AS (
+          SELECT
+            (SELECT COUNT(*) FROM app_customers WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_suppliers WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_products WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_inventory_movements WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_purchases WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_sales WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_cash_sessions WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_recipes WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_production_batches WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_financial_entries WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_sale_items WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_purchase_items WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_recipe_ingredients WHERE business_id=${id}) +
+            (SELECT COUNT(*) FROM app_cash_movements WHERE business_id=${id}) AS records
+        ), eligible AS (
+          SELECT target.id FROM target CROSS JOIN usage WHERE usage.records=0
+        ), deleted_audit AS (
+          DELETE FROM app_audit_logs WHERE business_id IN (SELECT id FROM eligible) RETURNING id
+        ), deleted_users AS (
+          DELETE FROM app_users WHERE business_id IN (SELECT id FROM eligible) AND is_platform_admin=FALSE
+            AND (SELECT COUNT(*) FROM deleted_audit)>=0 RETURNING id
+        ), deleted_business AS (
+          DELETE FROM businesses WHERE id IN (SELECT id FROM eligible)
+            AND (SELECT COUNT(*) FROM deleted_users)>=0 RETURNING id
+        )
+        SELECT EXISTS(SELECT 1 FROM deleted_business) AS deleted,
+          (SELECT records FROM usage) AS records`;
+        if(!result[0]?.deleted) return send(res,409,{error:'No se puede eliminar definitivamente: la panadería tiene registros operativos o ya no está disponible. Se conservaron sus datos. Podés mantenerla desactivada.',records:Number(result[0]?.records||0)});
+        return send(res,200,{ok:true,deleted:true,message:'Panadería eliminada definitivamente. Solo se permite esta acción cuando no existen registros operativos.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
@@ -350,7 +411,13 @@ module.exports = async function handler(req, res) {
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
-    if (err && err.code==='23505') return send(res,409,{error:'Ya existe un usuario con ese correo.'});
+    if (err && err.code==='23505') {
+      const constraint=String(err.constraint||'');
+      if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe una panadería con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
+      if (constraint.includes('app_users_email')) return send(res,409,{error:'Ya existe un usuario con ese correo.'});
+      return send(res,409,{error:'Ya existe un registro con esos datos. Revisá los campos e intentá nuevamente.'});
+    }
+    console.error('API error:',err);
     return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
   }
 };
