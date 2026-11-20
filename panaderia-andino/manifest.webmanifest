@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Panadería Andino",
-  "short_name": "Andino",
-  "description": "Sistema de gestión de Panadería Andino",
+  "name": "Mattsystem",
+  "short_name": "Mattsystem",
+  "description": "Sistema de gestión empresarial de Mattsystem",
   "lang": "es-PY",
   "start_url": "/app.bundle.html",
   "scope": "/",
