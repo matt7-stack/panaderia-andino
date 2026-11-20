@@ -286,8 +286,7 @@ module.exports = async function handler(req, res) {
       if (req.method === 'POST') {
         const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; let businessId=String(input.businessId||'');
         if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
-        if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-        if(!businessId) return send(res,400,{error:'Primero registrá una panadería.'});
+        if(!businessId) return send(res,400,{error:'Seleccioná la panadería a la que pertenecerá el usuario.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La panadería seleccionada no existe o está inactiva.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
         const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
