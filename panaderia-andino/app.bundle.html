@@ -646,7 +646,7 @@ input[type="date"], input[type="month"] {
           </div>
         </section>
 
-        <footer class="page-footer"><span>© <span id="footerYear">2026</span> <span id="footerBusinessName">Panadería Andino</span></span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
+        <footer class="page-footer"><span>© 2026 Mattsystem</span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
       </div>
     </main>
   </div>
@@ -1014,7 +1014,6 @@ input[type="date"], input[type="month"] {
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.filter((invoice) => invoice.direction === 'issued').length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -1244,7 +1243,6 @@ input[type="date"], input[type="month"] {
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
