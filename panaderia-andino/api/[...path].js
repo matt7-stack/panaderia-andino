@@ -729,8 +729,13 @@ module.exports = async function handler(req, res) {
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'La panadería seleccionada no existe o está inactiva.'});
       if(req.method==='GET'){
-        const rows=await sql`SELECT data,updated_at FROM app_state WHERE business_id=${businessId} LIMIT 1`;
-        return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null});
+        const rows=await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
+        if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
+        const row=rows[0], data=row.data&&typeof row.data==='object'?row.data:{};
+        // El registro businesses es la fuente principal de identidad del negocio.
+        // Los datos operativos (productos, facturas, movimientos) permanecen en app_state.
+        data.business={...(data.business&&typeof data.business==='object'?data.business:{}),id:row.business_id,name:row.business_name,address:row.business_address||'',phone:row.business_phone||'',email:row.business_email||'',ruc:row.business_ruc||'',owner:row.business_owner||''};
+        return send(res,200,{data,updatedAt:row.updated_at},{'Cache-Control':'no-store, max-age=0'});
       }
       if(req.method==='PUT'){
         const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
