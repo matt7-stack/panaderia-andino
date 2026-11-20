@@ -979,8 +979,13 @@ input[type="date"], input[type="month"] {
   const monthFilter = $('#monthFilter');
   monthFilter.value = monthISO();
 
+  function setText(selector, value) {
+    const element = $(selector);
+    if (element) element.textContent = value;
+  }
+
   function notify(message) {
-    $('#toastMessage').textContent = message;
+    setText('#toastMessage', message);
     appToast.show();
   }
   function confirmDelete(message) {
@@ -1014,7 +1019,7 @@ input[type="date"], input[type="month"] {
       else link.removeAttribute('aria-current');
     });
     const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Panaderías', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
-    $('#breadcrumbCurrent').textContent = titles[page];
+    setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
     $('#sidebarBackdrop').classList.remove('show');
@@ -1032,10 +1037,10 @@ input[type="date"], input[type="month"] {
   }
 
   function updateCounters() {
-    $('#movementNavCount').textContent = state.movements.length;
-    $('#invoiceNavCount').textContent = state.invoices.filter((invoice) => invoice.direction === 'issued').length;
-    $('#footerYear').textContent = new Date().getFullYear();
-    $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
+    setText('#movementNavCount', state.movements.length);
+    setText('#invoiceNavCount', state.invoices.filter((invoice) => invoice.direction === 'issued').length);
+    setText('#footerYear', new Date().getFullYear());
+    setText('#topUserName', window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador');
   }
 
   function updateGreeting() {
@@ -1053,10 +1058,10 @@ input[type="date"], input[type="month"] {
     const expense = sumType(monthMovements, 'expense');
     const profit = income - expense;
     const pending = state.invoices.filter((invoice) => invoice.direction === 'issued').reduce((total, invoice) => ['pending', 'partial'].includes(invoice.status) ? total + outstanding(invoice) : total, 0);
-    $('#incomeTotal').textContent = money(income);
-    $('#expenseTotal').textContent = money(expense);
-    $('#profitTotal').textContent = money(profit);
-    $('#pendingTotal').textContent = money(pending);
+    setText('#incomeTotal', money(income));
+    setText('#expenseTotal', money(expense));
+    setText('#profitTotal', money(profit));
+    setText('#pendingTotal', money(pending));
     $('#profitStatus').innerHTML = profit >= 0 ? '<i class="bi bi-check-circle"></i> Positivo' : '<i class="bi bi-exclamation-circle"></i> Negativo';
     $('#profitStatus').classList.toggle('negative', profit < 0);
     $('#profitStatus').classList.toggle('positive', profit >= 0);
@@ -1149,10 +1154,10 @@ input[type="date"], input[type="month"] {
     </tr>`).join('');
     const income = sumType(rows, 'income');
     const expense = sumType(rows, 'expense');
-    $('#movementIncomeTotal').textContent = money(income);
-    $('#movementExpenseTotal').textContent = money(expense);
-    $('#movementBalanceTotal').textContent = money(income - expense);
-    $('#movementResultCount').textContent = `Mostrando ${rows.length} de ${state.movements.length} registros`;
+    setText('#movementIncomeTotal', money(income));
+    setText('#movementExpenseTotal', money(expense));
+    setText('#movementBalanceTotal', money(income - expense));
+    setText('#movementResultCount', `Mostrando ${rows.length} de ${state.movements.length} registros`);
     $('#movementsEmpty').classList.toggle('d-none', rows.length > 0);
   }
 
@@ -1169,7 +1174,7 @@ input[type="date"], input[type="month"] {
     $('#movementPayment').innerHTML = paymentOptions(state.paymentMethods[0]);
     const item = id ? state.movements.find((row) => row.id === id) : null;
     if (item) {
-      $('#movementModalTitle').textContent = 'Editar movimiento';
+      setText('#movementModalTitle', 'Editar movimiento');
       $('#movementId').value = item.id;
       $('#movementDescription').value = item.description;
       $('#movementAmount').value = item.amount;
@@ -1179,7 +1184,7 @@ input[type="date"], input[type="month"] {
       $('#movementCategory').value = item.category;
       $('#movementPayment').innerHTML = paymentOptions(item.payment);
     } else {
-      $('#movementModalTitle').textContent = type === 'income' ? 'Nuevo ingreso' : 'Nuevo gasto';
+      setText('#movementModalTitle', type === 'income' ? 'Nuevo ingreso' : 'Nuevo gasto');
       setMovementType(type);
     }
     movementModal.show();
@@ -1202,9 +1207,9 @@ input[type="date"], input[type="month"] {
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
     const totalIssued = issued.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.amount || 0)), 0);
     const totalPaid = issued.reduce((sum, invoice) => sum + Math.min(Math.max(0, Number(invoice.amount || 0)), Math.max(0, Number(invoice.paidAmount || 0))), 0);
-    $('#invoiceTotalIssued').textContent = money(totalIssued);
-    $('#invoiceTotalPaid').textContent = money(totalPaid);
-    $('#invoiceTotalPending').textContent = money(Math.max(0, totalIssued - totalPaid));
+    setText('#invoiceTotalIssued', money(totalIssued));
+    setText('#invoiceTotalPaid', money(totalPaid));
+    setText('#invoiceTotalPending', money(Math.max(0, totalIssued - totalPaid)));
     $('#invoicesTableBody').innerHTML = rows.map((invoice) => {
       const status = invoiceStatus(invoice), remaining = outstanding(invoice);
       return `<tr>
@@ -1214,7 +1219,7 @@ input[type="date"], input[type="month"] {
         <td><div class="table-actions">${remaining > 0 ? `<button class="icon-action" type="button" title="Registrar pago" aria-label="Registrar pago" data-pay-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-cash-coin"></i></button>` : ''}<button class="icon-action" type="button" title="Ver historial de pagos" aria-label="Ver historial de pagos" data-payment-history="${escapeHTML(invoice.id)}"><i class="bi bi-clock-history"></i></button><button class="icon-action" type="button" title="Editar nota" aria-label="Editar nota" data-edit-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar nota" data-delete-invoice="${escapeHTML(invoice.id)}"><i class="bi bi-trash3"></i></button></div></td>
       </tr>`;
     }).join('');
-    $('#invoiceResultCount').textContent = `Mostrando ${rows.length} de ${issued.length} notas emitidas`;
+    setText('#invoiceResultCount', `Mostrando ${rows.length} de ${issued.length} notas emitidas`);
     $('#invoicesEmpty').classList.toggle('d-none', rows.length > 0);
     updateCounters();
   }
@@ -1248,7 +1253,7 @@ input[type="date"], input[type="month"] {
     $('#invoiceDate').value = todayISO();
     const invoice = id ? state.invoices.find((item) => item.id === id) : null;
     if (invoice) {
-      $('#invoiceModalTitle').textContent = 'Editar nota';
+      setText('#invoiceModalTitle', 'Editar nota');
       $('#invoiceId').value = invoice.id;
       $('#invoiceDirection').value = invoice.direction;
       $('#invoiceNumber').value = invoice.number;
@@ -1257,7 +1262,7 @@ input[type="date"], input[type="month"] {
       $('#invoiceDescription').value = invoice.description || '';
       $('#invoiceAmount').value = Number(invoice.amount || 0);
     } else {
-      $('#invoiceModalTitle').textContent = 'Nueva nota';
+      setText('#invoiceModalTitle', 'Nueva nota');
       $('#invoiceDirection').value = 'issued';
       $('#invoiceNumber').value = nextInvoiceNumber('issued');
       $('#invoiceAmount').value = '';
@@ -1276,15 +1281,15 @@ input[type="date"], input[type="month"] {
     const employees = state.employees || []; const payments = state.employeePayments || [];
     const active = employees.filter((employee) => employee.active !== false); const month = monthISO();
     const payroll = payments.filter((payment) => payment.date?.startsWith(month)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    $('#employeeCount').textContent = active.length; $('#employeePayrollTotal').textContent = money(payroll); $('#employeePaymentsCount').textContent = payments.length;
+    setText('#employeeCount', active.length); setText('#employeePayrollTotal', money(payroll)); setText('#employeePaymentsCount', payments.length);
     $('#employeesTableBody').innerHTML = employees.map((employee) => `<tr><td><span class="table-main-text">${escapeHTML(employee.name)}</span><span class="table-sub-text">${escapeHTML(employee.phone || 'Sin teléfono')}</span></td><td>${escapeHTML(employee.position || '—')}</td><td class="table-amount">${money(employee.salary || 0)}</td><td>${employee.frequency === 'daily' ? 'Diario' : 'Mensual'}</td><td><span class="status-pill ${employee.active === false ? 'status-cancelled' : 'status-paid'}">${employee.active === false ? 'Inactivo' : 'Activo'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-pay-employee="${escapeHTML(employee.id)}" title="Registrar pago" aria-label="Registrar pago"><i class="bi bi-cash-coin"></i></button><button class="icon-action" type="button" data-edit-employee="${escapeHTML(employee.id)}" title="Editar empleado" aria-label="Editar empleado"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" data-delete-employee="${escapeHTML(employee.id)}" title="Eliminar empleado" aria-label="Eliminar empleado"><i class="bi bi-trash3"></i></button></div></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay empleados registrados.</td></tr>';
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td><td class="text-center"><button class="icon-action danger" type="button" data-delete-employee-payment="${escapeHTML(payment.id)}" title="Eliminar pago" aria-label="Eliminar pago"><i class="bi bi-trash3"></i></button></td></tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
-    $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
-    $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    setText('#adminUserCount', cloudUsers.length); setText('#adminEmployeeCount', (state.employees || []).filter((employee) => employee.active !== false).length);
+    setText('#adminMovementCount', (state.movements || []).length); setText('#adminLastSync', cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente');
   }
 
   function exportAdminBackup() {
@@ -1300,10 +1305,10 @@ input[type="date"], input[type="month"] {
     $('#businessEmail').value = state.business.email || '';
     $('#businessRuc').value = state.business.ruc || '';
     $('#businessOwner').value = state.business.owner || '';
-    $('#businessPreviewName').textContent = state.business.name || 'Nombre del negocio';
-    $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
-    $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
-    $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
+    setText('#businessPreviewName', state.business.name || 'Nombre del negocio');
+    setText('#businessPreviewAddress', state.business.address || 'Dirección de tu negocio');
+    setText('#businessPreviewPhone', state.business.phone || 'Teléfono');
+    setText('#businessPreviewEmail', state.business.email || 'Correo electrónico');
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
@@ -1328,18 +1333,18 @@ input[type="date"], input[type="month"] {
     simpleModalMode = mode; simpleModalData = data;
     const fields = $('#simpleModalFields');
     if (mode === 'category') {
-      $('#simpleModalTitle').textContent = data.type === 'income' ? 'Nueva categoría de ingreso' : 'Nueva categoría de gasto';
+      setText('#simpleModalTitle', data.type === 'income' ? 'Nueva categoría de ingreso' : 'Nueva categoría de gasto');
       fields.innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre de la categoría</label><input id="simpleName" name="name" maxlength="50" required placeholder="Ej. Ventas por delivery"></div>`;
     } else if (mode === 'payment') {
-      $('#simpleModalTitle').textContent = 'Nuevo método de pago';
+      setText('#simpleModalTitle', 'Nuevo método de pago');
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre del método</label><input id="simpleName" name="name" maxlength="40" required placeholder="Ej. Billetera electrónica"></div>';
     } else if (mode === 'employee') {
-      $('#simpleModalTitle').textContent = 'Agregar empleado';
+      setText('#simpleModalTitle', 'Agregar empleado');
       const employee = (state.employees || []).find((item) => item.id === data.employeeId) || {};
-      $('#simpleModalTitle').textContent = data.employeeId ? 'Editar empleado' : 'Agregar empleado';
+      setText('#simpleModalTitle', data.employeeId ? 'Editar empleado' : 'Agregar empleado');
       fields.innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre y apellido</label><input id="simpleName" required maxlength="90" value="${escapeHTML(employee.name || '')}" placeholder="Nombre completo"></div><div class="simple-modal-field"><label for="employeePosition">Cargo</label><input id="employeePosition" maxlength="70" value="${escapeHTML(employee.position || '')}" placeholder="Panadero, vendedor, cajero..."></div><div class="simple-modal-field"><label for="employeePhone">Teléfono</label><input id="employeePhone" maxlength="30" value="${escapeHTML(employee.phone || '')}" placeholder="Número de contacto"></div><div class="simple-modal-field"><label for="employeeSalary">Salario o jornal (Gs.)</label><input id="employeeSalary" type="number" min="0" step="1" required value="${Number(employee.salary || 0)}" placeholder="0"></div><div class="simple-modal-field"><label for="employeeFrequency">Frecuencia</label><select id="employeeFrequency"><option value="monthly" ${employee.frequency !== 'daily' ? 'selected' : ''}>Mensual</option><option value="daily" ${employee.frequency === 'daily' ? 'selected' : ''}>Diario</option></select></div>`;
     } else if (mode === 'employee-payment') {
-      $('#simpleModalTitle').textContent = 'Registrar pago a empleado';
+      setText('#simpleModalTitle', 'Registrar pago a empleado');
       const employeeOptions = (state.employees || []).filter((employee) => employee.active !== false).map((employee) => `<option value="${escapeHTML(employee.id)}">${escapeHTML(employee.name)}</option>`).join('');
       fields.innerHTML = `<div class="simple-modal-field"><label for="paymentEmployee">Empleado</label><select id="paymentEmployee" required>${employeeOptions}</select></div><div class="simple-modal-field"><label for="employeePaymentAmount">Importe (Gs.)</label><input id="employeePaymentAmount" type="number" min="1" step="1" required></div><div class="simple-modal-field"><label for="employeePaymentDate">Fecha de pago</label><input id="employeePaymentDate" type="date" value="${todayISO()}" required></div><div class="simple-modal-field"><label for="employeePaymentMethod">Método de pago</label><select id="employeePaymentMethod">${paymentOptions()}</select></div><div class="simple-modal-field"><label for="employeePaymentPeriod">Concepto</label><input id="employeePaymentPeriod" maxlength="80" value="Pago de salario" required></div>`;
       if (data.employeeId) fields.querySelector('#paymentEmployee').value = data.employeeId;
@@ -1347,10 +1352,10 @@ input[type="date"], input[type="month"] {
       const setDefaultAmount = () => { const employee = (state.employees || []).find((item) => item.id === employeeSelect.value); if (employee && !amountInput.value) amountInput.value = employee.salary || ''; };
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'business') {
-      $('#simpleModalTitle').textContent = 'Registrar panadería';
+      setText('#simpleModalTitle', 'Registrar panadería');
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre de la panadería</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Panadería Central"></div><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div>';
     } else if (mode === 'user') {
-      $('#simpleModalTitle').textContent = 'Agregar usuario';
+      setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
       const businessOptions = activeBusinesses.map((business) => '<option value="' + escapeHTML(business.id) + '">' + escapeHTML(business.name) + '</option>').join('');
       fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Panadería asignada</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná una panadería</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente a la panadería seleccionada y no podrá administrar ni crear otras cuentas.</small>';
@@ -1626,9 +1631,9 @@ input[type="date"], input[type="month"] {
     try{
       const result=await window.PanaderiaAuth.api('/api/admin/activity');
       const rows=result.activities||[],alerts=result.notifications||[];
-      $('#adminActivityTotal').textContent=rows.length;
-      $('#adminActivityUnread').textContent=alerts.filter(x=>!x.read_at).length;
-      $('#adminActivityCount').textContent=alerts.filter(x=>!x.read_at).length;
+      setText('#adminActivityTotal', rows.length);
+      setText('#adminActivityUnread', alerts.filter(x=>!x.read_at).length);
+      setText('#adminActivityCount', alerts.filter(x=>!x.read_at).length);
       $('#adminActivityCount').classList.toggle('d-none',!alerts.some(x=>!x.read_at));
       $('#adminActivityAlerts').innerHTML=alerts.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between gap-2"><div><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div><div class="text-end"><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm d-block mt-2" type="button" data-admin-read-alert="'+escapeHTML(n.id)+'">Marcar leída</button>':'')+'</div></div></article>').join('')||'<p class="text-muted">No hay alertas nuevas.</p>';
       $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
@@ -1639,10 +1644,10 @@ input[type="date"], input[type="month"] {
     try{
       const result=await window.PanaderiaAuth.api('/api/admin/security');
       const summary=result.summary||{},attempts=result.attempts||[],events=result.events||[],users=result.users||[];
-      $('#securityActiveUsers').textContent=Number(summary.active_users||0);
-      $('#securitySuccessful24h').textContent=Number(summary.successful_24h||0);
-      $('#securityFailed24h').textContent=Number(summary.failed_24h||0);
-      $('#securityLockedAccounts').textContent=Number(summary.locked_accounts||0);
+      setText('#securityActiveUsers', Number(summary.active_users||0));
+      setText('#securitySuccessful24h', Number(summary.successful_24h||0));
+      setText('#securityFailed24h', Number(summary.failed_24h||0));
+      setText('#securityLockedAccounts', Number(summary.locked_accounts||0));
       $('#securityUsersTable').innerHTML=users.map(u=>'<tr><td><strong>'+escapeHTML(u.name)+'</strong><small class="d-block text-muted">'+escapeHTML(u.role||'usuario')+'</small></td><td>'+escapeHTML(u.email)+'</td><td>'+escapeHTML(u.business_name||'—')+'</td><td><span class="status-pill '+(u.active?'status-paid':'status-cancelled')+'">'+(u.active?'Activa':'Desactivada')+'</span></td><td>'+(u.active?'<button class="btn btn-outline-danger btn-sm" type="button" data-revoke-session="'+escapeHTML(u.id)+'"><i class="bi bi-shield-x"></i> Revocar sesiones</button>':'<span class="text-muted">Sin acceso</span>')+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">No hay usuarios registrados.</td></tr>';
       $('#securityAttemptsTable').innerHTML=attempts.map(a=>{const locked=a.locked_until&&new Date(a.locked_until).getTime()>Date.now();return '<tr><td>'+escapeHTML(a.email)+'</td><td>'+Number(a.failures||0)+'</td><td><span class="status-pill '+(locked?'status-cancelled':'status-pending')+'">'+(locked?'Bloqueada hasta '+escapeHTML(new Date(a.locked_until).toLocaleString('es-PY')):'Sin bloqueo activo')+'</span></td><td>'+escapeHTML(new Date(a.updated_at).toLocaleString('es-PY'))+'</td></tr>';}).join('')||'<tr><td colspan="4" class="text-center text-muted">No hay intentos fallidos pendientes.</td></tr>';
       $('#securityEventsTable').innerHTML=events.map(e=>{const details=e.details||{};const success=e.action==='auth.login_success';const blocked=e.action==='auth.login_blocked';const eventLabel=success?'Acceso correcto':(blocked?'Acceso bloqueado':'Intento fallido');return '<tr><td>'+escapeHTML(new Date(e.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(e.user_name||e.user_email||details.email||'Cuenta no identificada')+'</td><td><span class="status-pill '+(success?'status-paid':'status-cancelled')+'">'+eventLabel+'</span></td><td>'+escapeHTML(e.ip_address||'No disponible')+'</td><td>'+escapeHTML(blocked?'Se aplicó el límite de intentos.':(success?'Inicio de sesión validado.':'Credenciales no válidas.'))+'</td></tr>';}).join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay eventos de acceso registrados.</td></tr>';
@@ -1659,7 +1664,7 @@ input[type="date"], input[type="month"] {
       const rows=result.businesses||[];
       const sum=key=>rows.reduce((n,b)=>n+Number(b[key]||0),0);
       const income=sum('recorded_income'),expense=sum('recorded_expenses');
-      $('#globalIncomeTotal').textContent=money(income);$('#globalExpenseTotal').textContent=money(expense);$('#globalProfitTotal').textContent=money(income-expense);$('#globalBusinessCount').textContent=rows.filter(b=>b.active).length;
+      setText('#globalIncomeTotal', money(income));setText('#globalExpenseTotal', money(expense));setText('#globalProfitTotal', money(income-expense));setText('#globalBusinessCount', rows.filter(b=>b.active).length);
       $('#globalReportsTable').innerHTML=rows.map(b=>'<tr><td>'+escapeHTML(b.name)+'</td><td>'+(b.active?'Activa':'Inactiva')+'</td><td>'+money(b.recorded_income)+'</td><td>'+money(b.recorded_expenses)+'</td><td>'+money(Number(b.recorded_income||0)-Number(b.recorded_expenses||0))+'</td><td>'+Number(b.customer_count||0)+'</td><td>'+Number(b.sales_count||0)+'</td><td>'+Number(b.product_count||0)+'</td><td>'+Number(b.purchase_count||0)+'</td><td>'+Number(b.active_user_count||0)+'</td><td>'+(b.active?'<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button>':'—')+'</td></tr>').join('')||'<tr><td colspan="11" class="text-center text-muted">No hay panaderías registradas.</td></tr>';
       const clientResult=await window.PanaderiaAuth.api('/api/admin/clients');
       const clientRows=clientResult.clients||[];
