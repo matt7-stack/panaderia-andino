@@ -55,6 +55,7 @@ const server = http.createServer(async (req, res) => {
       }
       return await apiHandler(req, res);
     } catch (error) {
+      console.error('API request failed:', error && error.stack ? error.stack : error);
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
       return res.end(JSON.stringify({ error: 'No se pudo completar la solicitud.' }));
     }
