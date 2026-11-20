@@ -358,6 +358,19 @@ input[type="date"], input[type="month"] {
   .invoice-tab { padding:8px; }
 }
 
+
+/* Productos e inventario */
+#page-productos .summary-card{min-width:0}
+#page-productos .panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#page-productos .filter-bar{flex-wrap:wrap}
+#page-productos .filter-bar .search-field{flex:1 1 220px}
+#page-productos .filter-select{min-width:150px}
+#page-productos .stock-value{font-weight:800;font-variant-numeric:tabular-nums}
+#page-productos .stock-low{color:#b7791f}
+#page-productos .stock-out{color:#c44b4b}
+#page-productos .stock-ok{color:#32804c}
+#page-productos .product-meta{display:block;color:var(--muted);font-size:10px}
+@media(max-width:767px){#page-productos .filter-bar>*{width:100%;max-width:none}#page-productos .panel-heading{align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -373,6 +386,7 @@ input[type="date"], input[type="month"] {
         <a class="nav-link" href="#movimientos" data-page-link="movimientos"><i class="bi bi-arrow-left-right"></i><span>Movimientos</span><span class="nav-count" id="movementNavCount">0</span></a>
         <a class="nav-link" href="#notas" data-page-link="notas"><i class="bi bi-receipt-cutoff"></i><span>Notas</span><span class="nav-count" id="invoiceNavCount">0</span></a>
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
+        <a class="nav-link" href="#productos" data-page-link="productos"><i class="bi bi-box-seam"></i><span>Productos e inventario</span><span class="nav-count" id="lowStockNavCount">0</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administrador</span></a>
         <a class="nav-link admin-only-menu" href="#admin-panaderias" data-page-link="admin-panaderias" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Panaderías</span></a>
@@ -451,6 +465,63 @@ input[type="date"], input[type="month"] {
         </section>
 
         <!-- CONFIGURACIÓN -->
+
+        <!-- PRODUCTOS E INVENTARIO -->
+        <section class="page-view" id="page-productos" data-page="productos">
+          <div class="page-heading"><div><p class="eyebrow">CONTROL DE EXISTENCIAS</p><h1><i class="bi bi-box-seam heading-page-icon"></i> Productos e inventario</h1><p class="page-subtitle">Registrá productos, controlá cantidades y consultá las entradas y salidas de mercadería.</p></div><div class="heading-actions"><button class="btn btn-outline-bakery" type="button" id="exportProductsButton"><i class="bi bi-download"></i> Exportar CSV</button></div></div>
+          <div class="summary-grid three-cards">
+            <article class="summary-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-boxes"></i></span><span class="summary-tag">CATÁLOGO</span></div><p class="summary-label">Productos activos</p><h2 id="productCount">0</h2></article>
+            <article class="summary-card expense-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-exclamation-triangle"></i></span><span class="summary-tag">ATENCIÓN</span></div><p class="summary-label">Con stock bajo o agotado</p><h2 id="lowStockCount">0</h2></article>
+            <article class="summary-card profit-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-currency-exchange"></i></span><span class="summary-tag">VALOR REFERENCIAL</span></div><p class="summary-label">Valor del stock al costo</p><h2 id="inventoryValue">Gs. 0</h2></article>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-lg-5">
+              <article class="panel settings-card h-100">
+                <div class="panel-heading"><div><h3 id="productFormTitle">Registrar producto</h3><p>Completá los datos para agregar un artículo al catálogo.</p></div></div>
+                <form id="productForm" class="row g-3">
+                  <input type="hidden" id="productId">
+                  <div class="col-12"><label class="form-label" for="productName">Nombre del producto *</label><input class="form-control" id="productName" maxlength="100" required placeholder="Ej.: Harina 000"></div>
+                  <div class="col-sm-6"><label class="form-label" for="productCode">Código / SKU</label><input class="form-control" id="productCode" maxlength="40" placeholder="Opcional"></div>
+                  <div class="col-sm-6"><label class="form-label" for="productCategory">Categoría</label><input class="form-control" id="productCategory" maxlength="60" placeholder="Ej.: Materia prima"></div>
+                  <div class="col-sm-6"><label class="form-label" for="productUnit">Unidad *</label><select class="form-select" id="productUnit" required><option value="Unidad">Unidad</option><option value="kg">Kilogramo (kg)</option><option value="g">Gramo (g)</option><option value="L">Litro (L)</option><option value="ml">Mililitro (ml)</option><option value="Bolsa">Bolsa</option><option value="Paquete">Paquete</option><option value="Caja">Caja</option></select></div>
+                  <div class="col-sm-6"><label class="form-label" for="productStock">Existencia inicial *</label><input class="form-control" id="productStock" type="number" min="0" step="0.001" value="0" required></div>
+                  <div class="col-sm-6"><label class="form-label" for="productMinStock">Stock mínimo *</label><input class="form-control" id="productMinStock" type="number" min="0" step="0.001" value="0" required></div>
+                  <div class="col-sm-6"><label class="form-label" for="productCost">Costo unitario (Gs.)</label><input class="form-control" id="productCost" type="number" min="0" step="1" value="0"></div>
+                  <div class="col-sm-6"><label class="form-label" for="productPrice">Precio de venta (Gs.)</label><input class="form-control" id="productPrice" type="number" min="0" step="1" value="0"></div>
+                  <div class="col-12"><label class="form-label" for="productDescription">Descripción / observación</label><textarea class="form-control" id="productDescription" rows="2" maxlength="300" placeholder="Información adicional (opcional)"></textarea></div>
+                  <div class="col-12 d-flex gap-2 flex-wrap"><button class="btn btn-bakery" type="submit" id="saveProductButton"><i class="bi bi-check2"></i> Guardar producto</button><button class="btn btn-outline-bakery" type="button" id="cancelProductEdit" hidden>Cancelar edición</button></div>
+                </form>
+              </article>
+            </div>
+            <div class="col-lg-7">
+              <article class="panel settings-card h-100">
+                <div class="panel-heading"><div><h3>Registrar entrada o salida</h3><p>Actualizá existencias y dejá constancia del motivo.</p></div></div>
+                <form id="productMovementForm" class="row g-3">
+                  <div class="col-sm-6"><label class="form-label" for="productMovementType">Tipo de movimiento *</label><select class="form-select" id="productMovementType"><option value="in">Entrada de stock</option><option value="out">Salida de stock</option></select></div>
+                  <div class="col-sm-6"><label class="form-label" for="productMovementDate">Fecha *</label><input class="form-control" id="productMovementDate" type="date" required></div>
+                  <div class="col-12"><label class="form-label" for="productMovementProduct">Producto *</label><select class="form-select" id="productMovementProduct" required><option value="">Primero registrá un producto</option></select></div>
+                  <div class="col-sm-6"><label class="form-label" for="productMovementQuantity">Cantidad *</label><input class="form-control" id="productMovementQuantity" type="number" min="0.001" step="0.001" required placeholder="0"></div>
+                  <div class="col-sm-6"><label class="form-label" for="productMovementReason">Motivo *</label><select class="form-select" id="productMovementReason" required><option value="Compra">Compra / reposición</option><option value="Producción">Uso en producción</option><option value="Venta">Venta</option><option value="Merma">Merma / vencimiento</option><option value="Ajuste">Ajuste de inventario</option><option value="Devolución">Devolución</option><option value="Otro">Otro</option></select></div>
+                  <div class="col-12"><label class="form-label" for="productMovementNote">Detalle (opcional)</label><input class="form-control" id="productMovementNote" maxlength="200" placeholder="Ej.: compra a proveedor, lote, motivo de ajuste..."></div>
+                  <div class="col-12"><button class="btn btn-bakery" type="submit"><i class="bi bi-arrow-left-right"></i> Registrar movimiento</button></div>
+                </form>
+              </article>
+            </div>
+          </div>
+          <article class="panel table-panel mt-3">
+            <div class="panel-heading"><div><h3>Catálogo y existencias</h3><p>El estado se calcula comparando la existencia actual con el stock mínimo.</p></div></div>
+            <div class="filter-bar"><div class="search-field"><i class="bi bi-search"></i><input id="productSearch" type="search" placeholder="Buscar por nombre o código..." aria-label="Buscar productos"></div><select class="form-select filter-select" id="productStatusFilter" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="low">Stock bajo</option><option value="out">Agotados</option><option value="ok">Stock suficiente</option></select><button class="btn btn-outline-bakery btn-filter" id="clearProductFilters" type="button"><i class="bi bi-arrow-counterclockwise"></i> Limpiar</button></div>
+            <div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>PRODUCTO</th><th>CÓDIGO</th><th>CATEGORÍA</th><th>EXISTENCIA</th><th>MÍNIMO</th><th>COSTO</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="productsTableBody"></tbody></table></div>
+            <div class="table-bottom"><span id="productResultCount">0 productos</span><span id="productLowStockHint" class="text-muted"></span></div>
+            <div id="productsEmpty" class="empty-state d-none"><i class="bi bi-box-seam"></i><strong>No hay productos registrados</strong><span>Agregá tu primer producto usando el formulario.</span></div>
+          </article>
+          <article class="panel table-panel mt-3">
+            <div class="panel-heading"><div><h3>Historial de movimientos de inventario</h3><p>Últimas 100 entradas, salidas y ajustes registrados.</p></div></div>
+            <div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>PRODUCTO</th><th>TIPO</th><th>MOTIVO</th><th>CANTIDAD</th><th>EXISTENCIA RESULTANTE</th><th>DETALLE</th></tr></thead><tbody id="productMovementsTableBody"></tbody></table></div>
+            <div id="productMovementsEmpty" class="empty-state d-none"><i class="bi bi-arrow-left-right"></i><strong>Sin movimientos registrados</strong><span>Las entradas y salidas quedarán guardadas en este historial.</span></div>
+          </article>
+        </section>
+
         <!-- EMPLEADOS -->
         <section class="page-view" id="page-empleados" data-page="empleados">
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DEL PERSONAL</p><h1><i class="bi bi-people heading-page-icon"></i> Empleados</h1><p class="page-subtitle">Administrá los datos del personal y registrá sus pagos diarios o mensuales.</p></div><div class="heading-actions"><button class="btn btn-outline-bakery" type="button" id="payEmployeeButton"><i class="bi bi-cash-coin"></i> Registrar pago</button><button class="btn btn-bakery" type="button" id="addEmployeeButton"><i class="bi bi-person-plus"></i> Agregar empleado</button></div></div>
@@ -780,7 +851,20 @@ input[type="date"], input[type="month"] {
               <li>Si un módulo no carga, comprobá la conexión y utilizá Actualizar. Si el problema continúa, anotá el mensaje exacto y comunicáselo al administrador.</li>
             </ul>
           </div>
-        </section>
+        
+          <div class="panel settings-card mb-3">
+            <div class="panel-heading"><div><h3>Productos e inventario</h3><p>Alta de artículos, control de stock y movimientos.</p></div></div>
+            <ul class="mb-0">
+              <li><strong>Registrar producto:</strong> completá nombre, unidad, existencia inicial y stock mínimo. Código, categoría, costo, precio y descripción son datos complementarios.</li>
+              <li><strong>Stock mínimo:</strong> cuando la existencia sea igual o inferior al mínimo, el artículo se marcará para revisión. Si llega a cero, aparecerá como agotado.</li>
+              <li><strong>Entrada de stock:</strong> elegí el producto, fecha, cantidad y motivo para sumar existencias, por ejemplo una compra o devolución.</li>
+              <li><strong>Salida de stock:</strong> registrá cantidades utilizadas en producción, vendidas, mermadas o retiradas. El sistema no permite dejar el inventario en negativo.</li>
+              <li><strong>Catálogo:</strong> buscá por nombre o código, filtrá por estado y usá los botones para editar o eliminar un producto. No se puede eliminar un producto con movimientos históricos.</li>
+              <li><strong>Historial:</strong> cada entrada y salida guarda fecha, tipo, motivo, cantidad y existencia resultante. Exportar CSV descarga el catálogo visible.</li>
+              <li><strong>Valor del inventario:</strong> es un cálculo referencial de existencia por costo unitario; no sustituye una valuación contable.</li>
+            </ul>
+          </div>
+</section>
 
         <footer class="page-footer"><span>© 2026 Mattsystem</span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
       </div>
@@ -1037,7 +1121,7 @@ input[type="date"], input[type="month"] {
   };
 
   const createEmptyState = () => ({
-    movements: [], invoices: [], employees: [], employeePayments: [],
+    movements: [], invoices: [], employees: [], employeePayments: [], products: [], productMovements: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
     business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
@@ -1123,12 +1207,12 @@ input[type="date"], input[type="month"] {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'empleados', 'administracion', 'admin-panaderias', 'admin-usuarios', 'admin-notificaciones', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'administracion', 'admin-panaderias', 'admin-usuarios', 'admin-notificaciones', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true) return;
     const platformPages=['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos','actividad','seguridad','reportes-globales'];
-    const businessPages=['dashboard','movimientos','notas','notificaciones','empleados'];
+    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
     if (currentUser?.isPlatformAdmin !== true && ['actividad','seguridad','reportes-globales'].includes(page)) return;
@@ -1140,7 +1224,7 @@ input[type="date"], input[type="month"] {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Panaderías', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Productos e inventario', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Panaderías', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -1148,6 +1232,7 @@ input[type="date"], input[type="month"] {
     $('#menuToggle').setAttribute('aria-expanded', 'false');
     if (page === 'movimientos') renderMovements();
     if (page === 'notas') renderInvoices();
+    if (page === 'productos') renderProducts();
     if (page === 'empleados') renderEmployees();
     if (['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos'].includes(page)) renderAdminPanel();
     if (page === 'notificaciones') refreshNotifications();
@@ -1161,6 +1246,7 @@ input[type="date"], input[type="month"] {
   function updateCounters() {
     setText('#movementNavCount', state.movements.length);
     setText('#invoiceNavCount', state.invoices.filter((invoice) => invoice.direction === 'issued').length);
+    setText('#lowStockNavCount', (state.products || []).filter((product) => product.active !== false && Number(product.stock || 0) <= Number(product.minStock || 0)).length);
     setText('#footerYear', new Date().getFullYear());
     setText('#topUserName', window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador');
   }
@@ -1398,6 +1484,115 @@ input[type="date"], input[type="month"] {
     });
     return String(Math.max(0, ...numbers) + 1).padStart(5, '0');
   }
+
+
+  function productStockStatus(product) {
+    const stock=Number(product.stock||0), minimum=Number(product.minStock||0);
+    if(stock<=0)return 'out';
+    if(stock<=minimum)return 'low';
+    return 'ok';
+  }
+  function productStockLabel(product) {
+    const status=productStockStatus(product);
+    return status==='out'?'Agotado':status==='low'?'Stock bajo':'Disponible';
+  }
+  function renderProducts() {
+    state.products=Array.isArray(state.products)?state.products:[];
+    state.productMovements=Array.isArray(state.productMovements)?state.productMovements:[];
+    const search=($('#productSearch')?.value||'').trim().toLocaleLowerCase('es');
+    const status=$('#productStatusFilter')?.value||'all';
+    const visible=state.products.filter(product=>{
+      if(product.active===false)return false;
+      const textMatch=!search||[product.name,product.code,product.category].some(value=>String(value||'').toLocaleLowerCase('es').includes(search));
+      const currentStatus=productStockStatus(product);
+      const statusMatch=status==='all'||(status==='low'&&currentStatus==='low')||(status==='out'&&currentStatus==='out')||(status==='ok'&&currentStatus==='ok');
+      return textMatch&&statusMatch;
+    }).sort((a,b)=>String(a.name).localeCompare(String(b.name),'es'));
+    const active=state.products.filter(product=>product.active!==false);
+    const low=active.filter(product=>productStockStatus(product)!=='ok');
+    const value=active.reduce((sum,product)=>sum+Number(product.stock||0)*Number(product.cost||0),0);
+    setText('#productCount',active.length);setText('#lowStockCount',low.length);setText('#inventoryValue',money(value));
+    setText('#productResultCount',`Mostrando ${visible.length} de ${active.length} productos`);
+    setText('#productLowStockHint',low.length?`${low.length} producto(s) requieren revisión`:'Todos los productos tienen stock suficiente');
+    const table=$('#productsTableBody');
+    if(table)table.innerHTML=visible.map(product=>{
+      const statusValue=productStockStatus(product),statusClass=statusValue==='out'?'stock-out':statusValue==='low'?'stock-low':'stock-ok';
+      return `<tr><td><span class="table-main-text">${escapeHTML(product.name)}</span><span class="product-meta">${escapeHTML(product.unit||'Unidad')} · Precio: ${money(product.price||0)}</span></td><td>${escapeHTML(product.code||'—')}</td><td>${escapeHTML(product.category||'—')}</td><td class="stock-value ${statusClass}">${Number(product.stock||0).toLocaleString('es-PY')} ${escapeHTML(product.unit||'')}</td><td>${Number(product.minStock||0).toLocaleString('es-PY')}</td><td>${money(product.cost||0)}</td><td><span class="status-pill ${statusValue==='ok'?'status-paid':statusValue==='low'?'status-pending':'status-cancelled'}">${productStockLabel(product)}</span></td><td><div class="table-actions"><button class="icon-action" type="button" title="Editar" aria-label="Editar producto" data-edit-product="${escapeHTML(product.id)}"><i class="bi bi-pencil"></i></button><button class="icon-action danger" type="button" title="Eliminar" aria-label="Eliminar producto" data-delete-product="${escapeHTML(product.id)}"><i class="bi bi-trash3"></i></button></div></td></tr>`;
+    }).join('');
+    $('#productsEmpty')?.classList.toggle('d-none',visible.length>0);
+    const productSelect=$('#productMovementProduct');
+    if(productSelect){
+      const selected=productSelect.value;
+      productSelect.innerHTML='<option value="">Seleccioná un producto</option>'+active.map(product=>`<option value="${escapeHTML(product.id)}">${escapeHTML(product.name)} · Stock: ${Number(product.stock||0).toLocaleString('es-PY')} ${escapeHTML(product.unit||'')}</option>`).join('');
+      if(active.some(product=>product.id===selected))productSelect.value=selected;
+    }
+    const movements=[...state.productMovements].sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,100);
+    $('#productMovementsTableBody').innerHTML=movements.map(item=>`<tr><td>${dateFormat(item.date)}</td><td>${escapeHTML(item.productName||'Producto eliminado')}</td><td><span class="status-pill ${item.type==='in'?'status-income':'status-expense'}">${item.type==='in'?'Entrada':'Salida'}</span></td><td>${escapeHTML(item.reason||'—')}</td><td>${Number(item.quantity||0).toLocaleString('es-PY')}</td><td>${Number(item.resultingStock||0).toLocaleString('es-PY')}</td><td>${escapeHTML(item.note||'—')}</td></tr>`).join('');
+    $('#productMovementsEmpty')?.classList.toggle('d-none',movements.length>0);
+    updateCounters();
+  }
+  function resetProductForm() {
+    $('#productForm')?.reset();$('#productId').value='';$('#productStock').value='0';$('#productMinStock').value='0';$('#productCost').value='0';$('#productPrice').value='0';
+    setText('#productFormTitle','Registrar producto');setText('#saveProductButton','Guardar producto');
+    $('#cancelProductEdit').hidden=true;
+  }
+  $('#productForm')?.addEventListener('submit',event=>{
+    event.preventDefault();
+    const id=$('#productId').value;
+    const name=$('#productName').value.trim();
+    const code=$('#productCode').value.trim();
+    const stock=Number($('#productStock').value),minStock=Number($('#productMinStock').value),cost=Number($('#productCost').value||0),price=Number($('#productPrice').value||0);
+    if(!name||!Number.isFinite(stock)||stock<0||!Number.isFinite(minStock)||minStock<0||!Number.isFinite(cost)||cost<0||!Number.isFinite(price)||price<0){notify('Revisá los datos del producto. Las cantidades y los importes no pueden ser negativos.');return;}
+    const duplicate=state.products.find(product=>product.id!==id&&code&&String(product.code||'').toLowerCase()===code.toLowerCase());
+    if(duplicate){notify('Ya existe un producto con ese código.');return;}
+    const existing=state.products.find(product=>product.id===id);
+    const record={...(existing||{}),id:id||makeId(),name,code,category:$('#productCategory').value.trim(),unit:$('#productUnit').value,stock,minStock,cost,price,description:$('#productDescription').value.trim(),active:true,updatedAt:new Date().toISOString()};
+    if(existing){
+      const difference=stock-Number(existing.stock||0);
+      if(difference!==0)state.productMovements.push({id:makeId(),productId:id,productName:name,type:difference>0?'in':'out',quantity:Math.abs(difference),reason:'Ajuste por edición',date:todayISO(),resultingStock:stock,note:'Ajuste realizado al editar los datos del producto.',createdAt:new Date().toISOString()});
+      state.products=state.products.map(product=>product.id===id?record:product);
+    }else{
+      state.products.push(record);
+      if(stock>0)state.productMovements.push({id:makeId(),productId:record.id,productName:name,type:'in',quantity:stock,reason:'Stock inicial',date:todayISO(),resultingStock:stock,note:'Existencia inicial al crear el producto.',createdAt:new Date().toISOString()});
+    }
+    saveState();resetProductForm();renderProducts();notify(existing?'Producto actualizado correctamente.':'Producto registrado correctamente.');
+  });
+  $('#cancelProductEdit')?.addEventListener('click',resetProductForm);
+  $('#productMovementDate').value=todayISO();
+  $('#productMovementForm')?.addEventListener('submit',event=>{
+    event.preventDefault();
+    const product=state.products.find(item=>item.id===$('#productMovementProduct').value&&item.active!==false);
+    const quantity=Number($('#productMovementQuantity').value),type=$('#productMovementType').value,date=$('#productMovementDate').value,reason=$('#productMovementReason').value;
+    if(!product||!Number.isFinite(quantity)||quantity<=0||!date||!reason){notify('Completá el producto, la fecha, una cantidad válida y el motivo.');return;}
+    const current=Number(product.stock||0),next=current+(type==='in'?quantity:-quantity);
+    if(next<0){notify('No hay stock suficiente. Existencia actual: '+current+' '+(product.unit||'unidades')+'.');return;}
+    product.stock=Number(next.toFixed(3));product.updatedAt=new Date().toISOString();
+    state.productMovements.push({id:makeId(),productId:product.id,productName:product.name,type,quantity,reason,date,resultingStock:product.stock,note:$('#productMovementNote').value.trim(),createdAt:new Date().toISOString()});
+    saveState();$('#productMovementForm').reset();$('#productMovementDate').value=todayISO();renderProducts();notify(type==='in'?'Entrada de stock registrada.':'Salida de stock registrada.');
+  });
+  $('#productsTableBody')?.addEventListener('click',event=>{
+    const edit=event.target.closest('[data-edit-product]');
+    if(edit){
+      const product=state.products.find(item=>item.id===edit.dataset.editProduct);if(!product)return;
+      $('#productId').value=product.id;$('#productName').value=product.name||'';$('#productCode').value=product.code||'';$('#productCategory').value=product.category||'';$('#productUnit').value=product.unit||'Unidad';$('#productStock').value=Number(product.stock||0);$('#productMinStock').value=Number(product.minStock||0);$('#productCost').value=Number(product.cost||0);$('#productPrice').value=Number(product.price||0);$('#productDescription').value=product.description||'';
+      setText('#productFormTitle','Editar producto');setText('#saveProductButton','Guardar cambios');$('#cancelProductEdit').hidden=false;$('#productForm').scrollIntoView({behavior:'smooth',block:'start'});return;
+    }
+    const remove=event.target.closest('[data-delete-product]');
+    if(remove){
+      const product=state.products.find(item=>item.id===remove.dataset.deleteProduct);if(!product)return;
+      if(state.productMovements.some(item=>item.productId===product.id)){notify('No se puede eliminar: el producto tiene movimientos históricos. Podés editarlo y dejarlo con stock cero.');return;}
+      if(!confirmDelete('¿Eliminar el producto '+product.name+'?'))return;
+      state.products=state.products.filter(item=>item.id!==product.id);saveState();renderProducts();notify('Producto eliminado.');
+    }
+  });
+  $('#productSearch')?.addEventListener('input',renderProducts);
+  $('#productStatusFilter')?.addEventListener('change',renderProducts);
+  $('#clearProductFilters')?.addEventListener('click',()=>{$('#productSearch').value='';$('#productStatusFilter').value='all';renderProducts();});
+  $('#exportProductsButton')?.addEventListener('click',()=>{
+    const rows=[['Nombre','Código','Categoría','Unidad','Existencia','Stock mínimo','Costo unitario','Precio de venta','Estado'],...state.products.filter(product=>product.active!==false).map(product=>[product.name,product.code,product.category,product.unit,product.stock,product.minStock,product.cost,product.price,productStockLabel(product)])];
+    const csv='\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='inventario-'+todayISO()+'.csv';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('Inventario exportado correctamente.');
+  });
 
   function renderEmployees() {
     const employees = state.employees || []; const payments = state.employeePayments || [];
@@ -1663,7 +1858,7 @@ input[type="date"], input[type="month"] {
       state = { ...createEmptyState(), ...result.data, users: state.users || [] };
       cloudUpdatedAt = result.updatedAt || cloudUpdatedAt;
       saveState(false);
-      renderDashboard(); renderMovements(); renderInvoices(); renderEmployees(); renderAdminPanel();
+      renderDashboard(); renderMovements(); renderInvoices(); renderProducts(); renderEmployees(); renderAdminPanel();
       notify('Datos operativos eliminados. El administrador y la configuración se conservaron.');
     } catch (error) {
       console.error('No se pudieron limpiar los datos operativos.', error);
