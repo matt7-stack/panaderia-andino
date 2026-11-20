@@ -76,8 +76,19 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version
+  const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version,
+      lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
+      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
     FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
+    LEFT JOIN LATERAL (
+      SELECT l.license_code, l.system_name, l.status, l.expires_at,
+        (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
+      FROM app_licenses l
+      WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+      ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) DESC, l.created_at DESC
+      LIMIT 1
+    ) lic ON TRUE
     WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
   const user = rows[0];
   return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
@@ -88,12 +99,40 @@ async function authenticated(req, res, adminOnly = false) {
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
   try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
+  if (user.is_platform_admin !== true && user.license_is_valid !== true) {
+    const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
+    const messages = {
+      missing: 'Este negocio todavía no tiene una licencia para Mattsystem. Contactá al administrador para activar el servicio.',
+      pending: 'La licencia de este negocio está pendiente de activación.',
+      suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
+      cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
+      expired: 'La licencia de este negocio venció. Renovala para recuperar el acceso.'
+    };
+    send(res, 403, {
+      code: 'LICENSE_INACTIVE',
+      error: messages[status] || 'La licencia de este negocio no está habilitada.',
+      license: { status, code: user.license_code || null, systemName: user.license_system_name || 'Mattsystem', expiresAt: user.license_expires_at || null }
+    });
+    return null;
+  }
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
-const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, businessId:u.business_id || null, businessName:u.business_name || null, isPlatformAdmin:u.is_platform_admin === true, createdAt:u.created_at || u.createdAt });
+const publicUser = u => ({
+  id:u.id, name:u.name, email:u.email, role:u.role, active:u.active,
+  businessId:u.business_id || null, businessName:u.business_name || null,
+  isPlatformAdmin:u.is_platform_admin === true,
+  license:u.is_platform_admin === true ? null : {
+    code:u.license_code || null,
+    systemName:u.license_system_name || 'Mattsystem',
+    status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
+    valid:u.license_is_valid === true,
+    expiresAt:u.license_expires_at || null
+  },
+  createdAt:u.created_at || u.createdAt
+});
 
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
@@ -304,7 +343,20 @@ module.exports = async function handler(req, res) {
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_blocked','authentication',NULL,${JSON.stringify({email,failures:Number(attempts[0].failures||0)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el bloqueo de acceso:',logError); }
         return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
       }
-      const rows = await sql`SELECT id,name,email,password_hash,role,active,business_id,is_platform_admin,session_version FROM app_users WHERE lower(email)=${email} LIMIT 1`; const u = rows[0];
+      const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
+      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,
+          lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
+          lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
+        FROM app_users u
+        LEFT JOIN LATERAL (
+          SELECT l.license_code,l.system_name,l.status,l.expires_at,
+            (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
+          FROM app_licenses l
+          WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+          ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) DESC, l.created_at DESC
+          LIMIT 1
+        ) lic ON TRUE
+        WHERE lower(u.email)=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
