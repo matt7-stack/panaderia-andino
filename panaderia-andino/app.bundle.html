@@ -1161,6 +1161,11 @@ img,svg,canvas,video{max-width:100%}
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
     // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
     if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
+      if (result.code === 'LICENSE_INACTIVE') {
+        if (window.PanaderiaAuth) window.PanaderiaAuth.user = null;
+        document.body.classList.add('auth-locked');
+        showLogin(result.error || 'La licencia de este negocio no está habilitada.');
+      }
       if (response.status === 401 && window.PanaderiaAuth?.user) {
         window.PanaderiaAuth.user = null;
         document.body.classList.add('auth-locked');
@@ -1219,6 +1224,20 @@ img,svg,canvas,video{max-width:100%}
   function establish(user) {
     // Normalizar el indicador de administrador de plataforma; nunca inferirlo solo por role='admin'.
     user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
+    if (user.isPlatformAdmin !== true && user.license && user.license.valid !== true) {
+      window.PanaderiaAuth.user = null;
+      document.body.classList.add('auth-locked');
+      const status = user.license.status || 'missing';
+      const messages = {
+        missing: 'Este negocio todavía no tiene una licencia para Mattsystem. Contactá al administrador para activar el servicio.',
+        pending: 'La licencia de este negocio está pendiente de activación.',
+        suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
+        cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
+        expired: 'La licencia de este negocio venció. Renovala para recuperar el acceso.'
+      };
+      showLogin(messages[status] || 'La licencia de este negocio no está habilitada.');
+      return;
+    }
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
     document.body.classList.toggle('platform-admin', user.isPlatformAdmin === true);
