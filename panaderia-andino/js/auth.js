@@ -86,13 +86,16 @@
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'owner' ? 'Titular de panadería' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.role !== 'admin';
+    const canManageUsers = ['admin','owner','supervisor'].includes(user.role);
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
-    if (usersTab) usersTab.hidden = user.role !== 'admin';
-    if (usersPanel) usersPanel.hidden = user.role !== 'admin';
+    if (usersTab) usersTab.hidden = !canManageUsers;
+    if (usersPanel) usersPanel.hidden = !canManageUsers;
+    const addUser = document.getElementById('addUserButton');
+    if (addUser) addUser.hidden = !canManageUsers;
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
