@@ -474,7 +474,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
-        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre de el negocio.'});
+        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
@@ -490,7 +490,7 @@ module.exports = async function handler(req, res) {
         return send(res,201,{business:rows[0]});
       }
       if(req.method==='PATCH'){
-        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador de el negocio.'});
+        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
         if(typeof input.active==='boolean'){
           const rows=await sql`WITH changed AS (
             UPDATE businesses SET active=${input.active},updated_at=NOW() WHERE id=${id} RETURNING *
@@ -523,7 +523,7 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='DELETE'){
         const id=String(body(req).id||'');
-        if(!id) return send(res,400,{error:'Falta el identificador de el negocio.'});
+        if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
         const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
         if(!business[0]) return send(res,404,{error:'No se encontró el negocio.'});
         if(business[0].active) return send(res,409,{error:'Primero desactivá el negocio. Después podrás solicitar su eliminación definitiva.'});
@@ -725,7 +725,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
       if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay un negocio asignada a esta cuenta.'});
+      if(!businessId) return send(res,400,{error:'No hay un negocio asignado a esta cuenta.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
       if(req.method==='GET'){
