@@ -1,7 +1,7 @@
 'use strict';
 
 (() => {
-  const STORAGE_KEY = 'panaderiaAndino_data_v2';
+  const STORAGE_KEY = 'negocioAndino_data_v2';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
@@ -35,7 +35,7 @@
     movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: 'Negocios Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
@@ -135,7 +135,7 @@
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Negocios Andino';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -372,7 +372,7 @@
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Negocios Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
     link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
@@ -388,7 +388,7 @@
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Negocios Andino';
     const logoPreview = $('#businessLogoPreview');
     logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
