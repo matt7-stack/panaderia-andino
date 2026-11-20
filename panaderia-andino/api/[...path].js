@@ -411,6 +411,10 @@ module.exports = async function handler(req, res) {
         const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
         if(!business[0]) return send(res,404,{error:'No se encontró la panadería.'});
         if(business[0].active) return send(res,409,{error:'Primero desactivá la panadería. Después podrás solicitar su eliminación definitiva.'});
+        const snapshot=await sql`SELECT * FROM businesses WHERE id=${id} LIMIT 1`;
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('business',${id},${id},${JSON.stringify(snapshot[0])}::jsonb,${admin.id})`;
+        await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
+        return send(res,200,{ok:true,deleted:false,trashed:true,message:'Negocio enviado a la papelera. Sus datos y usuarios se conservaron y puede restaurarse.'});
         const result=await sql`WITH target AS (
           SELECT id FROM businesses WHERE id=${id} AND active=FALSE
         ), usage AS (
@@ -561,10 +565,12 @@ module.exports = async function handler(req, res) {
         return send(res,200,{user:publicUser(rows[0])});
       }
       if (req.method === 'DELETE') {
-        const id=String(body(req).id||''); if (!id || id===admin.id) return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
-        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND is_platform_admin=FALSE RETURNING id`;
-        if (!rows.length) return send(res,404,{error:'No se encontró ese usuario o no se puede eliminar.'});
-        return send(res,200,{ok:true});
+        const id=String(body(req).id||''); if(!id||id===admin.id)return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
+        const target=await sql`SELECT * FROM app_users WHERE id=${id} AND is_platform_admin=FALSE LIMIT 1`;
+        if(!target.length)return send(res,404,{error:'No se encontró ese usuario.'});
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('user',${id},${target[0].business_id},${JSON.stringify(target[0])}::jsonb,${admin.id})`;
+        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE`;
+        return send(res,200,{ok:true,trashed:true,message:'Usuario desactivado y enviado a la papelera. Puede restaurarse.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
