@@ -790,10 +790,10 @@ input[type="date"], input[type="month"] {
     const platformAdmin = user.isPlatformAdmin === true;
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','actividad','reportes-globales'];
-      link.hidden = platformAdmin ? !adminPages.includes(page) : (page === 'administracion' || page === 'actividad' || page === 'reportes-globales');
+      const adminPages = ['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','actividad','seguridad','reportes-globales'];
+      link.hidden = platformAdmin ? !adminPages.includes(page) : (page === 'administracion' || page === 'actividad' || page === 'seguridad' || page === 'reportes-globales');
     });
-    ['adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminActivityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminActivityNav','adminSecurityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
     const sidebarHelp = document.querySelector('.sidebar-help');
