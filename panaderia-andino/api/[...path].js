@@ -125,6 +125,11 @@ const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, act
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if (path === '/api/healthz' && req.method === 'GET') {
+      const sql = db();
+      const rows = await sql`SELECT COUNT(*) FILTER (WHERE role='admin')::int AS admins, COUNT(*)::int AS users FROM app_users`;
+      return send(res,200,{ok:true,database:true,adminCount:rows[0].admins,userCount:rows[0].users,sessionSecretConfigured:Boolean(process.env.SESSION_SECRET && process.env.SESSION_SECRET.length>=32),adminEmailConfigured:Boolean(process.env.ADMIN_EMAIL)});
+    }
     if (path === '/api/auth/status' && req.method === 'GET') {
       const sql = await ensureSchema();
       const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE role='admin'`;
@@ -434,6 +439,7 @@ module.exports = async function handler(req, res) {
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
+    console.error('API handler error:', err && err.stack ? err.stack : err);
     if (err && err.code==='23505') return send(res,409,{error:'Ya existe un usuario con ese correo.'});
     return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
   }
