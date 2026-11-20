@@ -268,7 +268,7 @@ module.exports = async function handler(req, res) {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
       if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,email,role,active,created_at FROM app_users ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
+        const rows = await sql`SELECT id,name,email,role,active,created_at,bakery_id FROM app_users ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
@@ -277,18 +277,21 @@ module.exports = async function handler(req, res) {
         const bakery=await sql`SELECT id FROM app_bakeries WHERE id=${bakeryId} AND active=TRUE AND archived=FALSE LIMIT 1`; if(!bakery.length) return send(res,404,{error:'Seleccioná una panadería activa.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
         const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${bakeryId}) RETURNING id,name,email,role,active,created_at,bakery_id`;
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','user',${id},${JSON.stringify({name,email,role,bakeryId})}::jsonb)`;
         return send(res,201,{user:publicUser(rows[0])});
       }
       if (req.method === 'PATCH') {
         const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
         const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
         if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'status_changed','user',${id},${JSON.stringify({active:input.active})}::jsonb)`;
         return send(res,200,{user:publicUser(rows[0])});
       }
       if (req.method === 'DELETE') {
         const id=String(body(req).id||''); if (!id || id===admin.id) return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
         const rows=await sql`DELETE FROM app_users WHERE id=${id} AND role<>'admin' RETURNING id`;
         if (!rows.length) return send(res,404,{error:'No se encontró ese usuario o no se puede eliminar.'});
+        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'deleted','user',${id},'{}'::jsonb)`;
         return send(res,200,{ok:true});
       }
       return send(res,405,{error:'Método no permitido.'});
