@@ -613,9 +613,9 @@ module.exports = async function handler(req, res) {
         let rows;
         if(businessId){
           const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
-          if(!target.length) return send(res,404,{error:'La negocio seleccionada no existe o está inactiva.'});
+          if(!target.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
           rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
-          if(!rows.length) return send(res,409,{error:'La negocio seleccionada no tiene usuarios activos que puedan recibir el aviso.'});
+          if(!rows.length) return send(res,409,{error:'El negocio seleccionado no tiene usuarios activos que puedan recibir el aviso.'});
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
         } else {
           rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
@@ -670,7 +670,7 @@ module.exports = async function handler(req, res) {
         const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; let businessId=String(input.businessId||'');
         if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
         if(!businessId) return send(res,400,{error:'Seleccioná el negocio a la que pertenecerá el usuario.'});
-        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'La negocio seleccionada no existe o está inactiva.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'El negocio seleccionado no existe o está inactiva.'});
         const id=crypto.randomUUID(); const hash=await hashPassword(password);
         const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
         return send(res,201,{user:publicUser(rows[0])});
@@ -727,7 +727,7 @@ module.exports = async function handler(req, res) {
       if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
       if(!businessId) return send(res,400,{error:'No hay un negocio asignada a esta cuenta.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
-      if(!allowed.length) return send(res,404,{error:'La negocio seleccionada no existe o está inactiva.'});
+      if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
       if(req.method==='GET'){
         const rows=await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
