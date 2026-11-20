@@ -1422,9 +1422,16 @@ input[type="date"], input[type="month"] {
   }
   $('#adminNotificationForm')?.addEventListener('submit',async(event)=>{
     event.preventDefault();const button=event.currentTarget.querySelector('button[type="submit"]');button.disabled=true;
-    try{const result=await window.PanaderiaAuth.api('/api/admin/notifications',{method:'POST',body:JSON.stringify({businessId:$('#adminNotificationTarget').value,title:$('#adminNotificationTitle').value.trim(),message:$('#adminNotificationMessage').value.trim()})});
-      $('#adminNotificationTitle').value='';$('#adminNotificationMessage').value='';notify('Notificación enviada a '+result.recipients+' usuario(s).');
-    }catch(error){notify(error.message);}finally{button.disabled=false;}
+    try{
+      const target=$('#adminNotificationTarget')?.value||'all';
+      const title=$('#adminNotificationTitle')?.value.trim()||'';
+      const message=$('#adminNotificationMessage')?.value.trim()||'';
+      if(!title||!message)throw new Error('Completá el título y el mensaje antes de enviar.');
+      button.innerHTML='<i class="bi bi-hourglass-split"></i> Enviando…';
+      const result=await window.PanaderiaAuth.api('/api/admin/notifications',{method:'POST',body:JSON.stringify({businessId:target,title,message})});
+      $('#adminNotificationTitle').value='';$('#adminNotificationMessage').value='';
+      notify('Notificación enviada correctamente a '+result.recipients+' usuario(s).');
+    }catch(error){notify('No se pudo enviar la notificación: '+error.message);}finally{button.disabled=false;button.innerHTML='<i class="bi bi-send"></i> Enviar notificación';}
   });
   $('#notificationsList')?.addEventListener('click',async(event)=>{
     const button=event.target.closest('[data-read-notification]');if(!button)return;
