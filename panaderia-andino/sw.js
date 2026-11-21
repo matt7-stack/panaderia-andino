@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mattsystem-pwa-v7';
+const CACHE_NAME = 'mattsystem-pwa-v8';
 const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
