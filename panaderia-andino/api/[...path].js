@@ -401,6 +401,7 @@ module.exports = async function handler(req, res) {
       const sql = await ensureSchema(); const input = body(req);
       const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
+      if (email.length>254 || password.length>200) return send(res,400,{error:'El correo o la contraseña superan la longitud permitida.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) {
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_blocked','authentication',NULL,${JSON.stringify({email,failures:Number(attempts[0].failures||0)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el bloqueo de acceso:',logError); }
