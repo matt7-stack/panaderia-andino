@@ -190,7 +190,7 @@ module.exports = async function handler(req, res) {
       const attempts=await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${attemptKey} LIMIT 1`;
       if(attempts[0]?.locked_until&&new Date(attempts[0].locked_until).getTime()>Date.now())
         return send(res,429,{error:'Se alcanzó el límite de intentos. Esperá 15 minutos e intentá nuevamente.'});
-      const input=body(req),code=String(input.code||'').trim().toUpperCase().replace(/\\s+/g,'');
+      const input=body(req),code=String(input.code||'').trim().toUpperCase().replace(/\s+/g,'');
       if(code.length<8||code.length>100){
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${attemptKey},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END,locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END,updated_at=NOW()`;
         return send(res,400,{error:'Ingresá un código de licencia válido.'});
