@@ -16,7 +16,26 @@ const requiredFiles = [
   'migrations/004_platform_settings_trials_permissions.sql',
   'migrations/005_platform_support_settings.sql',
   'migrations/006_operational_integrity_and_tenant_constraints.sql',
-  'migrations/007_employee_license_limit_guard.sql'
+  'migrations/007_employee_license_limit_guard.sql',
+  'api/business/erp.js',
+  'api/business/license.js',
+  'api/business/employee-data.js',
+  'api/business/users.js',
+  'api/licenses/activate.js',
+  'api/admin/licenses.js',
+  'api/admin/license-payments.js',
+  'api/admin/overview.js',
+  'api/admin/clients.js',
+  'api/admin/notifications.js',
+  'api/admin/security.js',
+  'api/admin/support-settings.js',
+  'api/admin/trash.js',
+  'api/admin/activity.js',
+  'api/notification-preferences.js',
+  'api/notifications.js',
+  'api/support.js',
+  'api/support/tickets.js',
+  'api/support/tickets/reply.js'
 ];
 
 for (const relative of requiredFiles) {
