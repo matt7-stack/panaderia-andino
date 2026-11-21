@@ -799,7 +799,10 @@ module.exports = async function handler(req, res) {
         }
         if (module === 'recipes') {
           const rows=await sql`SELECT r.*,p.name AS product_name,COALESCE((SELECT json_agg(json_build_object('id',ri.id,'product_id',ri.product_id,'product_name',ip.name,'quantity',ri.quantity,'unit',ri.unit) ORDER BY ip.name) FROM app_recipe_ingredients ri JOIN app_products ip ON ip.business_id=ri.business_id AND ip.id=ri.product_id WHERE ri.business_id=r.business_id AND ri.recipe_id=r.id),'[]'::json) AS ingredients FROM app_recipes r LEFT JOIN app_products p ON p.business_id=r.business_id AND p.id=r.product_id WHERE r.business_id=${businessId} ORDER BY r.name LIMIT 1000`;
-          const products=await sql`SELECT id,name,unit,cost_price,stock FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
+          const canSeeCosts=can('products.view')||can('reports.view');
+          const products=await sql`SELECT id,name,unit,
+            CASE WHEN ${canSeeCosts} THEN cost_price ELSE NULL END AS cost_price,stock
+            FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
           return send(res,200,{recipes:rows,products});
         }
         if (module === 'production') {
