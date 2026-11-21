@@ -1432,12 +1432,13 @@ img,svg,canvas,video{max-width:100%}
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
       const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
-      const businessPages = ['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
+      const businessPages = ['dashboard','movimientos','notas','notificaciones','productos','empleados','erp','configuracion','guia-uso'];
       const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
       const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
         (page === 'movimientos' && (employeePermissions['cash.view'] === true || employeePermissions['cash.manage'] === true)) ||
         (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => employeePermissions[key] === true)) ||
-        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true));
+        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true)) ||
+        (page === 'erp' && Object.values(employeePermissions).some(value => value === true));
       link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
@@ -1643,7 +1644,7 @@ img,svg,canvas,video{max-width:100%}
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
@@ -1653,11 +1654,12 @@ img,svg,canvas,video{max-width:100%}
       const allowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
         (page === 'movimientos' && (p['cash.view'] === true || p['cash.manage'] === true)) ||
         (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => p[key] === true)) ||
-        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => p[key] === true));
+        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => p[key] === true)) ||
+        (page === 'erp' && Object.values(p).some(value => value === true));
       if (!allowed) return;
     }
     const platformPages=['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
-    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
+    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','erp','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
     if (currentUser?.isPlatformAdmin !== true && ['actividad','seguridad','reportes-globales'].includes(page)) return;
@@ -1671,7 +1673,7 @@ img,svg,canvas,video{max-width:100%}
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -2804,7 +2806,7 @@ img,svg,canvas,video{max-width:100%}
     banner.hidden=!visible;
     document.body.classList.toggle('admin-support-mode',visible);
     // En asistencia se habilitan los módulos operativos; al salir se ocultan nuevamente.
-    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
+    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','erp','configuracion','guia-uso'];
     $$('.nav-menu [data-page-link]').forEach(link=>{
       if(businessPages.includes(link.dataset.pageLink)) link.hidden=user?.isPlatformAdmin===true?!visible:false;
     });
@@ -3025,5 +3027,5 @@ img,svg,canvas,video{max-width:100%}
    .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
 })();
-</script><script src="/employee-access.js" defer></script></body>
+</script><script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
 </html>
