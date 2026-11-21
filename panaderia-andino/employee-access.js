@@ -73,7 +73,16 @@
     const refresh = $('#refreshBusinessEmployees');
     if (refresh) refresh.disabled = true;
     try {
-      const result = await api('/api/business/users');
+      let result;
+      try {
+        result = await api('/api/business/users');
+      } catch (firstError) {
+        // GET es idempotente: reintentar una vez los fallos transitorios de arranque/conexión de Vercel o Neon.
+        const transient = /tard[oó] demasiado|no se pudo conectar|conexi[oó]n|no se pudo completar la solicitud/i.test(firstError.message || '');
+        if (!transient) throw firstError;
+        await new Promise(resolve => setTimeout(resolve, 900));
+        result = await api('/api/business/users');
+      }
       const employees = Array.isArray(result.employees) ? result.employees : [];
       const limits = result.limits || {};
       const limitText = limits.employeeLimit == null ? 'sin límite fijo' : String(limits.employeeLimit);
@@ -86,7 +95,7 @@
       const list = $('#businessEmployeeAccountsList');
       if (list) list.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(error.message || 'No se pudieron cargar las cuentas.') + '</p>';
       const summary = $('#businessEmployeeLimit');
-      if (summary) summary.textContent = 'No se pudo consultar el límite de usuarios de la licencia.';
+      if (summary) summary.textContent = 'No se pudo consultar el límite de usuarios. ' + (error.message || 'Revisá la conexión y pulsá Actualizar para reintentar.');
     } finally {
       loading = false;
       if (refresh) refresh.disabled = false;
