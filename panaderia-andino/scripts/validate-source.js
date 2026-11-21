@@ -70,7 +70,7 @@ requireContract(/user\.role!=='supervisor'/.test(apiSource), 'los empleados no d
 
 // Aislamiento multiempresa: los usuarios no administradores no pueden elegir el business_id del request.
 requireContract(/const businessId = user\.is_platform_admin === true \? String\(req\.headers\['x-business-id'\] \|\| ''\) : String\(user\.business_id \|\| ''\)/.test(apiSource), 'el negocio debe derivarse de la sesión para usuarios de negocio.');
-requireContract(/WHERE st\.business_id=\$\{user\.business_id\}/.test(apiSource), 'la lectura de estado de empleado debe estar limitada por business_id.');
+requireContract(/WHERE b\.id=\$\{user\.business_id\} AND b\.active=TRUE/.test(apiSource) && /LEFT JOIN app_state st ON st\.business_id=b\.id/.test(apiSource), 'la lectura de estado de empleado debe estar limitada por business_id.');
 requireContract(/WHERE id=\$\{productId\} AND business_id=\$\{businessId\}/.test(apiSource), 'las operaciones ERP deben comprobar pertenencia del producto al negocio.');
 requireContract(/WHERE s\.business_id=\$\{businessId\}/.test(apiSource), 'las consultas de ventas deben estar aisladas por negocio.');
 
