@@ -815,11 +815,13 @@ module.exports = async function handler(req, res) {
             (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS sales,
             (SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS cost_of_goods,
             (SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS expenses,
+            (SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='income' AND lower(e.category) NOT IN ('ventas','venta') AND date_trunc('month',e.created_at)=months.month) AS other_income,
             (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
+              +(SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='income' AND lower(e.category) NOT IN ('ventas','venta') AND date_trunc('month',e.created_at)=months.month)
               -(SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
               -(SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS net_profit
             FROM generate_series(date_trunc('month',CURRENT_DATE)-INTERVAL '11 months',date_trunc('month',CURRENT_DATE),INTERVAL '1 month') months(month) ORDER BY months.month`;
-          return send(res,200,{months:rows,calculation:'Ventas netas - costo de productos vendidos (costo histórico) - gastos registrados.'});
+          return send(res,200,{months:rows,calculation:'Ventas + otros ingresos - costo histórico de productos vendidos - gastos registrados.'});
         }
       }
       if (req.method === 'POST') {
@@ -846,11 +848,12 @@ module.exports = async function handler(req, res) {
           if(!productId||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
           const products=await sql`SELECT id,stock FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1`;
           if(!products.length)return send(res,404,{error:'Producto no encontrado en este negocio.'});
-          const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity);
+          const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity),movementQuantity=type==='adjustment'?Math.abs(quantity-oldStock):quantity;
           if(newStock<0)return send(res,409,{error:'No hay existencias suficientes para ese movimiento.'});
-          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} RETURNING id),
+          if(movementQuantity<=0)return send(res,400,{error:'El ajuste no cambia las existencias actuales.'});
+          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} AND (${type} NOT IN ('exit','waste') OR stock>=${quantity}) RETURNING id),
             movement AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
-              SELECT ${businessId},id,${type},${quantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
+              SELECT ${businessId},id,${type},${movementQuantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
             SELECT * FROM movement`;
           return send(res,201,{movement:rows[0],stock:newStock});
         }
@@ -869,25 +872,36 @@ module.exports = async function handler(req, res) {
           const payload=items.map(item=>({...item,unit_cost:item.product_id?Number(byId.get(item.product_id).cost_price||0):0}));
           const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0),discount=Number(input.discount||0);
           if(!Number.isFinite(discount)||discount<0||discount>subtotal)return send(res,400,{error:'El descuento no puede superar el subtotal.'});
-          const total=subtotal-discount,saleNumber='VTA-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(2).toString('hex').toUpperCase();
-          const rows=await sql`WITH sale AS (
+          const total=subtotal-discount,saleNumber='VTA-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(2).toString('hex').toUpperCase(),paymentMethod=String(input.paymentMethod||'').slice(0,40)||null;
+          const payloadJson=JSON.stringify(payload);
+          const rows=await sql`WITH locked_products AS MATERIALIZED (
+              SELECT id,stock FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb)) FOR UPDATE
+            ), stock_check AS (
+              SELECT NOT EXISTS (SELECT 1 FROM (SELECT x.product_id::uuid AS product_id,SUM(x.quantity) AS quantity FROM jsonb_to_recordset(${payloadJson}::jsonb) AS x(product_id text,quantity numeric) WHERE x.product_id IS NOT NULL GROUP BY x.product_id) requested
+                LEFT JOIN locked_products lp ON lp.id=requested.product_id WHERE lp.id IS NULL OR lp.stock<requested.quantity) AS ok
+            ), sale AS (
               INSERT INTO app_sales(business_id,customer_id,sale_number,status,subtotal,discount,total,payment_method,notes,actor_user_id)
-              VALUES(${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING id
+              SELECT ${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${paymentMethod},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM stock_check WHERE ok RETURNING id
             ), item_rows AS (
               INSERT INTO app_sale_items(business_id,sale_id,product_id,description,quantity,unit_price,unit_cost,line_total)
               SELECT ${businessId},sale.id,NULLIF(x.product_id,'')::uuid,x.description,x.quantity,x.unit_price,x.unit_cost,x.quantity*x.unit_price
-              FROM sale CROSS JOIN jsonb_to_recordset(${JSON.stringify(payload)}::jsonb) AS x(product_id text,description text,quantity numeric,unit_price numeric,unit_cost numeric)
+              FROM sale CROSS JOIN jsonb_to_recordset(${payloadJson}::jsonb) AS x(product_id text,description text,quantity numeric,unit_price numeric,unit_cost numeric)
               RETURNING product_id,quantity,unit_cost
             ), stock AS (
-              UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW() FROM item_rows i
+              UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW() FROM (SELECT product_id,SUM(quantity) AS quantity FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
               WHERE i.product_id=p.id AND p.business_id=${businessId} RETURNING p.id
             ), movement AS (
               INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
               SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,${saleNumber},${user.id}
               FROM item_rows i WHERE i.product_id IS NOT NULL RETURNING id
+            ), cash AS (
+              INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              SELECT ${businessId},cs.id,'income','Ventas','Venta '||${saleNumber},${total},${paymentMethod},${saleNumber},${user.id}
+              FROM sale JOIN app_cash_sessions cs ON cs.business_id=${businessId} AND cs.status='open'
+              WHERE lower(COALESCE(${paymentMethod},'')) IN ('efectivo','cash') RETURNING id
             )
-            SELECT sale.id FROM sale`;
-          if(!rows.length)return send(res,409,{error:'No se pudo registrar la venta.'});
+            SELECT sale.id,stock_check.ok FROM stock_check LEFT JOIN sale ON TRUE`;
+          if(!rows[0]?.id)return send(res,409,{error:'No se pudo registrar la venta: el stock cambió o no hay existencias suficientes.'});
           return send(res,201,{saleId:rows[0].id,saleNumber,subtotal,discount,total});
         }
         if (module === 'purchases') {
@@ -907,7 +921,7 @@ module.exports = async function handler(req, res) {
               FROM purchase CROSS JOIN jsonb_to_recordset(${payload}::jsonb) AS x(product_id text,description text,quantity numeric,unit_cost numeric)
               RETURNING product_id,quantity,unit_cost
             ), stock AS (
-              UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM item_rows i
+              UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM (SELECT product_id,SUM(quantity) AS quantity FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
               WHERE i.product_id=p.id AND p.business_id=${businessId} RETURNING p.id
             ), movement AS (
               INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
@@ -960,8 +974,11 @@ module.exports = async function handler(req, res) {
             if(!['income','expense'].includes(type)||!Number.isFinite(amount)||amount<=0||!String(input.category||'').trim()||!String(input.description||'').trim())return send(res,400,{error:'Completá tipo, categoría, descripción e importe válido.'});
             const session=await sql`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`;
             if(!session.length)return send(res,409,{error:'No hay una caja abierta.'});
-            const rows=await sql`INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
-              VALUES(${businessId},${session[0].id},${type},${String(input.category).trim().slice(0,80)},${String(input.description).trim().slice(0,160)},${amount},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.reference||'').slice(0,120)||null},${user.id}) RETURNING *`;
+            const rows=await sql`WITH movement AS (INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              VALUES(${businessId},${session[0].id},${type},${String(input.category).trim().slice(0,80)},${String(input.description).trim().slice(0,160)},${amount},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.reference||'').slice(0,120)||null},${user.id}) RETURNING *),
+              entry AS (INSERT INTO app_financial_entries(business_id,entry_type,category,description,amount,payment_method,reference,paid_at,actor_user_id)
+                SELECT business_id,movement_type,category,description,amount,payment_method,reference,NOW(),actor_user_id FROM movement RETURNING id)
+              SELECT * FROM movement`;
             return send(res,201,{movement:rows[0]});
           }
           if(action==='close'){
