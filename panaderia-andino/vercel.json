@@ -77,8 +77,8 @@
   ],
   "rewrites": [
     {
-      "source": "^/api/([^/]+)/(.+)$",
-      "destination": "/api/$1?__route_path=/api/$1/$2"
+      "source": "/api/:first/:rest+",
+      "destination": "/api/:first?__route_path=/api/:first/:rest+"
     },
     {
       "source": "/api/:first/:rest*",
