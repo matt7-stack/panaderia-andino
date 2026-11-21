@@ -21,6 +21,7 @@ const requiredFiles = [
   'migrations/005_platform_support_settings.sql',
   'migrations/006_operational_integrity_and_tenant_constraints.sql',
   'migrations/007_employee_license_limit_guard.sql',
+  'migrations/009_signed_tenant_context.sql',
 ];
 
 for (const relative of requiredFiles) {
@@ -72,6 +73,12 @@ new vm.Script(dashboardSource, { filename: dashboardPath });
 const erpPath = path.join(root, 'erp-modules.js');
 const erpSource = fs.readFileSync(erpPath, 'utf8');
 new vm.Script(erpSource, { filename: erpPath });
+
+// RLS: el contexto PostgreSQL debe estar firmado con HMAC y no puede confiar en GUC manipulables.
+const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/009_signed_tenant_context.sql'), 'utf8');
+requireContract(apiSource.includes('TENANT_CONTEXT_SECRET') && apiSource.includes('app.context_signature') && apiSource.includes("crypto.createHmac('sha256'"), 'el contexto de tenant enviado a PostgreSQL debe estar firmado con HMAC.');
+requireContract(signedContextMigration.includes('tenant_context_is_valid') && signedContextMigration.includes('public.hmac') && signedContextMigration.includes('SECURITY DEFINER'), 'PostgreSQL debe verificar la firma HMAC antes de confiar en el contexto RLS.');
+requireContract(signedContextMigration.includes('REVOKE ALL ON app_private.tenant_context_secret FROM PUBLIC, mattsystem_app'), 'el rol de aplicación no debe poder leer el secreto HMAC.');
 
 // Sesiones: firma segura, cookie HttpOnly/Secure y revocación por session_version.
 requireContract(/HttpOnly; Secure; SameSite=Lax/.test(apiSource), 'la cookie de sesión debe ser HttpOnly, Secure y SameSite=Lax.');
