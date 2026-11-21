@@ -22,6 +22,7 @@
   function allowed(key){const u=user();if(!u)return false;if(manager())return true;return u.permissions?.[key]===true;}
   function canModule(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed)||allowed(m.write));}
   function canRead(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed));}
+  function canLoadProducts(){return manager()||['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'].some(allowed);}
   async function api(module,method,body){
     const options={method:method||'GET'};
     if(body!==undefined)options.body=JSON.stringify({...body,module});
@@ -144,7 +145,7 @@
     try{
       const jobs=[];
       if(canRead(module))jobs.push(api(module).then(result=>{cache[module]=result;}));
-      if(['sales','purchases','inventory','recipes','production'].includes(module)&&canModule('products')&&!cache.products)jobs.push(api('products').then(result=>{cache.products=result;}));
+      if(['sales','purchases','inventory','recipes','production'].includes(module)&&canLoadProducts()&&!cache.products)jobs.push(api('products').then(result=>{cache.products=result;}));
       if(['sales','purchases'].includes(module)&&canModule('customers')&&!cache.customers)jobs.push(api('customers').then(result=>{cache.customers=result;}));
       if(module==='purchases'&&canModule('suppliers')&&!cache.suppliers)jobs.push(api('suppliers').then(result=>{cache.suppliers=result;}));
       await Promise.all(jobs);
