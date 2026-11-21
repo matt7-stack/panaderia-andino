@@ -37,12 +37,13 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
         lic.license_code,lic.system_name,lic.status,lic.expires_at,
         (lic.status='active' AND (lic.expires_at IS NULL OR lic.expires_at>=CURRENT_DATE))
  FROM public.app_users u
+ LEFT JOIN public.businesses b ON b.id=u.business_id
  LEFT JOIN LATERAL (
    SELECT l.license_code,l.system_name,l.status,l.expires_at
    FROM public.app_licenses l WHERE l.business_id=u.business_id AND lower(btrim(l.system_name))=lower(btrim(p_system))
    ORDER BY l.created_at DESC,l.id DESC LIMIT 1
  ) lic ON true
- WHERE lower(u.email)=lower(p_email) LIMIT 1
+ WHERE lower(u.email)=lower(p_email) AND (u.is_platform_admin=true OR b.active=true) LIMIT 1
 $$;
 
 CREATE OR REPLACE FUNCTION public.app_auth_admin_exists()
