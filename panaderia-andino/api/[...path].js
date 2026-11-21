@@ -342,6 +342,8 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      // Verificar la configuración de sesión antes de consumir el enlace o crear el administrador.
+      secret('SESSION_SECRET');
       const sql = await ensureSchema();
       const existing = await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE LIMIT 1`;
       if (existing.length) return send(res,409,{error:'La cuenta administradora ya fue activada. Iniciá sesión.'});
@@ -390,25 +392,11 @@ module.exports = async function handler(req, res) {
       return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
-      // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const token = cookie(req);
-      const [payload, signature, extra] = token.split('.');
-      if (!payload || !signature || extra) return send(res,401,{error:'Iniciá sesión para continuar.'});
-      const expected = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-      if (!safeEqual(signature, expected)) return send(res,401,{error:'Iniciá sesión para continuar.'});
-      let session;
-      try { session = JSON.parse(Buffer.from(payload,'base64url').toString('utf8')); } catch (_) {
-        return send(res,401,{error:'Iniciá sesión para continuar.'});
-      }
-      if (!session.sub || !Number.isFinite(session.exp) || session.exp < Date.now()) {
-        return send(res,401,{error:'Iniciá sesión para continuar.'});
-      }
+      // Reutiliza la autenticación común: firma, vencimiento, estado activo,
+      // session_version y rol de administrador de plataforma.
+      const admin = await authenticated(req,res,true);
+      if (!admin) return;
       const sql = db();
-      const users = await sql`SELECT id,role,active,is_platform_admin FROM app_users WHERE id = ${session.sub} LIMIT 1`;
-      if (!users[0] || !users[0].active || users[0].is_platform_admin !== true) {
-        return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
-      }
       const rows = await sql`SELECT current_database() AS database, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
       let configuredHost = null;
       try { configuredHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : (process.env.PGHOST || process.env.POSTGRES_HOST || null); } catch (_) {}
