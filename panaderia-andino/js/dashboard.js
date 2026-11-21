@@ -59,11 +59,11 @@
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
           try {
-            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: cloudUpdatedAt }) });
             cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
-            notify('No se pudo sincronizar con el servidor. Revisá tu conexión.');
+            if (error.code === 'DATA_VERSION_CONFLICT') { cloudReady = false; notify('Otra sesión guardó cambios. Tus cambios locales siguen guardados en este dispositivo, pero no se enviaron al servidor. Descargá un respaldo antes de recargar para evitar perderlos.'); } else { notify('No se pudo sincronizar con el servidor. Revisá tu conexión.'); }
           } finally { cloudSaving = false; }
         }, 500);
       }
