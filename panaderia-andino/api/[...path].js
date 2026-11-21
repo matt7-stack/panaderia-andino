@@ -1040,7 +1040,55 @@ module.exports = async function handler(req, res) {
           if(!rows.length)return send(res,404,{error:'Receta no encontrada.'});return send(res,200,{recipe:rows[0]});
         }
         if(module==='production'&&can('production.manage')){
-          const status=String(input.status||'');if(!['in_progress','cancelled'].includes(status))return send(res,400,{error:'Estado de producción no válido. Para completar un lote se debe registrar el consumo de ingredientes.'});
+          if(input.action==='complete'){
+            const produced=Number(input.producedQuantity),waste=Number(input.wasteQuantity||0),consumed=produced+waste;
+            if(!Number.isFinite(produced)||produced<=0||!Number.isFinite(waste)||waste<0)return send(res,400,{error:'Ingresá cantidades producidas y de merma válidas.'});
+            const batchCheck=await sql`SELECT b.id,COALESCE(b.product_id,r.product_id) AS product_id FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id WHERE b.id=${id} AND b.business_id=${businessId} AND b.status IN ('planned','in_progress') LIMIT 1`;
+            if(!batchCheck.length)return send(res,404,{error:'Lote no encontrado o ya finalizado.'});
+            if(!batchCheck[0].product_id)return send(res,400,{error:'El lote no tiene un producto de salida asociado.'});
+            const rows=await sql`WITH batch AS MATERIALIZED (
+                SELECT b.id,b.business_id,b.recipe_id,COALESCE(b.product_id,r.product_id) AS product_id,COALESCE(r.yield_quantity,1) AS yield_quantity
+                FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id
+                WHERE b.id=${id} AND b.business_id=${businessId} AND b.status IN ('planned','in_progress') FOR UPDATE OF b
+              ), ingredient_need AS MATERIALIZED (
+                SELECT ri.product_id,SUM(ri.quantity*(${consumed}/NULLIF(batch.yield_quantity,0))) AS quantity
+                FROM batch JOIN app_recipe_ingredients ri ON ri.business_id=batch.business_id AND ri.recipe_id=batch.recipe_id
+                GROUP BY ri.product_id
+              ), locked_products AS MATERIALIZED (
+                SELECT p.id,p.stock,p.cost_price FROM app_products p JOIN ingredient_need i ON i.product_id=p.id
+                WHERE p.business_id=${businessId} FOR UPDATE OF p
+              ), stock_check AS (
+                SELECT EXISTS(SELECT 1 FROM batch WHERE product_id IS NOT NULL)
+                  AND NOT EXISTS(SELECT 1 FROM ingredient_need i LEFT JOIN locked_products lp ON lp.id=i.product_id WHERE lp.id IS NULL OR lp.stock<i.quantity)
+                  AND NOT EXISTS(SELECT 1 FROM ingredient_need i WHERE i.product_id=(SELECT product_id FROM batch)) AS ok
+              ), consumed_rows AS (
+                UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW()
+                FROM ingredient_need i,locked_products lp,stock_check sc
+                WHERE p.id=i.product_id AND p.business_id=${businessId} AND lp.id=p.id AND sc.ok
+                RETURNING p.id,i.quantity,p.cost_price
+              ), output_product AS (
+                UPDATE app_products p SET stock=p.stock+${produced},cost_price=CASE WHEN p.stock+${produced}>0
+                  THEN ((p.stock*p.cost_price)+COALESCE((SELECT SUM(c.quantity*c.cost_price) FROM consumed_rows c),0))/(p.stock+${produced})
+                  ELSE p.cost_price END,updated_at=NOW()
+                FROM batch,stock_check sc WHERE p.id=batch.product_id AND p.business_id=${businessId} AND sc.ok RETURNING p.id
+              ), batch_done AS (
+                UPDATE app_production_batches b SET status='completed',produced_quantity=${produced},waste_quantity=${waste},
+                  started_at=COALESCE(started_at,NOW()),completed_at=NOW()
+                FROM batch,stock_check sc WHERE b.id=batch.id AND sc.ok RETURNING b.id
+              ), consumption_movements AS (
+                INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+                SELECT ${businessId},c.id,'exit',c.quantity,c.cost_price,'Producción '||${id},${user.id} FROM consumed_rows c RETURNING id
+              ), output_movements AS (
+                INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+                SELECT ${businessId},o.id,'entry',${produced},COALESCE((SELECT SUM(c.quantity*c.cost_price) FROM consumed_rows c)/NULLIF(${produced},0),0),'Producción '||${id},${user.id}
+                FROM output_product o RETURNING id
+              )
+              SELECT stock_check.ok,batch_done.id FROM stock_check LEFT JOIN batch_done ON TRUE`;
+            if(!rows[0]?.ok)return send(res,409,{error:'No hay stock suficiente de ingredientes o el producto de salida no es válido.'});
+            if(!rows[0]?.id)return send(res,409,{error:'No se pudo finalizar el lote.'});
+            return send(res,200,{ok:true,batchId:rows[0].id,producedQuantity:produced,wasteQuantity:waste});
+          }
+          const status=String(input.status||'');if(!['in_progress','cancelled'].includes(status))return send(res,400,{error:'Estado de producción no válido.'});
           const rows=await sql`UPDATE app_production_batches SET status=${status},started_at=CASE WHEN ${status}='in_progress' THEN COALESCE(started_at,NOW()) ELSE started_at END WHERE id=${id} AND business_id=${businessId} AND status IN ('planned','in_progress') RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Lote no encontrado o ya finalizado.'});return send(res,200,{batch:rows[0]});
         }
