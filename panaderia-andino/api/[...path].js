@@ -757,13 +757,13 @@ module.exports = async function handler(req, res) {
         products:['products.view','products.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
         customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
         purchases:['purchases.view','purchases.create'], recipes:['recipes.view','recipes.manage'],
-        production:['production.view','production.manage'], cash:['cash.view','cash.manage'],
-        reports:['reports.view']
+        production:['production.view','production.manage'], cash:['cash.view','cash.manage','cash.open','cash.close'],
+        reports:['reports.view','reports.export']
       };
       const writePermissions = {
         products:['products.manage'], sales:['sales.create'], inventory:['inventory.manage'],
         customers:['customers.manage'], suppliers:['suppliers.manage'], purchases:['purchases.create'],
-        recipes:['recipes.manage'], production:['production.manage'], cash:['cash.manage'], reports:['reports.export']
+        recipes:['recipes.manage'], production:['production.manage'], cash:['cash.manage','cash.open','cash.close'], reports:['reports.export']
       };
       if (!readPermissions[module]) return send(res,400,{error:'Módulo ERP no válido.'});
       if (req.method === 'GET') {
@@ -955,6 +955,7 @@ module.exports = async function handler(req, res) {
             return send(res,201,{session:rows[0]});
           }
           if(action==='movement'){
+            if(!can('cash.manage'))return send(res,403,{error:'No tenés permiso para registrar movimientos de caja.'});
             const type=String(input.movementType||''),amount=Number(input.amount);
             if(!['income','expense'].includes(type)||!Number.isFinite(amount)||amount<=0||!String(input.category||'').trim()||!String(input.description||'').trim())return send(res,400,{error:'Completá tipo, categoría, descripción e importe válido.'});
             const session=await sql`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`;
