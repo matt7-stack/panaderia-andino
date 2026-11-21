@@ -15,16 +15,24 @@ function db() {
     scopedSqlClient = (strings, ...values) => {
       const query = client(strings, ...values);
       const context = requestContext.getStore();
-      if (!context) return query;
-      const contextSecret = process.env.TENANT_CONTEXT_SECRET;
-      if (!contextSecret || !/^[a-f0-9]{64}$/i.test(contextSecret)) {
-        throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
+      // Todas las consultas de la aplicación, incluidas las previas al login,
+      // deben ejecutarse como mattsystem_app. Sin contexto firmado se limpian
+      // los GUC y RLS deniega por defecto el acceso a datos de negocio.
+      let businessId = '';
+      let userId = '';
+      let isPlatformAdmin = 'false';
+      let contextSignature = '';
+      if (context) {
+        const contextSecret = process.env.TENANT_CONTEXT_SECRET;
+        if (!contextSecret || !/^[a-f0-9]{64}$/i.test(contextSecret)) {
+          throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
+        }
+        businessId = context.businessId || '';
+        userId = context.userId || '';
+        isPlatformAdmin = context.isPlatformAdmin === true ? 'true' : 'false';
+        const contextPayload = businessId + '|' + userId + '|' + isPlatformAdmin;
+        contextSignature = crypto.createHmac('sha256', Buffer.from(contextSecret, 'hex')).update(contextPayload, 'utf8').digest('hex');
       }
-      const businessId = context.businessId || '';
-      const userId = context.userId || '';
-      const isPlatformAdmin = context.isPlatformAdmin === true ? 'true' : 'false';
-      const contextPayload = businessId + '|' + userId + '|' + isPlatformAdmin;
-      const contextSignature = crypto.createHmac('sha256', Buffer.from(contextSecret, 'hex')).update(contextPayload, 'utf8').digest('hex');
       const contextQuery = client`SELECT
         set_config('role', 'mattsystem_app', true),
         set_config('app.business_id', ${businessId}, true),
@@ -42,17 +50,18 @@ async function ensureSchema() {
   // Las tablas de autenticación se crean mediante migraciones versionadas.
   // Inicializar el secreto HMAC de forma idempotente: nunca sobrescribir uno existente.
   const sql = db();
-  if (process.env.VERCEL_ENV === 'production') {
+  const bootstrapSql = sqlClient; // privilegio de propietario solo para inicializar/verificar el secreto HMAC.
+  if (['production','preview'].includes(process.env.VERCEL_ENV)) {
     if (!tenantSecretBootstrap) {
       tenantSecretBootstrap = (async () => {
         const tenantSecret = process.env.TENANT_CONTEXT_SECRET || '';
         if (!/^[a-f0-9]{64}$/i.test(tenantSecret)) {
           throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
         }
-        await sql`INSERT INTO app_private.tenant_context_secret(singleton, secret_hex)
+        await bootstrapSql`INSERT INTO app_private.tenant_context_secret(singleton, secret_hex)
           VALUES (TRUE, ${tenantSecret.toLowerCase()})
           ON CONFLICT (singleton) DO NOTHING`;
-        const rows = await sql`SELECT secret_hex = ${tenantSecret.toLowerCase()} AS matches
+        const rows = await bootstrapSql`SELECT secret_hex = ${tenantSecret.toLowerCase()} AS matches
           FROM app_private.tenant_context_secret WHERE singleton = TRUE`;
         if (rows[0]?.matches !== true) {
           throw new Error('Database tenant context secret does not match deployment configuration');
