@@ -17,14 +17,14 @@ function db() {
       const context = requestContext.getStore();
       if (!context) return query;
       const contextSecret = process.env.TENANT_CONTEXT_SECRET;
-      if (!contextSecret || contextSecret.length < 64) {
-        throw new Error('TENANT_CONTEXT_SECRET is required for signed tenant isolation');
+      if (!contextSecret || !/^[a-f0-9]{64}$/i.test(contextSecret)) {
+        throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
       }
       const businessId = context.businessId || '';
       const userId = context.userId || '';
       const isPlatformAdmin = context.isPlatformAdmin === true ? 'true' : 'false';
       const contextPayload = businessId + '|' + userId + '|' + isPlatformAdmin;
-      const contextSignature = crypto.createHmac('sha256', contextSecret).update(contextPayload, 'utf8').digest('hex');
+      const contextSignature = crypto.createHmac('sha256', Buffer.from(contextSecret, 'hex')).update(contextPayload, 'utf8').digest('hex');
       const contextQuery = client`SELECT
         set_config('role', 'mattsystem_app', true),
         set_config('app.business_id', ${businessId}, true),
