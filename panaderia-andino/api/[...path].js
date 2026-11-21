@@ -230,7 +230,7 @@ module.exports = async function handler(req, res) {
         const configured=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
         const deviceLimit=Number(configured[0]?.device_limit||3);
         const expiresAt=input.expiresAt?String(input.expiresAt):null;
-        if(expiresAt&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())||new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)!==expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
+        if(expiresAt&&(!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())||new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)!==expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
         const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit}) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
