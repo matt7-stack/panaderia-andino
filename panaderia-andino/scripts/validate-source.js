@@ -140,7 +140,9 @@ requireContract(/is_trial=FALSE AND status IN \('pending','active','expired'\)/.
 requireContract(apiSource.includes("path==='/api/admin/licenses/trial'") && apiSource.includes("'license.trial_started'") && !apiSource.includes('const startTrial='), 'la prueba gratuita debe iniciarse desde una acción administrativa independiente, nunca al crear el negocio.');
 requireContract(apiSource.includes("path==='/api/business/license'") && apiSource.includes('trialStartedAt:license.trial_started_at'), 'la cuenta del negocio debe poder consultar su plan y vigencia aun cuando la licencia haya vencido.');
 
-const businessCreateBlock = apiSource.match(/if \(path === '\/api\/admin\/businesses'\) \{([\\s\\S]*?)if \(path === '\/api\/admin\/clients'\)/);
+const businessCreateStart = apiSource.indexOf("if (path === '/api/admin/businesses') {");
+const businessCreateEnd = apiSource.indexOf("if (path === '/api/admin/clients')", businessCreateStart);
+const businessCreateBlock = businessCreateStart >= 0 && businessCreateEnd > businessCreateStart ? apiSource.slice(businessCreateStart, businessCreateEnd) : ''; 
 requireContract(!!businessCreateBlock && !businessCreateBlock[1].includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
 requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Iniciar prueba gratuita'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
 requireContract(html.includes('businessLicenseNav.hidden = user.isPlatformAdmin === true') && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
