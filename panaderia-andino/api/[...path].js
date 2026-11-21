@@ -217,7 +217,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS display_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
-        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
+        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>(x.display_status||x.status)==='active').length,monthly:rows.filter(x=>(x.display_status||x.status)==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
       if(req.method==='POST'){
         const input=body(req),businessId=String(input.businessId||''),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem',systemName=String(input.systemName||licenseSystem).trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
@@ -230,7 +230,7 @@ module.exports = async function handler(req, res) {
         const configured=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
         const deviceLimit=Number(configured[0]?.device_limit||3);
         const expiresAt=input.expiresAt?String(input.expiresAt):null;
-        if(expiresAt&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
+        if(expiresAt&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())||new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)!==expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
         const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit}) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
