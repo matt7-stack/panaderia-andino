@@ -35,7 +35,7 @@
     movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Negocios Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: 'Mattsystem', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
@@ -135,7 +135,7 @@
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Negocios Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mattsystem';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -372,9 +372,9 @@
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Negocios Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Mattsystem', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
-    link.href = url; link.download = `respaldo-negocios-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
+    link.href = url; link.download = `respaldo-mattsystem-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
 
   function renderSettings() {
@@ -388,9 +388,9 @@
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Negocios Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mattsystem';
     const logoPreview = $('#businessLogoPreview');
-    logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
+    logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>MATTSYSTEM</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
@@ -490,7 +490,7 @@
     const csv = [['Fecha', 'Descripción', 'Categoría', 'Tipo', 'Método de pago', 'Importe', 'Observación'], ...filtered.map((item) => [item.date, item.description, item.category, item.type === 'income' ? 'Ingreso' : 'Gasto', item.payment, item.amount, item.note || ''])]
       .map((line) => line.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-negocios-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-mattsystem-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
   // Notas
