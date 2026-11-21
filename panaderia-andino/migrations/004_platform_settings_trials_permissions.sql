@@ -1,9 +1,12 @@
+BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+
 CREATE TABLE IF NOT EXISTS app_admin_setup_tokens (
   token_hash text PRIMARY KEY,
   expires_at timestamptz NOT NULL,
   used_at timestamptz
 );
+
 CREATE TABLE IF NOT EXISTS app_license_settings (
   setting_key text PRIMARY KEY DEFAULT 'default',
   currency_mode text NOT NULL DEFAULT 'both' CHECK (currency_mode IN ('PYG','USD','both')),
@@ -15,12 +18,27 @@ CREATE TABLE IF NOT EXISTS app_license_settings (
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL
 );
+
 INSERT INTO app_license_settings(setting_key,currency_mode,billing_mode,trial_enabled,trial_days,activation_mode,device_limit)
 VALUES ('default','both','both',TRUE,7,'manual',3)
 ON CONFLICT (setting_key) DO NOTHING;
+
 ALTER TABLE app_license_payments ALTER COLUMN amount TYPE numeric;
 ALTER TABLE app_sale_items ADD COLUMN IF NOT EXISTS unit_cost numeric NOT NULL DEFAULT 0;
-ALTER TABLE app_sale_items ADD CONSTRAINT app_sale_items_unit_cost_check CHECK (unit_cost >= 0);
+
+DO $migration$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='app_sale_items'::regclass
+      AND conname='app_sale_items_unit_cost_check'
+  ) THEN
+    ALTER TABLE app_sale_items
+      ADD CONSTRAINT app_sale_items_unit_cost_check CHECK (unit_cost >= 0);
+  END IF;
+END
+$migration$;
+
 ALTER TABLE app_licenses
   ALTER COLUMN setup_amount TYPE numeric,
   ALTER COLUMN monthly_amount TYPE numeric,
@@ -29,8 +47,21 @@ ALTER TABLE app_licenses
   ADD COLUMN IF NOT EXISTS trial_days integer,
   ADD COLUMN IF NOT EXISTS device_limit integer,
   ADD COLUMN IF NOT EXISTS user_limit integer;
-ALTER TABLE app_licenses ADD CONSTRAINT app_licenses_user_limit_check
-  CHECK (user_limit IS NULL OR (user_limit >= 1 AND user_limit <= 500));
+
+DO $migration$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid='app_licenses'::regclass
+      AND conname='app_licenses_user_limit_check'
+  ) THEN
+    ALTER TABLE app_licenses
+      ADD CONSTRAINT app_licenses_user_limit_check
+      CHECK (user_limit IS NULL OR (user_limit >= 1 AND user_limit <= 500));
+  END IF;
+END
+$migration$;
+
 CREATE TABLE IF NOT EXISTS app_platform_settings (
   setting_key text PRIMARY KEY,
   whatsapp_phone text NOT NULL DEFAULT '595987426497',
@@ -40,9 +71,19 @@ CREATE TABLE IF NOT EXISTS app_platform_settings (
   updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-ALTER TABLE app_platform_settings ALTER COLUMN welcome_message SET DEFAULT 'Hola, necesito ayuda con Gestión de Negocio.';
-ALTER TABLE app_platform_settings ALTER COLUMN display_name SET DEFAULT 'Soporte técnico Gestión de Negocio';
-ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '{}'::jsonb;
-CREATE INDEX IF NOT EXISTS app_users_business_role_active_idx ON app_users(business_id,role,active);
-INSERT INTO schema_migrations(version) VALUES ('004_platform_settings_trials_permissions')
+
+ALTER TABLE app_platform_settings
+  ALTER COLUMN welcome_message SET DEFAULT 'Hola, necesito ayuda con Gestión de Negocio.',
+  ALTER COLUMN display_name SET DEFAULT 'Soporte técnico Gestión de Negocio';
+
+ALTER TABLE app_users
+  ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS app_users_business_role_active_idx
+  ON app_users(business_id,role,active);
+
+INSERT INTO schema_migrations(version)
+VALUES ('004_platform_settings_trials_permissions')
 ON CONFLICT (version) DO NOTHING;
+
+COMMIT;
