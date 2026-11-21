@@ -137,4 +137,10 @@ requireContract(apiSource.includes("input.action==='change_plan'") && apiSource.
 requireContract(apiSource.includes('/^\\d{4}-\\d{2}-\\d{2}$/'), 'la creación de licencias debe aceptar y validar fechas ISO YYYY-MM-DD.');
 requireContract(html.includes('/(\\d+)$/'), 'la numeración de facturas debe detectar el sufijo numérico para evitar repetir el correlativo.');
 requireContract(apiSource.includes('active_employee_count < v_limit'), 'la base debe impedir superar el límite de empleados por concurrencia.');
+requireContract(!apiSource.includes("if(!businessId){const first=await sql"), 'una operación destructiva nunca debe elegir automáticamente el primer negocio.');
+requireContract(apiSource.includes("La limpieza integral está temporalmente deshabilitada"), 'la limpieza de datos incompleta debe permanecer bloqueada hasta ser transaccional.');
+requireContract(html.includes('Limpieza integral temporalmente deshabilitada') && html.includes('disabled title="La limpieza integral'), 'la interfaz no debe ofrecer una limpieza parcial como si fuera integral.');
+requireContract(!fs.readFileSync(path.join(root, 'js/auth.js'), 'utf8').includes('Negocios Andino'), 'el acceso debe utilizar la marca Mattsystem y no el nombre anterior.');
+requireContract(!fs.readFileSync(path.join(root, 'js/dashboard.js'), 'utf8').includes('Negocios Andino'), 'el panel y sus exportaciones deben utilizar la marca Mattsystem.');
+
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
