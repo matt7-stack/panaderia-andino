@@ -116,6 +116,7 @@ requireContract(html.includes('function showLicenseActivation') && html.includes
 requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'una licencia vencida o pendiente debe mostrar la pantalla de activación, no volver al login.');
 requireContract(/Solo el administrador o supervisor del negocio puede activar la licencia/.test(html), 'los empleados deben ser dirigidos a su supervisor para activar la licencia.');
 
+requireContract(html.includes("const link = event.target.closest('[data-page-link=\"erp\"]')") && html.includes("pageNavigate('erp')"), 'la navegación al módulo ERP agregado dinámicamente debe funcionar mediante delegación de eventos.');
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
 requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
