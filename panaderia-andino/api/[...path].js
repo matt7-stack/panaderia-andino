@@ -468,7 +468,7 @@ module.exports = async function handler(req, res) {
           (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='expense') AS recorded_expenses,
           (SELECT COALESCE(SUM(COALESCE(NULLIF(item->>'total','')::numeric,NULLIF(item->>'totalAmount','')::numeric,NULLIF(item->>'amount','')::numeric,0)),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(item->>'status','completed') NOT IN ('cancelled','void')) AS sales_total,
           (SELECT updated_at FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS last_sync
-          FROM businesses b ORDER BY b.created_at DESC`;
+          FROM businesses b WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=b.id::text AND t.restored_at IS NULL) ORDER BY b.created_at DESC`;
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
@@ -540,51 +540,18 @@ module.exports = async function handler(req, res) {
         return send(res,200,{business:rows[0]});
       }
       if(req.method==='DELETE'){
-        const id=String(body(req).id||'');
+        const id=String(body(req).id||'').trim();
         if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
         const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
         if(!business[0]) return send(res,404,{error:'No se encontró el negocio.'});
-        if(business[0].active) return send(res,409,{error:'Primero desactivá el negocio. Después podrás solicitar su eliminación definitiva.'});
+        const alreadyArchived=await sql`SELECT id FROM app_trash WHERE entity_type='business' AND entity_id=${id} AND restored_at IS NULL LIMIT 1`;
+        if(alreadyArchived.length) return send(res,409,{error:'Este negocio ya está en la papelera. Podés restaurarlo desde Administración.'});
         const snapshot=await sql`SELECT * FROM businesses WHERE id=${id} LIMIT 1`;
         await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('business',${id},${id},${JSON.stringify(snapshot[0])}::jsonb,${admin.id})`;
         await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
-        return send(res,200,{ok:true,deleted:false,trashed:true,message:'Negocio enviado a la papelera. Sus datos y usuarios se conservaron y puede restaurarse.'});
-        const result=await sql`WITH target AS (
-          SELECT id FROM businesses WHERE id=${id} AND active=FALSE
-        ), usage AS (
-          SELECT
-            (SELECT COUNT(*) FROM app_customers WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_suppliers WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_products WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_inventory_movements WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_purchases WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_sales WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_cash_sessions WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_recipes WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_production_batches WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_financial_entries WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_sale_items WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_purchase_items WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_recipe_ingredients WHERE business_id=${id}) +
-            (SELECT COUNT(*) FROM app_cash_movements WHERE business_id=${id}) AS records
-        ), eligible AS (
-          SELECT target.id FROM target CROSS JOIN usage WHERE usage.records=0
-        ), deleted_audit AS (
-          DELETE FROM app_audit_logs WHERE business_id IN (SELECT id FROM eligible) RETURNING id
-        ), deleted_backups AS (
-          DELETE FROM app_backup_log WHERE business_id IN (SELECT id FROM eligible) RETURNING id
-        ), deleted_users AS (
-          DELETE FROM app_users WHERE business_id IN (SELECT id FROM eligible) AND is_platform_admin=FALSE
-            AND (SELECT COUNT(*) FROM deleted_audit)>=0 RETURNING id
-        ), deleted_business AS (
-          DELETE FROM businesses WHERE id IN (SELECT id FROM eligible)
-            AND (SELECT COUNT(*) FROM deleted_users)>=0
-            AND (SELECT COUNT(*) FROM deleted_backups)>=0 RETURNING id
-        )
-        SELECT EXISTS(SELECT 1 FROM deleted_business) AS deleted,
-          (SELECT records FROM usage) AS records`;
-        if(!result[0]?.deleted) return send(res,409,{error:'No se puede eliminar definitivamente: el negocio tiene registros operativos o ya no está disponible. Se conservaron sus datos. Podés mantenerla desactivada.',records:Number(result[0]?.records||0)});
-        return send(res,200,{ok:true,deleted:true,message:'Negocio eliminado definitivamente. Solo se permite esta acción cuando no existen registros operativos.'});
+        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.trashed','business',${id},${JSON.stringify({name:business[0].name})}::jsonb)`;
+        return send(res,200,{ok:true,deleted:false,trashed:true,message:'Negocio movido a la papelera. Sus datos se conservaron y puede restaurarse.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
@@ -726,7 +693,7 @@ module.exports = async function handler(req, res) {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
       if (req.method === 'GET') {
-        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
+        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='user' AND t.entity_id=u.id::text AND t.restored_at IS NULL) ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
@@ -748,9 +715,11 @@ module.exports = async function handler(req, res) {
         const id=String(body(req).id||''); if(!id||id===admin.id)return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
         const target=await sql`SELECT u.*,to_jsonb(u)-'password_hash' AS safe_payload FROM app_users u WHERE u.id=${id} AND u.is_platform_admin=FALSE LIMIT 1`;
         if(!target.length)return send(res,404,{error:'No se encontró ese usuario.'});
+        const alreadyArchived=await sql`SELECT id FROM app_trash WHERE entity_type='user' AND entity_id=${id} AND restored_at IS NULL LIMIT 1`;
+        if(alreadyArchived.length)return send(res,409,{error:'Este usuario ya está en la papelera.'});
         await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('user',${id},${target[0].business_id},${JSON.stringify(target[0].safe_payload)}::jsonb,${admin.id})`;
         await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE`;
-        return send(res,200,{ok:true,trashed:true,message:'Usuario desactivado y enviado a la papelera. Puede restaurarse.'});
+        return send(res,200,{ok:true,trashed:true,message:'Usuario movido a la papelera. Sus sesiones fueron revocadas y puede restaurarse.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
