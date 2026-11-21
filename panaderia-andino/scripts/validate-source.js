@@ -15,7 +15,8 @@ const requiredFiles = [
   'sw.js',
   'migrations/004_platform_settings_trials_permissions.sql',
   'migrations/005_platform_support_settings.sql',
-  'migrations/006_operational_integrity_and_tenant_constraints.sql'
+  'migrations/006_operational_integrity_and_tenant_constraints.sql',
+  'migrations/007_employee_license_limit_guard.sql'
 ];
 
 for (const relative of requiredFiles) {
@@ -121,6 +122,12 @@ requireContract(/Solo el administrador o supervisor del negocio puede activar la
 
 requireContract(html.includes("const link = event.target.closest('[data-page-link=\"erp\"]')") && html.includes("pageNavigate('erp')"), 'la navegación al módulo ERP agregado dinámicamente debe funcionar mediante delegación de eventos.');
 requireContract(apiSource.includes('WITH active_license AS') && apiSource.includes('employee_rows AS') && apiSource.includes('employee_count AS'), 'la consulta del límite de empleados debe resolverse en una sola consulta a Neon.');
+const employeeLimitMigration = fs.readFileSync(path.join(root, 'migrations/007_employee_license_limit_guard.sql'), 'utf8');
+requireContract(employeeLimitMigration.includes('active_employee_count') && employeeLimitMigration.includes('employee_license_limit_reached') && employeeLimitMigration.includes('app_users_employee_license_limit'), 'la base debe aplicar el límite de empleados incluso ante altas concurrentes.');
+requireContract(apiSource.includes("plan==='basic'?1:(plan==='professional'?4:null)"), 'los planes deben conservar sus límites de empleados definidos.');
+requireContract(apiSource.includes('user_limit,device_limit') && apiSource.includes('${userLimit},${deviceLimit}'), 'cada licencia nueva debe guardar sus límites efectivos.');
+requireContract(!/if\(req\.method==='GET'\)\{\s*await sql`UPDATE app_licenses/.test(apiSource), 'consultar licencias no debe modificar datos.');
+requireContract(apiSource.includes('LICENSE_SYSTEM_NAME') && apiSource.includes('licenseSystem.toLowerCase()'), 'la activación debe usar el mismo identificador de producto que el inicio de sesión.');
 requireContract(employeeAccess.includes("setTimeout(resolve, 900)") && employeeAccess.includes("transient"), 'la consulta de empleados debe reintentar fallos transitorios de conexión una sola vez.');
 requireContract(employeeAccess.includes("error.message || 'Revisá la conexión"), 'la pantalla debe mostrar el error real de consulta en lugar de un mensaje genérico.');
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
