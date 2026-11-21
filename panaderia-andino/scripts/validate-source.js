@@ -4,6 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+const requireContract = (condition, message) => {
+  if (!condition) throw new Error('Falla de seguridad/funcionalidad: ' + message);
+};
+
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
   'api/[...path].js',
@@ -68,9 +72,6 @@ new vm.Script(dashboardSource, { filename: dashboardPath });
 const erpPath = path.join(root, 'erp-modules.js');
 const erpSource = fs.readFileSync(erpPath, 'utf8');
 new vm.Script(erpSource, { filename: erpPath });
-const requireContract = (condition, message) => {
-  if (!condition) throw new Error('Falla de seguridad/funcionalidad: ' + message);
-};
 
 // Sesiones: firma segura, cookie HttpOnly/Secure y revocación por session_version.
 requireContract(/HttpOnly; Secure; SameSite=Lax/.test(apiSource), 'la cookie de sesión debe ser HttpOnly, Secure y SameSite=Lax.');
