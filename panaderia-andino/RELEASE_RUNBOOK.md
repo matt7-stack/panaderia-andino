@@ -9,9 +9,10 @@ Commit de código auditado antes de este documento: `27ba6b94426df4664060d8a71ed
 - El validador estático, `npm test`, `npm run build`, los chequeos de sintaxis y `git diff --check` pasaron en la rama candidata.
 - `vercel build` terminó correctamente en el entorno local de Vercel CLI.
 - Vercel no ha creado un deployment para el commit candidato debido al estado `build-rate-limit`. No se debe intentar eludir este límite.
-- La rama Neon de preproducción derivada de Producción recibió y ejecutó las migraciones 008–011.
-- La rama principal de Neon de Producción conserva las migraciones 001–007. No ejecutar la nueva aplicación contra esa base hasta aplicar y verificar las migraciones 008–011.
-- La rama principal de Producción no debe modificarse durante las pruebas de Preview.
+- La rama principal Neon de Producción tiene registradas las migraciones 001–012.
+- La rama `preprod-security-migration-2026-11-21` recibió y verificó la migración 012 para corregir la política de auditoría anónima.
+- Las variables de Vercel están configuradas por entorno; sus valores sensibles no se imprimen ni se copian a Git.
+- La fila HMAC de Producción aún debe inicializarse/verificarse mediante la primera ejecución de la versión corregida. No se debe escribir una clave manual distinta.
 
 ## 2. Variables de entorno
 
@@ -19,13 +20,13 @@ Configurar como tipo **Sensitive** en Vercel:
 
 | Variable | Preview | Production |
 |---|---|---|
-| `DATABASE_URL` | Rama Neon QA y rol de aplicación `mattsystem_app` | Rama principal Neon de Producción |
+| `DATABASE_URL` | Rama Neon QA, usuario backend autorizado para `SET ROLE mattsystem_app` | Rama principal Neon de Producción, usuario backend autorizado para `SET ROLE mattsystem_app` |
 | `SESSION_SECRET` | Secreto exclusivo de Preview | Secreto exclusivo de Producción |
 | `TENANT_CONTEXT_SECRET` | Secreto HMAC exclusivo de Preview | Secreto HMAC exclusivo de Producción |
 
 No copiar secretos entre Preview y Production. No incluir valores secretos en Git, logs, capturas ni tickets.
 
-La variable HMAC debe contener exactamente 64 caracteres hexadecimales (32 bytes). La fila de base de datos debe contener el mismo secreto en `app_private.tenant_context_secret`. Usar `npm run bootstrap:tenant-secret` solo después de aplicar la migración 009 y con las variables del entorno correcto. El script no sobrescribe una clave diferente.
+La variable HMAC debe contener exactamente 64 caracteres hexadecimales (32 bytes). La fila de base de datos debe contener el mismo secreto en `app_private.tenant_context_secret`. La API corregida inicializa y compara esa fila de forma idempotente en Preview y Producción; nunca sobrescribe una clave distinta. No usar el secreto de Preview en Producción.
 
 ## 3. Orden obligatorio de migraciones en Producción
 
@@ -37,12 +38,13 @@ Aplicar, en este orden, sin saltar archivos:
 2. `migrations/009_signed_tenant_context.sql`
 3. `migrations/010_auth_admin_rls.sql`
 4. `migrations/011_runtime_role_set_option.sql`
+5. `migrations/012_auth_audit_insert_policy.sql`
 
 Si una migración falla, detener el procedimiento, conservar los logs y no continuar con la siguiente. No ejecutar DDL manual alternativo para forzar el avance.
 
 ## 4. Verificaciones de base de datos después de migrar
 
-- Versiones 001–011 presentes en `public.schema_migrations`.
+- Versiones 001–012 presentes en `public.schema_migrations`.
 - 32/32 tablas públicas esperadas con RLS habilitado.
 - Las tablas operativas con aislamiento de negocio tienen FORCE RLS según la migración.
 - Rol `mattsystem_app` existe, es `NOSUPERUSER`, `NOBYPASSRLS` y no tiene permiso de inicio de sesión.
