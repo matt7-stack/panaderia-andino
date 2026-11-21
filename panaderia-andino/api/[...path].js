@@ -77,7 +77,7 @@ async function currentUser(req) {
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
   const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
-  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions,
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions, b.name AS business_name,
       lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
       lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid,
       lic.plan AS license_plan, lic.is_trial AS license_is_trial, lic.trial_started_at AS license_trial_started_at,
