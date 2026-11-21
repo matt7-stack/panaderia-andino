@@ -113,6 +113,7 @@ async function authenticated(req, res, adminOnly = false) {
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
+  requestContext.enterWith({ businessId: user.business_id || '', userId: user.id || '', isPlatformAdmin: user.is_platform_admin === true });
   try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
   if (user.is_platform_admin !== true && user.license_is_valid !== true) {
     const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
@@ -131,7 +132,6 @@ async function authenticated(req, res, adminOnly = false) {
     return null;
   }
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
-  requestContext.enterWith({ businessId: user.business_id || '', userId: user.id || '', isPlatformAdmin: user.is_platform_admin === true });
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -207,6 +207,7 @@ async function handleRequest(req, res) {
       const user=await currentUser(req);
       if(!user)return send(res,401,{error:'Iniciá sesión para consultar tu plan.'});
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta consulta está disponible para cuentas de negocio.'});
+      requestContext.enterWith({ businessId:user.business_id, userId:user.id, isPlatformAdmin:false });
       const sql=db();
       const [licenses,employees]=await Promise.all([
         sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,created_at
