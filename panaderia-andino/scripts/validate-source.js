@@ -55,6 +55,7 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+const erpSource = fs.readFileSync(path.join(root, 'erp-modules.js'), 'utf8');
 const requireContract = (condition, message) => {
   if (!condition) throw new Error('Falla de seguridad/funcionalidad: ' + message);
 };
@@ -93,6 +94,14 @@ requireContract(/const \{cost_price,\.\.\.safeProduct\}=product/.test(apiSource)
 requireContract(/open_cash AS MATERIALIZED[\s\S]{0,250}?FOR UPDATE/.test(apiSource), 'las ventas en efectivo deben reservar una caja abierta de forma concurrente.');
 requireContract(/EXISTS\(SELECT 1 FROM open_cash\)/.test(apiSource), 'no deben registrarse ventas en efectivo sin caja abierta.');
 requireContract(/refund_entry AS \(INSERT INTO app_financial_entries/.test(apiSource), 'la anulación de una venta en efectivo debe quedar reflejada en los informes financieros.');
+
+// Un permiso de operación no concede automáticamente acceso al historial financiero.
+requireContract(/purchases:\['purchases\\.view'\]/.test(apiSource), 'el historial de compras requiere purchases.view.');
+requireContract(/if \(canAny\(\['purchases\.view','reports\.view'\]\)\) data\.purchases/.test(apiSource), 'los empleados sin permiso de consulta no deben recibir el historial de compras.');
+requireContract(/if \(canAny\(\['cash\.view','reports\.view'\]\)\) data\.movements/.test(apiSource), 'los empleados sin permiso de consulta no deben recibir el historial de caja.');
+requireContract(/can\('cash\.view'\)\s*\?\s*sql`SELECT \* FROM app_cash_sessions[\s\S]{0,220}?status='open'/.test(apiSource), 'sin cash.view solo se puede consultar la sesión abierta necesaria para operar.');
+requireContract(/purchases:\{title:'Compras',read:\['purchases\.view'\]/.test(erpSource), 'la interfaz debe separar registrar compras de consultar su historial.');
+requireContract(erpSource.includes("const canView=allowed('cash.view')"), 'la interfaz debe ocultar el historial de caja sin cash.view.');
 
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
