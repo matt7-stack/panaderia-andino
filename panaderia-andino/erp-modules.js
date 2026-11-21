@@ -43,6 +43,11 @@
       page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Ventas, compras, inventario, producción, caja e informes.</p></div></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
       topbar.insertAdjacentElement('afterend',page);
     }
+    if(!$('#erpModuleStyles')){
+      const style=document.createElement('style');style.id='erpModuleStyles';
+      style.textContent='#erpTabs{display:flex;flex-wrap:wrap;gap:.5rem}#erpTabs .btn{min-height:38px;white-space:nowrap}.erp-line-item .btn{min-height:38px}@media(max-width:768px){#erpTabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}#erpTabs .btn{flex:0 0 auto}#page-erp .settings-card{padding:1rem}#page-erp .table-responsive{font-size:.86rem}}@media print{body *{visibility:hidden!important}#page-erp,#page-erp *{visibility:visible!important}#page-erp{position:absolute;inset:0;width:100%}#page-erp button,#erpTabs{display:none!important}}';
+      document.head.appendChild(style);
+    }
     return true;
   }
   function syncNavigation(){
