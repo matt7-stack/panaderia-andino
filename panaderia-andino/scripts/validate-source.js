@@ -139,6 +139,14 @@ requireContract(/business_id=\$\{user\.business_id\}[\s\S]{0,220}?UPPER\(BTRIM\(
 requireContract(/is_trial=FALSE AND status IN \('pending','active','expired'\)/.test(apiSource), 'la activación no debe convertir una prueba gratuita, suspensión o cancelación en licencia comercial.');
 requireContract(apiSource.includes("path==='/api/admin/licenses/trial'") && apiSource.includes("'license.trial_started'") && !apiSource.includes('const startTrial='), 'la prueba gratuita debe iniciarse desde una acción administrativa independiente, nunca al crear el negocio.');
 requireContract(apiSource.includes("path==='/api/business/license'") && apiSource.includes('trialStartedAt:license.trial_started_at'), 'la cuenta del negocio debe poder consultar su plan y vigencia aun cuando la licencia haya vencido.');
+
+const businessCreateBlock = apiSource.match(/if \(path === '\/api\/admin\/businesses'\) \{([\\s\\S]*?)if \(path === '\/api\/admin\/clients'\)/);
+requireContract(!!businessCreateBlock && !businessCreateBlock[1].includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
+requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Iniciar prueba gratuita'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
+requireContract(html.includes('businessLicenseNav.hidden = user.isPlatformAdmin === true') && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
+requireContract(apiSource.includes("if (path === '/api/business/erp')") && erpSource.includes("'/api/business/erp?module='"), 'la interfaz ERP debe estar conectada a su ruta autenticada del servidor.');
+requireContract(serviceWorker.includes("mattsystem-pwa-v8") && serviceWorker.includes("'/erp-modules.js'"), 'el despliegue debe invalidar la caché PWA anterior para entregar el módulo ERP actualizado.');
+
 requireContract(html.includes('id="page-licencia"') && html.includes('businessLicenseActivationForm') && html.includes('id="businessLicenseNav"'), 'el cliente debe tener un apartado permanente para consultar y activar su licencia.');
 requireContract(html.includes('id="licenseStartTrial"') && html.includes("/api/admin/licenses/trial") && !html.includes('simpleStartTrial'), 'el inicio de prueba gratuita debe estar separado del alta del negocio y de la creación de licencia comercial.');
 requireContract(apiSource.includes("attemptKey='license:'+user.id") && apiSource.includes('app_login_attempts'), 'los intentos de activación deben tener protección contra fuerza bruta.');
