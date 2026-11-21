@@ -25,6 +25,7 @@ const requiredFiles = [
   'migrations/009_signed_tenant_context.sql',
   'migrations/010_auth_admin_rls.sql',
   'migrations/011_runtime_role_set_option.sql',
+  'migrations/012_auth_audit_insert_policy.sql',
   'scripts/bootstrap-tenant-context-secret.js',
 ];
 
@@ -93,6 +94,10 @@ requireContract(apiSource.includes('TENANT_CONTEXT_SECRET') && apiSource.include
 requireContract(apiSource.includes("/^[a-f0-9]{64}$/i.test(contextSecret)") && apiSource.includes("Buffer.from(contextSecret, 'hex')") && tenantSecretBootstrapPath && fs.readFileSync(tenantSecretBootstrapPath,'utf8').includes('ON CONFLICT (singleton) DO NOTHING'), 'la clave HMAC debe decodificarse como 32 bytes y sincronizarse sin sobrescribir secretos existentes.');
 const runtimeRoleMigration = fs.readFileSync(path.join(root, 'migrations/011_runtime_role_set_option.sql'), 'utf8');
 requireContract(apiSource.includes("set_config('role', 'mattsystem_app', true)") && runtimeRoleMigration.includes('SET TRUE') && runtimeRoleMigration.includes('mattsystem_app'), 'cada transacción autenticada debe cambiar al rol PostgreSQL sin BYPASSRLS antes de consultar datos del negocio.');
+requireContract(!apiSource.includes('if (!context) return query;') && apiSource.includes("set_config('app.context_signature', ${contextSignature}, true)"), 'también las consultas anónimas previas al login deben ejecutar bajo mattsystem_app con contexto vacío y RLS cerrado.');
+requireContract(apiSource.includes("['production','preview'].includes(process.env.VERCEL_ENV)") && apiSource.includes('const bootstrapSql = sqlClient') && apiSource.includes('await bootstrapSql`INSERT INTO app_private.tenant_context_secret'), 'el secreto HMAC debe inicializarse de forma idempotente en ramas aisladas de Preview y Producción sin exponerlo al rol de aplicación.');
+const authAuditMigration = fs.readFileSync(path.join(root, 'migrations/012_auth_audit_insert_policy.sql'), 'utf8');
+requireContract(authAuditMigration.includes('FOR INSERT TO mattsystem_app') && authAuditMigration.includes('business_id IS NULL') && authAuditMigration.includes('actor_user_id IS NULL') && authAuditMigration.includes("'auth.login_failed'") && authAuditMigration.includes("'auth.login_blocked'"), 'el registro anónimo de fallos de login debe permitir solo eventos mínimos y sin identidad ni negocio.');
 requireContract(signedContextMigration.includes('tenant_context_is_valid') && signedContextMigration.includes('public.hmac') && signedContextMigration.includes('SECURITY DEFINER'), 'PostgreSQL debe verificar la firma HMAC antes de confiar en el contexto RLS.');
 const rlsRoleMigration = fs.readFileSync(path.join(root, 'migrations/008_tenant_rls_enforcement.sql'), 'utf8');
 requireContract(rlsRoleMigration.includes('CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS') && rlsRoleMigration.includes('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES') && rlsRoleMigration.includes('WITH INHERIT FALSE, SET TRUE'), 'la migración RLS debe crear el rol de mínimo privilegio, conceder solo permisos operativos y permitir SET ROLE transaccional.');
