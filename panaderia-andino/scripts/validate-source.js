@@ -59,6 +59,9 @@ const apiSource = fs.readFileSync(apiPath, 'utf8');
 const employeeAccessPath = path.join(root, 'employee-access.js');
 const employeeAccess = fs.readFileSync(employeeAccessPath, 'utf8');
 new vm.Script(employeeAccess, { filename: employeeAccessPath });
+const dashboardPath = path.join(root, 'js/dashboard.js');
+const dashboardSource = fs.readFileSync(dashboardPath, 'utf8');
+new vm.Script(dashboardSource, { filename: dashboardPath });
 const erpPath = path.join(root, 'erp-modules.js');
 const erpSource = fs.readFileSync(erpPath, 'utf8');
 new vm.Script(erpSource, { filename: erpPath });
@@ -139,6 +142,10 @@ requireContract(apiSource.includes('/^\\d{4}-\\d{2}-\\d{2}$/'), 'la creación de
 requireContract(html.includes('/(\\d+)$/'), 'la numeración de facturas debe detectar el sufijo numérico para evitar repetir el correlativo.');
 requireContract(apiSource.includes('active_employee_count < v_limit'), 'la base debe impedir superar el límite de empleados por concurrencia.');
 requireContract(!apiSource.includes("if(!businessId){const first=await sql"), 'una operación destructiva nunca debe elegir automáticamente el primer negocio.');
+requireContract(apiSource.includes('expectedUpdatedAt') && apiSource.includes('DATA_VERSION_CONFLICT') && apiSource.includes('IS NOT DISTINCT FROM'), 'las escrituras de datos compartidos deben rechazar actualizaciones obsoletas.');
+requireContract(apiSource.includes('Seleccioná explícitamente el negocio que querés administrar.') && !apiSource.includes("if(user.is_platform_admin===true&&!businessId)"), 'el administrador de plataforma debe seleccionar el negocio y nunca operar por defecto sobre el primero.');
+requireContract(dashboardSource.includes('expectedUpdatedAt: cloudUpdatedAt') && dashboardSource.includes("error.code === 'DATA_VERSION_CONFLICT'"), 'el cliente debe enviar la versión actual y proteger los cambios locales ante conflictos.');
+
 requireContract(apiSource.includes("La limpieza integral está temporalmente deshabilitada"), 'la limpieza de datos incompleta debe permanecer bloqueada hasta ser transaccional.');
 requireContract(html.includes('Limpieza integral temporalmente deshabilitada') && html.includes('disabled title="La limpieza integral'), 'la interfaz no debe ofrecer una limpieza parcial como si fuera integral.');
 requireContract(!fs.readFileSync(path.join(root, 'js/auth.js'), 'utf8').includes('Negocios Andino'), 'el acceso debe utilizar la marca Mattsystem y no el nombre anterior.');
