@@ -778,7 +778,7 @@ module.exports = async function handler(req, res) {
           return send(res,200,{suppliers:rows});
         }
         if (module === 'sales') {
-          const rows=await sql`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
+          const rows=await sql`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',CASE WHEN ${can('products.view') || can('reports.view')} THEN i.unit_cost ELSE NULL END,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
           return send(res,200,{sales:rows});
         }
         if (module === 'purchases') {
@@ -786,8 +786,15 @@ module.exports = async function handler(req, res) {
           return send(res,200,{purchases:rows});
         }
         if (module === 'inventory') {
-          const rows=await sql`SELECT m.*,p.name AS product_name,p.sku FROM app_inventory_movements m JOIN app_products p ON p.business_id=m.business_id AND p.id=m.product_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`;
-          const products=await sql`SELECT id,name,sku,stock,min_stock,unit,cost_price FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
+          const canSeeCosts=can('products.view')||can('reports.view');
+          const rows=await sql`SELECT m.id,m.business_id,m.product_id,m.movement_type,m.quantity,
+            CASE WHEN ${canSeeCosts} THEN m.unit_cost ELSE NULL END AS unit_cost,
+            m.reference,m.notes,m.actor_user_id,m.created_at,p.name AS product_name,p.sku
+            FROM app_inventory_movements m JOIN app_products p ON p.business_id=m.business_id AND p.id=m.product_id
+            WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`;
+          const products=await sql`SELECT id,name,sku,stock,min_stock,unit,
+            CASE WHEN ${canSeeCosts} THEN cost_price ELSE NULL END AS cost_price
+            FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
           return send(res,200,{movements:rows,products});
         }
         if (module === 'recipes') {
@@ -1120,7 +1127,7 @@ module.exports = async function handler(req, res) {
         const source = rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
         const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
         if (canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
-        if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = Array.isArray(source.products)?source.products:[];
+        if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = (Array.isArray(source.products)?source.products:[]).map(product => { if (can('products.view') || can('reports.view')) return product; const {cost_price,...safeProduct}=product; return safeProduct; });
         if (canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
         if (canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
         if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
