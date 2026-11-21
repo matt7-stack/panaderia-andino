@@ -236,6 +236,19 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||'');
+        if(input.action==='change_plan'){
+          const plan=String(input.plan||'');
+          if(!id||!['basic','professional','enterprise'].includes(plan))return send(res,400,{error:'Seleccioná un plan válido.'});
+          const target=await sql`SELECT business_id FROM app_licenses WHERE id=${id} LIMIT 1`;
+          if(!target.length)return send(res,404,{error:'Licencia no encontrada.'});
+          const userLimit=plan==='basic'?1:(plan==='professional'?4:null);
+          if(userLimit!==null){
+            const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${target[0].business_id} AND role='employee' AND active=TRUE AND is_platform_admin=FALSE`;
+            if(Number(count[0]?.total||0)>userLimit)return send(res,409,{error:'No se puede reducir el plan: el negocio tiene más empleados activos que el nuevo límite. Desactivá cuentas o elegí un plan superior.'});
+          }
+          const changed=await sql`UPDATE app_licenses SET plan=${plan},user_limit=${userLimit},updated_at=NOW() WHERE id=${id} RETURNING *`;
+          return send(res,200,{license:changed[0],dataPreserved:true});
+        }
         if(input.action==='renew'){
           const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
           const parsedDate=new Date(expiresAt+'T00:00:00Z');
