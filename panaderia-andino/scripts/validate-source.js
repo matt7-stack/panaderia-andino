@@ -26,6 +26,7 @@ const requiredFiles = [
   'migrations/010_auth_admin_rls.sql',
   'migrations/011_runtime_role_set_option.sql',
   'migrations/012_auth_audit_insert_policy.sql',
+  'migrations/013_trial_acceptance_and_permanent_licenses.sql',
   'scripts/bootstrap-tenant-context-secret.js',
 ];
 
@@ -98,6 +99,12 @@ requireContract(!apiSource.includes('if (!context) return query;') && apiSource.
 requireContract(apiSource.includes("['production','preview'].includes(process.env.VERCEL_ENV)") && apiSource.includes('const bootstrapSql = sqlClient') && apiSource.includes('await bootstrapSql`INSERT INTO app_private.tenant_context_secret'), 'el secreto HMAC debe inicializarse de forma idempotente en ramas aisladas de Preview y Producción sin exponerlo al rol de aplicación.');
 const authAuditMigration = fs.readFileSync(path.join(root, 'migrations/012_auth_audit_insert_policy.sql'), 'utf8');
 requireContract(/FOR INSERT\s+TO mattsystem_app/.test(authAuditMigration) && authAuditMigration.includes('business_id IS NULL') && authAuditMigration.includes('actor_user_id IS NULL') && authAuditMigration.includes("'auth.login_failed'") && authAuditMigration.includes("'auth.login_blocked'"), 'el registro anónimo de fallos de login debe permitir solo eventos mínimos y sin identidad ni negocio.');
+const licensingMigration = fs.readFileSync(path.join(root, 'migrations/013_trial_acceptance_and_permanent_licenses.sql'), 'utf8');
+requireContract(licensingMigration.includes('app_trial_claims_business_unique') && licensingMigration.includes('FORCE ROW LEVEL SECURITY') && licensingMigration.includes('accepted_by=public.app_ctx_user_id()'), 'la prueba gratuita debe quedar registrada una sola vez por negocio y vinculada al usuario que aceptó.');
+requireContract(licensingMigration.includes("CHECK (license_type IN ('subscription','permanent'))") && licensingMigration.includes("lic.license_type='permanent'") && licensingMigration.includes('app_trial_settings'), 'el esquema debe distinguir licencias permanentes y exponer solo la configuración pública necesaria de la prueba.');
+requireContract(apiSource.includes("path==='/api/business/license/trial'") && apiSource.includes('input.accepted!==true') && apiSource.includes('input.termsVersion!==termsVersion') && apiSource.includes('mattsystem-trial-v1'), 'la prueba solo puede iniciarse con aceptación explícita y versión de condiciones registrada.');
+requireContract(apiSource.includes("licenseType==='subscription'&&!expiresAt") && apiSource.includes("licenseType==='permanent'&&expiresAt") && apiSource.includes('La licencia permanente no requiere renovación.'), 'las suscripciones deben tener vencimiento y las licencias permanentes no deben renovarse.');
+requireContract(html.includes('id="trialTermsAccepted"') && html.includes('id="trialStartForm"') && html.includes('/api/business/license/trial') && !html.includes('id="licenseStartTrial"'), 'el cliente debe aceptar las condiciones desde su propio acceso; plataforma no puede aceptar la prueba por él.');
 requireContract(signedContextMigration.includes('tenant_context_is_valid') && signedContextMigration.includes('public.hmac') && signedContextMigration.includes('SECURITY DEFINER'), 'PostgreSQL debe verificar la firma HMAC antes de confiar en el contexto RLS.');
 const rlsRoleMigration = fs.readFileSync(path.join(root, 'migrations/008_tenant_rls_enforcement.sql'), 'utf8');
 requireContract(rlsRoleMigration.includes('CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS') && rlsRoleMigration.includes('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES') && rlsRoleMigration.includes('WITH INHERIT FALSE, SET TRUE'), 'la migración RLS debe crear el rol de mínimo privilegio, conceder solo permisos operativos y permitir SET ROLE transaccional.');
@@ -173,7 +180,7 @@ const businessPostStart = businessCreateBlock.indexOf("if(req.method==='POST'){"
 const businessPostEnd = businessCreateBlock.indexOf("if(req.method==='PATCH')", businessPostStart);
 const businessPostBlock = businessPostStart >= 0 && businessPostEnd > businessPostStart ? businessCreateBlock.slice(businessPostStart, businessPostEnd) : '';
 requireContract(!!businessPostBlock && !businessPostBlock.includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
-requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Iniciar prueba gratuita'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
+requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Aceptar condiciones e iniciar prueba'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
 requireContract(html.includes("businessLicenseNav.hidden = user.isPlatformAdmin === true || !['admin','supervisor'].includes(user.role)") && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
 requireContract(/!\['admin','supervisor'\]\.includes\(user\.role\)/.test(apiSource) && !apiSource.includes('code:license.license_code'), 'los datos económicos y el código de licencia no deben exponerse a empleados ni cuentas no autorizadas.');
 requireContract(apiSource.includes("const canViewBusinessLicense = u => u.is_platform_admin !== true && ['admin','supervisor'].includes(u.role)") && apiSource.includes('code:canViewBusinessLicense(u) ? (u.license_code || null) : null') && apiSource.includes("code: ['admin','supervisor'].includes(user.role) ? (user.license_code || null) : null"), 'las respuestas de sesión y licencia inactiva deben ocultar código, vencimiento y límites a los empleados.');
@@ -185,7 +192,7 @@ requireContract(apiSource.includes("if (path === '/api/business/erp')") && erpSo
 requireContract(serviceWorker.includes("mattsystem-pwa-v9") && serviceWorker.includes("'/erp-modules.js'") && serviceWorker.includes("'/js/runtime-enhancements.js'"), 'el despliegue debe invalidar la caché PWA anterior y precargar las mejoras responsive y de conexión.');
 
 requireContract(html.includes('id="page-licencia"') && html.includes('businessLicenseActivationForm') && html.includes('id="businessLicenseNav"'), 'el cliente debe tener un apartado permanente para consultar y activar su licencia.');
-requireContract(html.includes('id="licenseStartTrial"') && html.includes("/api/admin/licenses/trial") && !html.includes('simpleStartTrial'), 'el inicio de prueba gratuita debe estar separado del alta del negocio y de la creación de licencia comercial.');
+requireContract(html.includes('id="trialStartForm"') && html.includes('/api/business/license/trial') && !html.includes('id="licenseStartTrial"'), 'el inicio de prueba gratuita debe estar separado del alta del negocio y de la creación de licencia comercial.');
 requireContract(apiSource.includes("attemptKey='license:'+user.id") && apiSource.includes('app_login_attempts'), 'los intentos de activación deben tener protección contra fuerza bruta.');
 requireContract(html.includes('function showLicenseActivation') && html.includes('/api/licenses/activate'), 'el usuario debe poder ingresar su licencia después del inicio de sesión.');
 requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'una licencia vencida o pendiente debe mostrar la pantalla de activación, no volver al login.');
