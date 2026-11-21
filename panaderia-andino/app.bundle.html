@@ -1655,7 +1655,15 @@ body:not(.platform-admin) .page-view .recent-table tbody td { line-height:1.4; }
     const detail = message || (status === 'expired'
       ? 'La prueba gratuita o la licencia anterior terminó. Ingresá el nuevo código que recibiste de Mattsystem.'
       : 'Ingresá el código de licencia que recibiste de Mattsystem para habilitar tu negocio.');
-    content.innerHTML = `<div class="auth-heading"><span>GESTIÓN DE NEGOCIO</span><h1 id="authTitle">${esc(heading)}</h1><p>${esc(detail)}</p></div>${canActivate
+    const planNames = { basic: 'Básica', professional: 'Profesional', enterprise: 'Empresarial' };
+    const currentLicense = user && user.license;
+    const licenseInfo = currentLicense && (currentLicense.plan || currentLicense.expiresAt || currentLicense.isTrial)
+      ? '<div class="auth-footnote">Plan: <strong>' + esc(planNames[currentLicense.plan] || currentLicense.plan || 'Sin plan') + '</strong>' +
+        (currentLicense.isTrial ? ' · Prueba gratuita' : '') +
+        (currentLicense.expiresAt ? ' · Vencimiento: ' + esc(new Date(currentLicense.expiresAt).toLocaleDateString('es-PY')) : '') +
+        '</div>'
+      : '';
+    content.innerHTML = `<div class="auth-heading"><span>GESTIÓN DE NEGOCIO</span><h1 id="authTitle">${esc(heading)}</h1><p>${esc(detail)}</p></div>${licenseInfo}${canActivate
       ? '<form id="licenseActivationForm" class="auth-form"><label for="licenseActivationCode">Código de licencia</label><input id="licenseActivationCode" name="code" type="text" required minlength="8" maxlength="100" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="MTS-XXXXXXXX-XXXXXX"><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Validar y activar licencia <span>→</span></button><p class="auth-footnote">La licencia se activa una sola vez para este negocio. Tus datos se conservan.</p></form>'
       : '<div class="auth-error" role="status">Solo el administrador o supervisor del negocio puede activar la licencia. Solicitá al supervisor que ingrese el código. Tus datos permanecen guardados.</div>'}`;
     if (!canActivate) return;
