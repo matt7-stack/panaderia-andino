@@ -137,13 +137,13 @@ AS $function$
         'category', left(COALESCE(item->>'category', ''), 60),
         'description', left(COALESCE(item->>'description', ''), 300),
         'price', CASE
-          WHEN COALESCE(item->>'price', '') ~ '^-?[0-9]+(\\.[0-9]+)?$'
+          WHEN COALESCE(item->>'price', '') ~ '^-?[0-9]+(\.[0-9]+)?$'
           THEN GREATEST(0, (item->>'price')::numeric)
           ELSE 0
         END,
         'available', CASE
           WHEN jsonb_typeof(item->'available') = 'boolean' THEN (item->>'available')::boolean
-          WHEN COALESCE(item->>'stock', '') ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN (item->>'stock')::numeric > 0
+          WHEN COALESCE(item->>'stock', '') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (item->>'stock')::numeric > 0
           ELSE false
         END
       ))
