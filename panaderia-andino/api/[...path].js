@@ -77,7 +77,7 @@ async function currentUser(req) {
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
   const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
-  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version,
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions,
       lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
       lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
     FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
@@ -123,6 +123,7 @@ const validPassword = value => typeof value === 'string' && value.length >= 12 &
 const publicUser = u => ({
   id:u.id, name:u.name, email:u.email, role:u.role, active:u.active,
   businessId:u.business_id || null, businessName:u.business_name || null,
+  permissions:u.permissions && typeof u.permissions==='object' ? u.permissions : {},
   isPlatformAdmin:u.is_platform_admin === true,
   license:u.is_platform_admin === true ? null : {
     code:u.license_code || null,
@@ -366,7 +367,7 @@ module.exports = async function handler(req, res) {
         return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
       }
       const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
-      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,
+      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,u.permissions,
           lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
           lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
         FROM app_users u
@@ -650,7 +651,7 @@ module.exports = async function handler(req, res) {
       if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
         return send(res,403,{error:'Solo el Supervisor del negocio puede administrar sus empleados.'});
       const sql = db();
-      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','reports.view'];
+      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export'];
       if (req.method === 'GET') {
         const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
         const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
@@ -738,6 +739,83 @@ module.exports = async function handler(req, res) {
       return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at||null});
     }
 
+    if (path === '/api/business/employee-data') {
+      const user = await authenticated(req,res,false); if (!user) return;
+      if (user.is_platform_admin === true || user.role !== 'employee' || !user.business_id)
+        return send(res,403,{error:'Este servicio está reservado para cuentas de empleado vinculadas a un negocio.'});
+      const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
+      const can = key => permissions[key] === true;
+      const canAny = keys => keys.some(can);
+      const sql = db();
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner
+          FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id
+          WHERE b.id=${user.business_id} AND b.active=TRUE LIMIT 1`;
+        if (!rows.length) return send(res,404,{error:'El negocio no está disponible.'});
+        const source = rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
+        const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
+        if (canAny(['sales.view','sales.create','sales.cancel'])) data.invoices = can('sales.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
+        if (canAny(['products.view','products.manage','inventory.view','inventory.manage'])) data.products = Array.isArray(source.products)?source.products:[];
+        if (canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
+        if (canAny(['inventory.view','inventory.manage'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
+        if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
+        if (canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
+        if (canAny(['purchases.view','purchases.create'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
+        if (canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
+        if (canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
+        if (canAny(['reports.view'])) {
+          data.categories = source.categories && typeof source.categories === 'object' ? source.categories : {};
+          data.paymentMethods = Array.isArray(source.paymentMethods)?source.paymentMethods:[];
+        }
+        return send(res,200,{data,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
+      }
+      if (req.method === 'PUT') {
+        const input = body(req);
+        if (!input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+        const incoming = input.data;
+        if (Buffer.byteLength(JSON.stringify(incoming),'utf8') > 900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+        const currentRows = await sql`SELECT data FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
+        const current = currentRows[0]?.data && typeof currentRows[0].data === 'object' && !Array.isArray(currentRows[0].data) ? currentRows[0].data : {};
+        const next = {...current};
+        const savedFields = [];
+        const appendOnly = key => {
+          const oldItems = Array.isArray(current[key]) ? current[key] : [];
+          const seen = new Set(oldItems.map(item=>String(item?.id||'')));
+          const additions = (Array.isArray(incoming[key]) ? incoming[key] : []).filter(item=>item && item.id && !seen.has(String(item.id)));
+          if (additions.length) { next[key] = oldItems.concat(additions); savedFields.push(key); }
+        };
+        if (can('sales.create')) appendOnly('invoices');
+        if (can('sales.cancel') && Array.isArray(incoming.invoices)) {
+          const requested = new Set(incoming.invoices.filter(item=>item && item.status==='cancelled').map(item=>String(item.id||'')));
+          const oldItems = Array.isArray(next.invoices) ? next.invoices : (Array.isArray(current.invoices)?current.invoices:[]);
+          let changed = false;
+          next.invoices = oldItems.map(item => {
+            if (requested.has(String(item?.id||'')) && item?.status !== 'cancelled') { changed=true; return {...item,status:'cancelled'}; }
+            return item;
+          });
+          if (changed) { if (!savedFields.includes('invoices')) savedFields.push('invoices'); }
+        }
+        if (can('products.manage') && Array.isArray(incoming.products)) {
+          next.products = incoming.products.filter(item=>item&&String(item.name||'').trim()).slice(0,5000);
+          savedFields.push('products');
+        }
+        if (can('cash.manage')) appendOnly('movements');
+        if (can('inventory.manage')) appendOnly('productMovements');
+        if (can('customers.manage') && Array.isArray(incoming.customers)) { next.customers=incoming.customers.filter(item=>item&&String(item.name||'').trim()).slice(0,5000); savedFields.push('customers'); }
+        if (can('suppliers.manage') && Array.isArray(incoming.suppliers)) { next.suppliers=incoming.suppliers.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('suppliers'); }
+        if (can('purchases.create')) appendOnly('purchases');
+        if (can('recipes.manage') && Array.isArray(incoming.recipes)) { next.recipes=incoming.recipes.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('recipes'); }
+        if (can('production.manage')) appendOnly('productionBatches');
+        if (!savedFields.length) return send(res,403,{error:'Tu cuenta no tiene permisos de escritura para los cambios enviados.'});
+        const serialized = JSON.stringify(next);
+        const saved = await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${user.business_id},NOW())
+          ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+          VALUES(${user.business_id},${user.id},'employee.data_updated','business_data',${user.business_id},${JSON.stringify({savedFields})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+        return send(res,200,{ok:true,savedFields,updatedAt:saved[0]?.updated_at||null});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/data' && req.method === 'GET' && new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.has('catalogBusinessId')) {
       const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
       if(!businessId) return send(res,400,{error:'Falta identificar el negocio.'});
