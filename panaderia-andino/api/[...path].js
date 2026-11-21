@@ -754,13 +754,13 @@ module.exports = async function handler(req, res) {
         if (!rows.length) return send(res,404,{error:'El negocio no está disponible.'});
         const source = rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
         const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
-        if (canAny(['sales.view','sales.create','sales.cancel'])) data.invoices = can('sales.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
-        if (canAny(['products.view','products.manage','inventory.view','inventory.manage'])) data.products = Array.isArray(source.products)?source.products:[];
+        if (canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
+        if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = Array.isArray(source.products)?source.products:[];
         if (canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
-        if (canAny(['inventory.view','inventory.manage'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
+        if (canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
         if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
         if (canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
-        if (canAny(['purchases.view','purchases.create'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
+        if (canAny(['purchases.view','purchases.create','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
         if (canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
         if (canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
         if (canAny(['reports.view'])) {
@@ -781,7 +781,11 @@ module.exports = async function handler(req, res) {
         const appendOnly = key => {
           const oldItems = Array.isArray(current[key]) ? current[key] : [];
           const seen = new Set(oldItems.map(item=>String(item?.id||'')));
-          const additions = (Array.isArray(incoming[key]) ? incoming[key] : []).filter(item=>item && item.id && !seen.has(String(item.id)));
+          const additions = [];
+          for (const item of (Array.isArray(incoming[key]) ? incoming[key] : [])) {
+            const id = String(item?.id || '');
+            if (item && id && !seen.has(id)) { seen.add(id); additions.push(item); }
+          }
           if (additions.length) { next[key] = oldItems.concat(additions); savedFields.push(key); }
         };
         if (can('sales.create')) appendOnly('invoices');
