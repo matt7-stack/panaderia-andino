@@ -50,4 +50,33 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
   throw new Error('No está implementado el endpoint de datos con permisos para empleados.');
 }
 
+
+const apiSource = fs.readFileSync(apiPath, 'utf8');
+const requireContract = (condition, message) => {
+  if (!condition) throw new Error('Falla de seguridad/funcionalidad: ' + message);
+};
+
+// Sesiones: firma segura, cookie HttpOnly/Secure y revocación por session_version.
+requireContract(/HttpOnly; Secure; SameSite=Lax/.test(apiSource), 'la cookie de sesión debe ser HttpOnly, Secure y SameSite=Lax.');
+requireContract(/Number\(user\.session_version\s*\|\|\s*0\)\s*===\s*Number\(data\.sv\s*\|\|\s*0\)/.test(apiSource), 'la sesión debe validar session_version.');
+requireContract(/\/api\/admin\/database-info[\s\S]{0,350}?authenticated\(req,res,true\)/.test(apiSource), 'el diagnóstico de base de datos debe usar autenticación de administrador y respetar revocaciones.');
+requireContract(/\/api\/auth\/bootstrap[\s\S]{0,300}?secret\('SESSION_SECRET'\)[\s\S]{0,900}?UPDATE app_admin_setup_tokens/.test(apiSource), 'el alta inicial debe validar SESSION_SECRET antes de consumir el token.');
+
+// Roles: solo supervisor administra empleados; empleado queda restringido a su cuenta y permisos.
+requireContract(/user\.role\s*!==\s*'supervisor'\s*\|\|\s*!user\.business_id/.test(apiSource), 'la gestión de empleados debe quedar reservada al supervisor del negocio.');
+requireContract(/WHERE business_id=\$\{user\.business_id\} AND is_platform_admin=FALSE AND role='employee'/.test(apiSource), 'la lista de empleados debe limitarse al negocio autenticado.');
+requireContract(/user\.role\s*!==\s*'employee'\s*\|\|\s*!user\.business_id/.test(apiSource), 'los datos de empleado deben validar rol y negocio.');
+requireContract(/user\.role!=='supervisor'/.test(apiSource), 'los empleados no deben usar el endpoint general de datos del negocio.');
+
+// Aislamiento multiempresa: los usuarios no administradores no pueden elegir el business_id del request.
+requireContract(/const businessId = user\.is_platform_admin === true \? String\(req\.headers\['x-business-id'\] \|\| ''\) : String\(user\.business_id \|\| ''\)/.test(apiSource), 'el negocio debe derivarse de la sesión para usuarios de negocio.');
+requireContract(/WHERE st\.business_id=\$\{user\.business_id\}/.test(apiSource), 'la lectura de estado de empleado debe estar limitada por business_id.');
+requireContract(/WHERE id=\$\{productId\} AND business_id=\$\{businessId\}/.test(apiSource), 'las operaciones ERP deben comprobar pertenencia del producto al negocio.');
+requireContract(/WHERE s\.business_id=\$\{businessId\}/.test(apiSource), 'las consultas de ventas deben estar aisladas por negocio.');
+
+// El supervisor es el administrador operativo del negocio; la cuenta de plataforma sigue separada.
+requireContract(/!\['admin','supervisor'\]\.includes\(user\.role\).*#configuracion/.test(html), 'el supervisor debe poder abrir la configuración del negocio.');
+requireContract(/Solo el Supervisor o Administrador del negocio puede eliminar pagos/.test(html), 'los controles de pagos deben reconocer al supervisor.');
+requireContract(/user\.isPlatformAdmin\s*!==\s*true\s*\|\|\s*!\['admin','supervisor'\]\.includes/.test(html), 'las acciones de negocio no deben confundirse con el administrador de plataforma.');
+
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
