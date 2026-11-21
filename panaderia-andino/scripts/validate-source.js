@@ -23,6 +23,7 @@ const requiredFiles = [
   'api/business/users.js',
   'api/licenses/activate.js',
   'api/admin/licenses.js',
+  'api/admin/licenses/trial.js',
   'api/admin/license-payments.js',
   'api/admin/overview.js',
   'api/admin/clients.js',
@@ -136,10 +137,10 @@ requireContract(/path===\'\/api\/licenses\/activate\'[\s\S]{0,900}?currentUser\(
 requireContract(/user\.is_platform_admin===true\|\|!user\.business_id\|\|!\['admin','supervisor'\]\.includes\(user\.role\)/.test(apiSource), 'solo el administrador o supervisor del negocio puede activar la licencia.');
 requireContract(/business_id=\$\{user\.business_id\}[\s\S]{0,220}?UPPER\(BTRIM\(license_code\)\)=\$\{code\}/.test(apiSource), 'el código debe pertenecer al negocio autenticado.');
 requireContract(/is_trial=FALSE AND status IN \('pending','active','expired'\)/.test(apiSource), 'la activación no debe convertir una prueba gratuita, suspensión o cancelación en licencia comercial.');
-requireContract(apiSource.includes('const startTrial=input.startTrial===true') && apiSource.includes('${startTrial}=TRUE'), 'la prueba gratuita solo debe iniciarse cuando se solicita expresamente al crear el negocio.');
+requireContract(apiSource.includes("path==='/api/admin/licenses/trial'") && apiSource.includes("'license.trial_started'") && !apiSource.includes('const startTrial='), 'la prueba gratuita debe iniciarse desde una acción administrativa independiente, nunca al crear el negocio.');
 requireContract(apiSource.includes("path==='/api/business/license'") && apiSource.includes('trialStartedAt:license.trial_started_at'), 'la cuenta del negocio debe poder consultar su plan y vigencia aun cuando la licencia haya vencido.');
 requireContract(html.includes('id="page-licencia"') && html.includes('businessLicenseActivationForm') && html.includes('id="businessLicenseNav"'), 'el cliente debe tener un apartado permanente para consultar y activar su licencia.');
-requireContract(!html.includes('id="simpleStartTrial" type="checkbox" checked'), 'la prueba gratuita no debe estar seleccionada automáticamente al crear un negocio.');
+requireContract(html.includes('id="licenseStartTrial"') && html.includes("/api/admin/licenses/trial") && !html.includes('simpleStartTrial'), 'el inicio de prueba gratuita debe estar separado del alta del negocio y de la creación de licencia comercial.');
 requireContract(apiSource.includes("attemptKey='license:'+user.id") && apiSource.includes('app_login_attempts'), 'los intentos de activación deben tener protección contra fuerza bruta.');
 requireContract(html.includes('function showLicenseActivation') && html.includes('/api/licenses/activate'), 'el usuario debe poder ingresar su licencia después del inicio de sesión.');
 requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'una licencia vencida o pendiente debe mostrar la pantalla de activación, no volver al login.');
