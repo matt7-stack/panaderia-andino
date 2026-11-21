@@ -240,6 +240,70 @@ async function handleRequest(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/business/license/trial'){
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      await ensureSchema();
+      const user=await currentUser(req);
+      if(!user)return send(res,401,{error:'Iniciá sesión para solicitar la prueba gratuita.'});
+      if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))
+        return send(res,403,{error:'Solo el administrador o supervisor del negocio puede aceptar la prueba gratuita.'});
+      const input=body(req);
+      const termsVersion='mattsystem-trial-v1';
+      if(input.accepted!==true||input.termsVersion!==termsVersion)
+        return send(res,400,{error:'Debés aceptar las condiciones de la prueba gratuita para continuar.'});
+      requestContext.enterWith({businessId:user.business_id,userId:user.id,isPlatformAdmin:false});
+      const sql=db();
+      const systemName=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const code='TRIAL-'+crypto.randomBytes(12).toString('hex').toUpperCase();
+      const ip=req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null;
+      const userAgent=String(req.headers['user-agent']||'').slice(0,500)||null;
+      let rows;
+      try{
+        rows=await sql`
+          WITH cfg AS (
+            SELECT * FROM public.app_trial_settings()
+          ), eligible AS (
+            SELECT b.id AS business_id,cfg.trial_days,cfg.device_limit
+            FROM businesses b CROSS JOIN cfg
+            WHERE b.id=${user.business_id} AND b.active=TRUE AND cfg.trial_enabled=TRUE
+              AND NOT EXISTS(SELECT 1 FROM app_licenses l WHERE l.business_id=b.id AND lower(btrim(l.system_name))=lower(btrim(${systemName})))
+              AND NOT EXISTS(SELECT 1 FROM app_trial_claims t WHERE t.business_id=b.id)
+          ), created AS (
+            INSERT INTO app_licenses(
+              business_id,license_code,system_name,plan,status,sold_at,expires_at,
+              setup_amount,monthly_amount,billing_day,notes,created_by,is_trial,
+              trial_started_at,trial_days,device_limit,user_limit,license_type
+            )
+            SELECT business_id,${code},${systemName},'basic','active',CURRENT_DATE,
+              CURRENT_DATE+trial_days-1,0,0,1,'Prueba gratuita solicitada y aceptada por el cliente.',
+              ${user.id},TRUE,NOW(),trial_days,device_limit,1,'subscription'
+            FROM eligible RETURNING *
+          ), claim AS (
+            INSERT INTO app_trial_claims(business_id,license_id,accepted_by,terms_version,accepted_at,ip_address,user_agent)
+            SELECT business_id,id,${user.id},${termsVersion},NOW(),${ip},${userAgent} FROM created
+            RETURNING license_id
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+            SELECT business_id,${user.id},'license.trial_started','license',id,
+              ${JSON.stringify({termsVersion,plan:'basic',acceptedBy:user.id})}::jsonb,${ip}
+            FROM created RETURNING id
+          )
+          SELECT created.* FROM created JOIN claim ON claim.license_id=created.id
+        `;
+      }catch(error){
+        if(error?.code==='23505')return send(res,409,{error:'Este negocio ya utilizó o solicitó su prueba gratuita. La prueba solo se concede una vez.'});
+        throw error;
+      }
+      if(!rows.length){
+        const existing=await sql`SELECT is_trial,status FROM app_licenses WHERE business_id=${user.business_id} AND lower(btrim(system_name))=lower(btrim(${systemName})) ORDER BY created_at DESC,id DESC LIMIT 1`;
+        const settings=await sql`SELECT trial_enabled FROM public.app_trial_settings()`;
+        if(settings[0]?.trial_enabled!==true)return send(res,409,{error:'La prueba gratuita está deshabilitada actualmente.'});
+        return send(res,409,{error:existing.length?(existing[0].is_trial?'Este negocio ya utilizó su prueba gratuita.':'Este negocio ya tiene una licencia comercial registrada.'):'No se pudo iniciar la prueba. Contactá a soporte.'});
+      }
+      const refreshed=await currentUser(req);
+      return send(res,201,{ok:true,message:'Prueba gratuita iniciada. Tenés '+Number(rows[0].trial_days||7)+' días. No se realizará ningún cobro automático.',license:{id:rows[0].id,expiresAt:rows[0].expires_at,isTrial:true},user:publicUser(refreshed)});
+    }
     if(path==='/api/business/license'){
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
       if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
@@ -250,15 +314,15 @@ async function handleRequest(req, res) {
       requestContext.enterWith({ businessId:user.business_id, userId:user.id, isPlatformAdmin:false });
       const sql=db();
       const [licenses,employees]=await Promise.all([
-        sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,setup_amount,monthly_amount,billing_day,contract_reference,created_at
+        sql`SELECT id,license_code,system_name,plan,status,license_type,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,setup_amount,monthly_amount,billing_day,contract_reference,created_at
           FROM app_licenses WHERE business_id=${user.business_id}
           AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
           ORDER BY created_at DESC,id DESC LIMIT 1`,
         sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND is_platform_admin=FALSE`
       ]);
       const license=licenses[0]||null;
-      const valid=!!license&&license.status==='active'&&(!license.expires_at||new Date(license.expires_at).getTime()>=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').getTime());
-      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,setupAmount:Number(license.setup_amount||0),monthlyAmount:Number(license.monthly_amount||0),billingDay:license.billing_day,contractReference:license.contract_reference||null,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
+      const valid=!!license&&license.status==='active'&&(license.license_type==='permanent'||(!!license.expires_at&&new Date(license.expires_at).getTime()>=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').getTime()));
+      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),type:license.license_type||'subscription',valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,setupAmount:Number(license.setup_amount||0),monthlyAmount:Number(license.monthly_amount||0),billingDay:license.billing_day,contractReference:license.contract_reference||null,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
     }
     if(path==='/api/licenses/activate'){
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
@@ -299,30 +363,7 @@ async function handleRequest(req, res) {
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
       if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
       const admin=await authenticated(req,res,true);if(!admin)return;
-      const businessId=String(body(req).businessId||'').trim();
-      if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
-      const sql=db();
-      const business=await sql`SELECT id,name,active FROM businesses WHERE id=${businessId} LIMIT 1`;
-      if(!business.length||business[0].active!==true)return send(res,404,{error:'El negocio no existe o está inactivo.'});
-      const existing=await sql`SELECT id,is_trial,status FROM app_licenses WHERE business_id=${businessId} ORDER BY created_at DESC,id DESC LIMIT 1`;
-      if(existing.length)return send(res,409,{error:existing[0].is_trial===true?'Este negocio ya utilizó su prueba gratuita.':'Este negocio ya tiene una licencia registrada. No se puede iniciar una prueba gratuita encima de ella.'});
-      const settings=await sql`SELECT trial_enabled,trial_days,device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
-      if(!settings.length||settings[0].trial_enabled!==true)return send(res,409,{error:'La prueba gratuita está deshabilitada en la configuración de MattSystem.'});
-      const trialDays=Math.max(1,Number(settings[0].trial_days)||7);
-      const systemName=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
-      const code='TRIAL-'+businessId.replace(/-/g,'').slice(0,12).toUpperCase();
-      const rows=await sql`INSERT INTO app_licenses(
-        business_id,license_code,system_name,plan,status,sold_at,expires_at,
-        setup_amount,monthly_amount,billing_day,notes,created_by,is_trial,
-        trial_started_at,trial_days,device_limit,user_limit
-      ) VALUES(
-        ${businessId},${code},${systemName},'basic','active',CURRENT_DATE,
-        CURRENT_DATE+${trialDays}-1,0,0,1,${'Prueba gratuita iniciada manualmente por '+trialDays+' días.'},
-        ${admin.id},TRUE,NOW(),${trialDays},${Number(settings[0].device_limit)||3},1
-      ) RETURNING *`;
-      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-        VALUES(${businessId},${admin.id},'license.trial_started','license',${rows[0].id},${JSON.stringify({trialDays,plan:'basic'})}::jsonb)`;
-      return send(res,201,{license:rows[0],message:'Prueba gratuita iniciada correctamente.'});
+      return send(res,409,{error:'La prueba gratuita debe ser aceptada e iniciada por el administrador o supervisor del propio negocio desde su pantalla de licencia. No se puede aceptar en nombre del cliente.'});
     }
     if(path==='/api/admin/licenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
@@ -332,9 +373,9 @@ async function handleRequest(req, res) {
         return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>(x.display_status||x.status)==='active').length,monthly:rows.filter(x=>(x.display_status||x.status)==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
       if(req.method==='POST'){
-        const input=body(req),businessId=String(input.businessId||''),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem',systemName=String(input.systemName||licenseSystem).trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
+        const input=body(req),businessId=String(input.businessId||''),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem',systemName=String(input.systemName||licenseSystem).trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending'),licenseType=String(input.licenseType||'subscription');
         const setup=Math.max(0,Number(input.setupAmount)||0),monthly=Math.max(0,Number(input.monthlyAmount)||0),billingDay=Math.min(28,Math.max(1,Number(input.billingDay)||1));
-        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly)||systemName.toLowerCase()!==licenseSystem.toLowerCase())return send(res,400,{error:'Datos de licencia no válidos o el producto no coincide con Mattsystem.'});
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!['subscription','permanent'].includes(licenseType)||!Number.isFinite(setup)||!Number.isFinite(monthly)||systemName.toLowerCase()!==licenseSystem.toLowerCase())return send(res,400,{error:'Datos de licencia no válidos o el producto no coincide con Mattsystem.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -343,7 +384,8 @@ async function handleRequest(req, res) {
         const deviceLimit=Number(configured[0]?.device_limit||3);
         const expiresAt=input.expiresAt?String(input.expiresAt):null;
         if(expiresAt&&(!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())||new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)!==expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit}) RETURNING *`;
+        if((licenseType==='subscription'&&!expiresAt)||(licenseType==='permanent'&&expiresAt))return send(res,400,{error:licenseType==='permanent'?'Una licencia permanente no debe tener fecha de vencimiento.':'Una licencia por suscripción requiere fecha de vencimiento.'});
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit,license_type) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit},${licenseType}) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -362,6 +404,9 @@ async function handleRequest(req, res) {
           return send(res,200,{license:changed[0],dataPreserved:true});
         }
         if(input.action==='renew'){
+          const current=await sql`SELECT license_type FROM app_licenses WHERE id=${id} LIMIT 1`;
+          if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});
+          if(current[0].license_type==='permanent')return send(res,409,{error:'La licencia permanente no requiere renovación.'});
           const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
           const parsedDate=new Date(expiresAt+'T00:00:00Z');
           if(!id||!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
