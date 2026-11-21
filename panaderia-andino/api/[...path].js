@@ -1340,9 +1340,8 @@ module.exports = async function handler(req, res) {
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
-      let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
-      if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay un negocio asignado a esta cuenta.'});
+      const businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
+      if(!businessId) return send(res,400,{error:'Seleccioná explícitamente el negocio que querés administrar.'});
       // [deploy] Los empleados no pueden leer ni reemplazar el estado operativo completo.
       // Hasta que exista un modelo de operaciones individuales con autorización por módulo,
       // se aplica denegación por defecto para evitar escalar permisos manipulando /api/data.
@@ -1351,7 +1350,7 @@ module.exports = async function handler(req, res) {
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
       if(req.method==='GET'){
-        const rows=await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
+        const rows=await sql`SELECT st.data,to_char(st.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
         const row=rows[0], data=row.data&&typeof row.data==='object'?row.data:{};
         // El registro businesses es la fuente principal de identidad del negocio.
@@ -1363,7 +1362,23 @@ module.exports = async function handler(req, res) {
         const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
         const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
         if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        const expectedUpdatedAt=input.expectedUpdatedAt==null?null:String(input.expectedUpdatedAt);
+        if(expectedUpdatedAt!==null&&Number.isNaN(Date.parse(expectedUpdatedAt)))return send(res,400,{error:'La versión de datos enviada no es válida.'});
+        const saved=await sql`
+          INSERT INTO app_state(data,updated_by,business_id,updated_at)
+          SELECT ${serialized}::jsonb,${user.id},${businessId},clock_timestamp()
+          WHERE ${expectedUpdatedAt}::timestamptz IS NULL
+             OR EXISTS(SELECT 1 FROM app_state WHERE business_id=${businessId} AND updated_at=${expectedUpdatedAt}::timestamptz)
+          ON CONFLICT(business_id) DO UPDATE
+          SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,
+              updated_at=GREATEST(clock_timestamp(),app_state.updated_at+INTERVAL '1 microsecond')
+          WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt}::timestamptz
+          RETURNING to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at
+        `;
+        if(!saved.length){
+          const latest=await sql`SELECT to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+          return send(res,409,{code:'DATA_VERSION_CONFLICT',error:'Otra sesión guardó cambios más recientes. No se sobrescribieron los datos del servidor.',currentUpdatedAt:latest[0]?.updated_at||null});
+        }
         if(user.is_platform_admin!==true){
           const biz=await sql`SELECT name FROM businesses WHERE id=${businessId} LIMIT 1`;
           const title='Actividad en '+(biz[0]?.name||'un negocio');
