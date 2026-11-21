@@ -197,7 +197,7 @@ module.exports = async function handler(req, res) {
       }
       const activated=await sql`UPDATE app_licenses SET status='active',updated_at=NOW()
         WHERE id=(SELECT id FROM app_licenses WHERE business_id=${user.business_id}
-          AND UPPER(BTRIM(license_code))=${code} AND LOWER(BTRIM(system_name))='mattsystem'
+          AND UPPER(BTRIM(license_code))=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
           AND is_trial=FALSE AND status IN ('pending','active','expired')
           AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
           ORDER BY created_at DESC LIMIT 1)
@@ -216,18 +216,22 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        await sql`UPDATE app_licenses SET status='expired',updated_at=NOW() WHERE status='active' AND expires_at<CURRENT_DATE`;
-        const rows=await sql`SELECT l.*,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
+        const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
         return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
       if(req.method==='POST'){
-        const input=body(req),businessId=String(input.businessId||''),systemName=String(input.systemName||'Mattsystem').trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
+        const input=body(req),businessId=String(input.businessId||''),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem',systemName=String(input.systemName||licenseSystem).trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
         const setup=Math.max(0,Number(input.setupAmount)||0),monthly=Math.max(0,Number(input.monthlyAmount)||0),billingDay=Math.min(28,Math.max(1,Number(input.billingDay)||1));
-        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly))return send(res,400,{error:'Datos de licencia no válidos.'});
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly)||systemName.toLowerCase()!==licenseSystem.toLowerCase())return send(res,400,{error:'Datos de licencia no válidos o el producto no coincide con Mattsystem.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by) VALUES(${businessId},${code},${systemName},${plan},${status},${input.expiresAt||null},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id}) RETURNING *`;
+        const userLimit=plan==='basic'?1:(plan==='professional'?4:null);
+        const configured=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+        const deviceLimit=Number(configured[0]?.device_limit||3);
+        const expiresAt=input.expiresAt?String(input.expiresAt):null;
+        if(expiresAt&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit}) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -1366,6 +1370,7 @@ module.exports = async function handler(req, res) {
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
+    if (err && err.code==='23514' && String(err.message||'').includes('employee_license_limit_reached')) return send(res,409,{error:'Alcanzaste el límite de empleados de tu licencia. Podés ampliar tu plan desde el administrador.'});
     if (err && err.code==='23505') {
       const constraint=String(err.constraint||'');
       if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe un negocio con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
