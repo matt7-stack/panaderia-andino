@@ -143,7 +143,10 @@ requireContract(apiSource.includes("path==='/api/business/license'") && apiSourc
 const businessCreateStart = apiSource.indexOf("if (path === '/api/admin/businesses') {");
 const businessCreateEnd = apiSource.indexOf("if (path === '/api/admin/clients')", businessCreateStart);
 const businessCreateBlock = businessCreateStart >= 0 && businessCreateEnd > businessCreateStart ? apiSource.slice(businessCreateStart, businessCreateEnd) : ''; 
-requireContract(!!businessCreateBlock && !businessCreateBlock[1].includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
+const businessPostStart = businessCreateBlock.indexOf("if(req.method==='POST'){");
+const businessPostEnd = businessCreateBlock.indexOf("if(req.method==='PATCH')", businessPostStart);
+const businessPostBlock = businessPostStart >= 0 && businessPostEnd > businessPostStart ? businessCreateBlock.slice(businessPostStart, businessPostEnd) : '';
+requireContract(!!businessPostBlock && !businessPostBlock.includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
 requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Iniciar prueba gratuita'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
 requireContract(html.includes('businessLicenseNav.hidden = user.isPlatformAdmin === true') && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
 requireContract(apiSource.includes("if (path === '/api/business/erp')") && erpSource.includes("'/api/business/erp?module='"), 'la interfaz ERP debe estar conectada a su ruta autenticada del servidor.');
