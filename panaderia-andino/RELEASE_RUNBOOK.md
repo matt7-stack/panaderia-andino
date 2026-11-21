@@ -10,6 +10,7 @@ PR: https://github.com/matt7-stack/panaderia-andino/pull/8
 - GitHub Actions `Validate source`: SUCCESS para el commit indicado.
 - Vercel Preview del commit indicado: READY; la compilación terminó correctamente.
 - La página raíz del Preview responde HTTP 200.
+- La URL de Producción también presenta `FUNCTION_INVOCATION_FAILED` en `/api/auth/status` y `/api/auth/me`. La inspección de `main` encontró que `api/[...path].js` importa `require('postgres')`, mientras que `package.json` solo declara `@neondatabase/serverless`; ese desajuste de dependencia explica el fallo de inicialización. La rama candidata ya sustituye ese import por el driver declarado y el validador ahora impide que vuelva a ocurrir.
 - `GET /api/auth/status` y otras rutas que acceden a Neon responden HTTP 500 con SQLSTATE `08P01`, mensaje `no such user`.
 - La variable `DATABASE_URL` específica de la rama Preview se actualizó el 2026-11-21 a las 21:54:54 UTC para usar la conexión pooled de Neon QA con `panaderia_owner`. El deployment actual se creó aproximadamente a las 21:52:55 UTC, antes de ese cambio; por eso conserva el snapshot anterior de variables. Cambiar una variable no modifica deployments ya creados.
 - El límite de Vercel `api-deployments-free-per-day` rechazó el siguiente deployment con `retryAfter: 86400`. La hora comunicada para volver a intentar es 2026-11-22 21:54:57 UTC. No intentar eludir el límite ni crear deployments repetidos antes de esa hora.
