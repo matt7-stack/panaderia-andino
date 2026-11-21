@@ -77,6 +77,6 @@ requireContract(/WHERE s\.business_id=\$\{businessId\}/.test(apiSource), 'las co
 // El supervisor es el administrador operativo del negocio; la cuenta de plataforma sigue separada.
 requireContract(/!\['admin','supervisor'\]\.includes\(user\.role\).*#configuracion/.test(html), 'el supervisor debe poder abrir la configuración del negocio.');
 requireContract(/Solo el Supervisor o Administrador del negocio puede eliminar pagos/.test(html), 'los controles de pagos deben reconocer al supervisor.');
-requireContract(/user\.isPlatformAdmin\s*!==\s*true\s*\|\|\s*!\['admin','supervisor'\]\.includes/.test(html), 'las acciones de negocio no deben confundirse con el administrador de plataforma.');
+requireContract(html.includes('isPlatformAdmin !== true && ![\'admin\',\'supervisor\'].includes'), 'las acciones de negocio no deben confundirse con el administrador de plataforma.');
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
