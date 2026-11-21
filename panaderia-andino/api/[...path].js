@@ -478,6 +478,7 @@ async function handleRequest(req, res) {
       const claimed = await sql`SELECT public.app_auth_claim_setup_token(${tokenHash}) AS claimed`;
       if (claimed[0]?.claimed !== true) return send(res,403,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
       const id = crypto.randomUUID(); const passwordHash = await hashPassword(password);
+      requestContext.enterWith({ businessId:'', userId:id, isPlatformAdmin:true });
       const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
       return send(res,201,{user:publicUser(rows[0])},{'Set-Cookie':sessionCookie(id,0)});
     }
