@@ -26,6 +26,7 @@ function db() {
       const contextPayload = businessId + '|' + userId + '|' + isPlatformAdmin;
       const contextSignature = crypto.createHmac('sha256', contextSecret).update(contextPayload, 'utf8').digest('hex');
       const contextQuery = client`SELECT
+        set_config('role', 'mattsystem_app', true),
         set_config('app.business_id', ${businessId}, true),
         set_config('app.user_id', ${userId}, true),
         set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
