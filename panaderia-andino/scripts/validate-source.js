@@ -9,6 +9,7 @@ const requiredFiles = [
   'api/[...path].js',
   'app.bundle.html',
   'employee-access.js',
+  'erp-modules.js',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -41,6 +42,7 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
 }
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
+if (!html.includes('/erp-modules.js')) throw new Error('La interfaz no carga los módulos ERP.');
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 new vm.Script(serviceWorker, { filename: path.join(root, 'sw.js') });
 if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes("'/erp-modules.js'")) throw new Error('La caché PWA no incluye todos los módulos JavaScript.');
