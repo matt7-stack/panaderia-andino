@@ -63,7 +63,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.app_trial_settings() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.app_trial_settings() TO mattsystem_app;
 
--- Una suscripción requiere vencimiento; una licencia permanente no vence.
+-- Una suscripción requiere vencimiento y una licencia permanente no vence.
 CREATE OR REPLACE FUNCTION public.app_auth_user_by_id(p_user_id uuid, p_system text)
 RETURNS TABLE (
  id uuid,name text,email text,role text,active boolean,business_id uuid,is_platform_admin boolean,
