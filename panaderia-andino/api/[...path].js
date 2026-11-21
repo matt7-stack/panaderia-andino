@@ -16,10 +16,20 @@ function db() {
       const query = client(strings, ...values);
       const context = requestContext.getStore();
       if (!context) return query;
+      const contextSecret = process.env.TENANT_CONTEXT_SECRET;
+      if (!contextSecret || contextSecret.length < 64) {
+        throw new Error('TENANT_CONTEXT_SECRET is required for signed tenant isolation');
+      }
+      const businessId = context.businessId || '';
+      const userId = context.userId || '';
+      const isPlatformAdmin = context.isPlatformAdmin === true ? 'true' : 'false';
+      const contextPayload = businessId + '|' + userId + '|' + isPlatformAdmin;
+      const contextSignature = crypto.createHmac('sha256', contextSecret).update(contextPayload, 'utf8').digest('hex');
       const contextQuery = client`SELECT
-        set_config('app.business_id', ${context.businessId || ''}, true),
-        set_config('app.user_id', ${context.userId || ''}, true),
-        set_config('app.is_platform_admin', ${context.isPlatformAdmin ? 'true' : 'false'}, true)`;
+        set_config('app.business_id', ${businessId}, true),
+        set_config('app.user_id', ${userId}, true),
+        set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
+        set_config('app.context_signature', ${contextSignature}, true)`;
       return client.transaction([contextQuery, query]).then(results => results[1]);
     };
     scopedSqlClient.transaction = (...args) => client.transaction(...args);
