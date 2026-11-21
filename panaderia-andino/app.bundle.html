@@ -1521,9 +1521,9 @@ img,svg,canvas,video{max-width:100%}
     // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
     if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
       if (result.code === 'LICENSE_INACTIVE') {
+        const current = window.PanaderiaAuth?.user;
         if (window.PanaderiaAuth) window.PanaderiaAuth.user = null;
-        document.body.classList.add('auth-locked');
-        showLogin(result.error || 'La licencia de este negocio no está habilitada.');
+        showLicenseActivation(current, result.error || 'La licencia de este negocio no está habilitada.', result.license?.status || 'missing');
       }
       if (response.status === 401 && window.PanaderiaAuth?.user) {
         window.PanaderiaAuth.user = null;
@@ -1560,6 +1560,39 @@ img,svg,canvas,video{max-width:100%}
     document.getElementById('authEmail').focus();
   }
 
+  function showLicenseActivation(user, message = '', status = 'missing') {
+    gate.classList.remove('auth-gate-hidden');
+    document.body.classList.add('auth-locked');
+    const canActivate = user && ['admin','supervisor'].includes(user.role) && user.isPlatformAdmin !== true;
+    const heading = status === 'expired' ? 'Tu licencia venció' : (status === 'missing' ? 'Activá tu licencia' : 'Activación de licencia');
+    const detail = message || (status === 'expired'
+      ? 'La prueba gratuita o la licencia anterior terminó. Ingresá el nuevo código que recibiste de Mattsystem.'
+      : 'Ingresá el código de licencia que recibiste de Mattsystem para habilitar tu negocio.');
+    content.innerHTML = `<div class="auth-heading"><span>GESTIÓN DE NEGOCIO</span><h1 id="authTitle">${esc(heading)}</h1><p>${esc(detail)}</p></div>${canActivate
+      ? '<form id="licenseActivationForm" class="auth-form"><label for="licenseActivationCode">Código de licencia</label><input id="licenseActivationCode" name="code" type="text" required minlength="8" maxlength="100" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="MTS-XXXXXXXX-XXXXXX"><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Validar y activar licencia <span>→</span></button><p class="auth-footnote">La licencia se activa una sola vez para este negocio. Tus datos se conservan.</p></form>'
+      : '<div class="auth-error" role="status">Solo el administrador o supervisor del negocio puede activar la licencia. Solicitá al supervisor que ingrese el código. Tus datos permanecen guardados.</div>'}`;
+    if (!canActivate) return;
+    const form = document.getElementById('licenseActivationForm');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const code = document.getElementById('licenseActivationCode').value.trim();
+      button.disabled = true;
+      button.textContent = 'Verificando licencia…';
+      showMessage('');
+      try {
+        const result = await api('/api/licenses/activate', { method: 'POST', body: JSON.stringify({ code }) });
+        showMessage('');
+        establish(result.user);
+      } catch (error) {
+        showMessage(error.message);
+        button.disabled = false;
+        button.innerHTML = 'Validar y activar licencia <span>→</span>';
+      }
+    });
+    document.getElementById('licenseActivationCode').focus();
+  }
+
   function showSetup() {
     document.body.classList.add('auth-locked');
     content.innerHTML = `<div class="auth-heading"><span>PRIMER ACCESO</span><h1 id="authTitle">Activar administrador</h1><p>Creá tu cuenta principal. Solo esta cuenta podrá agregar nuevos usuarios.</p></div><form id="setupForm" class="auth-form"><label for="authName">Tu nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><label for="authSetupEmail">Correo electrónico</label><input id="authSetupEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Crear contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Activar mi cuenta <span>→</span></button></form>`;
@@ -1585,16 +1618,15 @@ img,svg,canvas,video{max-width:100%}
     user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
     if (user.isPlatformAdmin !== true && user.license && user.license.valid !== true) {
       window.PanaderiaAuth.user = null;
-      document.body.classList.add('auth-locked');
       const status = user.license.status || 'missing';
       const messages = {
-        missing: 'Este negocio todavía no tiene una licencia activa para Gestión de Negocio. Contactá al administrador para activar el servicio.',
-        pending: 'La licencia de este negocio está pendiente de activación.',
-        suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
-        cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
-        expired: 'La licencia de este negocio venció. Renovala para recuperar el acceso.'
+        missing: 'Este negocio todavía no tiene una licencia activa. Ingresá el código que te entregó Mattsystem.',
+        pending: 'La licencia está pendiente de activación. Ingresá el código para habilitarla.',
+        suspended: 'La licencia está suspendida. Contactá a soporte técnico.',
+        cancelled: 'La licencia fue cancelada. Contactá a soporte técnico.',
+        expired: 'La licencia venció. Ingresá el nuevo código de renovación.'
       };
-      showLogin(messages[status] || 'La licencia de este negocio no está habilitada.');
+      showLicenseActivation(user, messages[status] || 'La licencia no está habilitada.', status);
       return;
     }
     window.PanaderiaAuth.user = user;
