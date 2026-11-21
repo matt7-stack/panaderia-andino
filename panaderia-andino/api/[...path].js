@@ -789,7 +789,7 @@ module.exports = async function handler(req, res) {
       let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
       if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
       if(!businessId) return send(res,400,{error:'No hay un negocio asignado a esta cuenta.'});
-      // Los empleados no pueden leer ni reemplazar el estado operativo completo.
+      // [deploy] Los empleados no pueden leer ni reemplazar el estado operativo completo.
       // Hasta que exista un modelo de operaciones individuales con autorización por módulo,
       // se aplica denegación por defecto para evitar escalar permisos manipulando /api/data.
       if(user.is_platform_admin!==true && user.role!=='supervisor')
