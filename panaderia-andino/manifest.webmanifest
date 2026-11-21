@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Panadería Andino",
-  "short_name": "Andino",
-  "description": "Sistema de gestión de Panadería Andino",
+  "name": "Gestión de Negocio",
+  "short_name": "Gestión de Negocio",
+  "description": "Aplicación integral para la gestión de negocios",
   "lang": "es-PY",
   "start_url": "/app.bundle.html",
   "scope": "/",
