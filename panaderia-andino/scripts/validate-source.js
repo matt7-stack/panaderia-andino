@@ -12,7 +12,10 @@ const requiredFiles = [
   'erp-modules.js',
   'manifest.webmanifest',
   'vercel.json',
-  'sw.js'
+  'sw.js',
+  'migrations/004_platform_settings_trials_permissions.sql',
+  'migrations/005_platform_support_settings.sql',
+  'migrations/006_operational_integrity_and_tenant_constraints.sql'
 ];
 
 for (const relative of requiredFiles) {
@@ -79,4 +82,14 @@ requireContract(/!\['admin','supervisor'\]\.includes\(user\.role\).*#configuraci
 requireContract(/Solo el Supervisor o Administrador del negocio puede eliminar pagos/.test(html), 'los controles de pagos deben reconocer al supervisor.');
 requireContract(html.includes('isPlatformAdmin !== true && ![\'admin\',\'supervisor\'].includes'), 'las acciones de negocio no deben confundirse con el administrador de plataforma.');
 
+
+// Integridad operativa y confidencialidad financiera por permiso.
+requireContract(/FOR UPDATE/.test(apiSource.slice(apiSource.indexOf("if (module === 'inventory')", apiSource.indexOf("if (req.method === 'POST')")))), 'los movimientos de inventario deben bloquear la fila y calcular el stock dentro de la transacción.');
+requireContract(/CASE WHEN \$\{can\('products\.view'\) \|\| can\('reports\.view'\)\} THEN i\.unit_cost ELSE NULL END/.test(apiSource), 'el coste de artículos vendidos debe ocultarse a empleados sin permiso financiero.');
+requireContract(/CASE WHEN \$\{canSeeCosts\} THEN m\.unit_cost ELSE NULL END/.test(apiSource), 'el coste de movimientos de inventario debe respetar permisos.');
+requireContract(/const \{cost_price,\.\.\.safeProduct\}=product/.test(apiSource), 'el endpoint de empleado debe ocultar costes de producto sin permiso.');
+
+const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
+requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
+requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
