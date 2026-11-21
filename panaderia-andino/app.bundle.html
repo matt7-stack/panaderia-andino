@@ -700,6 +700,41 @@ img,svg,canvas,video{max-width:100%}
   button, .btn, a, input, select, textarea, [role="button"] { -webkit-tap-highlight-color:transparent; }
   button, .btn, [role="button"] { touch-action:manipulation; }
 }
+
+/* Ajuste final de controles: tamaños consistentes en móviles y tabletas */
+@media (max-width: 767.98px) {
+  .page-view .btn, .page-view button.btn, .page-view .icon-action {
+    box-sizing:border-box;
+    min-height:40px;
+    height:auto;
+    max-width:100%;
+    padding:8px 11px;
+    font-size:12px;
+    line-height:1.2;
+    vertical-align:middle;
+  }
+  .page-view .icon-action {
+    width:40px;
+    min-width:40px;
+    padding:0;
+    display:inline-grid;
+    place-items:center;
+  }
+  .page-view .table-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+  .page-view .table-actions .btn { min-height:36px; padding:7px 9px; font-size:11px; white-space:normal; }
+  .page-view .form-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .page-view .form-actions .btn { flex:1 1 140px; min-width:0; }
+  #page-licencias .panel-heading .btn,
+  #page-admin-usuarios .panel-heading .btn,
+  #page-negocios .panel-heading .btn { width:auto; flex:0 1 auto; }
+  #licenseCreateForm .btn, #licenseCreateForm button,
+  #page-licencias button { min-height:40px; }
+}
+@media (max-width: 420px) {
+  .page-view .btn, .page-view button.btn { font-size:11px; padding:8px 9px; }
+  .page-view .table-actions .btn { flex:0 1 auto; }
+  .page-view .panel-heading { align-items:flex-start; }
+}
 </style>
 </head>
 <body>
@@ -1983,7 +2018,7 @@ img,svg,canvas,video{max-width:100%}
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
       const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
-      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
+      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Mover usuario a papelera" aria-label="Mover usuario a papelera" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
     $('#prefDateFormat').value = state.preferences.dateFormat || 'es-PY';
@@ -2269,13 +2304,13 @@ img,svg,canvas,video{max-width:100%}
     const permanent=event.target.closest('[data-permanent-delete-business]');
     if(permanent){
       const b=cloudBusinesses.find(item=>item.id===permanent.dataset.permanentDeleteBusiness); if(!b)return;
-      const typed=prompt('Esta acción es irreversible. Para confirmar, escribí exactamente: ELIMINAR '+b.name);
+      const typed=prompt('Se enviará a la papelera y podrás restaurarlo. Para confirmar, escribí exactamente: ELIMINAR '+b.name);
       if(typed!=='ELIMINAR '+b.name)return;
       permanent.disabled=true;
       try{
         await window.PanaderiaAuth.api('/api/admin/businesses',{method:'DELETE',body:JSON.stringify({id:b.id})});
         await refreshCloudBusinesses(); await refreshCloudUsers();
-        notify('Negocio eliminado definitivamente.');
+        notify('Negocio movido a la papelera. Podés restaurarlo desde Administración.');
       }catch(error){notify(error.message||'No se pudo eliminar. Si tiene historial, primero debe conservarse desactivada.');}
       finally{permanent.disabled=false;}
       return;
@@ -2582,7 +2617,7 @@ img,svg,canvas,video{max-width:100%}
         if (!confirmDelete('¿Eliminar definitivamente este usuario?')) return;
         await window.PanaderiaAuth.api('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ id: remove.dataset.deleteUser }) });
         await refreshCloudUsers();
-        notify('Usuario eliminado.');
+        notify('Usuario movido a la papelera. Podés restaurarlo desde Administración.');
       }
     } catch (error) { notify(error.message); }
   });
@@ -2627,7 +2662,7 @@ img,svg,canvas,video{max-width:100%}
     body.innerHTML = visible.map((b) => {
       const actions=b.active
         ? '<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button><button class="btn btn-outline-warning btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Desactivar</button>'
-        : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Eliminar definitivamente</button>';
+        : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Enviar a papelera</button>';
       return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
     }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay negocios que coincidan con el filtro.':'Todavía no hay negocios registrados.')+'</td></tr>';
   }
@@ -2871,28 +2906,35 @@ img,svg,canvas,video{max-width:100%}
  document.addEventListener('click',async e=>{const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton');if(!t)return;try{if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
  async function loadLicenses(){
    const table=$('#licensesTableBody'),businessSelect=$('#licenseBusiness');
-   if(!table||!businessSelect)return;
+   if(!table||!businessSelect)return false;
    table.innerHTML='<tr><td colspan="9" class="text-center">Cargando licencias…</td></tr>';
+   businessSelect.disabled=true;
    try{
-     const user=await Promise.resolve(window.PanaderiaAuthReady);
-     if(!user?.isPlatformAdmin)throw new Error('La sesión de administrador todavía no está confirmada. Cerrá sesión y volvé a ingresar.');
-     const [r,b]=await Promise.all([api('/api/admin/licenses'),api('/api/admin/businesses')]);
-     const list=Array.isArray(b.businesses)?b.businesses:(Array.isArray(b.items)?b.items:[]);
+     const ready=window.PanaderiaAuthReady?await window.PanaderiaAuthReady:null;
+     const user=ready||window.PanaderiaAuth?.user;
+     if(!(user?.isPlatformAdmin===true||user?.is_platform_admin===true))throw new Error('La sesión de administrador no está confirmada. Cerrá sesión y volvé a ingresar.');
+     // Cargar los negocios primero: un fallo al consultar licencias no debe vaciar el selector.
+     const b=await api('/api/admin/businesses');
+     const allBusinesses=Array.isArray(b.businesses)?b.businesses:(Array.isArray(b.items)?b.items:[]);
+     const list=allBusinesses.filter(x=>x&&x.active===true);
      const previous=businessSelect.value;
      businessSelect.innerHTML='<option value="">Seleccionar negocio</option>'+list.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');
      if(list.some(x=>String(x.id)===previous))businessSelect.value=previous;
+     if(!list.length)businessSelect.innerHTML='<option value="">No hay negocios activos disponibles</option>';
+     businessSelect.disabled=list.length===0;
+     const r=await api('/api/admin/licenses');
      $('#licenseCount').textContent=Number(r.totals?.count||0);
      $('#licenseActive').textContent=Number(r.totals?.active||0);
      $('#licenseMonthly').textContent='Gs. '+Number(r.totals?.monthly||0).toLocaleString('es-PY');
      const licenses=Array.isArray(r.licenses)?r.licenses:[];
      table.innerHTML=licenses.map(x=>'<tr><td>'+esc(x.license_code)+'</td><td>'+esc(x.business_name)+'</td><td>'+esc(x.system_name||'Mattsystem')+'</td><td>'+esc(x.plan)+'</td><td><select class="form-select form-select-sm license-status" data-id="'+esc(x.id)+'">'+['pending','active','suspended','cancelled','expired'].map(s=>'<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></td><td>Gs. '+Number(x.setup_amount||0).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.monthly_amount||0).toLocaleString('es-PY')+'</td><td>Gs. '+Number(x.paid_total||0).toLocaleString('es-PY')+'</td><td><button class="btn btn-sm btn-outline-bakery license-renew" data-id="'+esc(x.id)+'">Renovar</button> <button class="btn btn-sm btn-outline-bakery license-payment" data-id="'+esc(x.id)+'">Registrar pago</button></td></tr>').join('')||'<tr><td colspan="9" class="text-center">Sin licencias registradas.</td></tr>';
-     if(!list.length)businessSelect.innerHTML='<option value="">Primero registrá un negocio en Negocios</option>';
      return true;
    }catch(e){
+     if(businessSelect.options.length<=1){businessSelect.innerHTML='<option value="">No se pudieron cargar los negocios</option>';businessSelect.disabled=true;}
      table.innerHTML='<tr><td colspan="9" class="text-danger">No se pudieron cargar las licencias: '+esc(e.message)+'</td></tr>';
      console.error('Error al cargar licencias:',e);
      return false;
-   }
+   }finally{if(businessSelect.options.length>1)businessSelect.disabled=false;}
  }
  $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,setupAmount:Number($('#licenseSetup').value),monthlyAmount:Number($('#licenseMonthlyInput').value),billingDay:Number($('#licenseBillingDay').value),expiresAt:$('#licenseExpires').value||null,contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseSetup').value=1200000;$('#licenseMonthlyInput').value=120000;$('#licenseBillingDay').value=1;await loadLicenses();alert('Licencia creada.');}catch(x){alert(x.message);}});
  $('#refreshLicenses')?.addEventListener('click',loadLicenses);
