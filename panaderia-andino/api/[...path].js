@@ -678,6 +678,12 @@ module.exports = async function handler(req, res) {
         const target=await sql`SELECT id FROM app_users WHERE id=${id} AND business_id=${user.business_id} AND role='employee' AND is_platform_admin=FALSE LIMIT 1`;
         if(!target.length)return send(res,404,{error:'No se encontró el empleado de este negocio.'});
         if(typeof input.active==='boolean'){
+          if(input.active){
+            const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+            const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+            const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND id<>${id}`;
+            if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'No se puede reactivar: el negocio alcanzó el límite de empleados de su licencia.'});
+          }
           const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
           return send(res,200,{employee:rows[0]});
         }
