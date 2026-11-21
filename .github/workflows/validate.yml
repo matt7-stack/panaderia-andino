@@ -6,6 +6,7 @@ on:
   pull_request:
     branches:
       - main
+      - integration/gestion-negocio-2026-11
 jobs:
   static-validation:
     runs-on: ubuntu-latest
