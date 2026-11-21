@@ -35,7 +35,7 @@
     movements: [], invoices: [], employees: [], employeePayments: [],
     categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
-    business: { name: 'Panadería Andino', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
+    business: { name: 'Mattsystem', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
   });
 
@@ -59,11 +59,11 @@
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
           try {
-            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: cloudUpdatedAt }) });
             cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
-            notify('No se pudo sincronizar con el servidor. Revisá tu conexión.');
+            if (error.code === 'DATA_VERSION_CONFLICT') { cloudReady = false; notify('Otra sesión guardó cambios. Tus cambios locales siguen guardados en este dispositivo, pero no se enviaron al servidor. Descargá un respaldo antes de recargar para evitar perderlos.'); } else { notify('No se pudo sincronizar con el servidor. Revisá tu conexión.'); }
           } finally { cloudSaving = false; }
         }, 500);
       }
@@ -135,7 +135,7 @@
     $('#movementNavCount').textContent = state.movements.length;
     $('#invoiceNavCount').textContent = state.invoices.length;
     $('#footerYear').textContent = new Date().getFullYear();
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mattsystem';
     $('#topUserName').textContent = window.PanaderiaAuth?.user?.name || state.business.owner || 'Administrador';
   }
 
@@ -365,53 +365,16 @@
     $('#employeePaymentsTableBody').innerHTML = [...payments].sort((a,b) => String(b.date).localeCompare(String(a.date))).slice(0,100).map((payment) => `<tr><td>${dateFormat(payment.date)}</td><td>${escapeHTML(payment.employeeName)}</td><td>${escapeHTML(payment.period || 'Pago')}</td><td>${escapeHTML(payment.method || '—')}</td><td class="text-end table-amount">${money(payment.amount)}</td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay pagos registrados.</td></tr>';
   }
 
-  let adminBakeries = [];
-  async function refreshAdminBakeries() {
-    const body = $('#bakeriesTableBody'); if (!body || window.PanaderiaAuth?.user?.role !== 'admin') return;
-    try {
-      const result = await window.PanaderiaAuth.api('/api/admin/bakeries');
-      adminBakeries = result.bakeries || [];
-      const target=$('#notificationTarget'); if(target) target.innerHTML='<option value="">Todas las panaderías</option>'+adminBakeries.map(b=>`<option value="${escapeHTML(b.id)}">${escapeHTML(b.name)}</option>`).join('');
-      body.innerHTML = adminBakeries.map((b) => `<tr><td><span class="table-main-text">${escapeHTML(b.name)}</span><span class="table-sub-text">${escapeHTML(b.email || 'Sin correo')}</span></td><td>${escapeHTML(b.owner)}</td><td>${escapeHTML(b.phone || '—')}</td><td><span class="status-pill ${b.active ? 'status-paid' : 'status-cancelled'}">${b.active ? 'Activa' : 'Suspendida'}</span></td><td><div class="table-actions"><button class="icon-action" type="button" data-edit-bakery="${escapeHTML(b.id)}" title="Editar"><i class="bi bi-pencil"></i></button><button class="icon-action" type="button" data-toggle-bakery="${escapeHTML(b.id)}" data-active="${b.active ? 'true' : 'false'}" title="${b.active ? 'Suspender' : 'Activar'}"><i class="bi ${b.active ? 'bi-pause-circle' : 'bi-play-circle'}"></i></button><button class="icon-action danger" type="button" data-delete-bakery="${escapeHTML(b.id)}" title="Archivar"><i class="bi bi-archive"></i></button></div></td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay panaderías registradas.</td></tr>';
-      await refreshAdminAudit();
-    } catch (error) { body.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">No se pudieron cargar las panaderías.</td></tr>'; notify(error.message); }
-  }
-  function openBakeryModal(id = '') {
-    const bakery = adminBakeries.find((item) => item.id === id) || {};
-    simpleModalMode = 'bakery'; simpleModalData = { bakeryId: id };
-    $('#simpleModalTitle').textContent = id ? 'Editar panadería' : 'Registrar panadería';
-    $('#simpleModalFields').innerHTML = `<div class="simple-modal-field"><label for="simpleName">Nombre de la panadería</label><input id="simpleName" maxlength="100" required value="${escapeHTML(bakery.name || '')}"></div><div class="simple-modal-field"><label for="bakeryOwner">Responsable</label><input id="bakeryOwner" maxlength="100" required value="${escapeHTML(bakery.owner || '')}"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" value="${escapeHTML(bakery.email || '')}"></div><div class="simple-modal-field"><label for="bakeryPhone">Teléfono</label><input id="bakeryPhone" maxlength="40" value="${escapeHTML(bakery.phone || '')}"></div><div class="simple-modal-field"><label for="bakeryAddress">Dirección</label><input id="bakeryAddress" maxlength="180" value="${escapeHTML(bakery.address || '')}"></div><div class="simple-modal-field"><label for="bakeryRuc">RUC</label><input id="bakeryRuc" maxlength="30" value="${escapeHTML(bakery.ruc || '')}"></div>${id ? '' : '<div class="simple-modal-field"><label for="bakeryPassword">Contraseña inicial del titular (mínimo 12 caracteres)</label><input id="bakeryPassword" type="password" minlength="12" autocomplete="new-password" required></div>'}`;
-    simpleModal.show();
-  }
-
-  async function loadNotifications() {
-    const panel=$('#clientNotifications'), list=$('#clientNotificationsList'); if(!panel||!list||!window.PanaderiaAuth?.user) return;
-    try {
-      const result=await window.PanaderiaAuth.api('/api/notifications');
-      const items=result.notifications||[];
-      panel.hidden=!items.length;
-      list.innerHTML=items.map(n=>`<article class="border-top py-3"><div class="d-flex justify-content-between gap-2"><strong>${escapeHTML(n.title)}</strong><small class="text-muted">${n.created_at?new Date(n.created_at).toLocaleString('es-PY'):'Reciente'}</small></div><p class="mb-1 mt-2">${escapeHTML(n.message)}</p>${n.bakery_name?`<small class="text-muted">Para: ${escapeHTML(n.bakery_name)}</small>`:''}</article>`).join('');
-    } catch(error) { console.warn('No se pudieron cargar los comunicados:',error.message); }
-  }
-  async function refreshAdminAudit() {
-    const target=$('#adminAuditBody'); if(!target||window.PanaderiaAuth?.user?.role!=='admin') return;
-    try {
-      const result=await window.PanaderiaAuth.api('/api/admin/audit');
-      target.innerHTML=(result.events||[]).map(e=>`<tr><td>${e.created_at?new Date(e.created_at).toLocaleString('es-PY'):'—'}</td><td>${escapeHTML(e.actor_name||'Sistema')}</td><td>${escapeHTML(e.action)}</td><td>${escapeHTML(e.entity_type)} · ${escapeHTML(e.entity_id||'')}</td></tr>`).join('')||'<tr><td colspan="4" class="text-muted text-center">Todavía no hay operaciones registradas.</td></tr>';
-    } catch(error) { target.innerHTML='<tr><td colspan="4" class="text-danger text-center">No se pudo cargar la auditoría.</td></tr>'; }
-  }
-
   function renderAdminPanel() {
     if (!$('#adminUserCount')) return;
     $('#adminUserCount').textContent = cloudUsers.length; $('#adminEmployeeCount').textContent = (state.employees || []).filter((employee) => employee.active !== false).length;
-    $('#adminMovementCount').textContent = (state.movements || []).length;
-    if ($('#bakeriesTableBody') && !adminBakeries.length) refreshAdminBakeries(); $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
+    $('#adminMovementCount').textContent = (state.movements || []).length; $('#adminLastSync').textContent = cloudUpdatedAt ? new Date(cloudUpdatedAt).toLocaleString('es-PY') : 'Pendiente';
   }
 
   function exportAdminBackup() {
-    const backup = { application: 'Panadería Andino', exportedAt: new Date().toISOString(), data: cloudPayload() };
+    const backup = { application: 'Mattsystem', exportedAt: new Date().toISOString(), data: cloudPayload() };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const link = document.createElement('a');
-    link.href = url; link.download = `respaldo-panaderia-andino-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
+    link.href = url; link.download = `respaldo-mattsystem-${todayISO()}.json`; link.click(); URL.revokeObjectURL(url); notify('Copia de seguridad descargada en este dispositivo.');
   }
 
   function renderSettings() {
@@ -425,16 +388,15 @@
     $('#businessPreviewAddress').textContent = state.business.address || 'Dirección de tu negocio';
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
-    $('#footerBusinessName').textContent = state.business.name || 'Panadería Andino';
+    $('#footerBusinessName').textContent = state.business.name || 'Mattsystem';
     const logoPreview = $('#businessLogoPreview');
-    logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
+    logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>MATTSYSTEM</span>';
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
-      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'owner' ? 'Titular' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
-      const currentRole = window.PanaderiaAuth?.user?.role; const canManageThisUser = user.role !== 'admin' && (currentRole === 'admin' || (!['owner'].includes(user.role) && (currentRole !== 'supervisor' || user.role === 'employee')));
-      const actions = !canManageThisUser ? '<span class="table-sub-text">Cuenta protegida</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
+      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+      const actions = user.role === 'admin' ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Eliminar usuario" aria-label="Eliminar usuario" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
     $('#prefDateFormat').value = state.preferences.dateFormat || 'es-PY';
@@ -471,10 +433,7 @@
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'user') {
       $('#simpleModalTitle').textContent = 'Agregar usuario';
-      const currentRole=window.PanaderiaAuth?.user?.role;
-      const canCreateSupervisor=['admin','owner'].includes(currentRole);
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="254" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role">'+(canCreateSupervisor?'<option value="supervisor">Supervisor</option>':'')+'<option value="employee">Empleado</option></select></div>'+(currentRole==='admin'?'<div class="simple-modal-field"><label for="simpleBakery">Panadería</label><select id="simpleBakery" required></select></div>':'')+'<small class="text-muted">Las cuentas quedan limitadas a una sola panadería.</small>';
-      const bakerySelect=$('#simpleBakery'); if(bakerySelect) bakerySelect.innerHTML=adminBakeries.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">Los usuarios creados no pueden administrar ni crear otras cuentas.</small>';
     }
     simpleModal.show();
   }
@@ -531,7 +490,7 @@
     const csv = [['Fecha', 'Descripción', 'Categoría', 'Tipo', 'Método de pago', 'Importe', 'Observación'], ...filtered.map((item) => [item.date, item.description, item.category, item.type === 'income' ? 'Ingreso' : 'Gasto', item.payment, item.amount, item.note || ''])]
       .map((line) => line.map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-panaderia-andino-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `movimientos-mattsystem-${todayISO()}.csv`; link.click(); URL.revokeObjectURL(url); notify('Archivo CSV generado.');
   });
 
   // Notas
@@ -606,29 +565,6 @@
     if (edit) openSimpleModal('employee', { employeeId: edit.dataset.editEmployee });
     if (toggle) { const id = toggle.dataset.toggleEmployee; state.employees = state.employees.map((employee) => employee.id === id ? { ...employee, active: employee.active === false } : employee); saveState(); renderEmployees(); renderAdminPanel(); notify('Estado del empleado actualizado.'); }
   });
-  $('#adminAddBakery')?.addEventListener('click', () => openBakeryModal());
-  $('#adminNotificationForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    try {
-      await window.PanaderiaAuth.api('/api/notifications',{method:'POST',body:JSON.stringify({bakeryId:$('#notificationTarget').value||null,title:$('#notificationTitle').value.trim(),message:$('#notificationMessage').value.trim()})});
-      event.currentTarget.reset(); notify('Comunicado enviado correctamente.'); await refreshAdminAudit();
-    } catch(error) { notify(error.message); }
-  });
-
-  $('#bakeriesTableBody')?.addEventListener('click', async (event) => {
-    const edit=event.target.closest('[data-edit-bakery]'), toggle=event.target.closest('[data-toggle-bakery]'), remove=event.target.closest('[data-delete-bakery]');
-    try {
-      if(edit) openBakeryModal(edit.dataset.editBakery);
-      else if(toggle) {
-        const active=toggle.dataset.active!=='true';
-        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:toggle.dataset.toggleBakery,active})});
-        await refreshAdminBakeries(); notify(active?'Panadería activada.':'Panadería suspendida.');
-      } else if(remove && confirmDelete('¿Archivar esta panadería? No se borrarán registros de auditoría.')) {
-        await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'DELETE',body:JSON.stringify({id:remove.dataset.deleteBakery})});
-        await refreshAdminBakeries(); notify('Panadería archivada.');
-      }
-    } catch(error) { notify(error.message); }
-  });
   $('#adminBackupButton').addEventListener('click', exportAdminBackup);
   $('#adminManageUsers').addEventListener('click', () => { pageNavigate('configuracion'); const tab = $('[data-settings-tab="users"]'); if (tab) tab.click(); });
   $('#simpleForm').addEventListener('submit', async (event) => {
@@ -657,18 +593,9 @@
     } else if (simpleModalMode === 'payment') {
       if (state.paymentMethods.some((item) => item.toLowerCase() === name.toLowerCase())) { notify('Ese método de pago ya existe.'); return; }
       state.paymentMethods.push(name);
-    } else if (simpleModalMode === 'bakery') {
-      const bakeryData={name,owner:$('#bakeryOwner').value.trim(),email:$('#simpleEmail').value.trim(),phone:$('#bakeryPhone').value.trim(),address:$('#bakeryAddress').value.trim(),ruc:$('#bakeryRuc').value.trim()}; if(!simpleModalData.bakeryId) bakeryData.password=$('#bakeryPassword').value;
-      try {
-        if(simpleModalData.bakeryId) await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'PATCH',body:JSON.stringify({id:simpleModalData.bakeryId,...bakeryData})});
-        else await window.PanaderiaAuth.api('/api/admin/bakeries',{method:'POST',body:JSON.stringify(bakeryData)});
-        simpleModal.hide(); await refreshAdminBakeries(); notify(simpleModalData.bakeryId?'Panadería actualizada.':'Panadería registrada.');
-      } catch(error) { notify(error.message); }
-      return;
     } else if (simpleModalMode === 'user') {
       try {
-        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users';
-        await window.PanaderiaAuth.api(usersEndpoint, { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value, bakeryId: $('#simpleBakery')?.value || null }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'POST', body: JSON.stringify({ name, email: $('#simpleEmail').value.trim(), password: $('#simplePassword').value, role: $('#simpleRole').value }) });
         simpleModal.hide();
         await refreshCloudUsers();
         notify('Usuario creado. Ya puede iniciar sesión con sus credenciales.');
@@ -697,12 +624,12 @@
     try {
       if (toggle) {
         const active = toggle.dataset.active !== 'true';
-        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users'; await window.PanaderiaAuth.api(usersEndpoint, { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: toggle.dataset.toggleUser, active }) });
         await refreshCloudUsers();
         notify(active ? 'Usuario activado.' : 'Usuario desactivado.');
       } else if (remove) {
         if (!confirmDelete('¿Eliminar definitivamente este usuario?')) return;
-        const usersEndpoint=window.PanaderiaAuth.user?.role==='admin'?'/api/admin/users':'/api/bakery/users'; await window.PanaderiaAuth.api(usersEndpoint, { method: 'DELETE', body: JSON.stringify({ id: remove.dataset.deleteUser }) });
+        await window.PanaderiaAuth.api('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ id: remove.dataset.deleteUser }) });
         await refreshCloudUsers();
         notify('Usuario eliminado.');
       }
@@ -736,8 +663,8 @@
   }
 
   async function refreshCloudUsers() {
-    const role=window.PanaderiaAuth?.user?.role; if (!['admin','owner','supervisor'].includes(role)) { cloudUsers = []; renderSettings(); return; }
-    const result = await window.PanaderiaAuth.api(role==='admin'?'/api/admin/users':'/api/bakery/users');
+    if (window.PanaderiaAuth?.user?.role !== 'admin') { cloudUsers = []; renderSettings(); return; }
+    const result = await window.PanaderiaAuth.api('/api/admin/users');
     cloudUsers = result.users || [];
     renderSettings(); renderAdminPanel();
   }
@@ -754,8 +681,8 @@
     try {
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
-      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
-      delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers(); await loadNotifications(); if(window.PanaderiaAuth.user.role==='admin') await refreshAdminAudit();
+      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: null }) }); cloudUpdatedAt = saved.updatedAt || null; }
+      delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
       if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
     } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
   }
