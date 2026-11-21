@@ -1569,7 +1569,7 @@ img,svg,canvas,video{max-width:100%}
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     // La navegación se ejecuta desde el segundo módulo cuando ya está inicializado.
     if (platformAdmin) window.location.hash = '#administracion';
-    else if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
+    else if (!['admin','supervisor'].includes(user.role) && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
 
   window.PanaderiaAuth = {
@@ -2365,7 +2365,7 @@ img,svg,canvas,video{max-width:100%}
   $('#employeePaymentsTableBody')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-delete-employee-payment]');
     if (!button) return;
-    if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede eliminar pagos.'); return; }
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true && !['admin','supervisor'].includes(window.PanaderiaAuth?.user?.role)) { notify('Solo el Supervisor o Administrador del negocio puede eliminar pagos.'); return; }
     const paymentId = button.dataset.deleteEmployeePayment;
     const payment = (state.employeePayments || []).find((item) => item.id === paymentId);
     if (!payment) { notify('No se encontró el pago seleccionado.'); return; }
