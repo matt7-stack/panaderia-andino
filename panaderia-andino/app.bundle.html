@@ -776,6 +776,77 @@ img,svg,canvas,video{max-width:100%}
     font-size: 15px;
   }
 }
+
+/* Normalización global de controles: evita botones gigantes y acciones desalineadas */
+.page-view .page-heading,
+.page-view .panel-heading { min-width:0; }
+.page-view .page-heading > .btn,
+.page-view .panel-heading > .btn,
+.page-view .heading-actions > .btn,
+.page-view .filter-bar > .btn,
+.page-view .invoice-toolbar > .btn {
+  box-sizing:border-box;
+  min-height:38px;
+  height:auto;
+  max-width:100%;
+  padding:9px 13px;
+  font-size:12px;
+  line-height:1.25;
+  white-space:normal;
+}
+.page-view .table-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.page-view .table-actions > .btn,
+.page-view .table-actions > button {
+  min-height:34px;
+  height:auto;
+  padding:7px 10px;
+  font-size:11px;
+  line-height:1.2;
+}
+.page-view .form-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.page-view .form-actions > .btn { min-height:42px; flex:0 1 auto; }
+.page-view .panel-heading { gap:10px; flex-wrap:wrap; }
+.page-view .panel-heading > :last-child { min-width:0; }
+@media (max-width: 767.98px) {
+  .page-view .page-heading { align-items:flex-start; gap:10px; flex-wrap:wrap; }
+  .page-view .page-heading > .btn,
+  .page-view .panel-heading > .btn,
+  .page-view .heading-actions > .btn,
+  .page-view .filter-bar > .btn,
+  .page-view .invoice-toolbar > .btn {
+    min-height:40px;
+    padding:8px 11px;
+    font-size:12px;
+  }
+  .page-view .page-heading .heading-actions,
+  .page-view .heading-actions { display:flex; flex:1 1 100%; flex-wrap:wrap; gap:8px; width:100%; }
+  .page-view .heading-actions > .btn { flex:0 1 auto; width:auto; }
+  .page-view .panel-heading { align-items:center; }
+  .page-view .table-actions > .btn,
+  .page-view .table-actions > button { min-height:36px; padding:7px 9px; font-size:11px; }
+  .page-view .form-actions > .btn { flex:1 1 145px; min-width:0; }
+  .page-view .filter-bar { flex-wrap:wrap; }
+  .page-view .filter-bar > .btn { flex:0 1 auto; }
+  #page-admin-licencias .panel-heading > .btn,
+  #page-admin-usuarios .panel-heading > .btn,
+  #page-admin-panaderias .panel-heading > .btn { width:auto; flex:0 1 auto; }
+  #page-notificaciones #notificationsList button,
+  #page-seguridad .panel button,
+  #page-seguridad .table-actions .btn {
+    min-height:36px !important;
+    padding:7px 10px !important;
+    font-size:11px !important;
+  }
+  #supportContactNav { min-height:40px; padding:8px 11px; font-size:12px; }
+}
+@media (max-width: 420px) {
+  .page-view .page-heading > .btn,
+  .page-view .panel-heading > .btn,
+  .page-view .heading-actions > .btn { max-width:100%; }
+  .page-view .table-actions { gap:5px; }
+  .page-view .table-actions > .btn,
+  .page-view .table-actions > button { min-height:36px; padding:7px 8px; font-size:10.5px; }
+}
 </style>
 </head>
 <body>
