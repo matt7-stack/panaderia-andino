@@ -140,7 +140,7 @@ requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_pe
 requireContract(apiSource.includes("input.action==='change_plan'") && apiSource.includes('dataPreserved:true'), 'la actualización de plan debe conservar el negocio y sus datos.');
 requireContract(apiSource.includes('/^\\d{4}-\\d{2}-\\d{2}$/'), 'la creación de licencias debe aceptar y validar fechas ISO YYYY-MM-DD.');
 requireContract(html.includes('/(\\d+)$/'), 'la numeración de facturas debe detectar el sufijo numérico para evitar repetir el correlativo.');
-requireContract(apiSource.includes('active_employee_count < v_limit'), 'la base debe impedir superar el límite de empleados por concurrencia.');
+requireContract(employeeLimitMigration.includes('active_employee_count < v_limit'), 'la base debe impedir superar el límite de empleados por concurrencia.');
 requireContract(!apiSource.includes("if(!businessId){const first=await sql"), 'una operación destructiva nunca debe elegir automáticamente el primer negocio.');
 requireContract(apiSource.includes('expectedUpdatedAt') && apiSource.includes('DATA_VERSION_CONFLICT') && apiSource.includes('IS NOT DISTINCT FROM'), 'las escrituras de datos compartidos deben rechazar actualizaciones obsoletas.');
 requireContract(apiSource.includes('Seleccioná explícitamente el negocio que querés administrar.') && !apiSource.includes("if(user.is_platform_admin===true&&!businessId)"), 'el administrador de plataforma debe seleccionar el negocio y nunca operar por defecto sobre el primero.');
