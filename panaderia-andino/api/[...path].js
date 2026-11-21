@@ -851,7 +851,7 @@ module.exports = async function handler(req, res) {
           const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity),movementQuantity=type==='adjustment'?Math.abs(quantity-oldStock):quantity;
           if(newStock<0)return send(res,409,{error:'No hay existencias suficientes para ese movimiento.'});
           if(movementQuantity<=0)return send(res,400,{error:'El ajuste no cambia las existencias actuales.'});
-          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} AND (${type} NOT IN ('exit','waste') OR stock>=${quantity}) RETURNING id),
+          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},cost_price=CASE WHEN (${type}='entry' OR (${type}='adjustment' AND ${newStock}>${oldStock})) AND ${newStock}>0 THEN ((stock*cost_price)+(${movementQuantity}*${unitCost}))/${newStock} ELSE cost_price END,updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} AND (${type} NOT IN ('exit','waste') OR stock>=${quantity}) RETURNING id),
             movement AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
               SELECT ${businessId},id,${type},${movementQuantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
             SELECT * FROM movement`;
@@ -921,7 +921,8 @@ module.exports = async function handler(req, res) {
               FROM purchase CROSS JOIN jsonb_to_recordset(${payload}::jsonb) AS x(product_id text,description text,quantity numeric,unit_cost numeric)
               RETURNING product_id,quantity,unit_cost
             ), stock AS (
-              UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM (SELECT product_id,SUM(quantity) AS quantity FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
+              UPDATE app_products p SET stock=p.stock+i.quantity,cost_price=CASE WHEN p.stock+i.quantity>0 THEN ((p.stock*p.cost_price)+(i.quantity*i.unit_cost))/(p.stock+i.quantity) ELSE p.cost_price END,updated_at=NOW()
+              FROM (SELECT product_id,SUM(quantity) AS quantity,SUM(quantity*unit_cost)/NULLIF(SUM(quantity),0) AS unit_cost FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
               WHERE i.product_id=p.id AND p.business_id=${businessId} RETURNING p.id
             ), movement AS (
               INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
