@@ -105,6 +105,16 @@ requireContract(/can\('cash\.view'\)\s*\?\s*sql`SELECT \* FROM app_cash_sessions
 requireContract(/purchases:\{title:'Compras',read:\['purchases\.view'\]/.test(erpSource), 'la interfaz debe separar registrar compras de consultar su historial.');
 requireContract(erpSource.includes("const canView=allowed('cash.view')"), 'la interfaz debe ocultar el historial de caja sin cash.view.');
 
+// Activación de licencias: autenticación vigente, rol autorizado, pertenencia al negocio y límite de intentos.
+requireContract(/path===\'\/api\/licenses\/activate\'[\s\S]{0,900}?currentUser\(req\)/.test(apiSource), 'la activación de licencia debe exigir una sesión autenticada.');
+requireContract(/user\.is_platform_admin===true\|\|!user\.business_id\|\|!\['admin','supervisor'\]\.includes\(user\.role\)/.test(apiSource), 'solo el administrador o supervisor del negocio puede activar la licencia.');
+requireContract(/business_id=\$\{user\.business_id\}[\s\S]{0,220}?UPPER\(BTRIM\(license_code\)\)=\$\{code\}/.test(apiSource), 'el código debe pertenecer al negocio autenticado.');
+requireContract(/is_trial=FALSE AND status IN \('pending','active','expired'\)/.test(apiSource), 'la activación no debe convertir una prueba gratuita, suspensión o cancelación en licencia comercial.');
+requireContract(/app_login_attempts[\s\S]{0,450}?license:'\+user\.id/.test(apiSource), 'los intentos de activación deben tener protección contra fuerza bruta.');
+requireContract(html.includes('function showLicenseActivation') && html.includes('/api/licenses/activate'), 'el usuario debe poder ingresar su licencia después del inicio de sesión.');
+requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'una licencia vencida o pendiente debe mostrar la pantalla de activación, no volver al login.');
+requireContract(/Solo el administrador o supervisor del negocio puede activar la licencia/.test(html), 'los empleados deben ser dirigidos a su supervisor para activar la licencia.');
+
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
 requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
