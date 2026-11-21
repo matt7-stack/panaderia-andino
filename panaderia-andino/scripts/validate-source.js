@@ -55,7 +55,9 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 
 const apiSource = fs.readFileSync(apiPath, 'utf8');
-const erpSource = fs.readFileSync(path.join(root, 'erp-modules.js'), 'utf8');
+const erpPath = path.join(root, 'erp-modules.js');
+const erpSource = fs.readFileSync(erpPath, 'utf8');
+new vm.Script(erpSource, { filename: erpPath });
 const requireContract = (condition, message) => {
   if (!condition) throw new Error('Falla de seguridad/funcionalidad: ' + message);
 };
