@@ -4,10 +4,12 @@ on:
     branches:
       - feature/erp-multiempresa
       - integration/gestion-negocio-2026-11
+      - security/hmac-tenant-context
   pull_request:
     branches:
       - main
       - integration/gestion-negocio-2026-11
+      - security/hmac-tenant-context
 jobs:
   static-validation:
     runs-on: ubuntu-latest
