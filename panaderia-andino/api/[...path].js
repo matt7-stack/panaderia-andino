@@ -1,49 +1,18 @@
 'use strict';
-const postgres = require('postgres');
+const { neon } = require('@neondatabase/serverless');
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
 let sqlClient;
 function db() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing');
-  if (!sqlClient) sqlClient = postgres(process.env.DATABASE_URL, { max: 1, idle_timeout: 20, connect_timeout: 10 });
+  if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
   return sqlClient;
 }
 async function ensureSchema() {
-  const sql = db();
-  await sql`CREATE TABLE IF NOT EXISTS app_users (id UUID PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK (role IN ('admin','supervisor','employee')), active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_state (id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id=1), data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_login_attempts (email TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, locked_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_bakeries (id UUID PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '', address TEXT NOT NULL DEFAULT '', ruc TEXT NOT NULL DEFAULT '', active BOOLEAN NOT NULL DEFAULT TRUE, archived BOOLEAN NOT NULL DEFAULT FALSE, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_audit_log (id BIGSERIAL PRIMARY KEY, actor_id UUID, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT, details JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bakery_id UUID REFERENCES app_bakeries(id) ON DELETE SET NULL`;
-  const roleChecks = await sql`SELECT conname,pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='app_users'::regclass AND contype='c'`;
-  const roleCheck = roleChecks.find(item => String(item.definition||'').includes('role'));
-  if (!roleCheck || !String(roleCheck.definition).includes('owner')) {
-    if (roleCheck?.conname) await sql`ALTER TABLE app_users DROP CONSTRAINT app_users_role_check`;
-    await sql`ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('admin','owner','supervisor','employee'))`;
-  }
-  await sql`CREATE INDEX IF NOT EXISTS app_users_bakery_idx ON app_users(bakery_id,role,active)`;
-  await sql`CREATE TABLE IF NOT EXISTS app_bakery_state (bakery_id UUID PRIMARY KEY REFERENCES app_bakeries(id) ON DELETE CASCADE, data JSONB NOT NULL, updated_by UUID, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  await sql`CREATE TABLE IF NOT EXISTS app_notifications (id UUID PRIMARY KEY, bakery_id UUID REFERENCES app_bakeries(id) ON DELETE CASCADE, title TEXT NOT NULL, message TEXT NOT NULL, created_by UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-  // One-time migration: preserve the previous shared workspace for existing non-admin accounts.
-  const legacyUsers = await sql`SELECT id FROM app_users WHERE role<>'admin' AND bakery_id IS NULL LIMIT 1`;
-  if (legacyUsers.length) {
-    const legacyRows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
-    const legacyData = legacyRows[0]?.data && typeof legacyRows[0].data==='object' ? legacyRows[0].data : {};
-    const business = legacyData.business && typeof legacyData.business==='object' ? legacyData.business : {};
-    const bakeryId = crypto.randomUUID();
-    const bakeryName = String(business.name || 'Panadería existente').slice(0,100);
-    const ownerName = String(business.owner || 'Responsable').slice(0,100);
-    const bakeryEmail = String(business.email || '').slice(0,254);
-    const admins = await sql`SELECT id FROM app_users WHERE role='admin' ORDER BY created_at ASC LIMIT 1`;
-    await sql`INSERT INTO app_bakeries(id,name,owner,email,phone,address,ruc,created_by) VALUES(${bakeryId},${bakeryName},${ownerName},${bakeryEmail},${String(business.phone||'').slice(0,40)},${String(business.address||'').slice(0,180)},${String(business.ruc||'').slice(0,30)},${admins[0]?.id || null})`;
-    await sql`UPDATE app_users SET bakery_id=${bakeryId} WHERE role<>'admin' AND bakery_id IS NULL`;
-    await sql`INSERT INTO app_bakery_state(bakery_id,data,updated_at) VALUES(${bakeryId},${JSON.stringify(legacyData)}::jsonb,NOW()) ON CONFLICT(bakery_id) DO NOTHING`;
-    await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admins[0]?.id || null},'migrated','bakery',${bakeryId},'{"source":"legacy_shared_workspace"}'::jsonb)`;
-  }
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS app_users_single_admin ON app_users(role) WHERE role='admin'`;
-  return sql;
+  // Las tablas de autenticación se crean mediante migraciones versionadas.
+  // No ejecutar DDL en cada request serverless: evita latencia y bloqueos innecesarios.
+  return db();
 }
 function send(res, status, data, headers = {}) {
   res.statusCode = status;
@@ -94,8 +63,8 @@ async function verifyPassword(password, stored) {
     return expected.length === 64 && crypto.timingSafeEqual(actual, expected);
   } catch (_) { return false; }
 }
-function sessionCookie(id) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, exp: Date.now() + 31536000000 })).toString('base64url');
+function sessionCookie(id, sessionVersion = 0) {
+  const payload = Buffer.from(JSON.stringify({ sub: id, sv: sessionVersion || 0, exp: Date.now() + 31536000000 })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
   return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 }
@@ -107,128 +76,435 @@ async function currentUser(req) {
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
   if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
-  const rows = await db()`SELECT u.id,u.name,u.email,u.role,u.active,u.bakery_id,b.active AS bakery_active,b.archived AS bakery_archived FROM app_users u LEFT JOIN app_bakeries b ON b.id=u.bakery_id WHERE u.id = ${data.sub} LIMIT 1`;
-  return rows[0] && rows[0].active && (rows[0].role==='admin' || (rows[0].bakery_active && !rows[0].bakery_archived)) ? rows[0] : null;
+  const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
+  const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions, b.name AS business_name,
+      lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
+      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid,
+      lic.plan AS license_plan, lic.is_trial AS license_is_trial, lic.trial_started_at AS license_trial_started_at,
+      lic.trial_days AS license_trial_days, lic.user_limit AS license_user_limit, lic.device_limit AS license_device_limit
+    FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
+    LEFT JOIN LATERAL (
+      SELECT l.license_code, l.system_name, l.status, l.expires_at, l.plan, l.is_trial, l.trial_started_at, l.trial_days, l.user_limit, l.device_limit,
+        (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
+      FROM app_licenses l
+      WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+      ORDER BY l.created_at DESC, l.id DESC
+      LIMIT 1
+    ) lic ON TRUE
+    WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
+  const user = rows[0];
+  return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
 }
 async function authenticated(req, res, adminOnly = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
-  if (adminOnly && user.role !== 'admin') { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
+  try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
+  if (user.is_platform_admin !== true && user.license_is_valid !== true) {
+    const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
+    const messages = {
+      missing: 'Este negocio todavía no tiene una licencia para Mattsystem. Contactá al administrador para activar el servicio.',
+      pending: 'La licencia de este negocio está pendiente de activación.',
+      suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
+      cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
+      expired: 'La licencia de este negocio venció. Renovala para recuperar el acceso.'
+    };
+    send(res, 403, {
+      code: 'LICENSE_INACTIVE',
+      error: messages[status] || 'La licencia de este negocio no está habilitada.',
+      license: { status, code: user.license_code || null, systemName: user.license_system_name || 'Mattsystem', expiresAt: user.license_expires_at || null }
+    });
+    return null;
+  }
+  if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
-const publicUser = u => ({ id:u.id, name:u.name, email:u.email, role:u.role, active:u.active, bakeryId:u.bakery_id || u.bakeryId || null, createdAt:u.created_at || u.createdAt });
+const publicUser = u => ({
+  id:u.id, name:u.name, email:u.email, role:u.role, active:u.active,
+  businessId:u.business_id || null, businessName:u.business_name || null,
+  permissions:u.permissions && typeof u.permissions==='object' ? u.permissions : {},
+  isPlatformAdmin:u.is_platform_admin === true,
+  license:u.is_platform_admin === true ? null : {
+    code:u.license_code || null,
+    systemName:u.license_system_name || 'Mattsystem',
+    status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
+    valid:u.license_is_valid === true,
+    expiresAt:u.license_expires_at || null,
+    plan:u.license_plan || null,
+    isTrial:u.license_is_trial === true,
+    trialStartedAt:u.license_trial_started_at || null,
+    trialDays:u.license_trial_days == null ? null : Number(u.license_trial_days),
+    userLimit:u.license_user_limit == null ? null : Number(u.license_user_limit),
+    deviceLimit:u.license_device_limit == null ? null : Number(u.license_device_limit)
+  },
+  createdAt:u.created_at || u.createdAt
+});
 
 module.exports = async function handler(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
-    if (path === '/api/healthz' && req.method === 'GET') {
-      const sql = db();
-      const rows = await sql`SELECT COUNT(*) FILTER (WHERE role='admin')::int AS admins, COUNT(*)::int AS users FROM app_users`;
-      return send(res,200,{ok:true,database:true,adminCount:rows[0].admins,userCount:rows[0].users,sessionSecretConfigured:Boolean(process.env.SESSION_SECRET && process.env.SESSION_SECRET.length>=32),adminEmailConfigured:Boolean(process.env.ADMIN_EMAIL)});
+    if(path==='/api/support/tickets'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=user.is_platform_admin===true
+          ? await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name,(SELECT COALESCE(json_agg(json_build_object('id',r.id,'message',r.message,'is_admin',r.is_admin,'created_at',r.created_at,'author_name',au.name) ORDER BY r.created_at),'[]'::json) FROM app_support_replies r JOIN app_users au ON au.id=r.author_user_id WHERE r.ticket_id=t.id) AS replies FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by ORDER BY t.updated_at DESC LIMIT 200`
+          : await sql`SELECT t.*,b.name AS business_name,u.name AS creator_name,(SELECT COALESCE(json_agg(json_build_object('id',r.id,'message',r.message,'is_admin',r.is_admin,'created_at',r.created_at,'author_name',au.name) ORDER BY r.created_at),'[]'::json) FROM app_support_replies r JOIN app_users au ON au.id=r.author_user_id WHERE r.ticket_id=t.id) AS replies FROM app_support_tickets t JOIN businesses b ON b.id=t.business_id JOIN app_users u ON u.id=t.created_by WHERE t.business_id=${user.business_id} ORDER BY t.updated_at DESC LIMIT 100`;
+        return send(res,200,{tickets:rows});
+      }
+      if(req.method==='POST'){
+        if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Solo las cuentas de negocio pueden crear solicitudes.'});
+        const input=body(req),subject=String(input.subject||'').trim().slice(0,120),message=String(input.message||'').trim().slice(0,3000);
+        if(!subject||!message)return send(res,400,{error:'Completá el asunto y el mensaje.'});
+        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING *`;
+        return send(res,201,{ticket:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        if(user.is_platform_admin!==true)return send(res,403,{error:'Solo el administrador puede cambiar el estado.'});
+        const input=body(req),id=String(input.id||''),status=String(input.status||'');
+        if(!['open','in_progress','resolved','closed'].includes(status))return send(res,400,{error:'Estado no válido.'});
+        const rows=await sql`UPDATE app_support_tickets SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(!rows.length)return send(res,404,{error:'Solicitud no encontrada.'});
+        return send(res,200,{ticket:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/support/tickets/reply'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),ticketId=String(input.ticketId||''),message=String(input.message||'').trim().slice(0,3000);
+      if(!ticketId||!message)return send(res,400,{error:'Falta la solicitud o el mensaje.'});
+      const sql=db();
+      const tickets=user.is_platform_admin===true
+        ? await sql`SELECT id FROM app_support_tickets WHERE id=${ticketId}`
+        : await sql`SELECT id FROM app_support_tickets WHERE id=${ticketId} AND business_id=${user.business_id}`;
+      if(!tickets.length)return send(res,404,{error:'Solicitud no encontrada.'});
+      const rows=await sql`INSERT INTO app_support_replies(ticket_id,author_user_id,message,is_admin) VALUES(${ticketId},${user.id},${message},${user.is_platform_admin===true}) RETURNING *`;
+      await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
+      return send(res,201,{reply:rows[0]});
+    }
+    if(path==='/api/business/license'){
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      await ensureSchema();
+      const user=await currentUser(req);
+      if(!user)return send(res,401,{error:'Iniciá sesión para consultar tu plan.'});
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta consulta está disponible para cuentas de negocio.'});
+      const sql=db();
+      const [licenses,employees]=await Promise.all([
+        sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,created_at
+          FROM app_licenses WHERE business_id=${user.business_id}
+          AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
+          ORDER BY created_at DESC,id DESC LIMIT 1`,
+        sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND is_platform_admin=FALSE`
+      ]);
+      const license=licenses[0]||null;
+      const valid=!!license&&license.status==='active'&&(!license.expires_at||new Date(license.expires_at).getTime()>=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').getTime());
+      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,code:license.license_code,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
+    }
+    if(path==='/api/licenses/activate'){
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      await ensureSchema();
+      const user=await currentUser(req);
+      if(!user)return send(res,401,{error:'Iniciá sesión para activar la licencia.'});
+      if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))
+        return send(res,403,{error:'Solo el administrador o supervisor del negocio puede activar su licencia.'});
+      const sql=db(),attemptKey='license:'+user.id;
+      const attempts=await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${attemptKey} LIMIT 1`;
+      if(attempts[0]?.locked_until&&new Date(attempts[0].locked_until).getTime()>Date.now())
+        return send(res,429,{error:'Se alcanzó el límite de intentos. Esperá 15 minutos e intentá nuevamente.'});
+      const input=body(req),code=String(input.code||'').trim().toUpperCase().replace(/\s+/g,'');
+      if(code.length<8||code.length>100){
+        await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${attemptKey},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END,locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END,updated_at=NOW()`;
+        return send(res,400,{error:'Ingresá un código de licencia válido.'});
+      }
+      const activated=await sql`UPDATE app_licenses SET status='active',updated_at=NOW()
+        WHERE id=(SELECT id FROM app_licenses WHERE business_id=${user.business_id}
+          AND UPPER(BTRIM(license_code))=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
+          AND is_trial=FALSE AND status IN ('pending','active','expired')
+          AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
+          ORDER BY created_at DESC LIMIT 1)
+        RETURNING id,license_code,system_name,status,expires_at,plan`;
+      if(!activated.length){
+        const next=await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${attemptKey},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END,locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END,updated_at=NOW() RETURNING failures,locked_until`;
+        try{await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'license.activation_failed','license',NULL,${JSON.stringify({attempts:Number(next[0]?.failures||1)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar el intento de activación:',logError);}
+        return send(res,400,{error:'El código no es válido para este negocio, ya venció o no está habilitado. Verificá el código o contactá a soporte.'});
+      }
+      await sql`DELETE FROM app_login_attempts WHERE email=${attemptKey}`;
+      try{await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'license.activated','license',${activated[0].id},${JSON.stringify({plan:activated[0].plan,expiresAt:activated[0].expires_at})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar la activación de licencia:',logError);}
+      const refreshed=await currentUser(req);
+      return send(res,200,{ok:true,message:'Licencia activada correctamente.',user:publicUser(refreshed)});
+    }
+    if(path==='/api/admin/licenses/trial'){
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const businessId=String(body(req).businessId||'').trim();
+      if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
+      const sql=db();
+      const business=await sql`SELECT id,name,active FROM businesses WHERE id=${businessId} LIMIT 1`;
+      if(!business.length||business[0].active!==true)return send(res,404,{error:'El negocio no existe o está inactivo.'});
+      const existing=await sql`SELECT id,is_trial,status FROM app_licenses WHERE business_id=${businessId} ORDER BY created_at DESC,id DESC LIMIT 1`;
+      if(existing.length)return send(res,409,{error:existing[0].is_trial===true?'Este negocio ya utilizó su prueba gratuita.':'Este negocio ya tiene una licencia registrada. No se puede iniciar una prueba gratuita encima de ella.'});
+      const settings=await sql`SELECT trial_enabled,trial_days,device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+      if(!settings.length||settings[0].trial_enabled!==true)return send(res,409,{error:'La prueba gratuita está deshabilitada en la configuración de MattSystem.'});
+      const trialDays=Math.max(1,Number(settings[0].trial_days)||7);
+      const systemName=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const code='TRIAL-'+businessId.replace(/-/g,'').slice(0,12).toUpperCase();
+      const rows=await sql`INSERT INTO app_licenses(
+        business_id,license_code,system_name,plan,status,sold_at,expires_at,
+        setup_amount,monthly_amount,billing_day,notes,created_by,is_trial,
+        trial_started_at,trial_days,device_limit,user_limit
+      ) VALUES(
+        ${businessId},${code},${systemName},'basic','active',CURRENT_DATE,
+        CURRENT_DATE+${trialDays}-1,0,0,1,${'Prueba gratuita iniciada manualmente por '+trialDays+' días.'},
+        ${admin.id},TRUE,NOW(),${trialDays},${Number(settings[0].device_limit)||3},1
+      ) RETURNING *`;
+      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+        VALUES(${businessId},${admin.id},'license.trial_started','license',${rows[0].id},${JSON.stringify({trialDays,plan:'basic'})}::jsonb)`;
+      return send(res,201,{license:rows[0],message:'Prueba gratuita iniciada correctamente.'});
+    }
+    if(path==='/api/admin/licenses'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS display_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
+        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>(x.display_status||x.status)==='active').length,monthly:rows.filter(x=>(x.display_status||x.status)==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
+      }
+      if(req.method==='POST'){
+        const input=body(req),businessId=String(input.businessId||''),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem',systemName=String(input.systemName||licenseSystem).trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
+        const setup=Math.max(0,Number(input.setupAmount)||0),monthly=Math.max(0,Number(input.monthlyAmount)||0),billingDay=Math.min(28,Math.max(1,Number(input.billingDay)||1));
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly)||systemName.toLowerCase()!==licenseSystem.toLowerCase())return send(res,400,{error:'Datos de licencia no válidos o el producto no coincide con Mattsystem.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
+        if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
+        const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
+        const userLimit=plan==='basic'?1:(plan==='professional'?4:null);
+        const configured=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+        const deviceLimit=Number(configured[0]?.device_limit||3);
+        const expiresAt=input.expiresAt?String(input.expiresAt):null;
+        if(expiresAt&&(!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())||new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)!==expiresAt))return send(res,400,{error:'La fecha de vencimiento no es válida.'});
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,user_limit,device_limit) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${userLimit},${deviceLimit}) RETURNING *`;
+        return send(res,201,{license:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||'');
+        if(input.action==='change_plan'){
+          const plan=String(input.plan||'');
+          if(!id||!['basic','professional','enterprise'].includes(plan))return send(res,400,{error:'Seleccioná un plan válido.'});
+          const target=await sql`SELECT business_id FROM app_licenses WHERE id=${id} LIMIT 1`;
+          if(!target.length)return send(res,404,{error:'Licencia no encontrada.'});
+          const userLimit=plan==='basic'?1:(plan==='professional'?4:null);
+          if(userLimit!==null){
+            const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${target[0].business_id} AND role='employee' AND active=TRUE AND is_platform_admin=FALSE`;
+            if(Number(count[0]?.total||0)>userLimit)return send(res,409,{error:'No se puede reducir el plan: el negocio tiene más empleados activos que el nuevo límite. Desactivá cuentas o elegí un plan superior.'});
+          }
+          const changed=await sql`UPDATE app_licenses SET plan=${plan},user_limit=${userLimit},updated_at=NOW() WHERE id=${id} RETURNING *`;
+          return send(res,200,{license:changed[0],dataPreserved:true});
+        }
+        if(input.action==='renew'){
+          const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
+          const parsedDate=new Date(expiresAt+'T00:00:00Z');
+          if(!id||!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
+            return send(res,400,{error:'Ingresá una fecha futura válida y un importe igual o mayor que cero.'});
+          const rows=await sql`
+            WITH renewed AS (
+              UPDATE app_licenses SET status='active',expires_at=${expiresAt},updated_at=NOW()
+              WHERE id=${id} RETURNING *
+            ),
+            payment AS (
+              INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by)
+              SELECT id,${amount},'monthly',CURRENT_DATE,${expiresAt},'Renovación de licencia','Pago registrado al renovar la licencia.',${admin.id}
+              FROM renewed WHERE ${amount}>0 RETURNING id
+            )
+            SELECT renewed.*,(SELECT COUNT(*)::int FROM payment) AS payment_recorded FROM renewed
+          `;
+          if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
+          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0});
+        }
+        const status=String(input.status||'');
+        if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
+        const rows=await sql`UPDATE app_licenses SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
+        return send(res,200,{license:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/license-payments'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),licenseId=String(input.licenseId||''),amount=Number(input.amount),type=String(input.paymentType||'monthly');
+      if(!licenseId||!Number.isFinite(amount)||amount<=0||!['setup','monthly','extra'].includes(type))return send(res,400,{error:'Datos de pago no válidos.'});
+      const sql=db(),exists=await sql`SELECT id FROM app_licenses WHERE id=${licenseId}`;
+      if(!exists.length)return send(res,404,{error:'Licencia no encontrada.'});
+      const rows=await sql`INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by) VALUES(${licenseId},${amount},${type},${input.periodStart||null},${input.periodEnd||null},${String(input.reference||'').slice(0,120)},${String(input.notes||'').slice(0,500)},${admin.id}) RETURNING *`;
+      return send(res,201,{payment:rows[0]});
+    }
+    if(path==='/api/admin/overview'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
+      const businesses=await sql`SELECT b.id,b.name,b.active,b.created_at,MAX(u.last_seen_at) AS last_seen_at,COUNT(u.id)::int AS users,COUNT(*) FILTER(WHERE u.active)::int AS active_users FROM businesses b LEFT JOIN app_users u ON u.business_id=b.id GROUP BY b.id ORDER BY b.created_at DESC`;
+      const ticketCounts=await sql`SELECT status,COUNT(*)::int AS total FROM app_support_tickets GROUP BY status`;
+      return send(res,200,{businesses,ticketCounts,totals:{businesses:businesses.length,active:businesses.filter(x=>x.active).length,inactive:businesses.filter(x=>!x.active).length,needsAttention:businesses.filter(x=>x.active&&(!x.last_seen_at||Date.now()-new Date(x.last_seen_at).getTime()>30*86400000)).length}});
+    }
+    if(path==='/api/notification-preferences'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT preferences FROM app_notification_preferences WHERE user_id=${user.id}`;
+        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true}});
+      }
+      if(req.method==='PUT'){
+        const p=body(req).preferences||{};
+        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false};
+        const rows=await sql`INSERT INTO app_notification_preferences(user_id,preferences,updated_at) VALUES(${user.id},${JSON.stringify(preferences)}::jsonb,NOW()) ON CONFLICT(user_id) DO UPDATE SET preferences=EXCLUDED.preferences,updated_at=NOW() RETURNING preferences`;
+        return send(res,200,{preferences:rows[0].preferences});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/trash'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT id,entity_type,entity_id,business_id,payload,deleted_at FROM app_trash WHERE restored_at IS NULL ORDER BY deleted_at DESC LIMIT 200`;
+        return send(res,200,{items:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),id=String(input.id||'');
+        if(input.action!=='restore'||!id)return send(res,400,{error:'Acción no válida.'});
+        const rows=await sql`SELECT * FROM app_trash WHERE id=${id} AND restored_at IS NULL`;
+        if(!rows.length)return send(res,404,{error:'Elemento no disponible.'});
+        const item=rows[0],p=item.payload||{};
+        if(item.entity_type==='business'){
+          const restored=await sql`UPDATE businesses SET active=TRUE,updated_at=NOW() WHERE id=${item.entity_id} RETURNING id`;
+          if(!restored.length)return send(res,409,{error:'El negocio ya no existe; no se puede restaurar automáticamente.'});
+        }else if(item.entity_type==='user'){
+          const restored=await sql`UPDATE app_users SET active=TRUE,session_version=session_version+1 WHERE id=${item.entity_id} AND is_platform_admin=FALSE RETURNING id`;
+          if(!restored.length)return send(res,409,{error:'El usuario no existe o no se puede restaurar.'});
+        }else if(item.entity_type==='announcement'){
+          const title=String(p.title||''),message=String(p.message||''),businessId=p.business_id||item.business_id||null;
+          if(!title||!message)return send(res,409,{error:'No se pudo recuperar el contenido del comunicado.'});
+          if(businessId)await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE`;
+          else await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE`;
+        }
+        await sql`UPDATE app_trash SET restored_at=NOW() WHERE id=${id}`;
+        return send(res,200,{ok:true});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/support' && req.method === 'GET') {
+      const sql=db();
+      const rows=await sql`SELECT whatsapp_phone,enabled,welcome_message,display_name FROM app_platform_settings WHERE setting_key='support' LIMIT 1`;
+      const row=rows[0]||{whatsapp_phone:'595987426497',enabled:true,welcome_message:'Hola, necesito ayuda con el sistema.',display_name:'Soporte técnico Mattsystem'};
+      const localPhone=String(row.whatsapp_phone||'').startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):String(row.whatsapp_phone||'');
+      return send(res,200,{settings:{phone:row.whatsapp_phone,phoneDisplay:localPhone,enabled:row.enabled===true,message:row.welcome_message,displayName:row.display_name}});
+    }
+    if (path === '/api/admin/support-settings') {
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT whatsapp_phone,enabled,welcome_message,display_name FROM app_platform_settings WHERE setting_key='support' LIMIT 1`;
+        const row=rows[0]||{whatsapp_phone:'595987426497',enabled:true,welcome_message:'Hola, necesito ayuda con el sistema.',display_name:'Soporte técnico Mattsystem'};
+        const localPhone=String(row.whatsapp_phone||'').startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):String(row.whatsapp_phone||'');
+        return send(res,200,{settings:{phone:row.whatsapp_phone,phoneDisplay:localPhone,enabled:row.enabled===true,message:row.welcome_message,displayName:row.display_name}});
+      }
+      if(req.method==='PUT'){
+        const input=body(req);let phone=String(input.phone||'').replace(/[^0-9]/g,'');
+        if(phone.startsWith('0'))phone='595'+phone.slice(1);else if(!phone.startsWith('595'))phone='595'+phone;
+        const displayName=String(input.displayName||'').trim().slice(0,80);
+        const message=String(input.message||'').trim().slice(0,500);
+        const enabled=input.enabled===true;
+        if(phone.length<11||phone.length>15||!displayName||!message)return send(res,400,{error:'Ingresá un número válido, el nombre de soporte y un mensaje inicial.'});
+        const rows=await sql`INSERT INTO app_platform_settings(setting_key,whatsapp_phone,enabled,welcome_message,display_name,updated_by,updated_at)
+          VALUES('support',${phone},${enabled},${message},${displayName},${admin.id},NOW())
+          ON CONFLICT(setting_key) DO UPDATE SET whatsapp_phone=EXCLUDED.whatsapp_phone,enabled=EXCLUDED.enabled,welcome_message=EXCLUDED.welcome_message,display_name=EXCLUDED.display_name,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          RETURNING whatsapp_phone,enabled,welcome_message,display_name`;
+        const row=rows[0];const phoneDisplay=String(row.whatsapp_phone).startsWith('595')?'0'+String(row.whatsapp_phone).slice(3):row.whatsapp_phone;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'platform.support_updated','platform_setting','support',${JSON.stringify({enabled:row.enabled,displayName:row.display_name})}::jsonb)`;
+        return send(res,200,{ok:true,settings:{phone:row.whatsapp_phone,phoneDisplay,enabled:row.enabled,message:row.welcome_message,displayName:row.display_name}});
+      }
+      return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/auth/status' && req.method === 'GET') {
       const sql = await ensureSchema();
-      const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE role='admin'`;
+      const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE is_platform_admin=TRUE`;
       return send(res, 200, { adminExists:Number(rows[0].count)>0 });
     }
     if (path === '/api/auth/me' && req.method === 'GET') {
       await ensureSchema(); const user = await currentUser(req);
-      return user ? send(res,200,{authenticated:true,user}) : send(res,401,{authenticated:false});
+      return user ? send(res,200,{authenticated:true,user:publicUser(user)}) : send(res,401,{authenticated:false});
     }
     if (path === '/api/auth/logout' && req.method === 'POST') {
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      return send(res,200,{ok:true},{'Set-Cookie':clearCookie});
-    }
-    if (path === '/api/auth/recover-admin' && req.method === 'POST') {
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const sql = await ensureSchema();
-      const input = body(req);
-      const token = String(input.token || '');
-      const expected = process.env.ADMIN_RECOVERY_TOKEN || '';
-      const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-      const name = String(input.name || '').trim().slice(0,70);
-      const password = input.password;
-      if (!expected || token.length < 40 || !safeEqual(token,expected)) return send(res,403,{error:'El enlace de recuperación no es válido o ya venció.'});
-      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
-      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-      const passwordHash = await hashPassword(password);
-      let recovered;
-      try {
-        recovered = await sql.begin(async tx => {
-          await tx`CREATE TABLE IF NOT EXISTS app_admin_recovery_tokens (token_hash TEXT PRIMARY KEY, used_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
-          const used = await tx`SELECT token_hash FROM app_admin_recovery_tokens WHERE token_hash=${tokenHash} LIMIT 1`;
-          if (used.length) throw new Error('RECOVERY_TOKEN_USED');
-          const target = await tx`SELECT id FROM app_users WHERE lower(email)=${email} LIMIT 1 FOR UPDATE`;
-          // Never demote, delete, or rewrite another account during recovery.
-          const otherAdmins = await tx`SELECT id FROM app_users WHERE role='admin' AND lower(email)<>${email} FOR UPDATE`;
-          if (otherAdmins.length) throw new Error('ADMIN_ACCOUNT_MISMATCH');
-          const id = target[0]?.id || crypto.randomUUID();
-          if (target.length) {
-            await tx`UPDATE app_users SET name=${name},password_hash=${passwordHash},role='admin',active=TRUE WHERE id=${id}`;
-          } else {
-            await tx`INSERT INTO app_users(id,name,email,password_hash,role,active) VALUES(${id},${name},${email},${passwordHash},'admin',TRUE)`;
-          }
-          await tx`INSERT INTO app_admin_recovery_tokens(token_hash) VALUES(${tokenHash})`;
-          return {id,name,email,role:'admin',active:true};
-        });
-      } catch (error) {
-        if (error.message === 'RECOVERY_TOKEN_USED') return send(res,409,{error:'Este enlace ya fue utilizado. Solicitá uno nuevo.'});
-        if (error.message === 'ADMIN_ACCOUNT_MISMATCH') return send(res,409,{error:'Existe otra cuenta administradora. No se modificó ninguna cuenta.'});
-        throw error;
-      }
-      return send(res,200,{user:recovered},{'Set-Cookie':sessionCookie(recovered.id)});
+      if (!sameOrigin(req)) return send(res, 403, { error: 'Solicitud no permitida.' });
+      // El cierre debe borrar la cookie inmediatamente y no depender de Neon.
+      return send(res, 200, { ok: true, authenticated: false }, {
+        'Set-Cookie': [clearCookie, 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT'],
+        'Clear-Site-Data': '"cache"',
+        'Pragma': 'no-cache'
+      });
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      // Verificar la configuración de sesión antes de consumir el enlace o crear el administrador.
+      secret('SESSION_SECRET');
       const sql = await ensureSchema();
-      const existing = await sql`SELECT id FROM app_users WHERE role='admin' LIMIT 1`;
+      const existing = await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE LIMIT 1`;
       if (existing.length) return send(res,409,{error:'La cuenta administradora ya fue activada. Iniciá sesión.'});
-      const input = body(req); const token = String(input.token || ''); const expected = process.env.ADMIN_BOOTSTRAP_TOKEN || '';
-      if (!expected || token.length < 32 || !safeEqual(token,expected)) return send(res,403,{error:'El enlace de activación no es válido.'});
-      const email = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
-      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá tu nombre y una contraseña de al menos 12 caracteres.'});
+      const input = body(req); const token = String(input.token || '');
+      if (token.length < 32) return send(res,403,{error:'El enlace de activación no es válido.'});
+      const email = String(input.email || '').trim().toLowerCase(); const name = String(input.name || '').trim().slice(0,70); const password = input.password;
+      if (!validEmail(email) || !name || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo válido y una contraseña de al menos 12 caracteres.'});
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const claimed = await sql`UPDATE app_admin_setup_tokens SET used_at=NOW() WHERE token_hash=${tokenHash} AND used_at IS NULL AND expires_at>NOW() RETURNING token_hash`;
+      if (!claimed.length) return send(res,403,{error:'El enlace venció o ya fue utilizado. Solicitá uno nuevo.'});
       const id = crypto.randomUUID(); const passwordHash = await hashPassword(password);
-      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE) RETURNING id,name,email,role,active`;
-      return send(res,201,{user:rows[0]},{'Set-Cookie':sessionCookie(id)});
+      const rows = await sql`INSERT INTO app_users (id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES (${id},${name},${email},${passwordHash},'admin',TRUE,NULL,TRUE) RETURNING id,name,email,role,active,business_id,is_platform_admin`;
+      return send(res,201,{user:publicUser(rows[0])},{'Set-Cookie':sessionCookie(id,0)});
     }
     if (path === '/api/auth/login' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const sql = await ensureSchema(); const input = body(req); const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
+      const sql = await ensureSchema(); const input = body(req);
+      const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
+      if (email.length>254 || password.length>200) return send(res,400,{error:'El correo o la contraseña superan la longitud permitida.'});
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
-      if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
-      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.bakery_id,b.active AS bakery_active,b.archived AS bakery_archived FROM app_users u LEFT JOIN app_bakeries b ON b.id=u.bakery_id WHERE u.email=${email} LIMIT 1`; const u = rows[0];
-      if (!u || !u.active || (u.role!=='admin' && (!u.bakery_active || u.bakery_archived)) || !(await verifyPassword(password,u.password_hash))) {
+      if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) {
+        try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_blocked','authentication',NULL,${JSON.stringify({email,failures:Number(attempts[0].failures||0)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el bloqueo de acceso:',logError); }
+        return send(res,429,{error:'Demasiados intentos. Probá nuevamente dentro de unos minutos.'});
+      }
+      const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
+      const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,u.permissions,
+          lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
+          lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
+        FROM app_users u
+        LEFT JOIN LATERAL (
+          SELECT l.license_code,l.system_name,l.status,l.expires_at,
+            (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
+          FROM app_licenses l
+          WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+          ORDER BY l.created_at DESC, l.id DESC
+          LIMIT 1
+        ) lic ON TRUE
+        WHERE lower(u.email)=${email} LIMIT 1`; const u = rows[0];
+      if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
+        try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
-      return send(res,200,{user:{id:u.id,name:u.name,email:u.email,role:u.role,active:u.active,bakeryId:u.bakery_id || null}},{'Set-Cookie':sessionCookie(u.id)});
+      try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
+      return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
-      // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
-      if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
-      const token = cookie(req);
-      const [payload, signature, extra] = token.split('.');
-      if (!payload || !signature || extra) return send(res,401,{error:'Iniciá sesión para continuar.'});
-      const expected = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-      if (!safeEqual(signature, expected)) return send(res,401,{error:'Iniciá sesión para continuar.'});
-      let session;
-      try { session = JSON.parse(Buffer.from(payload,'base64url').toString('utf8')); } catch (_) {
-        return send(res,401,{error:'Iniciá sesión para continuar.'});
-      }
-      if (!session.sub || !Number.isFinite(session.exp) || session.exp < Date.now()) {
-        return send(res,401,{error:'Iniciá sesión para continuar.'});
-      }
+      // Reutiliza la autenticación común: firma, vencimiento, estado activo,
+      // session_version y rol de administrador de plataforma.
+      const admin = await authenticated(req,res,true);
+      if (!admin) return;
       const sql = db();
-      const users = await sql`SELECT id,role,active FROM app_users WHERE id = ${session.sub} LIMIT 1`;
-      if (!users[0] || !users[0].active || users[0].role !== 'admin') {
-        return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
-      }
       const rows = await sql`SELECT current_database() AS database, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
       let configuredHost = null;
       try { configuredHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : (process.env.PGHOST || process.env.POSTGRES_HOST || null); } catch (_) {}
@@ -250,196 +526,919 @@ module.exports = async function handler(req, res) {
         readOnly: true
       });
     }
-    if (path === '/api/admin/bakeries') {
-      const admin = await authenticated(req,res,true); if (!admin) return;
-      const sql = db();
-      if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at FROM app_bakeries WHERE archived=FALSE ORDER BY created_at DESC`;
-        return send(res,200,{bakeries:rows});
-      }
-      if (req.method === 'POST') {
-        const input=body(req);
-        const name=String(input.name||'').trim().slice(0,100);
-        const owner=String(input.owner||'').trim().slice(0,100);
-        const email=String(input.email||'').trim().toLowerCase().slice(0,254);
-        const phone=String(input.phone||'').trim().slice(0,40);
-        const address=String(input.address||'').trim().slice(0,180);
-        const ruc=String(input.ruc||'').trim().slice(0,30);
-        const ownerPassword=input.password;
-        if (!name || !owner || !validEmail(email) || !validPassword(ownerPassword)) return send(res,400,{error:'Ingresá nombre, responsable, correo de acceso válido y contraseña de al menos 12 caracteres.'});
-        const duplicate=await sql`SELECT id FROM app_users WHERE email=${email} LIMIT 1`;
-        if (duplicate.length) return send(res,409,{error:'Ese correo ya tiene una cuenta. Usá otro correo.'});
-        const id=crypto.randomUUID(), userId=crypto.randomUUID();
-        const passwordHash=await hashPassword(ownerPassword);
-        const rows=await sql`INSERT INTO app_bakeries(id,name,owner,email,phone,address,ruc,created_by) VALUES(${id},${name},${owner},${email},${phone},${address},${ruc},${admin.id}) RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
-        await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${userId},${owner},${email},${passwordHash},'owner',TRUE,${id})`;
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','bakery',${id},${JSON.stringify({name,owner,ownerUserId:userId})}::jsonb)`;
-        return send(res,201,{bakery:rows[0],owner:{id:userId,name:owner,email,role:'owner'}});
-      }
-      if (req.method === 'PATCH') {
-        const input=body(req); const id=String(input.id||'');
-        if (!id) return send(res,400,{error:'Falta identificar la panadería.'});
-        let rows;
-        if (typeof input.active === 'boolean' && Object.keys(input).length===2) {
-          rows=await sql`UPDATE app_bakeries SET active=${input.active},updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
-        } else {
-          const name=String(input.name||'').trim().slice(0,100), owner=String(input.owner||'').trim().slice(0,100);
-          const email=String(input.email||'').trim().toLowerCase().slice(0,254);
-          if (!name || !owner || (email && !validEmail(email))) return send(res,400,{error:'Ingresá el nombre, responsable y un correo válido.'});
-          rows=await sql`UPDATE app_bakeries SET name=${name},owner=${owner},email=${email},phone=${String(input.phone||'').trim().slice(0,40)},address=${String(input.address||'').trim().slice(0,180)},ruc=${String(input.ruc||'').trim().slice(0,30)},updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name,owner,email,phone,address,ruc,active,archived,created_at,updated_at`;
-        }
-        if (!rows[0]) return send(res,404,{error:'No se encontró esa panadería.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'updated','bakery',${id},${JSON.stringify({name:rows[0].name,active:rows[0].active})}::jsonb)`;
-        return send(res,200,{bakery:rows[0]});
-      }
-      if (req.method === 'DELETE') {
-        const id=String(body(req).id||'');
-        if (!id) return send(res,400,{error:'Falta identificar la panadería.'});
-        const rows=await sql`UPDATE app_bakeries SET active=FALSE,archived=TRUE,updated_at=NOW() WHERE id=${id} AND archived=FALSE RETURNING id,name`;
-        if (!rows[0]) return send(res,404,{error:'No se encontró esa panadería.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'archived','bakery',${id},${JSON.stringify({name:rows[0].name})}::jsonb)`;
-        return send(res,200,{ok:true});
-      }
-      return send(res,405,{error:'Método no permitido.'});
-    }
-    if (path === '/api/admin/audit') {
-      const admin = await authenticated(req,res,true); if (!admin) return;
-      if (req.method !== 'GET') return send(res,405,{error:'Método no permitido.'});
-      const rows=await db()`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name FROM app_audit_log l LEFT JOIN app_users u ON u.id=l.actor_id ORDER BY l.created_at DESC LIMIT 100`;
-      return send(res,200,{events:rows});
-    }
-    if (path === '/api/admin/users') {
-      const admin = await authenticated(req,res,true); if (!admin) return;
-      const sql = db();
-      if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,email,role,active,created_at,bakery_id FROM app_users ORDER BY CASE WHEN role='admin' THEN 0 ELSE 1 END,created_at ASC`;
-        return send(res,200,{users:rows.map(publicUser)});
-      }
-      if (req.method === 'POST') {
-        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=input.role==='supervisor'?'supervisor':'employee'; const bakeryId=String(input.bakeryId||'');
-        if (!name || !validEmail(email) || !validPassword(password) || !bakeryId) return send(res,400,{error:'Completá nombre, correo, contraseña y panadería.'});
-        const bakery=await sql`SELECT id FROM app_bakeries WHERE id=${bakeryId} AND active=TRUE AND archived=FALSE LIMIT 1`; if(!bakery.length) return send(res,404,{error:'Seleccioná una panadería activa.'});
-        const id=crypto.randomUUID(); const hash=await hashPassword(password);
-        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${bakeryId}) RETURNING id,name,email,role,active,created_at,bakery_id`;
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'created','user',${id},${JSON.stringify({name,email,role,bakeryId})}::jsonb)`;
-        return send(res,201,{user:publicUser(rows[0])});
-      }
-      if (req.method === 'PATCH') {
-        const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
-        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${id} AND role<>'admin' RETURNING id,name,email,role,active,created_at`;
-        if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'status_changed','user',${id},${JSON.stringify({active:input.active})}::jsonb)`;
-        return send(res,200,{user:publicUser(rows[0])});
-      }
-      if (req.method === 'DELETE') {
-        const id=String(body(req).id||''); if (!id || id===admin.id) return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
-        const rows=await sql`DELETE FROM app_users WHERE id=${id} AND role<>'admin' RETURNING id`;
-        if (!rows.length) return send(res,404,{error:'No se encontró ese usuario o no se puede eliminar.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${admin.id},'deleted','user',${id},'{}'::jsonb)`;
-        return send(res,200,{ok:true});
-      }
-      return send(res,405,{error:'Método no permitido.'});
-    }
-    if (path === '/api/bakery/users') {
-      const user=await authenticated(req,res,false); if(!user) return;
-      if (!user.bakery_id || !['owner','supervisor'].includes(user.role)) return send(res,403,{error:'No tenés permisos para administrar usuarios de una panadería.'});
+    if (path === '/api/admin/security') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
       const sql=db();
-      if(req.method==='GET') {
-        const rows=await sql`SELECT id,name,email,role,active,created_at,bakery_id FROM app_users WHERE bakery_id=${user.bakery_id} ORDER BY created_at ASC`;
-        return send(res,200,{users:rows.map(publicUser)});
+      if(req.method==='GET'){
+        const [counts,attempts,events,users]=await Promise.all([
+          sql`SELECT COUNT(*)::int AS total_users,COUNT(*) FILTER(WHERE active=TRUE)::int AS active_users,COUNT(*) FILTER(WHERE active=FALSE)::int AS inactive_users FROM app_users WHERE is_platform_admin=FALSE`,
+          sql`SELECT email,failures,locked_until,updated_at FROM app_login_attempts WHERE failures>0 ORDER BY updated_at DESC LIMIT 100`,
+          sql`SELECT l.id,l.action,l.details,l.ip_address,l.created_at,u.name AS user_name,u.email AS user_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id WHERE l.action IN ('auth.login_success','auth.login_failed','auth.login_blocked') ORDER BY l.created_at DESC LIMIT 100`,
+          sql`SELECT u.id,u.name,u.email,u.role,u.active,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE u.is_platform_admin=FALSE ORDER BY u.active DESC,u.name`
+        ]);
+        const totals=await sql`SELECT COUNT(*) FILTER(WHERE action='auth.login_success' AND created_at>NOW()-INTERVAL '24 hours')::int AS successful_24h,COUNT(*) FILTER(WHERE action IN ('auth.login_failed','auth.login_blocked') AND created_at>NOW()-INTERVAL '24 hours')::int AS failed_24h FROM app_audit_logs WHERE action IN ('auth.login_success','auth.login_failed','auth.login_blocked')`;
+        return send(res,200,{summary:{...(counts[0]||{}),...(totals[0]||{}),locked_accounts:attempts.filter(x=>x.locked_until&&new Date(x.locked_until).getTime()>Date.now()).length},attempts,events,users});
       }
-      if(req.method==='POST') {
-        const input=body(req), name=String(input.name||'').trim().slice(0,70), email=String(input.email||'').trim().toLowerCase(), password=input.password;
-        const role=input.role==='supervisor' && user.role==='owner'?'supervisor':'employee';
-        if(!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña de al menos 12 caracteres.'});
-        const duplicate=await sql`SELECT id FROM app_users WHERE email=${email} LIMIT 1`; if(duplicate.length) return send(res,409,{error:'Ese correo ya está registrado.'});
-        const id=crypto.randomUUID(), hash=await hashPassword(password);
-        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,bakery_id) VALUES(${id},${name},${email},${hash},${role},TRUE,${user.bakery_id}) RETURNING id,name,email,role,active,created_at,bakery_id`;
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'created','user',${id},${JSON.stringify({name,email,role,bakeryId:user.bakery_id})}::jsonb)`;
-        return send(res,201,{user:publicUser(rows[0])});
+      if(req.method==='POST'){
+        const input=body(req),userId=String(input.userId||'');
+        if(!userId||userId===admin.id)return send(res,400,{error:'Seleccioná otro usuario. No podés revocar tu propia sesión desde este apartado.'});
+        const rows=await sql`UPDATE app_users SET session_version=session_version+1 WHERE id=${userId} AND is_platform_admin=FALSE RETURNING id,name,email,business_id`;
+        if(!rows.length)return send(res,404,{error:'No se encontró el usuario o no se puede revocar su sesión.'});
+        const target=rows[0];
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${target.business_id||null},${admin.id},'auth.sessions_revoked','user',${target.id},${JSON.stringify({name:target.name,email:target.email})}::jsonb)`;
+        return send(res,200,{ok:true,message:'Se revocaron las sesiones activas del usuario.',user:{id:target.id,name:target.name,email:target.email}});
       }
-      if(req.method==='PATCH') {
-        const input=body(req); if(!input.id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
-        const allowed=user.role==='owner' ? ['supervisor','employee'] : ['employee'];
-        const rows=await sql`UPDATE app_users SET active=${input.active} WHERE id=${input.id} AND bakery_id=${user.bakery_id} AND role=ANY(${allowed}) RETURNING id,name,email,role,active,created_at,bakery_id`;
-        if(!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no podés modificarlo.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'status_changed','user',${input.id},${JSON.stringify({active:input.active})}::jsonb)`;
-        return send(res,200,{user:publicUser(rows[0])});
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/businesses') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT b.id,b.name,b.slug,b.active,b.address,b.phone,b.email,b.ruc,b.owner_name,b.created_at,b.updated_at,
+          (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id) AS user_count,
+          (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS active_user_count,
+          (SELECT COUNT(DISTINCT lower(trim(item->>'party')))::int FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(trim(item->>'party'),'')<>'') AS customer_count,
+          (SELECT CASE WHEN jsonb_typeof(st.data->'products')='array' THEN jsonb_array_length(st.data->'products') ELSE 0 END::int FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS product_count,
+          (SELECT COUNT(*)::int FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id  ) AS sales_count,
+          (SELECT CASE WHEN jsonb_typeof(st.data->'purchases')='array' THEN jsonb_array_length(st.data->'purchases') ELSE 0 END::int FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS purchase_count,
+          (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='income') AS recorded_income,
+          (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='expense') AS recorded_expenses,
+          (SELECT COALESCE(SUM(COALESCE(NULLIF(item->>'total','')::numeric,NULLIF(item->>'totalAmount','')::numeric,NULLIF(item->>'amount','')::numeric,0)),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(item->>'status','completed') NOT IN ('cancelled','void')) AS sales_total,
+          (SELECT updated_at FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS last_sync
+          FROM businesses b WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=b.id::text AND t.restored_at IS NULL) ORDER BY b.created_at DESC`;
+        return send(res,200,{businesses:rows});
       }
-      if(req.method==='DELETE') {
-        const input=body(req), allowed=user.role==='owner'?['supervisor','employee']:['employee'];
-        const rows=await sql`DELETE FROM app_users WHERE id=${input.id} AND bakery_id=${user.bakery_id} AND role=ANY(${allowed}) RETURNING id`;
-        if(!rows.length) return send(res,404,{error:'No se encontró ese usuario o no podés eliminarlo.'});
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'deleted','user',${input.id},'{}'::jsonb)`;
-        return send(res,200,{ok:true});
+      if(req.method==='POST'){
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120);
+        const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
+        const id=crypto.randomUUID();
+        const rows=await sql`WITH created AS (
+          INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
+          VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)})
+          RETURNING *
+        ), state_created AS (
+          INSERT INTO app_state(data,business_id) SELECT '{}'::jsonb,id FROM created ON CONFLICT(business_id) DO NOTHING RETURNING business_id
+        ), audit_created AS (
+          INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug})}::jsonb FROM created RETURNING id
+        )
+        SELECT * FROM created`;
+        return send(res,201,{business:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
+        if(typeof input.active==='boolean'){
+          const rows=await sql`WITH changed AS (
+            UPDATE businesses SET active=${input.active},updated_at=NOW() WHERE id=${id} RETURNING *
+          ), revoked AS (
+            UPDATE app_users SET session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE RETURNING id
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT id,${admin.id},CASE WHEN ${input.active} THEN 'business.reactivated' ELSE 'business.deactivated' END,
+              'business',id,${JSON.stringify({active:input.active})}::jsonb FROM changed RETURNING id
+          )
+          SELECT * FROM changed`;
+          if(!rows[0]) return send(res,404,{error:'No se encontró el negocio.'});
+          return send(res,200,{business:rows[0],message:input.active?'Negocios reactivada.':'Negocio desactivado. El acceso de sus usuarios quedó bloqueado.'});
+        }
+        const rows=await sql`WITH changed AS (
+          UPDATE businesses SET name=COALESCE(${input.name===undefined?null:String(input.name).trim().slice(0,120)},name),
+            address=COALESCE(${input.address===undefined?null:String(input.address).slice(0,250)},address),
+            phone=COALESCE(${input.phone===undefined?null:String(input.phone).slice(0,60)},phone),
+            email=COALESCE(${input.email===undefined?null:String(input.email).slice(0,254)},email),
+            ruc=COALESCE(${input.ruc===undefined?null:String(input.ruc).slice(0,40)},ruc),
+            owner_name=COALESCE(${input.ownerName===undefined?null:String(input.ownerName).slice(0,120)},owner_name),
+            updated_at=NOW() WHERE id=${id} RETURNING *
+        ), audit AS (
+          INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          SELECT id,${admin.id},'business.updated','business',id,'{}'::jsonb FROM changed RETURNING id
+        )
+        SELECT * FROM changed`;
+        if(!rows[0]) return send(res,404,{error:'No se encontró el negocio.'});
+        return send(res,200,{business:rows[0]});
+      }
+      if(req.method==='DELETE'){
+        const id=String(body(req).id||'').trim();
+        if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
+        const business=await sql`SELECT id,name,active FROM businesses WHERE id=${id} LIMIT 1`;
+        if(!business[0]) return send(res,404,{error:'No se encontró el negocio.'});
+        const alreadyArchived=await sql`SELECT id FROM app_trash WHERE entity_type='business' AND entity_id=${id} AND restored_at IS NULL LIMIT 1`;
+        if(alreadyArchived.length) return send(res,409,{error:'Este negocio ya está en la papelera. Podés restaurarlo desde Administración.'});
+        const snapshot=await sql`SELECT * FROM businesses WHERE id=${id} LIMIT 1`;
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('business',${id},${id},${JSON.stringify(snapshot[0])}::jsonb,${admin.id})`;
+        await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
+        await sql`UPDATE app_users SET session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.trashed','business',${id},${JSON.stringify({name:business[0].name})}::jsonb)`;
+        return send(res,200,{ok:true,deleted:false,trashed:true,message:'Negocio movido a la papelera. Sus datos se conservaron y puede restaurarse.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/clients') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const sql=db();
+      const rows=await sql`SELECT b.id AS business_id,b.name AS business_name,MIN(item->>'party') AS customer_name,COUNT(*)::int AS note_count,COALESCE(SUM(NULLIF(item->>'amount','')::numeric),0)::numeric(14,2) AS note_total,MAX(NULLIF(item->>'date','')::date) AS last_note_date FROM app_state st JOIN businesses b ON b.id=st.business_id CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE COALESCE(trim(item->>'party'),'')<>'' GROUP BY b.id,b.name,lower(trim(item->>'party')) ORDER BY b.name,customer_name LIMIT 1000`;
+      return send(res,200,{clients:rows});
+    }
+    if (path === '/api/admin/activity') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name,u.email AS actor_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 250`;
+        const notifications=await sql`SELECT n.id,n.title,n.message,n.type,n.read_at,n.created_at FROM app_notifications n WHERE n.user_id=${admin.id} AND n.type='system_activity' ORDER BY n.created_at DESC LIMIT 100`;
+        return send(res,200,{activities:rows,notifications});
+      }
+      if(req.method==='DELETE'){
+        const target=String(body(req).target||'');
+        if(target==='history'){
+          const removed=await sql`DELETE FROM app_audit_logs RETURNING id`;
+          return send(res,200,{ok:true,deleted:removed.length,target});
+        }
+        if(target==='alerts'){
+          const removed=await sql`DELETE FROM app_notifications WHERE user_id=${admin.id} AND type='system_activity' RETURNING id`;
+          return send(res,200,{ok:true,deleted:removed.length,target});
+        }
+        return send(res,400,{error:'Seleccioná si querés eliminar el historial o las alertas.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/notifications') {
+      const admin=await authenticated(req,res,true); if(!admin) return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT (ARRAY_AGG(n.id::text ORDER BY n.id))[1] AS id,n.title,n.message,n.business_id,b.name AS business_name,MIN(n.created_at) AS created_at,COUNT(*)::int AS recipients,COUNT(n.read_at)::int AS read_count FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.type='admin_message' GROUP BY n.title,n.message,n.business_id,b.name,n.created_at ORDER BY n.created_at DESC LIMIT 100`;
+        return send(res,200,{notifications:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req); const title=String(input.title||'').trim().slice(0,100); const message=String(input.message||'').trim().slice(0,2000);
+        const businessId=input.businessId==='all'?'':String(input.businessId||'');
+        if(!title||!message) return send(res,400,{error:'Completá el título y el mensaje.'});
+        let rows;
+        if(businessId){
+          const target=await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+          if(!target.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
+          rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'admin_message',${title},${message} FROM app_users u WHERE u.business_id=${businessId} AND u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+          if(!rows.length) return send(res,409,{error:'El negocio seleccionado no tiene usuarios activos que puedan recibir el aviso.'});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:target[0].name})}::jsonb)`;
+        } else {
+          rows=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'admin_message',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=FALSE RETURNING id`;
+          if(!rows.length) return send(res,409,{error:'No hay usuarios activos en ningun negocio para recibir el aviso.'});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'notification.sent','notification',${rows[0].id},${JSON.stringify({title,recipients:rows.length,target:'all'})}::jsonb)`;
+        }
+        return send(res,201,{ok:true,recipients:rows.length});
+      }
+      if(req.method==='PATCH'||req.method==='DELETE'){
+        const input=body(req),id=String(input.id||''); if(!id)return send(res,400,{error:'Falta la notificación.'});
+        const found=await sql`SELECT id,business_id,title,message,created_at FROM app_notifications WHERE id=${id} AND type='admin_message' LIMIT 1`;
+        if(!found.length)return send(res,404,{error:'No se encontró el comunicado.'});
+        const item=found[0];
+        if(req.method==='PATCH'){
+          const title=String(input.title||'').trim().slice(0,100),message=String(input.message||'').trim().slice(0,2000);
+          if(!title||!message)return send(res,400,{error:'El título y el mensaje son obligatorios.'});
+          const changed=await sql`UPDATE app_notifications SET title=${title},message=${message} WHERE type='admin_message' AND business_id IS NOT DISTINCT FROM ${item.business_id} AND created_at=${item.created_at} AND title=${item.title} AND message=${item.message} RETURNING id`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.updated','notification',${id},${JSON.stringify({title,recipients:changed.length})}::jsonb)`;
+          return send(res,200,{ok:true,updated:changed.length});
+        }
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) SELECT 'announcement',${id},business_id,jsonb_build_object('title',title,'message',message,'created_at',created_at),${admin.id} FROM app_notifications WHERE id=${id} AND type='admin_message'`;
+        const removed=await sql`DELETE FROM app_notifications AS target USING app_notifications AS seed WHERE seed.id::text=${id} AND target.type='admin_message' AND target.business_id IS NOT DISTINCT FROM seed.business_id AND target.created_at=seed.created_at AND target.title=seed.title AND target.message=seed.message RETURNING target.id`;
+        if(!removed.length)return send(res,404,{error:'El comunicado ya no existe o fue eliminado.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${item.business_id},${admin.id},'notification.deleted','notification',${id},${JSON.stringify({recipients:removed.length})}::jsonb)`;
+        return send(res,200,{ok:true,deleted:removed.length});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/notifications') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
-      if(req.method==='GET') {
-        const rows=user.role==='admin'
-          ? await sql`SELECT n.id,n.bakery_id,n.title,n.message,n.created_at,b.name AS bakery_name FROM app_notifications n LEFT JOIN app_bakeries b ON b.id=n.bakery_id ORDER BY n.created_at DESC LIMIT 200`
-          : await sql`SELECT id,title,message,created_at FROM app_notifications WHERE bakery_id IS NULL OR bakery_id=${user.bakery_id} ORDER BY created_at DESC LIMIT 100`;
+      if(req.method==='GET'){
+        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND CASE WHEN n.type='system_activity' OR n.type='admin_message' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
         return send(res,200,{notifications:rows});
       }
-      if(req.method==='POST' && user.role==='admin') {
-        const input=body(req), title=String(input.title||'').trim().slice(0,120), message=String(input.message||'').trim().slice(0,3000), bakeryId=input.bakeryId||null;
-        if(!title || !message) return send(res,400,{error:'Completá el título y el mensaje.'});
-        if(bakeryId) { const found=await sql`SELECT id FROM app_bakeries WHERE id=${bakeryId} AND archived=FALSE`; if(!found.length) return send(res,404,{error:'Panadería no encontrada.'}); }
-        const id=crypto.randomUUID();
-        await sql`INSERT INTO app_notifications(id,bakery_id,title,message,created_by) VALUES(${id},${bakeryId},${title},${message},${user.id})`;
-        await sql`INSERT INTO app_audit_log(actor_id,action,entity_type,entity_id,details) VALUES(${user.id},'created','notification',${id},${JSON.stringify({title,bakeryId})}::jsonb)`;
-        return send(res,201,{ok:true,id});
+      if(req.method==='PATCH'){
+        const id=String(body(req).id||''); if(!id) return send(res,400,{error:'Falta la notificación.'});
+        const rows=await sql`UPDATE app_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=${id} AND user_id=${user.id} RETURNING id,read_at`;
+        if(!rows.length) return send(res,404,{error:'No se encontró la notificación.'});
+        return send(res,200,{ok:true,notification:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    // [deploy] Gestión de empleados aislada por negocio y limitada por licencia.
+    if (path === '/api/business/users') {
+      const user = await authenticated(req,res,false); if (!user) return;
+      if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
+        return send(res,403,{error:'Solo el Supervisor del negocio puede administrar sus empleados.'});
+      const sql = db();
+      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export'];
+      if (req.method === 'GET') {
+        // Una sola consulta evita tres viajes secuenciales a Neon al abrir el panel de empleados.
+        const result = await sql`
+          WITH active_license AS (
+            SELECT plan,user_limit
+            FROM app_licenses
+            WHERE business_id=${user.business_id}
+              AND status='active'
+              AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
+            ORDER BY created_at DESC
+            LIMIT 1
+          ),
+          employee_rows AS (
+            SELECT COALESCE(json_agg(
+              json_build_object(
+                'id',id,'name',name,'email',email,'role',role,'active',active,
+                'permissions',permissions,'created_at',created_at
+              ) ORDER BY created_at DESC
+            ),'[]'::json) AS employees
+            FROM app_users
+            WHERE business_id=${user.business_id}
+              AND is_platform_admin=FALSE AND role='employee'
+          ),
+          employee_count AS (
+            SELECT COUNT(*)::int AS total
+            FROM app_users
+            WHERE business_id=${user.business_id}
+              AND role='employee' AND active=TRUE
+          )
+          SELECT
+            employee_rows.employees,
+            COALESCE(active_license.plan,'basic') AS plan,
+            COALESCE(active_license.user_limit,
+              CASE COALESCE(active_license.plan,'basic')
+                WHEN 'basic' THEN 1 WHEN 'professional' THEN 4 ELSE NULL END
+            ) AS employee_limit,
+            employee_count.total AS active_employees
+          FROM employee_rows CROSS JOIN employee_count
+          LEFT JOIN active_license ON TRUE
+        `;
+        const row=result[0]||{};
+        const employees=Array.isArray(row.employees)?row.employees:[];
+        const limit=row.employee_limit==null?null:Number(row.employee_limit);
+        const active=Number(row.active_employees||0);
+        return send(res,200,{employees,limits:{
+          plan:row.plan||'basic',employeeLimit:limit,activeEmployees:active,
+          remaining:limit===null?null:Math.max(0,limit-active)
+        }});
+      }
+      if (req.method === 'POST') {
+        const input=body(req),name=String(input.name||'').trim().slice(0,70),email=String(input.email||'').trim().toLowerCase(),password=input.password;
+        if(!name||!validEmail(email)||!validPassword(password))return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+        const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
+        if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'Alcanzaste el límite de empleados de tu plan. Podés ampliar tu licencia desde el administrador.'});
+        const requested=input.permissions&&typeof input.permissions==='object'&&!Array.isArray(input.permissions)?input.permissions:{};
+        const permissions={}; for(const key of permissionKeys) permissions[key]=requested[key]===true;
+        const id=crypto.randomUUID(),hash=await hashPassword(password);
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin,permissions) VALUES(${id},${name},${email},${hash},'employee',TRUE,${user.business_id},FALSE,${JSON.stringify(permissions)}::jsonb) RETURNING id,name,email,role,active,permissions,created_at`;
+        return send(res,201,{employee:rows[0]});
+      }
+      if (req.method === 'PATCH') {
+        const input=body(req),id=String(input.id||'');
+        if(!id)return send(res,400,{error:'Falta identificar al empleado.'});
+        const target=await sql`SELECT id FROM app_users WHERE id=${id} AND business_id=${user.business_id} AND role='employee' AND is_platform_admin=FALSE LIMIT 1`;
+        if(!target.length)return send(res,404,{error:'No se encontró el empleado de este negocio.'});
+        if(typeof input.active==='boolean'){
+          if(input.active){
+            const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+            const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+            const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND id<>${id}`;
+            if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'No se puede reactivar: el negocio alcanzó el límite de empleados de su licencia.'});
+          }
+          const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
+          return send(res,200,{employee:rows[0]});
+        }
+        if(input.permissions&&typeof input.permissions==='object'&&!Array.isArray(input.permissions)){
+          const permissions={}; for(const key of permissionKeys) permissions[key]=input.permissions[key]===true;
+          const rows=await sql`UPDATE app_users SET permissions=${JSON.stringify(permissions)}::jsonb,session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
+          return send(res,200,{employee:rows[0]});
+        }
+        return send(res,400,{error:'No se recibieron permisos o estado válidos.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/users') {
+      const admin = await authenticated(req,res,true); if (!admin) return;
+      const sql = db();
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='user' AND t.entity_id=u.id::text AND t.restored_at IS NULL) AND (u.business_id IS NULL OR NOT EXISTS (SELECT 1 FROM app_trash bt WHERE bt.entity_type='business' AND bt.entity_id=u.business_id::text AND bt.restored_at IS NULL)) ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
+        return send(res,200,{users:rows.map(publicUser)});
+      }
+      if (req.method === 'POST') {
+        const input=body(req); const name=String(input.name||'').trim().slice(0,70); const email=String(input.email||'').trim().toLowerCase(); const password=input.password; const role=['admin','supervisor','employee'].includes(input.role)?input.role:'employee'; let businessId=String(input.businessId||'');
+        if (!name || !validEmail(email) || !validPassword(password)) return send(res,400,{error:'Completá nombre, correo y contraseña (mínimo 12 caracteres).'});
+        if(!businessId) return send(res,400,{error:'Seleccioná el negocio a la que pertenecerá el usuario.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`; if(!business.length) return send(res,400,{error:'El negocio seleccionado no existe o está inactiva.'});
+        const id=crypto.randomUUID(); const hash=await hashPassword(password);
+        const rows=await sql`INSERT INTO app_users(id,name,email,password_hash,role,active,business_id,is_platform_admin) VALUES(${id},${name},${email},${hash},${role},TRUE,${businessId},FALSE) RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
+        return send(res,201,{user:publicUser(rows[0])});
+      }
+      if (req.method === 'PATCH') {
+        const input=body(req); const id=String(input.id||''); if (!id || typeof input.active!=='boolean') return send(res,400,{error:'Datos de usuario incompletos.'});
+        const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE RETURNING id,name,email,role,active,business_id,is_platform_admin,created_at`;
+        if (!rows[0]) return send(res,404,{error:'No se encontró ese usuario o no se puede modificar.'});
+        return send(res,200,{user:publicUser(rows[0])});
+      }
+      if (req.method === 'DELETE') {
+        const id=String(body(req).id||''); if(!id||id===admin.id)return send(res,400,{error:'No se puede eliminar la cuenta administradora.'});
+        const target=await sql`SELECT u.*,to_jsonb(u)-'password_hash' AS safe_payload FROM app_users u WHERE u.id=${id} AND u.is_platform_admin=FALSE LIMIT 1`;
+        if(!target.length)return send(res,404,{error:'No se encontró ese usuario.'});
+        const alreadyArchived=await sql`SELECT id FROM app_trash WHERE entity_type='user' AND entity_id=${id} AND restored_at IS NULL LIMIT 1`;
+        if(alreadyArchived.length)return send(res,409,{error:'Este usuario ya está en la papelera.'});
+        await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('user',${id},${target[0].business_id},${JSON.stringify(target[0].safe_payload)}::jsonb,${admin.id})`;
+        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${id} AND is_platform_admin=FALSE`;
+        return send(res,200,{ok:true,trashed:true,message:'Usuario movido a la papelera. Sus sesiones fueron revocadas y puede restaurarse.'});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
-      const input = body(req);
-      if (input.confirm !== true) return send(res,400,{error:'Confirmá la limpieza de datos.'});
+      // La limpieza anterior solo vaciaba app_state y dejaba intactos los módulos ERP normalizados.
+      // Se bloquea hasta implementar una limpieza integral, transaccional y con respaldo verificable.
+      return send(res,409,{error:'La limpieza integral está temporalmente deshabilitada para proteger los datos. Los registros del negocio no fueron modificados.'});
+    }
+
+    if (path === '/api/business/erp') {
+      const user = await authenticated(req,res,false); if (!user) return;
       const sql = db();
-      const rows = await sql`SELECT data FROM app_state WHERE id=1 LIMIT 1`;
-      const current = rows[0]?.data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
-      const data = { ...current, movements: [], invoices: [], employees: [], employeePayments: [] };
-      delete data.users;
-      const serialized = JSON.stringify(data);
-      const saved = await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-      return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at || null});
+      const businessId = user.is_platform_admin === true ? String(req.headers['x-business-id'] || '') : String(user.business_id || '');
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) return send(res,400,{error:'Seleccioná un negocio válido.'});
+      const businesses = await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
+      if (!businesses.length) return send(res,404,{error:'El negocio no existe o está desactivado.'});
+      const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
+      const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
+      const can = key => manager || permissions[key] === true;
+      const canAny = keys => keys.some(can);
+      const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
+      const input = req.method === 'GET' ? {} : body(req);
+      const module = String(req.method === 'GET' ? url.searchParams.get('module') || '' : input.module || url.searchParams.get('module') || '').toLowerCase();
+      const readPermissions = {
+        products:['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
+        customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
+        purchases:['purchases.view'], recipes:['recipes.view','recipes.manage'],
+        production:['production.view','production.manage'], cash:['cash.view','cash.manage','cash.open','cash.close'],
+        reports:['reports.view','reports.export']
+      };
+      const writePermissions = {
+        products:['products.manage'], sales:['sales.create'], inventory:['inventory.manage'],
+        customers:['customers.manage'], suppliers:['suppliers.manage'], purchases:['purchases.create'],
+        recipes:['recipes.manage'], production:['production.manage'], cash:['cash.manage','cash.open','cash.close'], reports:['reports.export']
+      };
+      if (!readPermissions[module]) return send(res,400,{error:'Módulo ERP no válido.'});
+      if (req.method === 'GET') {
+        if (!canAny(readPermissions[module])) return send(res,403,{error:'No tenés permiso para consultar este módulo.'});
+        if (module === 'products') {
+          const full=can('products.view')||can('products.manage');
+          const rows=full
+            ? await sql`SELECT id,sku,name,category,unit,sale_price,cost_price,stock,min_stock,active,created_at,updated_at FROM app_products WHERE business_id=${businessId} ORDER BY name LIMIT 2000`
+            : await sql`SELECT id,name,unit,sale_price,stock,min_stock,active FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name LIMIT 2000`;
+          return send(res,200,{products:rows});
+        }
+        if (module === 'customers') {
+          const rows=await sql`SELECT id,name,document,phone,email,address,notes,active,created_at,updated_at FROM app_customers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
+          return send(res,200,{customers:rows});
+        }
+        if (module === 'suppliers') {
+          const rows=await sql`SELECT id,name,ruc,phone,email,address,notes,active,created_at,updated_at FROM app_suppliers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
+          return send(res,200,{suppliers:rows});
+        }
+        if (module === 'sales') {
+          const rows=await sql`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',CASE WHEN ${can('products.view') || can('reports.view')} THEN i.unit_cost ELSE NULL END,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
+          return send(res,200,{sales:rows});
+        }
+        if (module === 'purchases') {
+          const rows=await sql`SELECT p.*,s.name AS supplier_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_purchase_items i WHERE i.business_id=p.business_id AND i.purchase_id=p.id),'[]'::json) AS items FROM app_purchases p LEFT JOIN app_suppliers s ON s.business_id=p.business_id AND s.id=p.supplier_id WHERE p.business_id=${businessId} ORDER BY p.created_at DESC LIMIT 500`;
+          return send(res,200,{purchases:rows});
+        }
+        if (module === 'inventory') {
+          const canSeeCosts=can('products.view')||can('reports.view');
+          const rows=await sql`SELECT m.id,m.business_id,m.product_id,m.movement_type,m.quantity,
+            CASE WHEN ${canSeeCosts} THEN m.unit_cost ELSE NULL END AS unit_cost,
+            m.reference,m.notes,m.actor_user_id,m.created_at,p.name AS product_name,p.sku
+            FROM app_inventory_movements m JOIN app_products p ON p.business_id=m.business_id AND p.id=m.product_id
+            WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`;
+          const products=await sql`SELECT id,name,sku,stock,min_stock,unit,
+            CASE WHEN ${canSeeCosts} THEN cost_price ELSE NULL END AS cost_price
+            FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
+          return send(res,200,{movements:rows,products});
+        }
+        if (module === 'recipes') {
+          const rows=await sql`SELECT r.*,p.name AS product_name,COALESCE((SELECT json_agg(json_build_object('id',ri.id,'product_id',ri.product_id,'product_name',ip.name,'quantity',ri.quantity,'unit',ri.unit) ORDER BY ip.name) FROM app_recipe_ingredients ri JOIN app_products ip ON ip.business_id=ri.business_id AND ip.id=ri.product_id WHERE ri.business_id=r.business_id AND ri.recipe_id=r.id),'[]'::json) AS ingredients FROM app_recipes r LEFT JOIN app_products p ON p.business_id=r.business_id AND p.id=r.product_id WHERE r.business_id=${businessId} ORDER BY r.name LIMIT 1000`;
+          const canSeeCosts=can('products.view')||can('reports.view');
+          const products=await sql`SELECT id,name,unit,
+            CASE WHEN ${canSeeCosts} THEN cost_price ELSE NULL END AS cost_price,stock
+            FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
+          return send(res,200,{recipes:rows,products});
+        }
+        if (module === 'production') {
+          const rows=await sql`SELECT b.*,r.name AS recipe_name,p.name AS product_name FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id LEFT JOIN app_products p ON p.business_id=b.business_id AND p.id=COALESCE(b.product_id,r.product_id) WHERE b.business_id=${businessId} ORDER BY b.created_at DESC LIMIT 500`;
+          const recipes=await sql`SELECT id,name,product_id,yield_quantity FROM app_recipes WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
+          return send(res,200,{batches:rows,recipes});
+        }
+        if (module === 'cash') {
+          const [sessions,movements]=await Promise.all([
+            can('cash.view')
+              ? sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} ORDER BY opened_at DESC LIMIT 200`
+              : sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`,
+            can('cash.view')
+              ? sql`SELECT m.*,s.status AS session_status FROM app_cash_movements m JOIN app_cash_sessions s ON s.business_id=m.business_id AND s.id=m.cash_session_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`
+              : Promise.resolve([])
+          ]);
+          return send(res,200,{sessions,movements});
+        }
+        if (module === 'reports') {
+          const rows=await sql`SELECT to_char(months.month,'YYYY-MM') AS month,
+            (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS sales,
+            (SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS cost_of_goods,
+            (SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS expenses,
+            (SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='income' AND lower(e.category) NOT IN ('ventas','venta') AND date_trunc('month',e.created_at)=months.month) AS other_income,
+            (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
+              +(SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='income' AND lower(e.category) NOT IN ('ventas','venta') AND date_trunc('month',e.created_at)=months.month)
+              -(SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
+              -(SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS net_profit
+            FROM generate_series(date_trunc('month',CURRENT_DATE)-INTERVAL '11 months',date_trunc('month',CURRENT_DATE),INTERVAL '1 month') months(month) ORDER BY months.month`;
+          return send(res,200,{months:rows,calculation:'Ventas + otros ingresos - costo histórico de productos vendidos - gastos registrados.'});
+        }
+      }
+      if (req.method === 'POST') {
+        if (!canAny(writePermissions[module])) return send(res,403,{error:'No tenés permiso para registrar cambios en este módulo.'});
+        if (module === 'products') {
+          const name=String(input.name||'').trim().slice(0,120),sku=String(input.sku||'').trim().slice(0,60)||null;
+          const salePrice=Number(input.salePrice??0),costPrice=Number(input.costPrice??0),minStock=Number(input.minStock??0);
+          if(!name||![salePrice,costPrice,minStock].every(Number.isFinite)||salePrice<0||costPrice<0||minStock<0)return send(res,400,{error:'Datos del producto no válidos.'});
+          const rows=await sql`INSERT INTO app_products(business_id,sku,name,category,unit,sale_price,cost_price,stock,min_stock) VALUES(${businessId},${sku},${name},${String(input.category||'').trim().slice(0,80)||null},${String(input.unit||'unidad').trim().slice(0,24)},${salePrice},${costPrice},0,${minStock}) RETURNING *`;
+          return send(res,201,{product:rows[0]});
+        }
+        if (module === 'customers') {
+          const name=String(input.name||'').trim().slice(0,120);if(!name)return send(res,400,{error:'Ingresá el nombre del cliente.'});
+          const rows=await sql`INSERT INTO app_customers(business_id,name,document,phone,email,address,notes) VALUES(${businessId},${name},${String(input.document||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
+          return send(res,201,{customer:rows[0]});
+        }
+        if (module === 'suppliers') {
+          const name=String(input.name||'').trim().slice(0,120);if(!name)return send(res,400,{error:'Ingresá el nombre del proveedor.'});
+          const rows=await sql`INSERT INTO app_suppliers(business_id,name,ruc,phone,email,address,notes) VALUES(${businessId},${name},${String(input.ruc||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
+          return send(res,201,{supplier:rows[0]});
+        }
+        if (module === 'inventory') {
+          const productId=String(input.productId||''),type=String(input.movementType||''),quantity=Number(input.quantity),unitCost=Number(input.unitCost||0);
+          if(!productId||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
+          const rows=await sql`WITH locked AS MATERIALIZED (
+              SELECT id,stock,cost_price FROM app_products
+              WHERE id=${productId} AND business_id=${businessId} FOR UPDATE
+            ), calculated AS MATERIALIZED (
+              SELECT id,stock AS old_stock,
+                CASE WHEN ${type}='entry' THEN stock+${quantity}
+                     WHEN ${type}='adjustment' THEN ${quantity}
+                     ELSE stock-${quantity} END AS new_stock,
+                CASE WHEN ${type}='adjustment' THEN ABS(${quantity}-stock) ELSE ${quantity} END AS movement_quantity,
+                cost_price
+              FROM locked
+            ), changed AS (
+              UPDATE app_products p SET
+                stock=c.new_stock,
+                cost_price=CASE
+                  WHEN (${type}='entry' OR (${type}='adjustment' AND c.new_stock>c.old_stock))
+                    AND c.new_stock>0
+                  THEN ((c.old_stock*c.cost_price)+(c.movement_quantity*${unitCost}))/c.new_stock
+                  ELSE p.cost_price
+                END,
+                updated_at=NOW()
+              FROM calculated c
+              WHERE p.id=c.id AND p.business_id=${businessId}
+                AND c.new_stock>=0 AND c.movement_quantity>0
+                AND (${type} NOT IN ('exit','waste') OR c.old_stock>=${quantity})
+              RETURNING p.id,p.stock,c.movement_quantity
+            ), movement AS (
+              INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
+              SELECT ${businessId},id,${type},movement_quantity,${unitCost},
+                ${String(input.reference||'').slice(0,120)||null},
+                ${String(input.notes||'').slice(0,1000)||null},${user.id}
+              FROM changed RETURNING *
+            )
+            SELECT movement.*,changed.stock AS stock_after
+            FROM movement JOIN changed ON changed.id=movement.product_id`;
+          if(!rows.length)return send(res,409,{error:'El producto no existe, el stock es insuficiente o el ajuste no cambia las existencias.'});
+          return send(res,201,{movement:rows[0],stock:Number(rows[0].stock_after)});
+        }
+        if (module === 'sales') {
+          const raw=Array.isArray(input.items)?input.items:[];if(!raw.length||raw.length>100)return send(res,400,{error:'Agregá entre 1 y 100 artículos a la venta.'});
+          const items=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_price:Number(item.unitPrice)}));
+          if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_price)||item.unit_price<0))return send(res,400,{error:'Hay artículos con descripción, cantidad o precio no válidos.'});
+          const productIds=[...new Set(items.filter(item=>item.product_id).map(item=>item.product_id))];
+          const products=productIds.length?await sql`SELECT id,name,stock,cost_price FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`:[];
+          if(products.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio.'});
+          const byId=new Map(products.map(product=>[String(product.id),product]));
+          const required=new Map();for(const item of items)if(item.product_id)required.set(item.product_id,(required.get(item.product_id)||0)+item.quantity);
+          for(const [id,qty] of required){if(Number(byId.get(id).stock||0)<qty)return send(res,409,{error:'Existencias insuficientes para '+byId.get(id).name+'.'});}
+          const customerId=String(input.customerId||'')||null;
+          if(customerId){const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;if(!customer.length)return send(res,400,{error:'El cliente no pertenece a este negocio o está inactivo.'});}
+          const payload=items.map(item=>({...item,unit_cost:item.product_id?Number(byId.get(item.product_id).cost_price||0):0}));
+          const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0),discount=Number(input.discount||0);
+          if(!Number.isFinite(discount)||discount<0||discount>subtotal)return send(res,400,{error:'El descuento no puede superar el subtotal.'});
+          const total=subtotal-discount,saleNumber='VTA-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(2).toString('hex').toUpperCase(),paymentMethod=String(input.paymentMethod||'').slice(0,40)||null;
+          const payloadJson=JSON.stringify(payload);
+          const rows=await sql`WITH locked_products AS MATERIALIZED (
+              SELECT id,stock FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb)) FOR UPDATE
+            ), stock_check AS (
+              SELECT NOT EXISTS (SELECT 1 FROM (SELECT x.product_id::uuid AS product_id,SUM(x.quantity) AS quantity FROM jsonb_to_recordset(${payloadJson}::jsonb) AS x(product_id text,quantity numeric) WHERE x.product_id IS NOT NULL GROUP BY x.product_id) requested
+                LEFT JOIN locked_products lp ON lp.id=requested.product_id WHERE lp.id IS NULL OR lp.stock<requested.quantity) AS ok
+            ), open_cash AS MATERIALIZED (
+              SELECT id FROM app_cash_sessions
+              WHERE business_id=${businessId} AND status='open'
+              ORDER BY opened_at DESC LIMIT 1 FOR UPDATE
+            ), sale AS (
+              INSERT INTO app_sales(business_id,customer_id,sale_number,status,subtotal,discount,total,payment_method,notes,actor_user_id)
+              SELECT ${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${paymentMethod},${String(input.notes||'').slice(0,1000)||null},${user.id}
+              FROM stock_check
+              WHERE ok AND (lower(COALESCE(${paymentMethod},'')) NOT IN ('efectivo','cash') OR EXISTS(SELECT 1 FROM open_cash))
+              RETURNING id
+            ), item_rows AS (
+              INSERT INTO app_sale_items(business_id,sale_id,product_id,description,quantity,unit_price,unit_cost,line_total)
+              SELECT ${businessId},sale.id,NULLIF(x.product_id,'')::uuid,x.description,x.quantity,x.unit_price,x.unit_cost,x.quantity*x.unit_price
+              FROM sale CROSS JOIN jsonb_to_recordset(${payloadJson}::jsonb) AS x(product_id text,description text,quantity numeric,unit_price numeric,unit_cost numeric)
+              RETURNING product_id,quantity,unit_cost
+            ), stock AS (
+              UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW() FROM (SELECT product_id,SUM(quantity) AS quantity FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
+              WHERE i.product_id=p.id AND p.business_id=${businessId} RETURNING p.id
+            ), movement AS (
+              INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+              SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,${saleNumber},${user.id}
+              FROM item_rows i WHERE i.product_id IS NOT NULL RETURNING id
+            ), cash AS (
+              INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              SELECT ${businessId},cs.id,'income','Ventas','Venta '||${saleNumber},${total},${paymentMethod},${saleNumber},${user.id}
+              FROM sale JOIN open_cash cs ON TRUE
+              WHERE lower(COALESCE(${paymentMethod},'')) IN ('efectivo','cash') RETURNING id
+            )
+            SELECT sale.id,stock_check.ok FROM stock_check LEFT JOIN sale ON TRUE`;
+          if(!rows[0]?.id)return send(res,409,{error:'No se pudo registrar la venta: verificá el stock y, si fue en efectivo, que exista una caja abierta.'});
+          return send(res,201,{saleId:rows[0].id,saleNumber,subtotal,discount,total});
+        }
+        if (module === 'purchases') {
+          const raw=Array.isArray(input.items)?input.items:[];if(!raw.length||raw.length>100)return send(res,400,{error:'Agregá entre 1 y 100 artículos a la compra.'});
+          const items=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_cost:Number(item.unitCost)}));
+          if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_cost)||item.unit_cost<0))return send(res,400,{error:'Hay artículos con descripción, cantidad o costo no válidos.'});
+          const supplierId=String(input.supplierId||'')||null;
+          if(supplierId){const supplier=await sql`SELECT id FROM app_suppliers WHERE id=${supplierId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;if(!supplier.length)return send(res,400,{error:'El proveedor no pertenece a este negocio o está inactivo.'});}
+          const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_cost,0),purchaseNumber=String(input.documentNumber||'').trim().slice(0,80)||('COMP-'+Date.now().toString(36).toUpperCase());
+          const payload=JSON.stringify(items);
+          const rows=await sql`WITH purchase AS (
+              INSERT INTO app_purchases(business_id,supplier_id,document_number,status,subtotal,total,due_date,notes,actor_user_id)
+              VALUES(${businessId},${supplierId},${purchaseNumber},'received',${subtotal},${subtotal},NULLIF(${String(input.dueDate||'')},'')::date,${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING id
+            ), item_rows AS (
+              INSERT INTO app_purchase_items(business_id,purchase_id,product_id,description,quantity,unit_cost,line_total)
+              SELECT ${businessId},purchase.id,NULLIF(x.product_id,'')::uuid,x.description,x.quantity,x.unit_cost,x.quantity*x.unit_cost
+              FROM purchase CROSS JOIN jsonb_to_recordset(${payload}::jsonb) AS x(product_id text,description text,quantity numeric,unit_cost numeric)
+              RETURNING product_id,quantity,unit_cost
+            ), stock AS (
+              UPDATE app_products p SET stock=p.stock+i.quantity,cost_price=CASE WHEN p.stock+i.quantity>0 THEN ((p.stock*p.cost_price)+(i.quantity*i.unit_cost))/(p.stock+i.quantity) ELSE p.cost_price END,updated_at=NOW()
+              FROM (SELECT product_id,SUM(quantity) AS quantity,SUM(quantity*unit_cost)/NULLIF(SUM(quantity),0) AS unit_cost FROM item_rows WHERE product_id IS NOT NULL GROUP BY product_id) i
+              WHERE i.product_id=p.id AND p.business_id=${businessId} RETURNING p.id
+            ), movement AS (
+              INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+              SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,${purchaseNumber},${user.id}
+              FROM item_rows i WHERE i.product_id IS NOT NULL RETURNING id
+            )
+            SELECT purchase.id FROM purchase`;
+          if(!rows.length)return send(res,409,{error:'No se pudo registrar la compra.'});
+          return send(res,201,{purchaseId:rows[0].id,documentNumber:purchaseNumber,total:subtotal});
+        }
+        if (module === 'recipes') {
+          const name=String(input.name||'').trim().slice(0,120),yieldQuantity=Number(input.yieldQuantity||1),ingredients=Array.isArray(input.ingredients)?input.ingredients:[];
+          if(!name||!Number.isFinite(yieldQuantity)||yieldQuantity<=0||!ingredients.length)return send(res,400,{error:'Completá el nombre, rendimiento e ingredientes de la receta.'});
+          const normalized=ingredients.map(item=>({product_id:String(item.productId||''),quantity:Number(item.quantity),unit:String(item.unit||'unidad').slice(0,24)}));
+          if(normalized.some(item=>!item.product_id||!Number.isFinite(item.quantity)||item.quantity<=0))return send(res,400,{error:'Hay ingredientes no válidos.'});
+          const productId=String(input.productId||'')||null,recipeId=crypto.randomUUID();
+          const rows=await sql`WITH recipe AS (
+              INSERT INTO app_recipes(id,business_id,product_id,name,yield_quantity,instructions)
+              VALUES(${recipeId},${businessId},${productId},${name},${yieldQuantity},${String(input.instructions||'').slice(0,3000)||null}) RETURNING id
+            ), ingredients AS (
+              INSERT INTO app_recipe_ingredients(business_id,recipe_id,product_id,quantity,unit)
+              SELECT ${businessId},recipe.id,x.product_id::uuid,x.quantity,x.unit
+              FROM recipe CROSS JOIN jsonb_to_recordset(${JSON.stringify(normalized)}::jsonb) AS x(product_id text,quantity numeric,unit text)
+              RETURNING id
+            )
+            SELECT recipe.id FROM recipe`;
+          return send(res,201,{recipeId:rows[0].id});
+        }
+        if (module === 'production') {
+          const recipeId=String(input.recipeId||'')||null,productId=String(input.productId||'')||null,planned=Number(input.plannedQuantity);
+          if(!Number.isFinite(planned)||planned<=0||(!recipeId&&!productId))return send(res,400,{error:'Seleccioná una receta o producto e ingresá una cantidad válida.'});
+          const rows=await sql`INSERT INTO app_production_batches(business_id,recipe_id,product_id,planned_quantity,status,notes,actor_user_id)
+            VALUES(${businessId},${recipeId},${productId},${planned},'planned',${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING *`;
+          return send(res,201,{batch:rows[0]});
+        }
+        if (module === 'cash') {
+          const action=String(input.action||'movement');
+          if(action==='open'){
+            if(!can('cash.open'))return send(res,403,{error:'No tenés permiso para abrir caja.'});
+            const amount=Number(input.openingAmount||0);if(!Number.isFinite(amount)||amount<0)return send(res,400,{error:'Importe inicial no válido.'});
+            const rows=await sql`INSERT INTO app_cash_sessions(business_id,opened_by,opening_amount,status)
+              SELECT ${businessId},${user.id},${amount},'open'
+              WHERE NOT EXISTS(SELECT 1 FROM app_cash_sessions WHERE business_id=${businessId} AND status='open') RETURNING *`;
+            if(!rows.length)return send(res,409,{error:'Ya existe una caja abierta para este negocio.'});
+            return send(res,201,{session:rows[0]});
+          }
+          if(action==='movement'){
+            if(!can('cash.manage'))return send(res,403,{error:'No tenés permiso para registrar movimientos de caja.'});
+            const type=String(input.movementType||''),amount=Number(input.amount);
+            if(!['income','expense'].includes(type)||!Number.isFinite(amount)||amount<=0||!String(input.category||'').trim()||!String(input.description||'').trim())return send(res,400,{error:'Completá tipo, categoría, descripción e importe válido.'});
+            const session=await sql`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`;
+            if(!session.length)return send(res,409,{error:'No hay una caja abierta.'});
+            const rows=await sql`WITH movement AS (INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              VALUES(${businessId},${session[0].id},${type},${String(input.category).trim().slice(0,80)},${String(input.description).trim().slice(0,160)},${amount},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.reference||'').slice(0,120)||null},${user.id}) RETURNING *),
+              entry AS (INSERT INTO app_financial_entries(business_id,entry_type,category,description,amount,payment_method,reference,paid_at,actor_user_id)
+                SELECT business_id,movement_type,category,description,amount,payment_method,reference,NOW(),actor_user_id FROM movement RETURNING id)
+              SELECT * FROM movement`;
+            return send(res,201,{movement:rows[0]});
+          }
+          if(action==='close'){
+            if(!can('cash.close'))return send(res,403,{error:'No tenés permiso para cerrar caja.'});
+            const sessionId=String(input.sessionId||''),closingAmount=Number(input.closingAmount);
+            if(!sessionId||!Number.isFinite(closingAmount)||closingAmount<0)return send(res,400,{error:'Ingresá el importe contado al cerrar la caja.'});
+            const rows=await sql`WITH totals AS (
+                SELECT COALESCE(SUM(CASE WHEN movement_type='income' THEN amount ELSE -amount END),0) AS net
+                FROM app_cash_movements WHERE business_id=${businessId} AND cash_session_id=${sessionId}
+              )
+              UPDATE app_cash_sessions cs SET status='closed',closed_by=${user.id},closed_at=NOW(),closing_amount=${closingAmount},
+                expected_amount=cs.opening_amount+totals.net,difference=${closingAmount}-(cs.opening_amount+totals.net)
+              FROM totals WHERE cs.id=${sessionId} AND cs.business_id=${businessId} AND cs.status='open' RETURNING cs.*`;
+            if(!rows.length)return send(res,404,{error:'No se encontró una caja abierta para cerrar.'});
+            return send(res,200,{session:rows[0]});
+          }
+          return send(res,400,{error:'Acción de caja no válida.'});
+        }
+      }
+      if (req.method === 'PATCH') {
+        const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
+        if(module==='products'&&can('products.manage')){
+          const rows=await sql`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined} THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined} THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined} THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined} THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined} THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          if(!rows.length)return send(res,404,{error:'Producto no encontrado.'});return send(res,200,{product:rows[0]});
+        }
+        if(module==='customers'&&can('customers.manage')){
+          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          if(!rows.length)return send(res,404,{error:'Cliente no encontrado.'});return send(res,200,{customer:rows[0]});
+        }
+        if(module==='suppliers'&&can('suppliers.manage')){
+          const rows=await sql`UPDATE app_suppliers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          if(!rows.length)return send(res,404,{error:'Proveedor no encontrado.'});return send(res,200,{supplier:rows[0]});
+        }
+        if(module==='sales'&&input.action==='cancel'&&can('sales.cancel')){
+          const rows=await sql`WITH cancelled AS (UPDATE app_sales SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='completed' RETURNING id,sale_number,total,payment_method),
+            items AS (SELECT product_id,SUM(quantity) AS quantity,CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END AS unit_cost FROM app_sale_items WHERE business_id=${businessId} AND sale_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL GROUP BY product_id),
+            stock AS (UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
+            movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,'Anulación de venta '||${id},${user.id} FROM items i RETURNING id),
+            cash_refund AS (INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              SELECT ${businessId},cs.id,'expense','Anulación de venta','Devolución de venta '||c.sale_number,c.total,c.payment_method,c.sale_number,${user.id}
+              FROM cancelled c JOIN app_cash_sessions cs ON cs.business_id=${businessId} AND cs.status='open'
+              WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id),
+            refund_entry AS (INSERT INTO app_financial_entries(business_id,entry_type,category,description,amount,payment_method,reference,paid_at,actor_user_id)
+              SELECT ${businessId},'expense','Anulación de venta','Devolución de venta '||c.sale_number,c.total,c.payment_method,c.sale_number,NOW(),${user.id}
+              FROM cancelled c WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id)
+            SELECT id FROM cancelled`;
+          if(!rows.length)return send(res,404,{error:'Venta no encontrada o ya anulada.'});return send(res,200,{ok:true});
+        }
+        if(module==='purchases'&&input.action==='cancel'&&can('purchases.create')){
+          const items=await sql`SELECT i.product_id,SUM(i.quantity) AS quantity,CASE WHEN SUM(i.quantity)>0 THEN SUM(i.quantity*i.unit_cost)/SUM(i.quantity) ELSE 0 END AS unit_cost,p.created_at AS purchase_created_at FROM app_purchase_items i JOIN app_purchases p ON p.business_id=i.business_id AND p.id=i.purchase_id WHERE i.business_id=${businessId} AND i.purchase_id=${id} AND i.product_id IS NOT NULL GROUP BY i.product_id,p.created_at`;
+          const productIds=[...new Set(items.map(item=>String(item.product_id)))];
+          if(productIds.length){const products=await sql`SELECT id,stock,name FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`;const available=new Map(products.map(p=>[String(p.id),Number(p.stock||0)]));for(const item of items){if((available.get(String(item.product_id))||0)<Number(item.quantity))return send(res,409,{error:'No se puede anular: el stock comprado ya fue utilizado.'});}
+            const used=await sql`SELECT 1 FROM app_inventory_movements m JOIN app_purchases p ON p.business_id=m.business_id AND p.id=${id} WHERE m.business_id=${businessId} AND m.product_id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb)) AND m.created_at>p.created_at AND m.movement_type IN ('exit','waste','adjustment') LIMIT 1`;
+            if(used.length)return send(res,409,{error:'No se puede anular esta compra porque hubo ventas, consumos o ajustes posteriores de sus productos.'});}
+          const rows=await sql`WITH cancelled AS (UPDATE app_purchases SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='received' RETURNING id),
+            purchase_items AS (SELECT product_id,SUM(quantity) AS quantity,CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END AS unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL GROUP BY product_id),
+            stock AS (UPDATE app_products p SET stock=p.stock-i.quantity,cost_price=CASE WHEN p.stock>i.quantity AND p.stock>0 THEN GREATEST(0,((p.stock*p.cost_price)-(i.quantity*i.unit_cost))/(p.stock-i.quantity)) ELSE 0 END,updated_at=NOW() FROM purchase_items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
+            movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,'Anulación de compra '||${id},${user.id} FROM purchase_items i RETURNING id)
+            SELECT id FROM cancelled`;
+          if(!rows.length)return send(res,404,{error:'Compra no encontrada o ya anulada.'});return send(res,200,{ok:true});
+        }
+        if(module==='recipes'&&can('recipes.manage')){
+          const rows=await sql`UPDATE app_recipes SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),yield_quantity=CASE WHEN ${input.yieldQuantity===undefined} THEN yield_quantity ELSE ${Number(input.yieldQuantity)} END,instructions=CASE WHEN ${input.instructions===undefined} THEN instructions ELSE NULLIF(${String(input.instructions||'').slice(0,3000)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          if(!rows.length)return send(res,404,{error:'Receta no encontrada.'});return send(res,200,{recipe:rows[0]});
+        }
+        if(module==='production'&&can('production.manage')){
+          if(input.action==='complete'){
+            const produced=Number(input.producedQuantity),waste=Number(input.wasteQuantity||0),consumed=produced+waste;
+            if(!Number.isFinite(produced)||produced<=0||!Number.isFinite(waste)||waste<0)return send(res,400,{error:'Ingresá cantidades producidas y de merma válidas.'});
+            const batchCheck=await sql`SELECT b.id,COALESCE(b.product_id,r.product_id) AS product_id FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id WHERE b.id=${id} AND b.business_id=${businessId} AND b.status IN ('planned','in_progress') LIMIT 1`;
+            if(!batchCheck.length)return send(res,404,{error:'Lote no encontrado o ya finalizado.'});
+            if(!batchCheck[0].product_id)return send(res,400,{error:'El lote no tiene un producto de salida asociado.'});
+            const rows=await sql`WITH batch AS MATERIALIZED (
+                SELECT b.id,b.business_id,b.recipe_id,COALESCE(b.product_id,r.product_id) AS product_id,COALESCE(r.yield_quantity,1) AS yield_quantity
+                FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id
+                WHERE b.id=${id} AND b.business_id=${businessId} AND b.status IN ('planned','in_progress') FOR UPDATE OF b
+              ), ingredient_need AS MATERIALIZED (
+                SELECT ri.product_id,SUM(ri.quantity*(${consumed}/NULLIF(batch.yield_quantity,0))) AS quantity
+                FROM batch JOIN app_recipe_ingredients ri ON ri.business_id=batch.business_id AND ri.recipe_id=batch.recipe_id
+                GROUP BY ri.product_id
+              ), locked_products AS MATERIALIZED (
+                SELECT p.id,p.stock,p.cost_price FROM app_products p JOIN ingredient_need i ON i.product_id=p.id
+                WHERE p.business_id=${businessId} FOR UPDATE OF p
+              ), stock_check AS (
+                SELECT EXISTS(SELECT 1 FROM batch WHERE product_id IS NOT NULL)
+                  AND NOT EXISTS(SELECT 1 FROM ingredient_need i LEFT JOIN locked_products lp ON lp.id=i.product_id WHERE lp.id IS NULL OR lp.stock<i.quantity)
+                  AND NOT EXISTS(SELECT 1 FROM ingredient_need i WHERE i.product_id=(SELECT product_id FROM batch)) AS ok
+              ), consumed_rows AS (
+                UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW()
+                FROM ingredient_need i,locked_products lp,stock_check sc
+                WHERE p.id=i.product_id AND p.business_id=${businessId} AND lp.id=p.id AND sc.ok
+                RETURNING p.id,i.quantity,p.cost_price
+              ), output_product AS (
+                UPDATE app_products p SET stock=p.stock+${produced},cost_price=CASE WHEN p.stock+${produced}>0
+                  THEN ((p.stock*p.cost_price)+COALESCE((SELECT SUM(c.quantity*c.cost_price) FROM consumed_rows c),0))/(p.stock+${produced})
+                  ELSE p.cost_price END,updated_at=NOW()
+                FROM batch,stock_check sc WHERE p.id=batch.product_id AND p.business_id=${businessId} AND sc.ok RETURNING p.id
+              ), batch_done AS (
+                UPDATE app_production_batches b SET status='completed',produced_quantity=${produced},waste_quantity=${waste},
+                  started_at=COALESCE(started_at,NOW()),completed_at=NOW()
+                FROM batch,stock_check sc WHERE b.id=batch.id AND sc.ok RETURNING b.id
+              ), consumption_movements AS (
+                INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+                SELECT ${businessId},c.id,'exit',c.quantity,c.cost_price,'Producción '||${id},${user.id} FROM consumed_rows c RETURNING id
+              ), output_movements AS (
+                INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id)
+                SELECT ${businessId},o.id,'entry',${produced},COALESCE((SELECT SUM(c.quantity*c.cost_price) FROM consumed_rows c)/NULLIF(${produced},0),0),'Producción '||${id},${user.id}
+                FROM output_product o RETURNING id
+              )
+              SELECT stock_check.ok,batch_done.id FROM stock_check LEFT JOIN batch_done ON TRUE`;
+            if(!rows[0]?.ok)return send(res,409,{error:'No hay stock suficiente de ingredientes o el producto de salida no es válido.'});
+            if(!rows[0]?.id)return send(res,409,{error:'No se pudo finalizar el lote.'});
+            return send(res,200,{ok:true,batchId:rows[0].id,producedQuantity:produced,wasteQuantity:waste});
+          }
+          const status=String(input.status||'');if(!['in_progress','cancelled'].includes(status))return send(res,400,{error:'Estado de producción no válido.'});
+          const rows=await sql`UPDATE app_production_batches SET status=${status},started_at=CASE WHEN ${status}='in_progress' THEN COALESCE(started_at,NOW()) ELSE started_at END WHERE id=${id} AND business_id=${businessId} AND status IN ('planned','in_progress') RETURNING *`;
+          if(!rows.length)return send(res,404,{error:'Lote no encontrado o ya finalizado.'});return send(res,200,{batch:rows[0]});
+        }
+        return send(res,403,{error:'No tenés permiso para modificar este registro.'});
+      }
+      if (req.method === 'DELETE') {
+        const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
+        if(module==='products'&&can('products.manage')){const rows=await sql`UPDATE app_products SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='customers'&&can('customers.manage')){const rows=await sql`UPDATE app_customers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='suppliers'&&can('suppliers.manage')){const rows=await sql`UPDATE app_suppliers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='recipes'&&can('recipes.manage')){const rows=await sql`UPDATE app_recipes SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        return send(res,403,{error:'No tenés permiso para eliminar este registro.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/business/employee-data') {
+      const user = await authenticated(req,res,false); if (!user) return;
+      if (user.is_platform_admin === true || user.role !== 'employee' || !user.business_id)
+        return send(res,403,{error:'Este servicio está reservado para cuentas de empleado vinculadas a un negocio.'});
+      const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
+      const can = key => permissions[key] === true;
+      const canAny = keys => keys.some(can);
+      const sql = db();
+      if (req.method === 'GET') {
+        const rows = await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner
+          FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id
+          WHERE b.id=${user.business_id} AND b.active=TRUE LIMIT 1`;
+        if (!rows.length) return send(res,404,{error:'El negocio no está disponible.'});
+        const source = rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
+        const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
+        if (canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
+        if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = (Array.isArray(source.products)?source.products:[]).map(product => { if (can('products.view') || can('reports.view')) return product; const {cost_price,...safeProduct}=product; return safeProduct; });
+        if (canAny(['cash.view','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
+        if (canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
+        if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
+        if (canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
+        if (canAny(['purchases.view','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
+        if (canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
+        if (canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
+        if (canAny(['reports.view'])) {
+          data.categories = source.categories && typeof source.categories === 'object' ? source.categories : {};
+          data.paymentMethods = Array.isArray(source.paymentMethods)?source.paymentMethods:[];
+        }
+        return send(res,200,{data,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
+      }
+      if (req.method === 'PUT') {
+        const input = body(req);
+        if (!input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+        const incoming = input.data;
+        if (Buffer.byteLength(JSON.stringify(incoming),'utf8') > 900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+        const currentRows = await sql`SELECT data FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
+        const current = currentRows[0]?.data && typeof currentRows[0].data === 'object' && !Array.isArray(currentRows[0].data) ? currentRows[0].data : {};
+        const next = {...current};
+        const savedFields = [];
+        const appendOnly = key => {
+          const oldItems = Array.isArray(current[key]) ? current[key] : [];
+          const seen = new Set(oldItems.map(item=>String(item?.id||'')));
+          const additions = [];
+          for (const item of (Array.isArray(incoming[key]) ? incoming[key] : [])) {
+            const id = String(item?.id || '');
+            if (item && id && !seen.has(id)) { seen.add(id); additions.push(item); }
+          }
+          if (additions.length) { next[key] = oldItems.concat(additions); savedFields.push(key); }
+        };
+        if (can('sales.create')) appendOnly('invoices');
+        if (can('sales.cancel') && Array.isArray(incoming.invoices)) {
+          const requested = new Set(incoming.invoices.filter(item=>item && item.status==='cancelled').map(item=>String(item.id||'')));
+          const oldItems = Array.isArray(next.invoices) ? next.invoices : (Array.isArray(current.invoices)?current.invoices:[]);
+          let changed = false;
+          next.invoices = oldItems.map(item => {
+            if (requested.has(String(item?.id||'')) && item?.status !== 'cancelled') { changed=true; return {...item,status:'cancelled'}; }
+            return item;
+          });
+          if (changed) { if (!savedFields.includes('invoices')) savedFields.push('invoices'); }
+        }
+        if (can('products.manage') && Array.isArray(incoming.products)) {
+          next.products = incoming.products.filter(item=>item&&String(item.name||'').trim()).slice(0,5000);
+          savedFields.push('products');
+        }
+        if (can('cash.manage')) appendOnly('movements');
+        if (can('inventory.manage')) appendOnly('productMovements');
+        if (can('customers.manage') && Array.isArray(incoming.customers)) { next.customers=incoming.customers.filter(item=>item&&String(item.name||'').trim()).slice(0,5000); savedFields.push('customers'); }
+        if (can('suppliers.manage') && Array.isArray(incoming.suppliers)) { next.suppliers=incoming.suppliers.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('suppliers'); }
+        if (can('purchases.create')) appendOnly('purchases');
+        if (can('recipes.manage') && Array.isArray(incoming.recipes)) { next.recipes=incoming.recipes.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('recipes'); }
+        if (can('production.manage')) appendOnly('productionBatches');
+        if (!savedFields.length) return send(res,403,{error:'Tu cuenta no tiene permisos de escritura para los cambios enviados.'});
+        const serialized = JSON.stringify(next);
+        const saved = await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${user.business_id},NOW())
+          ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+          VALUES(${user.business_id},${user.id},'employee.data_updated','business_data',${user.business_id},${JSON.stringify({savedFields})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+        return send(res,200,{ok:true,savedFields,updatedAt:saved[0]?.updated_at||null});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/data' && req.method === 'GET' && new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.has('catalogBusinessId')) {
+      const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
+      if(!businessId) return send(res,400,{error:'Falta identificar el negocio.'});
+      const sql=db();
+      const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
+      if(!rows.length) return send(res,404,{error:'No se encontró un negocio activa.'});
+      const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
+      const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
+        id:String(p.id||''),name:String(p.name||'').slice(0,100),category:String(p.category||'').slice(0,60),
+        description:String(p.description||'').slice(0,300),price:Math.max(0,Number(p.price)||0),
+        available:typeof p.available==='boolean'?p.available:Number(p.stock||0)>0
+      })).filter(p=>p.name);
+      return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
     if (path === '/api/data') {
-      const user = await authenticated(req,res,false); if (!user) return;
+      const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
-      if(user.role==='admin') {
-        if (req.method==='GET') { const rows=await sql`SELECT data,updated_at FROM app_state WHERE id=1 LIMIT 1`; return send(res,200,{data:rows[0]?rows[0].data:null,updatedAt:rows[0]?rows[0].updated_at:null}); }
-        if (req.method==='PUT') {
-          const input=body(req); if(!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
-          const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
-          if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-          const saved=await sql`INSERT INTO app_state(id,data,updated_by,updated_at) VALUES(1,${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-          return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+      const businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
+      if(!businessId) return send(res,400,{error:'Seleccioná explícitamente el negocio que querés administrar.'});
+      // [deploy] Los empleados no pueden leer ni reemplazar el estado operativo completo.
+      // Hasta que exista un modelo de operaciones individuales con autorización por módulo,
+      // se aplica denegación por defecto para evitar escalar permisos manipulando /api/data.
+      if(user.is_platform_admin!==true && user.role!=='supervisor')
+        return send(res,403,{error:'Tu cuenta de empleado no tiene acceso directo a los datos generales. Solicitá al Supervisor los permisos o una operación habilitada.'});
+      const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+      if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
+      if(req.method==='GET'){
+        const rows=await sql`SELECT st.data,to_char(st.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
+        if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
+        const row=rows[0], data=row.data&&typeof row.data==='object'?row.data:{};
+        // El registro businesses es la fuente principal de identidad del negocio.
+        // Los datos operativos (productos, facturas, movimientos) permanecen en app_state.
+        data.business={...(data.business&&typeof data.business==='object'?data.business:{}),id:row.business_id,name:row.business_name,address:row.business_address||'',phone:row.business_phone||'',email:row.business_email||'',ruc:row.business_ruc||'',owner:row.business_owner||''};
+        return send(res,200,{data,updatedAt:row.updated_at},{'Cache-Control':'no-store, max-age=0'});
+      }
+      if(req.method==='PUT'){
+        const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+        const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
+        if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
+        const expectedUpdatedAt=input.expectedUpdatedAt==null?null:String(input.expectedUpdatedAt);
+        if(expectedUpdatedAt!==null&&Number.isNaN(Date.parse(expectedUpdatedAt)))return send(res,400,{error:'La versión de datos enviada no es válida.'});
+        const saved=await sql`
+          INSERT INTO app_state(data,updated_by,business_id,updated_at)
+          SELECT ${serialized}::jsonb,${user.id},${businessId},clock_timestamp()
+          WHERE ${expectedUpdatedAt}::timestamptz IS NULL
+             OR EXISTS(SELECT 1 FROM app_state WHERE business_id=${businessId} AND updated_at=${expectedUpdatedAt}::timestamptz)
+          ON CONFLICT(business_id) DO UPDATE
+          SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,
+              updated_at=GREATEST(clock_timestamp(),app_state.updated_at+INTERVAL '1 microsecond')
+          WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt}::timestamptz
+          RETURNING to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at
+        `;
+        if(!saved.length){
+          const latest=await sql`SELECT to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+          return send(res,409,{code:'DATA_VERSION_CONFLICT',error:'Otra sesión guardó cambios más recientes. No se sobrescribieron los datos del servidor.',currentUpdatedAt:latest[0]?.updated_at||null});
         }
-      } else {
-        if(!user.bakery_id) return send(res,403,{error:'Tu cuenta todavía no está vinculada a una panadería. Contactá al administrador.'});
-        const bakery=await sql`SELECT id FROM app_bakeries WHERE id=${user.bakery_id} AND active=TRUE AND archived=FALSE LIMIT 1`;
-        if(!bakery.length) return send(res,403,{error:'El acceso a esta panadería está suspendido. Contactá al administrador.'});
-        if(req.method==='GET') { const rows=await sql`SELECT data,updated_at FROM app_bakery_state WHERE bakery_id=${user.bakery_id} LIMIT 1`; return send(res,200,{data:rows[0]?.data || null,updatedAt:rows[0]?.updated_at || null}); }
-        if(req.method==='PUT') {
-          const input=body(req); if(!input.data || typeof input.data!=='object' || Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
-          const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
-          if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-          const saved=await sql`INSERT INTO app_bakery_state(bakery_id,data,updated_by,updated_at) VALUES(${user.bakery_id},${serialized}::jsonb,${user.id},NOW()) ON CONFLICT(bakery_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-          return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at || null});
+        if(user.is_platform_admin!==true){
+          const biz=await sql`SELECT name FROM businesses WHERE id=${businessId} LIMIT 1`;
+          const title='Actividad en '+(biz[0]?.name||'un negocio');
+          const message=user.name+' ('+user.email+') modificó información operativa. Revisá el historial para ver cuándo ocurrió.';
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${businessId},${user.id},'business.data_updated','business_data',${businessId},${JSON.stringify({businessName:biz[0]?.name||'',updatedAt:saved[0]?.updated_at||null})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${businessId},u.id,'system_activity',${title},${message} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE AND NOT EXISTS (SELECT 1 FROM app_notifications n WHERE n.user_id=u.id AND n.type='system_activity' AND n.title=${title} AND n.message=${message} AND n.created_at>NOW()-INTERVAL '2 minutes')`;
         }
+        return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
-    console.error('API handler error:', err && err.stack ? err.stack : err);
-    if (err && err.code==='23505') return send(res,409,{error:'Ya existe un usuario con ese correo.'});
-    return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
+    if (err && err.code==='23514' && String(err.message||'').includes('employee_license_limit_reached')) return send(res,409,{error:'Alcanzaste el límite de empleados de tu licencia. Podés ampliar tu plan desde el administrador.'});
+    if (err && err.code==='23505') {
+      const constraint=String(err.constraint||'');
+      if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe un negocio con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
+      if (constraint.includes('app_users_email')) return send(res,409,{error:'Ya existe un usuario con ese correo.'});
+      return send(res,409,{error:'Ya existe un registro con esos datos. Revisá los campos e intentá nuevamente.'});
+    }
+    const reference=crypto.randomUUID();
+    console.error('API request failed:',{reference,path,method:req.method,code:err&&err.code||null,constraint:err&&err.constraint||null,message:String(err&&err.message||'').slice(0,500)});
+    return send(res,500,{error:'No se pudo completar la solicitud. Referencia: '+reference+'.',code:'INTERNAL_ERROR',reference});
   }
 };

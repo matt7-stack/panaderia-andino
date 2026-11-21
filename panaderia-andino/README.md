@@ -1,6 +1,6 @@
-# Panadería Andino
+# Mattsystem
 
-Sistema web administrativo para Panadería Andino. Esta es la versión base recuperada del ZIP del proyecto y preparada para incorporarse al repositorio GitHub.
+Sistema web administrativo para Mattsystem. Esta es la versión base recuperada del ZIP del proyecto y preparada para incorporarse al repositorio GitHub.
 
 ## Estado técnico actual
 
@@ -62,7 +62,7 @@ Copiar `.env.example` como referencia para el entorno local. **Nunca subir `.env
 
 ## Próximo trabajo
 
-1. Importar esta base al repositorio `matt7-stack/panaderia-andino`.
+1. Importar esta base al repositorio `matt7-stack/mattsystem-gestion`.
 2. Verificar variables y conexión Neon en Vercel sin exponer credenciales.
 3. Corregir la carga inicial para que no convierta datos de demostración en datos reales.
 4. Implementar los módulos pendientes gradualmente, con pruebas y migraciones controladas.

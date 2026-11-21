@@ -6,17 +6,17 @@
   gate.setAttribute('role', 'dialog');
   gate.setAttribute('aria-modal', 'true');
   gate.setAttribute('aria-labelledby', 'authTitle');
-  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Panadería Andino</strong><small>GESTIÓN DEL NEGOCIO</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
+  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Mattsystem</strong><small>GESTIÓN DEL NEGOCIO</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
   document.body.appendChild(gate);
 
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
-  let recoveryToken = '';
   const hash = window.location.hash || '';
-  if (hash.startsWith('#activar=')) activationToken = decodeURIComponent(hash.slice('#activar='.length));
-  if (hash.startsWith('#recuperar=')) recoveryToken = decodeURIComponent(hash.slice('#recuperar='.length));
-  if (activationToken || recoveryToken) history.replaceState(null, '', window.location.pathname + window.location.search);
+  if (hash.startsWith('#activar=')) {
+    activationToken = decodeURIComponent(hash.slice('#activar='.length));
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
 
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -30,7 +30,7 @@
         document.body.classList.add('auth-locked');
         showLogin('Tu sesión venció. Iniciá sesión nuevamente.');
       }
-      throw new Error(result.error || 'No se pudo completar la solicitud.');
+      const error = new Error(result.error || 'No se pudo completar la solicitud.'); error.status = response.status; error.code = result.code || null; throw error;
     }
     return result;
   }
@@ -79,25 +79,6 @@
     document.getElementById('authName').focus();
   }
 
-  function showRecovery() {
-    document.body.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>RECUPERACIÓN SEGURA</span><h1 id="authTitle">Recuperar administrador</h1><p>Creá una contraseña nueva para la cuenta administradora.</p></div><form id="recoveryForm" class="auth-form"><label for="authName">Nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><label for="authPassword">Nueva contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Restablecer acceso <span>→</span></button></form>`;
-    document.getElementById('recoveryForm').addEventListener('submit', async event => {
-      event.preventDefault();
-      const button=event.currentTarget.querySelector('button');
-      const password=document.getElementById('authPassword').value;
-      if(password!==document.getElementById('authConfirm').value) return showMessage('Las contraseñas no coinciden.');
-      if(password.length<12) return showMessage('Usá al menos 12 caracteres.');
-      button.disabled=true; showMessage('');
-      try {
-        const result=await api('/api/auth/recover-admin',{method:'POST',body:JSON.stringify({token:recoveryToken,name:document.getElementById('authName').value,password})});
-        recoveryToken='';
-        establish(result.user);
-      } catch(error) { showMessage(error.message); button.disabled=false; }
-    });
-    document.getElementById('authName').focus();
-  }
-
   function establish(user) {
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
@@ -105,16 +86,13 @@
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'owner' ? 'Titular de panadería' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
+    if (meta) meta.textContent = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.role !== 'admin';
-    const canManageUsers = ['admin','owner','supervisor'].includes(user.role);
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     const usersPanel = document.querySelector('[data-settings-panel="users"]');
-    if (usersTab) usersTab.hidden = !canManageUsers;
-    if (usersPanel) usersPanel.hidden = !canManageUsers;
-    const addUser = document.getElementById('addUserButton');
-    if (addUser) addUser.hidden = !canManageUsers;
+    if (usersTab) usersTab.hidden = user.role !== 'admin';
+    if (usersPanel) usersPanel.hidden = user.role !== 'admin';
     window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
     if (user.role !== 'admin' && window.location.hash === '#configuracion') window.location.hash = '#dashboard';
   }
@@ -131,8 +109,6 @@
 
   window.PanaderiaAuthReady = (async () => {
     try {
-      // Recovery must take precedence over an existing or stale browser session.
-      if (recoveryToken) { showRecovery(); return null; }
       const current = await api('/api/auth/me');
       if (current.authenticated && current.user) { establish(current.user); return current.user; }
       const status = await api('/api/auth/status');
@@ -141,9 +117,7 @@
       else showLogin();
       return null;
     } catch (error) {
-      const message = error && error.message ? error.message : 'Error de red desconocido.';
-      console.error('Panadería auth initialization failed:', error);
-      showLogin(message.includes('Failed to fetch') || message.includes('NetworkError') ? 'No se pudo alcanzar la API. El servidor web responde, pero la ruta /api no está respondiendo. Probá recargar en unos segundos.' : 'Error de autenticación: ' + message);
+      showLogin('No se pudo conectar con el servidor. Verificá la conexión y volvé a cargar la página.');
       return null;
     }
   })();
