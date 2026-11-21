@@ -59,6 +59,7 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
 }
 const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 requireContract(Array.isArray(vercelConfig.rewrites) && vercelConfig.rewrites.some(rule => rule.source === "/api/:first/:rest+" && String(rule.destination).includes("__route_path")), "Vercel debe reenviar rutas API anidadas a la función central sin crear funciones adicionales.");
+requireContract(Array.isArray(vercelConfig.headers) && vercelConfig.headers.some(rule => rule.source === "/(.*)" && ["X-Content-Type-Options","X-Frame-Options","Referrer-Policy","Strict-Transport-Security","Permissions-Policy"].every(key => rule.headers.some(header => header.key === key))), "todas las respuestas deben incluir encabezados HTTP de seguridad del navegador.");
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
 if (!html.includes('/js/runtime-enhancements.js')) throw new Error('La interfaz no carga el diagnóstico de conexión y mejoras responsive.');
