@@ -158,7 +158,12 @@ const publicUser = u => ({
 });
 
 async function handleRequest(req, res) {
-  const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
+  const requestUrl = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
+  const routedPath = requestUrl.searchParams.get('__route_path');
+  const routePrefix = requestUrl.pathname;
+  const path = routedPath && routedPath.startsWith(routePrefix + '/') && !routedPath.split('/').includes('..')
+    ? routedPath
+    : requestUrl.pathname;
   try {
     if(path==='/api/support/tickets'){
       const user=await authenticated(req,res,false);if(!user)return;
