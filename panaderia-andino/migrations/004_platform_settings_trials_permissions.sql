@@ -19,6 +19,8 @@ INSERT INTO app_license_settings(setting_key,currency_mode,billing_mode,trial_en
 VALUES ('default','both','both',TRUE,7,'manual',3)
 ON CONFLICT (setting_key) DO NOTHING;
 ALTER TABLE app_license_payments ALTER COLUMN amount TYPE numeric;
+ALTER TABLE app_sale_items ADD COLUMN IF NOT EXISTS unit_cost numeric NOT NULL DEFAULT 0;
+ALTER TABLE app_sale_items ADD CONSTRAINT app_sale_items_unit_cost_check CHECK (unit_cost >= 0);
 ALTER TABLE app_licenses
   ALTER COLUMN setup_amount TYPE numeric,
   ALTER COLUMN monthly_amount TYPE numeric,
