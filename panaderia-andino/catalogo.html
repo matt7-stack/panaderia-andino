@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es-PY">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#6d422b">
+  <meta name="description" content="Consultá los productos y su disponibilidad.">
+  <title>Catálogo de la negocio</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#33271f;background:#f7f4ef;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh}
+    .top{background:#6d422b;color:white;padding:30px 20px 28px;text-align:center}
+    .top small{display:block;opacity:.8;font-size:11px;letter-spacing:2px;text-transform:uppercase}
+    h1{font-family:Georgia,serif;font-size:clamp(27px,5vw,38px);margin:8px 0}
+    .top p{margin:0;color:#f0e5dc;font-size:13px}
+    main{max-width:1080px;margin:0 auto;padding:25px 18px 48px}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;color:#76695f;font-size:12px}
+    .toolbar button{border:1px solid #ded4c9;background:white;color:#65442e;border-radius:8px;padding:8px 11px;font-weight:650;cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+    .item{background:white;border:1px solid #ece5dc;border-radius:13px;padding:17px;box-shadow:0 4px 18px #51351b0a;min-height:145px;display:flex;flex-direction:column;gap:8px}
+    .item h2{font-size:16px;line-height:1.35;margin:0;color:#3c2e24}
+    .category{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#9a7c63;font-weight:750}
+    .description{font-size:12px;color:#776c63;line-height:1.5;margin:0;flex:1}
+    .price{font-weight:800;color:#67432c;font-size:14px}
+    .available{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:750;color:#2e7a4b}
+    .available:before{content:"";width:7px;height:7px;border-radius:50%;background:#39a363}
+    .item.unavailable{background:#f0f0f0;border-color:#e5e5e5;box-shadow:none;filter:grayscale(1)}
+    .item.unavailable h2,.item.unavailable .description,.item.unavailable .category,.item.unavailable .price{color:#9a9a9a}
+    .unavailable-label{font-size:10px;color:#888;font-weight:700;letter-spacing:.2px}
+    .empty,.error,.loading{background:white;border:1px solid #ece5dc;border-radius:12px;padding:30px;text-align:center;color:#776c63;font-size:13px}
+    footer{text-align:center;padding:20px;color:#a09388;font-size:10px}
+    @media(max-width:520px){main{padding:18px 12px 36px}.grid{grid-template-columns:1fr 1fr;gap:9px}.item{padding:13px;min-height:140px}.item h2{font-size:14px}}
+    @media(max-width:360px){.grid{grid-template-columns:1fr}}
+  
+/* Ajustes móviles para catálogo público */
+@media(max-width:520px){
+  html,body{width:100%;max-width:100%;overflow-x:clip}
+  .top{padding:24px 14px 22px}
+  .top p{line-height:1.5;overflow-wrap:anywhere}
+  main{width:100%;max-width:100%;padding:16px 12px 32px}
+  .toolbar{align-items:flex-start;flex-wrap:wrap;gap:9px}
+  .toolbar>*{min-width:0;max-width:100%}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .item{min-width:0;max-width:100%;padding:12px;overflow-wrap:anywhere}
+  .item h2,.description,.price{overflow-wrap:anywhere}
+}
+@media(max-width:360px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .item{min-height:0;padding:14px}
+}
+
+</style>
+</head>
+<body>
+  <header class="top">
+    <small>Catálogo</small>
+    <h1 id="businessName">Cargando…</h1>
+    <p id="businessContact">Productos y disponibilidad</p>
+  </header>
+  <main>
+    <div class="toolbar"><span id="catalogStatus">Consultando disponibilidad…</span><button type="button" id="refreshCatalog">Actualizar</button></div>
+    <section class="grid" id="catalogGrid" aria-live="polite"></section>
+    <div id="catalogMessage" class="loading">Cargando catálogo…</div>
+  </main>
+  <footer>Disponibilidad sujeta a cambios durante el día.</footer>
+<script>
+(() => {
+  const params=new URLSearchParams(location.search);
+  const businessId=params.get('businessId');
+  const grid=document.getElementById('catalogGrid');
+  const message=document.getElementById('catalogMessage');
+  const status=document.getElementById('catalogStatus');
+  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const money=value=>'Gs. '+new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(Number(value)||0);
+  let loading=false;
+  async function loadCatalog(){
+    if(loading)return;loading=true;
+    if(!businessId){message.className='error';message.textContent='El enlace del catálogo no es válido.';grid.innerHTML='';loading=false;return;}
+    try{
+      const response=await fetch('/api/data?catalogBusinessId='+encodeURIComponent(businessId),{cache:'no-store'});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'No se pudo cargar el catálogo.');
+      document.title=result.business.name+' | Catálogo';
+      document.getElementById('businessName').textContent=result.business.name;
+      document.getElementById('businessContact').textContent=[result.business.address,result.business.phone].filter(Boolean).join(' · ')||'Productos y disponibilidad';
+      const products=Array.isArray(result.products)?result.products:[];
+      grid.innerHTML=products.map(product=>{
+        const available=product.available===true;
+        return '<article class="item '+(available?'':'unavailable')+'">'+
+          (product.category?'<span class="category">'+esc(product.category)+'</span>':'')+
+          '<h2>'+esc(product.name)+'</h2>'+
+          (product.description?'<p class="description">'+esc(product.description)+'</p>':'<span class="description"></span>')+
+          (Number(product.price)>0?'<div class="price">'+money(product.price)+'</div>':'')+
+          (available?'<span class="available">En stock</span>':'<small class="unavailable-label">Sin stock</small>')+
+          '</article>';
+      }).join('');
+      message.className=products.length?'loading':'empty';
+      message.textContent=products.length?'':'Todavía no hay productos publicados en este catálogo.';
+      message.style.display=products.length?'none':'block';
+      status.textContent='Actualizado: '+new Intl.DateTimeFormat('es-PY',{hour:'2-digit',minute:'2-digit'}).format(new Date())+' · Se actualiza automáticamente';
+    }catch(error){
+      if(!grid.children.length){message.className='error';message.textContent=error.message;}
+      status.textContent='No se pudo actualizar. Volvé a intentarlo.';
+    }finally{loading=false;}
+  }
+  document.getElementById('refreshCatalog').addEventListener('click',loadCatalog);
+  loadCatalog();
+  setInterval(loadCatalog,15000);
+})();
+</script>
+</body>
+</html>
