@@ -815,16 +815,9 @@ module.exports = async function handler(req, res) {
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
-      const sql=db();
-      let businessId=String(req.headers['x-business-id']||'');
-      if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay negocios registrados.'});
-      const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
-      const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
-      const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
-      const serialized=JSON.stringify(data);
-      const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${admin.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-      return send(res,200,{ok:true,data,updatedAt:saved[0]?.updated_at||null});
+      // La limpieza anterior solo vaciaba app_state y dejaba intactos los módulos ERP normalizados.
+      // Se bloquea hasta implementar una limpieza integral, transaccional y con respaldo verificable.
+      return send(res,409,{error:'La limpieza integral está temporalmente deshabilitada para proteger los datos. Los registros del negocio no fueron modificados.'});
     }
 
     if (path === '/api/business/erp') {
