@@ -239,6 +239,35 @@ module.exports = async function handler(req, res) {
       const refreshed=await currentUser(req);
       return send(res,200,{ok:true,message:'Licencia activada correctamente.',user:publicUser(refreshed)});
     }
+    if(path==='/api/admin/licenses/trial'){
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const businessId=String(body(req).businessId||'').trim();
+      if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
+      const sql=db();
+      const business=await sql`SELECT id,name,active FROM businesses WHERE id=${businessId} LIMIT 1`;
+      if(!business.length||business[0].active!==true)return send(res,404,{error:'El negocio no existe o está inactivo.'});
+      const existing=await sql`SELECT id,is_trial,status FROM app_licenses WHERE business_id=${businessId} ORDER BY created_at DESC,id DESC LIMIT 1`;
+      if(existing.length)return send(res,409,{error:existing[0].is_trial===true?'Este negocio ya utilizó su prueba gratuita.':'Este negocio ya tiene una licencia registrada. No se puede iniciar una prueba gratuita encima de ella.'});
+      const settings=await sql`SELECT trial_enabled,trial_days,device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+      if(!settings.length||settings[0].trial_enabled!==true)return send(res,409,{error:'La prueba gratuita está deshabilitada en la configuración de MattSystem.'});
+      const trialDays=Math.max(1,Number(settings[0].trial_days)||7);
+      const systemName=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const code='TRIAL-'+businessId.replace(/-/g,'').slice(0,12).toUpperCase();
+      const rows=await sql`INSERT INTO app_licenses(
+        business_id,license_code,system_name,plan,status,sold_at,expires_at,
+        setup_amount,monthly_amount,billing_day,notes,created_by,is_trial,
+        trial_started_at,trial_days,device_limit,user_limit
+      ) VALUES(
+        ${businessId},${code},${systemName},'basic','active',CURRENT_DATE,
+        CURRENT_DATE+${trialDays}-1,0,0,1,${'Prueba gratuita iniciada manualmente por '+trialDays+' días.'},
+        ${admin.id},TRUE,NOW(),${trialDays},${Number(settings[0].device_limit)||3},1
+      ) RETURNING *`;
+      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+        VALUES(${businessId},${admin.id},'license.trial_started','license',${rows[0].id},${JSON.stringify({trialDays,plan:'basic'})}::jsonb)`;
+      return send(res,201,{license:rows[0],message:'Prueba gratuita iniciada correctamente.'});
+    }
     if(path==='/api/admin/licenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
@@ -540,7 +569,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
-        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial===true; const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         const id=crypto.randomUUID();
@@ -553,24 +582,6 @@ module.exports = async function handler(req, res) {
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
           SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug})}::jsonb FROM created RETURNING id
-        ), trial_created AS (
-          INSERT INTO app_licenses(
-            business_id,license_code,system_name,plan,status,sold_at,expires_at,
-            setup_amount,monthly_amount,billing_day,notes,created_by,
-            is_trial,trial_started_at,trial_days,device_limit,user_limit
-          )
-          SELECT
-            created.id,
-            'TRIAL-' || UPPER(SUBSTRING(REPLACE(created.id::text,'-','') FROM 1 FOR 12)),
-            ${licenseSystem},'basic','active',CURRENT_DATE,
-            CURRENT_DATE + GREATEST(1,settings.trial_days) - 1,
-            0,0,1,'Prueba gratuita automática de ' || settings.trial_days || ' días.',
-            ${admin.id},TRUE,NOW(),GREATEST(1,settings.trial_days),
-            settings.device_limit,1
-          FROM created
-          CROSS JOIN app_license_settings settings
-          WHERE settings.setting_key='default' AND settings.trial_enabled=TRUE AND ${startTrial}=TRUE
-          RETURNING id
         )
         SELECT * FROM created`;
         return send(res,201,{business:rows[0]});
