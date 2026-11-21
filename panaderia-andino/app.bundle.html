@@ -847,6 +847,46 @@ img,svg,canvas,video{max-width:100%}
   .page-view .table-actions > .btn,
   .page-view .table-actions > button { min-height:36px; padding:7px 8px; font-size:10.5px; }
 }
+
+/* Botones de formularios administrativos: evitar que flex los estire a toda la altura disponible. */
+#page-admin-support #adminSupportSettingsForm .form-actions,
+#page-admin-notificaciones #adminNotificationForm .form-actions {
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  gap:10px;
+}
+#page-admin-support #adminSupportSettingsForm .form-actions > .btn,
+#page-admin-notificaciones #adminNotificationForm .form-actions > .btn {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  min-height:42px;
+  height:auto;
+  padding:10px 16px;
+  line-height:1.25;
+  white-space:normal;
+}
+@media(max-width:767.98px) {
+  #page-admin-support #adminSupportSettingsForm .form-actions,
+  #page-admin-notificaciones #adminNotificationForm .form-actions {
+    flex-direction:row;
+    align-items:center;
+  }
+  #page-admin-support #adminSupportSettingsForm .form-actions > .btn,
+  #page-admin-notificaciones #adminNotificationForm .form-actions > .btn {
+    flex:0 1 auto;
+    width:auto;
+    min-height:42px;
+    padding:10px 14px;
+  }
+}
+
 </style>
 </head>
 <body>
