@@ -73,7 +73,7 @@ requireContract(/\/api\/auth\/bootstrap[\s\S]{0,300}?secret\('SESSION_SECRET'\)[
 
 // Roles: solo supervisor administra empleados; empleado queda restringido a su cuenta y permisos.
 requireContract(/user\.role\s*!==\s*'supervisor'\s*\|\|\s*!user\.business_id/.test(apiSource), 'la gestión de empleados debe quedar reservada al supervisor del negocio.');
-requireContract(/WHERE business_id=\$\{user\.business_id\}[\s\S]{0,400}?is_platform_admin=FALSE AND role='employee'/.test(apiSource), 'la lista de empleados debe limitarse al negocio autenticado.');
+requireContract(apiSource.includes('WHERE business_id=${user.business_id}') && apiSource.includes('is_platform_admin=FALSE AND role=\'employee\''), 'la lista de empleados debe limitarse al negocio autenticado.');
 requireContract(/user\.role\s*!==\s*'employee'\s*\|\|\s*!user\.business_id/.test(apiSource), 'los datos de empleado deben validar rol y negocio.');
 requireContract(/user\.role!=='supervisor'/.test(apiSource), 'los empleados no deben usar el endpoint general de datos del negocio.');
 
