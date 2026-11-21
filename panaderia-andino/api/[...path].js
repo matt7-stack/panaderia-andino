@@ -913,9 +913,16 @@ module.exports = async function handler(req, res) {
             ), stock_check AS (
               SELECT NOT EXISTS (SELECT 1 FROM (SELECT x.product_id::uuid AS product_id,SUM(x.quantity) AS quantity FROM jsonb_to_recordset(${payloadJson}::jsonb) AS x(product_id text,quantity numeric) WHERE x.product_id IS NOT NULL GROUP BY x.product_id) requested
                 LEFT JOIN locked_products lp ON lp.id=requested.product_id WHERE lp.id IS NULL OR lp.stock<requested.quantity) AS ok
+            ), open_cash AS MATERIALIZED (
+              SELECT id FROM app_cash_sessions
+              WHERE business_id=${businessId} AND status='open'
+              ORDER BY opened_at DESC LIMIT 1 FOR UPDATE
             ), sale AS (
               INSERT INTO app_sales(business_id,customer_id,sale_number,status,subtotal,discount,total,payment_method,notes,actor_user_id)
-              SELECT ${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${paymentMethod},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM stock_check WHERE ok RETURNING id
+              SELECT ${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${paymentMethod},${String(input.notes||'').slice(0,1000)||null},${user.id}
+              FROM stock_check
+              WHERE ok AND (lower(COALESCE(${paymentMethod},'')) NOT IN ('efectivo','cash') OR EXISTS(SELECT 1 FROM open_cash))
+              RETURNING id
             ), item_rows AS (
               INSERT INTO app_sale_items(business_id,sale_id,product_id,description,quantity,unit_price,unit_cost,line_total)
               SELECT ${businessId},sale.id,NULLIF(x.product_id,'')::uuid,x.description,x.quantity,x.unit_price,x.unit_cost,x.quantity*x.unit_price
@@ -931,11 +938,11 @@ module.exports = async function handler(req, res) {
             ), cash AS (
               INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
               SELECT ${businessId},cs.id,'income','Ventas','Venta '||${saleNumber},${total},${paymentMethod},${saleNumber},${user.id}
-              FROM sale JOIN app_cash_sessions cs ON cs.business_id=${businessId} AND cs.status='open'
+              FROM sale JOIN open_cash cs ON TRUE
               WHERE lower(COALESCE(${paymentMethod},'')) IN ('efectivo','cash') RETURNING id
             )
             SELECT sale.id,stock_check.ok FROM stock_check LEFT JOIN sale ON TRUE`;
-          if(!rows[0]?.id)return send(res,409,{error:'No se pudo registrar la venta: el stock cambió o no hay existencias suficientes.'});
+          if(!rows[0]?.id)return send(res,409,{error:'No se pudo registrar la venta: verificá el stock y, si fue en efectivo, que exista una caja abierta.'});
           return send(res,201,{saleId:rows[0].id,saleNumber,subtotal,discount,total});
         }
         if (module === 'purchases') {
@@ -1055,7 +1062,10 @@ module.exports = async function handler(req, res) {
             cash_refund AS (INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
               SELECT ${businessId},cs.id,'expense','Anulación de venta','Devolución de venta '||c.sale_number,c.total,c.payment_method,c.sale_number,${user.id}
               FROM cancelled c JOIN app_cash_sessions cs ON cs.business_id=${businessId} AND cs.status='open'
-              WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id)
+              WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id),
+            refund_entry AS (INSERT INTO app_financial_entries(business_id,entry_type,category,description,amount,payment_method,reference,paid_at,actor_user_id)
+              SELECT ${businessId},'expense','Anulación de venta','Devolución de venta '||c.sale_number,c.total,c.payment_method,c.sale_number,NOW(),${user.id}
+              FROM cancelled c WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id)
             SELECT id FROM cancelled`;
           if(!rows.length)return send(res,404,{error:'Venta no encontrada o ya anulada.'});return send(res,200,{ok:true});
         }
