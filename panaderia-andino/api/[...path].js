@@ -693,7 +693,7 @@ module.exports = async function handler(req, res) {
       const admin = await authenticated(req,res,true); if (!admin) return;
       const sql = db();
       if (req.method === 'GET') {
-        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='user' AND t.entity_id=u.id::text AND t.restored_at IS NULL) ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
+        const rows = await sql`SELECT u.id,u.name,u.email,u.role,u.active,u.business_id,u.is_platform_admin,u.created_at,b.name AS business_name FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='user' AND t.entity_id=u.id::text AND t.restored_at IS NULL) AND (u.business_id IS NULL OR NOT EXISTS (SELECT 1 FROM app_trash bt WHERE bt.entity_type='business' AND bt.entity_id=u.business_id::text AND bt.restored_at IS NULL)) ORDER BY u.is_platform_admin DESC,u.created_at ASC`;
         return send(res,200,{users:rows.map(publicUser)});
       }
       if (req.method === 'POST') {
