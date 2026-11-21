@@ -22,6 +22,7 @@ const requiredFiles = [
   'migrations/006_operational_integrity_and_tenant_constraints.sql',
   'migrations/007_employee_license_limit_guard.sql',
   'migrations/009_signed_tenant_context.sql',
+  'migrations/010_auth_admin_rls.sql',
 ];
 
 for (const relative of requiredFiles) {
@@ -79,6 +80,11 @@ const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/009_s
 requireContract(apiSource.includes('TENANT_CONTEXT_SECRET') && apiSource.includes('app.context_signature') && apiSource.includes("crypto.createHmac('sha256'"), 'el contexto de tenant enviado a PostgreSQL debe estar firmado con HMAC.');
 requireContract(signedContextMigration.includes('tenant_context_is_valid') && signedContextMigration.includes('public.hmac') && signedContextMigration.includes('SECURITY DEFINER'), 'PostgreSQL debe verificar la firma HMAC antes de confiar en el contexto RLS.');
 requireContract(signedContextMigration.includes('REVOKE ALL ON app_private.tenant_context_secret FROM PUBLIC, mattsystem_app'), 'el rol de aplicación no debe poder leer el secreto HMAC.');
+const authRlsMigration = fs.readFileSync(path.join(root, 'migrations/010_auth_admin_rls.sql'), 'utf8');
+requireContract(authRlsMigration.includes('app_auth_user_by_id') && authRlsMigration.includes('app_auth_user_by_email') && authRlsMigration.includes('SECURITY DEFINER'), 'el login y la sesión deben consultar identidad mediante funciones protegidas.');
+requireContract(authRlsMigration.includes('ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.app_licenses ENABLE ROW LEVEL SECURITY'), 'usuarios, negocios y licencias deben tener RLS habilitado.');
+requireContract(authRlsMigration.includes('ALTER TABLE public.app_admin_setup_tokens ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.admin_password_resets ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY'), 'tokens y esquema interno deben quedar cerrados al rol de aplicación.');
+requireContract(apiSource.includes('app_auth_user_by_id') && apiSource.includes('app_auth_user_by_email') && apiSource.includes('app_auth_claim_setup_token'), 'las rutas de autenticación deben utilizar funciones protegidas y no leer tablas sensibles directamente.');
 
 // Sesiones: firma segura, cookie HttpOnly/Secure y revocación por session_version.
 requireContract(/HttpOnly; Secure; SameSite=Lax/.test(apiSource), 'la cookie de sesión debe ser HttpOnly, Secure y SameSite=Lax.');
