@@ -887,6 +887,22 @@ img,svg,canvas,video{max-width:100%}
           <div class="summary-grid three-cards"><article class="summary-card income-card"><p class="summary-label">Empleados activos</p><h2 id="employeeCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Pagos registrados este mes</p><h2 id="employeePayrollTotal">Gs. 0</h2></article><article class="summary-card pending-card"><p class="summary-label">Pagos históricos</p><h2 id="employeePaymentsCount">0</h2></article></div>
           <section class="panel table-panel"><div class="panel-heading p-3 mb-0"><div><h3>Personal</h3><p>Salario/jornal de referencia y estado de cada empleado.</p></div></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>EMPLEADO</th><th>CARGO</th><th>MONTO BASE</th><th>FRECUENCIA</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="employeesTableBody"></tbody></table></div></section>
           <section class="panel table-panel mt-3"><div class="panel-heading p-3 mb-0"><div><h3>Historial de pagos</h3><p>Cada pago se registra una sola vez como gasto en el control financiero.</p></div></div><div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>EMPLEADO</th><th>CONCEPTO</th><th>MÉTODO</th><th class="text-end">IMPORTE</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="employeePaymentsTableBody"></tbody></table></div></section>
+          <section class="panel settings-card mt-3" id="supervisorEmployeeAccounts" hidden>
+            <div class="panel-heading"><div><h3><i class="bi bi-person-lock"></i> Cuentas de empleados</h3><p>Creá accesos individuales y elegí exactamente qué módulos puede utilizar cada empleado.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessEmployees">Actualizar</button></div>
+            <div class="info-note mb-3" id="businessEmployeeLimit">Consultando el límite de usuarios de tu licencia…</div>
+            <form id="businessEmployeeCreateForm" class="settings-form">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label" for="businessEmployeeName">Nombre completo</label><input class="form-control" id="businessEmployeeName" maxlength="70" required></div>
+                <div class="col-md-4"><label class="form-label" for="businessEmployeeEmail">Correo de acceso</label><input class="form-control" id="businessEmployeeEmail" type="email" maxlength="254" required></div>
+                <div class="col-md-4"><label class="form-label" for="businessEmployeePassword">Contraseña inicial</label><input class="form-control" id="businessEmployeePassword" type="password" minlength="12" maxlength="200" autocomplete="new-password" required><small class="text-muted">Mínimo 12 caracteres.</small></div>
+              </div>
+              <div class="mt-3"><strong class="d-block mb-2">Permisos iniciales</strong><div id="businessEmployeeCreatePermissions" class="row g-2"></div></div>
+              <div class="form-actions mt-3"><button class="btn btn-bakery" type="submit" id="businessEmployeeCreateButton"><i class="bi bi-person-plus"></i> Crear cuenta de empleado</button></div>
+            </form>
+            <div class="divider my-4"></div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"><h3 class="mb-0">Empleados con acceso al sistema</h3><small class="text-muted">Los cambios de permisos revocan sus sesiones anteriores.</small></div>
+            <div id="businessEmployeeAccountsList"><p class="text-muted mb-0">Cargando cuentas…</p></div>
+          </section>
         </section>
 
         <!-- ADMINISTRACIÓN -->
@@ -1417,7 +1433,12 @@ img,svg,canvas,video{max-width:100%}
       const page = link.dataset.pageLink;
       const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
       const businessPages = ['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
-      link.hidden = platformAdmin ? !adminPages.includes(page) : ['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page);
+      const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
+      const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
+        (page === 'movimientos' && (employeePermissions['cash.view'] === true || employeePermissions['cash.manage'] === true)) ||
+        (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => employeePermissions[key] === true)) ||
+        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true));
+      link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
     ['adminLicensesNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
@@ -1565,7 +1586,8 @@ img,svg,canvas,video{max-width:100%}
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
           try {
-            const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const endpoint = window.PanaderiaAuth.user?.role === 'employee' ? '/api/business/employee-data' : '/api/data';
+            const saved = await window.PanaderiaAuth.api(endpoint, { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
             cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
@@ -1626,6 +1648,14 @@ img,svg,canvas,video{max-width:100%}
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
+    if (currentUser?.role === 'employee') {
+      const p = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
+      const allowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
+        (page === 'movimientos' && (p['cash.view'] === true || p['cash.manage'] === true)) ||
+        (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => p[key] === true)) ||
+        (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => p[key] === true));
+      if (!allowed) return;
+    }
     const platformPages=['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
@@ -2692,7 +2722,8 @@ img,svg,canvas,video{max-width:100%}
 
   async function refreshCloudData() {
     if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
-    try { const result = await window.PanaderiaAuth.api('/api/data');
+    try { const endpoint = window.PanaderiaAuth.user?.role === 'employee' ? '/api/business/employee-data' : '/api/data';
+      const result = await window.PanaderiaAuth.api(endpoint);
       if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
     } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
@@ -2736,8 +2767,10 @@ img,svg,canvas,video{max-width:100%}
       if (user.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) {
         await refreshCloudBusinesses();
       }
-      const result = await window.PanaderiaAuth.api('/api/data');
+      const endpoint = user.role === 'employee' ? '/api/business/employee-data' : '/api/data';
+      const result = await window.PanaderiaAuth.api(endpoint);
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
+      else if (user.role === 'employee') { state = createEmptyState(); cloudUpdatedAt = null; }
       else {
         if (user.isPlatformAdmin === true && loadSelectedBusiness) throw new Error('No se encontraron datos guardados para este negocio. Por seguridad, no se creó información nueva.');
         const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null;
@@ -2992,5 +3025,5 @@ img,svg,canvas,video{max-width:100%}
    .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
 })();
-</script></body>
+</script><script src="/employee-access.js" defer></script></body>
 </html>
