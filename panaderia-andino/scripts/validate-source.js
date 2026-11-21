@@ -96,7 +96,7 @@ requireContract(/EXISTS\(SELECT 1 FROM open_cash\)/.test(apiSource), 'no deben r
 requireContract(/refund_entry AS \(INSERT INTO app_financial_entries/.test(apiSource), 'la anulación de una venta en efectivo debe quedar reflejada en los informes financieros.');
 
 // Un permiso de operación no concede automáticamente acceso al historial financiero.
-requireContract(/purchases:\['purchases\\.view'\]/.test(apiSource), 'el historial de compras requiere purchases.view.');
+requireContract(apiSource.includes("purchases:['purchases.view']"), 'el historial de compras requiere purchases.view.');
 requireContract(/if \(canAny\(\['purchases\.view','reports\.view'\]\)\) data\.purchases/.test(apiSource), 'los empleados sin permiso de consulta no deben recibir el historial de compras.');
 requireContract(/if \(canAny\(\['cash\.view','reports\.view'\]\)\) data\.movements/.test(apiSource), 'los empleados sin permiso de consulta no deben recibir el historial de caja.');
 requireContract(/can\('cash\.view'\)\s*\?\s*sql`SELECT \* FROM app_cash_sessions[\s\S]{0,220}?status='open'/.test(apiSource), 'sin cash.view solo se puede consultar la sesión abierta necesaria para operar.');
