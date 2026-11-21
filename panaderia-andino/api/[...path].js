@@ -1013,19 +1013,23 @@ module.exports = async function handler(req, res) {
           if(!rows.length)return send(res,404,{error:'Proveedor no encontrado.'});return send(res,200,{supplier:rows[0]});
         }
         if(module==='sales'&&input.action==='cancel'&&can('sales.cancel')){
-          const rows=await sql`WITH cancelled AS (UPDATE app_sales SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='completed' RETURNING id),
-            items AS (SELECT product_id,quantity,unit_cost FROM app_sale_items WHERE business_id=${businessId} AND sale_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL),
+          const rows=await sql`WITH cancelled AS (UPDATE app_sales SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='completed' RETURNING id,sale_number,total,payment_method),
+            items AS (SELECT product_id,SUM(quantity) AS quantity,CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END AS unit_cost FROM app_sale_items WHERE business_id=${businessId} AND sale_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL GROUP BY product_id),
             stock AS (UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
-            movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,'Anulación de venta '||${id},${user.id} FROM items i RETURNING id)
+            movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,'Anulación de venta '||${id},${user.id} FROM items i RETURNING id),
+            cash_refund AS (INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              SELECT ${businessId},cs.id,'expense','Anulación de venta','Devolución de venta '||c.sale_number,c.total,c.payment_method,c.sale_number,${user.id}
+              FROM cancelled c JOIN app_cash_sessions cs ON cs.business_id=${businessId} AND cs.status='open'
+              WHERE lower(COALESCE(c.payment_method,'')) IN ('efectivo','cash') AND c.total>0 RETURNING id)
             SELECT id FROM cancelled`;
           if(!rows.length)return send(res,404,{error:'Venta no encontrada o ya anulada.'});return send(res,200,{ok:true});
         }
         if(module==='purchases'&&input.action==='cancel'&&can('purchases.create')){
-          const items=await sql`SELECT product_id,quantity,unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id=${id} AND product_id IS NOT NULL`;
+          const items=await sql`SELECT product_id,SUM(quantity) AS quantity,CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END AS unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id=${id} AND product_id IS NOT NULL GROUP BY product_id`;
           const productIds=[...new Set(items.map(item=>String(item.product_id)))];
           if(productIds.length){const products=await sql`SELECT id,stock,name FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`;const available=new Map(products.map(p=>[String(p.id),Number(p.stock||0)]));for(const item of items){if((available.get(String(item.product_id))||0)<Number(item.quantity))return send(res,409,{error:'No se puede anular: el stock comprado ya fue utilizado.'});}}
           const rows=await sql`WITH cancelled AS (UPDATE app_purchases SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='received' RETURNING id),
-            purchase_items AS (SELECT product_id,quantity,unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL),
+            purchase_items AS (SELECT product_id,SUM(quantity) AS quantity,CASE WHEN SUM(quantity)>0 THEN SUM(quantity*unit_cost)/SUM(quantity) ELSE 0 END AS unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL GROUP BY product_id),
             stock AS (UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW() FROM purchase_items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
             movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,'Anulación de compra '||${id},${user.id} FROM purchase_items i RETURNING id)
             SELECT id FROM cancelled`;
