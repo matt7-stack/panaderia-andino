@@ -110,7 +110,7 @@ requireContract(/path===\'\/api\/licenses\/activate\'[\s\S]{0,900}?currentUser\(
 requireContract(/user\.is_platform_admin===true\|\|!user\.business_id\|\|!\['admin','supervisor'\]\.includes\(user\.role\)/.test(apiSource), 'solo el administrador o supervisor del negocio puede activar la licencia.');
 requireContract(/business_id=\$\{user\.business_id\}[\s\S]{0,220}?UPPER\(BTRIM\(license_code\)\)=\$\{code\}/.test(apiSource), 'el código debe pertenecer al negocio autenticado.');
 requireContract(/is_trial=FALSE AND status IN \('pending','active','expired'\)/.test(apiSource), 'la activación no debe convertir una prueba gratuita, suspensión o cancelación en licencia comercial.');
-requireContract(/app_login_attempts[\s\S]{0,450}?license:'\+user\.id/.test(apiSource), 'los intentos de activación deben tener protección contra fuerza bruta.');
+requireContract(apiSource.includes("attemptKey='license:'+user.id") && apiSource.includes('app_login_attempts'), 'los intentos de activación deben tener protección contra fuerza bruta.');
 requireContract(html.includes('function showLicenseActivation') && html.includes('/api/licenses/activate'), 'el usuario debe poder ingresar su licencia después del inicio de sesión.');
 requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'una licencia vencida o pendiente debe mostrar la pantalla de activación, no volver al login.');
 requireContract(/Solo el administrador o supervisor del negocio puede activar la licencia/.test(html), 'los empleados deben ser dirigidos a su supervisor para activar la licencia.');
