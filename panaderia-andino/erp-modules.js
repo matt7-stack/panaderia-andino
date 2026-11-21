@@ -156,7 +156,7 @@
       if(module==='purchases'&&canModule('suppliers')&&!cache.suppliers)jobs.push(api('suppliers').then(result=>{cache.suppliers=result;}));
       await Promise.all(jobs);
       content.innerHTML=renderModule(module,cache[module]||{});
-    }catch(error){content.innerHTML='<div class="alert alert-danger">'+esc(error.message||'No se pudo cargar el módulo.')+'</div>';}
+    }catch(error){console.error('Falló la carga del módulo operativo:',{module,error});content.innerHTML='<div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2"><span>'+esc(error.message||'No se pudo cargar el módulo.')+'</span><button class="btn btn-outline-danger btn-sm" type="button" data-erp-retry>Reintentar</button></div>';}
   }
   function activate(user){
     if(!ensureUi())return;
@@ -204,6 +204,7 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
+    if(event.target.closest('[data-erp-retry]')){loadModule(currentModule);return;}
     const add=event.target.closest('[data-erp-add-row]');
     if(add){const kind=add.dataset.erpAddRow,container=$(kind==='sale'?'#erpSaleItems':kind==='purchase'?'#erpPurchaseItems':'#erpRecipeIngredients');if(container)container.insertAdjacentHTML('beforeend',kind==='sale'?saleItemRow():kind==='purchase'?purchaseItemRow():recipeIngredientRow());return;}
     const removeRow=event.target.closest('[data-erp-remove-row]');
