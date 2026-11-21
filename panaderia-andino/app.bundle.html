@@ -735,6 +735,47 @@ img,svg,canvas,video{max-width:100%}
   .page-view .table-actions .btn { flex:0 1 auto; }
   .page-view .panel-heading { align-items:flex-start; }
 }
+
+/* Compactar controles de Notificaciones, Seguridad y Soporte en móviles */
+@media (max-width: 767.98px) {
+  #page-notificaciones .page-heading > .btn,
+  #page-notificaciones #notificationsList button,
+  #page-seguridad .page-heading > .btn,
+  #page-seguridad .panel button,
+  #page-seguridad .table-actions .btn {
+    box-sizing: border-box;
+    min-height: 34px !important;
+    height: auto;
+    width: auto;
+    max-width: 100%;
+    padding: 6px 9px !important;
+    font-size: 11px !important;
+    line-height: 1.2;
+    border-radius: 8px;
+  }
+  #page-notificaciones #notificationsList button,
+  #page-seguridad .table-actions .btn {
+    flex: 0 1 auto;
+    white-space: normal;
+  }
+  #page-notificaciones #notificationsList .panel,
+  #page-seguridad .panel {
+    min-width: 0;
+  }
+  #supportContactNav {
+    min-height: 38px;
+    height: auto;
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  #supportContactNav i {
+    flex: 0 0 16px;
+    width: 16px;
+    font-size: 15px;
+  }
+}
 </style>
 </head>
 <body>
