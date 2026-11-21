@@ -117,6 +117,9 @@ requireContract(/showLicenseActivation\(user, messages\[status\]/.test(html), 'u
 requireContract(/Solo el administrador o supervisor del negocio puede activar la licencia/.test(html), 'los empleados deben ser dirigidos a su supervisor para activar la licencia.');
 
 requireContract(html.includes("const link = event.target.closest('[data-page-link=\"erp\"]')") && html.includes("pageNavigate('erp')"), 'la navegación al módulo ERP agregado dinámicamente debe funcionar mediante delegación de eventos.');
+requireContract(/WITH active_license AS[\\s\\S]*employee_rows AS[\\s\\S]*employee_count AS/.test(apiSource), 'la consulta del límite de empleados debe resolverse en una sola consulta a Neon.');
+requireContract(employeeAccess.includes("setTimeout(resolve, 900)") && employeeAccess.includes("transient"), 'la consulta de empleados debe reintentar fallos transitorios de conexión una sola vez.');
+requireContract(employeeAccess.includes("error.message || 'Revisá la conexión"), 'la pantalla debe mostrar el error real de consulta en lugar de un mensaje genérico.');
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
 requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
