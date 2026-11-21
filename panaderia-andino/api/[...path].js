@@ -1101,7 +1101,7 @@ module.exports = async function handler(req, res) {
         return send(res,403,{error:'No tenés permiso para modificar este registro.'});
       }
       if (req.method === 'DELETE') {
-        const id=String(body(req).id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
+        const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
         if(module==='products'&&can('products.manage')){const rows=await sql`UPDATE app_products SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
         if(module==='customers'&&can('customers.manage')){const rows=await sql`UPDATE app_customers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
         if(module==='suppliers'&&can('suppliers.manage')){const rows=await sql`UPDATE app_suppliers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
