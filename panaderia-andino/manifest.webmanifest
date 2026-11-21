@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Mattsystem",
-  "short_name": "Mattsystem",
-  "description": "Sistema de gestión empresarial de Mattsystem",
+  "name": "Gestión de Negocio",
+  "short_name": "Gestión de Negocio",
+  "description": "Aplicación integral para la gestión de negocios",
   "lang": "es-PY",
   "start_url": "/app.bundle.html",
   "scope": "/",
