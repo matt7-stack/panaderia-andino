@@ -27,6 +27,7 @@ const requiredFiles = [
   'migrations/011_runtime_role_set_option.sql',
   'migrations/012_auth_audit_insert_policy.sql',
   'migrations/013_trial_acceptance_and_permanent_licenses.sql',
+  'migrations/014_lock_down_runtime_role.sql',
   'scripts/bootstrap-tenant-context-secret.js',
 ];
 
@@ -110,6 +111,8 @@ const rlsRoleMigration = fs.readFileSync(path.join(root, 'migrations/008_tenant_
 requireContract(rlsRoleMigration.includes('CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS') && rlsRoleMigration.includes('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES') && rlsRoleMigration.includes('WITH INHERIT FALSE, SET TRUE'), 'la migración RLS debe crear el rol de mínimo privilegio, conceder solo permisos operativos y permitir SET ROLE transaccional.');
 requireContract(rlsRoleMigration.includes('role_is_unsafe') && !rlsRoleMigration.includes('ALTER ROLE mattsystem_app') && rlsRoleMigration.includes('CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS'), 'la migración debe validar el rol sin requerir privilegios SUPERUSER para ALTER ROLE.');
 requireContract(signedContextMigration.includes('REVOKE ALL ON app_private.tenant_context_secret FROM PUBLIC, mattsystem_app'), 'el rol de aplicación no debe poder leer el secreto HMAC.');
+const runtimeLockdownMigration = fs.readFileSync(path.join(root, 'migrations/014_lock_down_runtime_role.sql'), 'utf8');
+requireContract(runtimeLockdownMigration.includes('ALTER ROLE mattsystem_app NOLOGIN NOINHERIT') && runtimeLockdownMigration.includes('NOBYPASSRLS') && runtimeLockdownMigration.includes('WITH INHERIT FALSE, SET TRUE'), 'el rol de runtime debe quedar sin login, sin herencia, sin superusuario ni BYPASSRLS y solo asumible mediante SET ROLE.');
 const authRlsMigration = fs.readFileSync(path.join(root, 'migrations/010_auth_admin_rls.sql'), 'utf8');
 requireContract(authRlsMigration.includes('app_auth_user_by_id') && authRlsMigration.includes('app_auth_user_by_email') && authRlsMigration.includes('SECURITY DEFINER'), 'el login y la sesión deben consultar identidad mediante funciones protegidas.');
 requireContract(authRlsMigration.includes('ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY') && authRlsMigration.includes('ALTER TABLE public.app_licenses ENABLE ROW LEVEL SECURITY'), 'usuarios, negocios y licencias deben tener RLS habilitado.');
