@@ -128,7 +128,7 @@ async function authenticated(req, res, adminOnly = false) {
     send(res, 403, {
       code: 'LICENSE_INACTIVE',
       error: messages[status] || 'La licencia de este negocio no está habilitada.',
-      license: { status, code: user.license_code || null, systemName: user.license_system_name || 'Mattsystem', expiresAt: user.license_expires_at || null }
+      license: { status, code: ['admin','supervisor'].includes(user.role) ? (user.license_code || null) : null, systemName: user.license_system_name || 'Mattsystem', expiresAt: ['admin','supervisor'].includes(user.role) ? (user.license_expires_at || null) : null }
     });
     return null;
   }
@@ -137,23 +137,24 @@ async function authenticated(req, res, adminOnly = false) {
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
+const canViewBusinessLicense = u => u.is_platform_admin !== true && ['admin','supervisor'].includes(u.role);
 const publicUser = u => ({
   id:u.id, name:u.name, email:u.email, role:u.role, active:u.active,
   businessId:u.business_id || null, businessName:u.business_name || null,
   permissions:u.permissions && typeof u.permissions==='object' ? u.permissions : {},
   isPlatformAdmin:u.is_platform_admin === true,
   license:u.is_platform_admin === true ? null : {
-    code:u.license_code || null,
+    code:canViewBusinessLicense(u) ? (u.license_code || null) : null,
     systemName:u.license_system_name || 'Mattsystem',
     status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
     valid:u.license_is_valid === true,
-    expiresAt:u.license_expires_at || null,
-    plan:u.license_plan || null,
-    isTrial:u.license_is_trial === true,
-    trialStartedAt:u.license_trial_started_at || null,
-    trialDays:u.license_trial_days == null ? null : Number(u.license_trial_days),
-    userLimit:u.license_user_limit == null ? null : Number(u.license_user_limit),
-    deviceLimit:u.license_device_limit == null ? null : Number(u.license_device_limit)
+    expiresAt:canViewBusinessLicense(u) ? (u.license_expires_at || null) : null,
+    plan:canViewBusinessLicense(u) ? (u.license_plan || null) : null,
+    isTrial:canViewBusinessLicense(u) && u.license_is_trial === true,
+    trialStartedAt:canViewBusinessLicense(u) ? (u.license_trial_started_at || null) : null,
+    trialDays:!canViewBusinessLicense(u) || u.license_trial_days == null ? null : Number(u.license_trial_days),
+    userLimit:!canViewBusinessLicense(u) || u.license_user_limit == null ? null : Number(u.license_user_limit),
+    deviceLimit:!canViewBusinessLicense(u) || u.license_device_limit == null ? null : Number(u.license_device_limit)
   },
   createdAt:u.created_at || u.createdAt
 });
