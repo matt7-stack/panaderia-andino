@@ -87,6 +87,7 @@ requireContract(html.includes('isPlatformAdmin !== true && ![\'admin\',\'supervi
 requireContract(/FOR UPDATE/.test(apiSource.slice(apiSource.indexOf("if (module === 'inventory')", apiSource.indexOf("if (req.method === 'POST')")))), 'los movimientos de inventario deben bloquear la fila y calcular el stock dentro de la transacción.');
 requireContract(/CASE WHEN \$\{can\('products\.view'\) \|\| can\('reports\.view'\)\} THEN i\.unit_cost ELSE NULL END/.test(apiSource), 'el coste de artículos vendidos debe ocultarse a empleados sin permiso financiero.');
 requireContract(/CASE WHEN \$\{canSeeCosts\} THEN m\.unit_cost ELSE NULL END/.test(apiSource), 'el coste de movimientos de inventario debe respetar permisos.');
+requireContract(/CASE WHEN \$\{canSeeCosts\} THEN cost_price ELSE NULL END AS cost_price/.test(apiSource), 'los productos asociados a recetas no deben revelar costes sin permiso.');
 requireContract(/const \{cost_price,\.\.\.safeProduct\}=product/.test(apiSource), 'el endpoint de empleado debe ocultar costes de producto sin permiso.');
 
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
