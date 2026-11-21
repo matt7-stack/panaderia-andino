@@ -178,6 +178,40 @@ module.exports = async function handler(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/licenses/activate'){
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      await ensureSchema();
+      const user=await currentUser(req);
+      if(!user)return send(res,401,{error:'Iniciá sesión para activar la licencia.'});
+      if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))
+        return send(res,403,{error:'Solo el administrador o supervisor del negocio puede activar su licencia.'});
+      const sql=db(),attemptKey='license:'+user.id;
+      const attempts=await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${attemptKey} LIMIT 1`;
+      if(attempts[0]?.locked_until&&new Date(attempts[0].locked_until).getTime()>Date.now())
+        return send(res,429,{error:'Se alcanzó el límite de intentos. Esperá 15 minutos e intentá nuevamente.'});
+      const input=body(req),code=String(input.code||'').trim().toUpperCase().replace(/\\s+/g,'');
+      if(code.length<8||code.length>100){
+        await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${attemptKey},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END,locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END,updated_at=NOW()`;
+        return send(res,400,{error:'Ingresá un código de licencia válido.'});
+      }
+      const activated=await sql`UPDATE app_licenses SET status='active',updated_at=NOW()
+        WHERE id=(SELECT id FROM app_licenses WHERE business_id=${user.business_id}
+          AND UPPER(BTRIM(license_code))=${code} AND LOWER(BTRIM(system_name))='mattsystem'
+          AND is_trial=FALSE AND status IN ('pending','active','expired')
+          AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
+          ORDER BY created_at DESC LIMIT 1)
+        RETURNING id,license_code,system_name,status,expires_at,plan`;
+      if(!activated.length){
+        const next=await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${attemptKey},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END,locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END,updated_at=NOW() RETURNING failures,locked_until`;
+        try{await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'license.activation_failed','license',NULL,${JSON.stringify({attempts:Number(next[0]?.failures||1)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar el intento de activación:',logError);}
+        return send(res,400,{error:'El código no es válido para este negocio, ya venció o no está habilitado. Verificá el código o contactá a soporte.'});
+      }
+      await sql`DELETE FROM app_login_attempts WHERE email=${attemptKey}`;
+      try{await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'license.activated','license',${activated[0].id},${JSON.stringify({plan:activated[0].plan,expiresAt:activated[0].expires_at})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar la activación de licencia:',logError);}
+      const refreshed=await currentUser(req);
+      return send(res,200,{ok:true,message:'Licencia activada correctamente.',user:publicUser(refreshed)});
+    }
     if(path==='/api/admin/licenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
