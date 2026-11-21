@@ -25,6 +25,7 @@ const requiredFiles = [
   'migrations/009_signed_tenant_context.sql',
   'migrations/010_auth_admin_rls.sql',
   'migrations/011_runtime_role_set_option.sql',
+  'scripts/bootstrap-tenant-context-secret.js',
 ];
 
 for (const relative of requiredFiles) {
@@ -37,6 +38,8 @@ requireContract(redundantApiEntrypoints.every(file => !fs.existsSync(path.join(r
 
 const apiPath = path.join(root, 'api/[...path].js');
 new vm.Script(fs.readFileSync(apiPath, 'utf8'), { filename: apiPath });
+const tenantSecretBootstrapPath = path.join(root, 'scripts/bootstrap-tenant-context-secret.js');
+new vm.Script(fs.readFileSync(tenantSecretBootstrapPath, 'utf8'), { filename: tenantSecretBootstrapPath });
 
 const employeePath = path.join(root, 'employee-access.js');
 new vm.Script(fs.readFileSync(employeePath, 'utf8'), { filename: employeePath });
@@ -87,6 +90,7 @@ new vm.Script(erpSource, { filename: erpPath });
 // RLS: el contexto PostgreSQL debe estar firmado con HMAC y no puede confiar en GUC manipulables.
 const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/009_signed_tenant_context.sql'), 'utf8');
 requireContract(apiSource.includes('TENANT_CONTEXT_SECRET') && apiSource.includes('app.context_signature') && apiSource.includes("crypto.createHmac('sha256'"), 'el contexto de tenant enviado a PostgreSQL debe estar firmado con HMAC.');
+requireContract(apiSource.includes("/^[a-f0-9]{64}$/i.test(contextSecret)") && apiSource.includes("Buffer.from(contextSecret, 'hex')") && tenantSecretBootstrapPath && fs.readFileSync(tenantSecretBootstrapPath,'utf8').includes('ON CONFLICT (singleton) DO NOTHING'), 'la clave HMAC debe decodificarse como 32 bytes y sincronizarse sin sobrescribir secretos existentes.');
 const runtimeRoleMigration = fs.readFileSync(path.join(root, 'migrations/011_runtime_role_set_option.sql'), 'utf8');
 requireContract(apiSource.includes("set_config('role', 'mattsystem_app', true)") && runtimeRoleMigration.includes('SET TRUE') && runtimeRoleMigration.includes('mattsystem_app'), 'cada transacción autenticada debe cambiar al rol PostgreSQL sin BYPASSRLS antes de consultar datos del negocio.');
 requireContract(signedContextMigration.includes('tenant_context_is_valid') && signedContextMigration.includes('public.hmac') && signedContextMigration.includes('SECURITY DEFINER'), 'PostgreSQL debe verificar la firma HMAC antes de confiar en el contexto RLS.');
