@@ -754,7 +754,7 @@ module.exports = async function handler(req, res) {
       const input = req.method === 'GET' ? {} : body(req);
       const module = String(req.method === 'GET' ? url.searchParams.get('module') || '' : input.module || url.searchParams.get('module') || '').toLowerCase();
       const readPermissions = {
-        products:['products.view','products.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
+        products:['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
         customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
         purchases:['purchases.view','purchases.create'], recipes:['recipes.view','recipes.manage'],
         production:['production.view','production.manage'], cash:['cash.view','cash.manage','cash.open','cash.close'],
@@ -769,7 +769,10 @@ module.exports = async function handler(req, res) {
       if (req.method === 'GET') {
         if (!canAny(readPermissions[module])) return send(res,403,{error:'No tenés permiso para consultar este módulo.'});
         if (module === 'products') {
-          const rows=await sql`SELECT id,sku,name,category,unit,sale_price,cost_price,stock,min_stock,active,created_at,updated_at FROM app_products WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
+          const full=can('products.view')||can('products.manage');
+          const rows=full
+            ? await sql`SELECT id,sku,name,category,unit,sale_price,cost_price,stock,min_stock,active,created_at,updated_at FROM app_products WHERE business_id=${businessId} ORDER BY name LIMIT 2000`
+            : await sql`SELECT id,name,unit,sale_price,stock,min_stock,active FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name LIMIT 2000`;
           return send(res,200,{products:rows});
         }
         if (module === 'customers') {
