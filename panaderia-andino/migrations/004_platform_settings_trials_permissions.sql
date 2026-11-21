@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS app_platform_settings (
   updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE app_platform_settings ALTER COLUMN welcome_message SET DEFAULT 'Hola, necesito ayuda con Gestión de Negocio.';
+ALTER TABLE app_platform_settings ALTER COLUMN display_name SET DEFAULT 'Soporte técnico Gestión de Negocio';
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS permissions jsonb NOT NULL DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS app_users_business_role_active_idx ON app_users(business_id,role,active);
 INSERT INTO schema_migrations(version) VALUES ('004_platform_settings_trials_permissions')
