@@ -549,7 +549,7 @@ module.exports = async function handler(req, res) {
         const snapshot=await sql`SELECT * FROM businesses WHERE id=${id} LIMIT 1`;
         await sql`INSERT INTO app_trash(entity_type,entity_id,business_id,payload,deleted_by) VALUES('business',${id},${id},${JSON.stringify(snapshot[0])}::jsonb,${admin.id})`;
         await sql`UPDATE businesses SET active=FALSE,updated_at=NOW() WHERE id=${id}`;
-        await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
+        await sql`UPDATE app_users SET session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${id},${admin.id},'business.trashed','business',${id},${JSON.stringify({name:business[0].name})}::jsonb)`;
         return send(res,200,{ok:true,deleted:false,trashed:true,message:'Negocio movido a la papelera. Sus datos se conservaron y puede restaurarse.'});
       }
