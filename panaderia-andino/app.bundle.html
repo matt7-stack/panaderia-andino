@@ -2391,7 +2391,14 @@ body:not(.platform-admin) .page-view .recent-table tbody td { line-height:1.4; }
   }
 
   // Navegación principal
-  $$('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
+  $('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
+  // Gestión operativa se agrega dinámicamente después de autenticar; su navegación debe delegarse.
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-page-link="erp"]');
+    if (!link) return;
+    event.preventDefault();
+    pageNavigate('erp');
+  });
   $$('[data-go-page]').forEach((button) => button.addEventListener('click', () => pageNavigate(button.dataset.goPage)));
   $('#menuToggle')?.addEventListener('click', () => {
     const open = $('#sidebar').classList.toggle('open');
