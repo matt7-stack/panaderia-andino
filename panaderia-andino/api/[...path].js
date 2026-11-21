@@ -86,7 +86,7 @@ async function currentUser(req) {
         (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
       FROM app_licenses l
       WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
-      ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) DESC, l.created_at DESC
+      ORDER BY l.created_at DESC, l.id DESC
       LIMIT 1
     ) lic ON TRUE
     WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
@@ -430,7 +430,7 @@ module.exports = async function handler(req, res) {
             (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
           FROM app_licenses l
           WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
-          ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) DESC, l.created_at DESC
+          ORDER BY l.created_at DESC, l.id DESC
           LIMIT 1
         ) lic ON TRUE
         WHERE lower(u.email)=${email} LIMIT 1`; const u = rows[0];
