@@ -681,7 +681,7 @@
     try {
       const result = await window.PanaderiaAuth.api('/api/data');
       if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
-      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null; }
+      else { const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: null }) }); cloudUpdatedAt = saved.updatedAt || null; }
       delete state.users; cloudReady = true; saveState(false); renderAll(); await refreshCloudUsers();
       if (cloudSyncInterval) clearInterval(cloudSyncInterval); cloudSyncInterval = setInterval(refreshCloudData, 10000);
     } catch (error) { console.error('No se pudo cargar el espacio compartido.', error); notify('No se pudieron cargar los datos compartidos. Recargá la página.'); }
