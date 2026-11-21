@@ -12,4 +12,6 @@ CREATE TABLE IF NOT EXISTS app_platform_settings (
 INSERT INTO app_platform_settings(setting_key, whatsapp_phone, enabled, welcome_message, display_name)
 VALUES ('support', '595987426497', TRUE, 'Hola, necesito ayuda con Gestión de Negocio.', 'Soporte técnico Gestión de Negocio')
 ON CONFLICT (setting_key) DO NOTHING;
+INSERT INTO schema_migrations(version) VALUES ('005_platform_support_settings')
+ON CONFLICT (version) DO NOTHING;
 COMMIT;
