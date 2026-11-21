@@ -17,32 +17,15 @@ const requiredFiles = [
   'migrations/005_platform_support_settings.sql',
   'migrations/006_operational_integrity_and_tenant_constraints.sql',
   'migrations/007_employee_license_limit_guard.sql',
-  'api/business/erp.js',
-  'api/business/license.js',
-  'api/business/employee-data.js',
-  'api/business/users.js',
-  'api/licenses/activate.js',
-  'api/admin/licenses.js',
-  'api/admin/licenses/trial.js',
-  'api/admin/license-payments.js',
-  'api/admin/overview.js',
-  'api/admin/clients.js',
-  'api/admin/notifications.js',
-  'api/admin/security.js',
-  'api/admin/support-settings.js',
-  'api/admin/trash.js',
-  'api/admin/activity.js',
-  'api/notification-preferences.js',
-  'api/notifications.js',
-  'api/support.js',
-  'api/support/tickets.js',
-  'api/support/tickets/reply.js'
 ];
 
 for (const relative of requiredFiles) {
   const absolute = path.join(root, relative);
   if (!fs.existsSync(absolute)) throw new Error('Falta el archivo requerido: ' + relative);
 }
+
+const redundantApiEntrypoints = ["api/business/erp.js","api/business/license.js","api/business/employee-data.js","api/business/users.js","api/licenses/activate.js","api/admin/licenses.js","api/admin/licenses/trial.js","api/admin/license-payments.js","api/admin/overview.js","api/admin/clients.js","api/admin/notifications.js","api/admin/security.js","api/admin/support-settings.js","api/admin/trash.js","api/admin/activity.js","api/notification-preferences.js","api/notifications.js","api/support.js","api/support/tickets.js","api/support/tickets/reply.js"];
+requireContract(redundantApiEntrypoints.every(file => !fs.existsSync(path.join(root,file))), 'las rutas API deben centralizarse para respetar el máximo de 12 funciones de Vercel Hobby.');
 
 const apiPath = path.join(root, 'api/[...path].js');
 new vm.Script(fs.readFileSync(apiPath, 'utf8'), { filename: apiPath });
