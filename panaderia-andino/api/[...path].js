@@ -1426,7 +1426,8 @@ module.exports = async function handler(req, res) {
       if (constraint.includes('app_users_email')) return send(res,409,{error:'Ya existe un usuario con ese correo.'});
       return send(res,409,{error:'Ya existe un registro con esos datos. Revisá los campos e intentá nuevamente.'});
     }
-    console.error('API error:',err);
-    return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
+    const reference=crypto.randomUUID();
+    console.error('API request failed:',{reference,path,method:req.method,code:err&&err.code||null,constraint:err&&err.constraint||null,message:String(err&&err.message||'').slice(0,500)});
+    return send(res,500,{error:'No se pudo completar la solicitud. Referencia: '+reference+'.',code:'INTERNAL_ERROR',reference});
   }
 };
