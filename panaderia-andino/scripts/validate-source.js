@@ -53,6 +53,8 @@ inlineScripts.forEach((source, index) => {
 for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
+const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+requireContract(Array.isArray(vercelConfig.rewrites) && vercelConfig.rewrites.some(rule => rule.source === '/api/:first/:rest*' && String(rule.destination).includes('__route_path')), 'Vercel debe reenviar rutas API anidadas a la función central sin crear funciones adicionales.');
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
 if (!html.includes('/erp-modules.js')) throw new Error('La interfaz no carga los módulos ERP.');
@@ -65,6 +67,7 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+requireContract(apiSource.includes("searchParams.get('__route_path')") && apiSource.includes('routedPath.startsWith(routePrefix + \'/\')'), 'la API debe validar el prefijo antes de aceptar la ruta anidada reenviada.');
 const employeeAccessPath = path.join(root, 'employee-access.js');
 const employeeAccess = fs.readFileSync(employeeAccessPath, 'utf8');
 new vm.Script(employeeAccess, { filename: employeeAccessPath });
