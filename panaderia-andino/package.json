@@ -1,9 +1,15 @@
 {
-  "name": "panaderia-andino",
+  "name": "mattsystem-gestion",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "@neondatabase/serverless": "1.2.0"
+  },
+  "scripts": {
+    "build": "node scripts/validate-source.js",
+    "test": "node scripts/validate-source.js"
   }
 }
