@@ -2223,7 +2223,7 @@ body:not(.platform-admin) .page-view .recent-table tbody td { line-height:1.4; }
   }
   function nextInvoiceNumber(direction) {
     const numbers = state.invoices.filter((item) => item.direction === direction).map((item) => {
-      const match = String(item.number || '').match(/(\\d+)$/);
+      const match = String(item.number || '').match(/(\d+)$/);
       return match ? Number(match[1]) || 0 : 0;
     });
     return String(Math.max(0, ...numbers) + 1).padStart(5, '0');
