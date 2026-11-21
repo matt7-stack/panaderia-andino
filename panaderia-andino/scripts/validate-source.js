@@ -90,7 +90,7 @@ requireContract(apiSource.includes('app_auth_user_by_id') && apiSource.includes(
 requireContract(/HttpOnly; Secure; SameSite=Lax/.test(apiSource), 'la cookie de sesión debe ser HttpOnly, Secure y SameSite=Lax.');
 requireContract(/Number\(user\.session_version\s*\|\|\s*0\)\s*===\s*Number\(data\.sv\s*\|\|\s*0\)/.test(apiSource), 'la sesión debe validar session_version.');
 requireContract(/\/api\/admin\/database-info[\s\S]{0,350}?authenticated\(req,res,true\)/.test(apiSource), 'el diagnóstico de base de datos debe usar autenticación de administrador y respetar revocaciones.');
-requireContract(/\/api\/auth\/bootstrap[\s\S]{0,300}?secret\('SESSION_SECRET'\)[\s\S]{0,900}?UPDATE app_admin_setup_tokens/.test(apiSource), 'el alta inicial debe validar SESSION_SECRET antes de consumir el token.');
+requireContract(/\/api\/auth\/bootstrap[\s\S]{0,300}?secret\('SESSION_SECRET'\)[\s\S]{0,900}?app_auth_claim_setup_token/.test(apiSource), 'el alta inicial debe validar SESSION_SECRET antes de consumir el token.');
 
 // Roles: solo supervisor administra empleados; empleado queda restringido a su cuenta y permisos.
 requireContract(/user\.role\s*!==\s*'supervisor'\s*\|\|\s*!user\.business_id/.test(apiSource), 'la gestión de empleados debe quedar reservada al supervisor del negocio.');
