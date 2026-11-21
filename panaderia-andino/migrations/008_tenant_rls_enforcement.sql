@@ -3,13 +3,19 @@ BEGIN;
 -- Rol de ejecución sin BYPASSRLS. La conexión privilegiada solo lo asume dentro
 -- de transacciones autenticadas, después de validar el HMAC del tenant.
 DO $role_setup$
+DECLARE role_is_unsafe boolean;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mattsystem_app') THEN
     CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS;
+  ELSE
+    SELECT rolsuper OR rolbypassrls INTO role_is_unsafe
+    FROM pg_roles WHERE rolname = 'mattsystem_app';
+    IF COALESCE(role_is_unsafe, TRUE) THEN
+      RAISE EXCEPTION 'mattsystem_app must be NOSUPERUSER and NOBYPASSRLS';
+    END IF;
   END IF;
 END
 $role_setup$;
-ALTER ROLE mattsystem_app NOSUPERUSER NOBYPASSRLS;
 GRANT USAGE ON SCHEMA public TO mattsystem_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO mattsystem_app;
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO mattsystem_app;
