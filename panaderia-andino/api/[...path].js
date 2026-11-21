@@ -211,11 +211,11 @@ async function handleRequest(req, res) {
       await ensureSchema();
       const user=await currentUser(req);
       if(!user)return send(res,401,{error:'Iniciá sesión para consultar tu plan.'});
-      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta consulta está disponible para cuentas de negocio.'});
+      if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))return send(res,403,{error:'La información del plan está disponible solo para el administrador o supervisor del negocio.'});
       requestContext.enterWith({ businessId:user.business_id, userId:user.id, isPlatformAdmin:false });
       const sql=db();
       const [licenses,employees]=await Promise.all([
-        sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,created_at
+        sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,setup_amount,monthly_amount,billing_day,contract_reference,created_at
           FROM app_licenses WHERE business_id=${user.business_id}
           AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
           ORDER BY created_at DESC,id DESC LIMIT 1`,
@@ -223,7 +223,7 @@ async function handleRequest(req, res) {
       ]);
       const license=licenses[0]||null;
       const valid=!!license&&license.status==='active'&&(!license.expires_at||new Date(license.expires_at).getTime()>=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').getTime());
-      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,code:license.license_code,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
+      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,setupAmount:Number(license.setup_amount||0),monthlyAmount:Number(license.monthly_amount||0),billingDay:license.billing_day,contractReference:license.contract_reference||null,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
     }
     if(path==='/api/licenses/activate'){
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
