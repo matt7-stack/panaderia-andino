@@ -79,10 +79,12 @@ async function currentUser(req) {
   const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
   const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions,
       lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
-      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
+      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid,
+      lic.plan AS license_plan, lic.is_trial AS license_is_trial, lic.trial_started_at AS license_trial_started_at,
+      lic.trial_days AS license_trial_days, lic.user_limit AS license_user_limit, lic.device_limit AS license_device_limit
     FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
     LEFT JOIN LATERAL (
-      SELECT l.license_code, l.system_name, l.status, l.expires_at,
+      SELECT l.license_code, l.system_name, l.status, l.expires_at, l.plan, l.is_trial, l.trial_started_at, l.trial_days, l.user_limit, l.device_limit,
         (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
       FROM app_licenses l
       WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
@@ -130,7 +132,13 @@ const publicUser = u => ({
     systemName:u.license_system_name || 'Mattsystem',
     status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
     valid:u.license_is_valid === true,
-    expiresAt:u.license_expires_at || null
+    expiresAt:u.license_expires_at || null,
+    plan:u.license_plan || null,
+    isTrial:u.license_is_trial === true,
+    trialStartedAt:u.license_trial_started_at || null,
+    trialDays:u.license_trial_days == null ? null : Number(u.license_trial_days),
+    userLimit:u.license_user_limit == null ? null : Number(u.license_user_limit),
+    deviceLimit:u.license_device_limit == null ? null : Number(u.license_device_limit)
   },
   createdAt:u.created_at || u.createdAt
 });
@@ -177,6 +185,25 @@ module.exports = async function handler(req, res) {
       const rows=await sql`INSERT INTO app_support_replies(ticket_id,author_user_id,message,is_admin) VALUES(${ticketId},${user.id},${message},${user.is_platform_admin===true}) RETURNING *`;
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
+    }
+    if(path==='/api/business/license'){
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      await ensureSchema();
+      const user=await currentUser(req);
+      if(!user)return send(res,401,{error:'Iniciá sesión para consultar tu plan.'});
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta consulta está disponible para cuentas de negocio.'});
+      const sql=db();
+      const [licenses,employees]=await Promise.all([
+        sql`SELECT id,license_code,system_name,plan,status,expires_at,is_trial,trial_started_at,trial_days,user_limit,device_limit,created_at
+          FROM app_licenses WHERE business_id=${user.business_id}
+          AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
+          ORDER BY created_at DESC,id DESC LIMIT 1`,
+        sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND is_platform_admin=FALSE`
+      ]);
+      const license=licenses[0]||null;
+      const valid=!!license&&license.status==='active'&&(!license.expires_at||new Date(license.expires_at).getTime()>=new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z').getTime());
+      return send(res,200,{business:{id:user.business_id,name:user.business_name||null},license:license?{id:license.id,code:license.license_code,systemName:license.system_name,plan:license.plan,status:valid?license.status:(license.status==='active'?'expired':license.status),valid,isTrial:license.is_trial===true,trialStartedAt:license.trial_started_at,trialDays:license.trial_days,expiresAt:license.expires_at,userLimit:license.user_limit,deviceLimit:license.device_limit,createdAt:license.created_at}:null,employees:{active:Number(employees[0]?.total||0)}},{'Cache-Control':'no-store, max-age=0'});
     }
     if(path==='/api/licenses/activate'){
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
@@ -513,7 +540,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
-        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial!==false; const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial===true; const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         const id=crypto.randomUUID();
