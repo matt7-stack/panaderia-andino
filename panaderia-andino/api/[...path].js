@@ -850,16 +850,43 @@ module.exports = async function handler(req, res) {
         if (module === 'inventory') {
           const productId=String(input.productId||''),type=String(input.movementType||''),quantity=Number(input.quantity),unitCost=Number(input.unitCost||0);
           if(!productId||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
-          const products=await sql`SELECT id,stock FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1`;
-          if(!products.length)return send(res,404,{error:'Producto no encontrado en este negocio.'});
-          const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity),movementQuantity=type==='adjustment'?Math.abs(quantity-oldStock):quantity;
-          if(newStock<0)return send(res,409,{error:'No hay existencias suficientes para ese movimiento.'});
-          if(movementQuantity<=0)return send(res,400,{error:'El ajuste no cambia las existencias actuales.'});
-          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},cost_price=CASE WHEN (${type}='entry' OR (${type}='adjustment' AND ${newStock}>${oldStock})) AND ${newStock}>0 THEN ((stock*cost_price)+(${movementQuantity}*${unitCost}))/${newStock} ELSE cost_price END,updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} AND (${type} NOT IN ('exit','waste') OR stock>=${quantity}) RETURNING id),
-            movement AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
-              SELECT ${businessId},id,${type},${movementQuantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
-            SELECT * FROM movement`;
-          return send(res,201,{movement:rows[0],stock:newStock});
+          const rows=await sql`WITH locked AS MATERIALIZED (
+              SELECT id,stock,cost_price FROM app_products
+              WHERE id=${productId} AND business_id=${businessId} FOR UPDATE
+            ), calculated AS MATERIALIZED (
+              SELECT id,stock AS old_stock,
+                CASE WHEN ${type}='entry' THEN stock+${quantity}
+                     WHEN ${type}='adjustment' THEN ${quantity}
+                     ELSE stock-${quantity} END AS new_stock,
+                CASE WHEN ${type}='adjustment' THEN ABS(${quantity}-stock) ELSE ${quantity} END AS movement_quantity,
+                cost_price
+              FROM locked
+            ), changed AS (
+              UPDATE app_products p SET
+                stock=c.new_stock,
+                cost_price=CASE
+                  WHEN (${type}='entry' OR (${type}='adjustment' AND c.new_stock>c.old_stock))
+                    AND c.new_stock>0
+                  THEN ((c.old_stock*c.cost_price)+(c.movement_quantity*${unitCost}))/c.new_stock
+                  ELSE p.cost_price
+                END,
+                updated_at=NOW()
+              FROM calculated c
+              WHERE p.id=c.id AND p.business_id=${businessId}
+                AND c.new_stock>=0 AND c.movement_quantity>0
+                AND (${type} NOT IN ('exit','waste') OR c.old_stock>=${quantity})
+              RETURNING p.id,p.stock,c.movement_quantity
+            ), movement AS (
+              INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
+              SELECT ${businessId},id,${type},movement_quantity,${unitCost},
+                ${String(input.reference||'').slice(0,120)||null},
+                ${String(input.notes||'').slice(0,1000)||null},${user.id}
+              FROM changed RETURNING *
+            )
+            SELECT movement.*,changed.stock AS stock_after
+            FROM movement JOIN changed ON changed.id=movement.product_id`;
+          if(!rows.length)return send(res,409,{error:'El producto no existe, el stock es insuficiente o el ajuste no cambia las existencias.'});
+          return send(res,201,{movement:rows[0],stock:Number(rows[0].stock_after)});
         }
         if (module === 'sales') {
           const raw=Array.isArray(input.items)?input.items:[];if(!raw.length||raw.length>100)return send(res,400,{error:'Agregá entre 1 y 100 artículos a la venta.'});
