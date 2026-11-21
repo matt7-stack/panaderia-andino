@@ -1,85 +1,87 @@
 # Release runbook — Mattsystem
 
-Estado de preparación: 2026-11-21  
+Última verificación: 2026-11-21 22:00 UTC  
 Rama candidata: `security/hmac-tenant-context`  
-Commit de código auditado antes de este documento: `27ba6b94426df4664060d8a71ed17ffd349b87cd`
+Commit de código validado: `5e5e20f28434f9dc374a64f29c2b717648f32227`  
+PR: https://github.com/matt7-stack/panaderia-andino/pull/8
 
-## 1. Estado conocido antes de publicar
+## 1. Estado técnico comprobado
 
-- El validador estático, `npm test`, `npm run build`, los chequeos de sintaxis y `git diff --check` pasaron en la rama candidata.
-- `vercel build` terminó correctamente en el entorno local de Vercel CLI.
-- Vercel no ha creado un deployment para el commit candidato debido al estado `build-rate-limit`. No se debe intentar eludir este límite.
-- La rama principal Neon de Producción tiene registradas las migraciones 001–012.
-- La rama `preprod-security-migration-2026-11-21` recibió y verificó la migración 012 para corregir la política de auditoría anónima.
-- La migración 013 agrega aceptación de prueba gratuita por negocio y modalidad de licencia permanente. La migración 014 normaliza el rol PostgreSQL de runtime para impedir login directo y herencia. Ambas deben aplicarse y verificarse en QA y Producción antes de publicar la API que las utiliza.
-- Las variables de Vercel están configuradas por entorno; sus valores sensibles no se imprimen ni se copian a Git.
-- La fila HMAC de Producción aún debe inicializarse/verificarse mediante la primera ejecución de la versión corregida. No se debe escribir una clave manual distinta.
+- GitHub Actions `Validate source`: SUCCESS para el commit indicado.
+- Vercel Preview del commit indicado: READY; la compilación terminó correctamente.
+- La página raíz del Preview responde HTTP 200.
+- `GET /api/auth/status` y otras rutas que acceden a Neon responden HTTP 500 con SQLSTATE `08P01`, mensaje `no such user`.
+- La variable `DATABASE_URL` específica de la rama Preview se actualizó el 2026-11-21 a las 21:54:54 UTC para usar la conexión pooled de Neon QA con `panaderia_owner`. El deployment actual se creó aproximadamente a las 21:52:55 UTC, antes de ese cambio; por eso conserva el snapshot anterior de variables. Cambiar una variable no modifica deployments ya creados.
+- El límite de Vercel `api-deployments-free-per-day` rechazó el siguiente deployment con `retryAfter: 86400`. La hora comunicada para volver a intentar es 2026-11-22 21:54:57 UTC. No intentar eludir el límite ni crear deployments repetidos antes de esa hora.
+- Neon QA `tenant-rls-role-test` responde. `panaderia_owner` puede asumir `mattsystem_app`; el rol de runtime está `NOLOGIN`, `NOINHERIT`, `NOSUPERUSER` y `NOBYPASSRLS`.
+- Neon Producción tiene registradas las migraciones 001–014. Verificación actual: 33 tablas públicas con RLS y 24 con FORCE RLS.
+- En Producción, `app_private.tenant_context_secret` todavía tiene cero filas. No inicializar manualmente con un secreto distinto: el primer arranque de la API debe insertar/verificar de forma idempotente el secreto configurado en Vercel.
+- Producción tiene actualmente cero negocios, cero licencias y cero aceptaciones de prueba. No crear datos ficticios en Producción.
+- La cuenta administradora de plataforma `matt7atx@gmail.com` existe y está activa. No se ha validado el inicio de sesión HTTP con la contraseña real.
+- No se ha fusionado el PR ni desplegado esta rama a Producción. La versión de Producción sigue siendo el deployment anterior.
 
 ## 2. Variables de entorno
 
-Configurar como tipo **Sensitive** en Vercel:
+Las variables sensibles están configuradas en Vercel para Preview y Producción. No imprimir, copiar a Git ni compartir sus valores.
 
 | Variable | Preview | Production |
 |---|---|---|
-| `DATABASE_URL` | Rama Neon QA, usuario backend autorizado para `SET ROLE mattsystem_app` | Rama principal Neon de Producción, usuario backend autorizado para `SET ROLE mattsystem_app` |
-| `SESSION_SECRET` | Secreto exclusivo de Preview | Secreto exclusivo de Producción |
-| `TENANT_CONTEXT_SECRET` | Secreto HMAC exclusivo de Preview | Secreto HMAC exclusivo de Producción |
+| `DATABASE_URL` | Neon QA, rama `tenant-rls-role-test-2026-11`, conexión pooled con `panaderia_owner` | Neon principal de Producción, conexión pooled con login técnico autorizado para `SET ROLE mattsystem_app` |
+| `SESSION_SECRET` | Clave exclusiva de Preview | Clave exclusiva de Producción |
+| `TENANT_CONTEXT_SECRET` | HMAC exclusivo de QA | HMAC exclusivo de Producción |
 
-No copiar secretos entre Preview y Production. No incluir valores secretos en Git, logs, capturas ni tickets.
+La clave HMAC debe tener 64 caracteres hexadecimales (32 bytes). La fila de `app_private.tenant_context_secret` debe coincidir exactamente con la variable del entorno correspondiente. El bootstrap no debe sobrescribir un secreto distinto. Nunca compartir secretos entre Preview y Producción.
 
-La variable HMAC debe contener exactamente 64 caracteres hexadecimales (32 bytes). La fila de base de datos debe contener el mismo secreto en `app_private.tenant_context_secret`. La API corregida inicializa y compara esa fila de forma idempotente en Preview y Producción; nunca sobrescribe una clave distinta. No usar el secreto de Preview en Producción.
+## 3. Migraciones
 
-## 3. Orden obligatorio de migraciones en Producción
+Producción ya tiene registradas las migraciones 001–014. No volver a ejecutar a ciegas ni repetir DDL manual.
 
-Antes de migrar, crear y verificar un respaldo/branch de Neon desde la rama principal. Confirmar que el respaldo corresponde al proyecto y base de Producción.
+Para una base QA nueva, aplicar las migraciones en orden desde la versión que realmente tenga registrada esa rama. Las migraciones de seguridad relevantes son:
 
-Aplicar, en este orden, sin saltar archivos:
+1. `008_tenant_rls_enforcement.sql`
+2. `009_signed_tenant_context.sql`
+3. `010_auth_admin_rls.sql`
+4. `011_runtime_role_set_option.sql`
+5. `012_auth_audit_insert_policy.sql`
+6. `013_trial_acceptance_and_permanent_licenses.sql`
+7. `014_lock_down_runtime_role.sql`
 
-1. `migrations/008_tenant_rls_enforcement.sql`
-2. `migrations/009_signed_tenant_context.sql`
-3. `migrations/010_auth_admin_rls.sql`
-4. `migrations/011_runtime_role_set_option.sql`
-5. `migrations/012_auth_audit_insert_policy.sql`
-6. `migrations/013_trial_acceptance_and_permanent_licenses.sql`
-7. `migrations/014_lock_down_runtime_role.sql`
+Antes de cualquier cambio de esquema en Producción, confirmar el backup `backup-prod-before-rls-2026-11-21` y revisar su estado. Si una migración falla, detener el procedimiento.
 
-Si una migración falla, detener el procedimiento, conservar los logs y no continuar con la siguiente. No ejecutar DDL manual alternativo para forzar el avance.
+## 4. Pruebas obligatorias en Preview
 
-## 4. Verificaciones de base de datos después de migrar
+Después de la hora de restablecimiento del límite:
 
-- Versiones 001–014 presentes en `public.schema_migrations`.
-- 32/32 tablas públicas esperadas con RLS habilitado.
-- Las tablas operativas con aislamiento de negocio tienen FORCE RLS según la migración.
-- Rol `mattsystem_app` existe, es `NOSUPERUSER`, `NOBYPASSRLS` y no tiene permiso de inicio de sesión.
-- La membresía de `panaderia_owner` permite SET a `mattsystem_app`, sin herencia implícita.
-- La tabla `app_private.tenant_context_secret` contiene exactamente una fila.
-- Una transacción sin firma válida no ve datos de ningún negocio.
-- La firma HMAC válida permite ver solo los registros del negocio autenticado.
-- `app_trial_claims` impide más de una prueba por negocio y registra usuario, fecha, IP, agente y versión de condiciones aceptadas.
-- Una suscripción exige fecha de vencimiento; una licencia permanente permanece activa sin vencimiento y no admite renovación.
-- Las funciones SECURITY DEFINER tienen `search_path` fijado y permisos EXECUTE limitados.
+1. Confirmar que el head de la rama y el commit objetivo son los esperados.
+2. Crear un único Preview nuevo para ese commit; verificar que incorpora el `DATABASE_URL` actualizado.
+3. Verificar `/api/auth/status`: debe responder JSON válido (200 sin sesión o 200 autenticado, según contrato) y nunca 500.
+4. Verificar `/api/auth/login`, `/api/auth/me`, `/api/auth/logout`, cookies seguras, sesión expirada y bloqueo por intentos.
+5. Probar la cuenta de administrador de plataforma sin registrar ni mostrar su contraseña.
+6. Crear dos negocios ficticios únicamente en QA y probar que ninguno puede consultar, modificar ni eliminar datos del otro.
+7. Probar administrador de negocio, supervisor y empleados con permisos permitidos y denegados.
+8. Probar productos, inventario, ventas, caja, compras, producción, clientes, proveedores, soporte, notificaciones y reportes.
+9. Probar aceptación única de prueba, duración, límites, auditoría y rechazo de una segunda solicitud.
+10. Probar suscripciones vencidas, activas y licencias permanentes; verificar que una permanente no vence ni admite renovación.
+11. Probar carga, edición, concurrencia, límites de datos y errores de red.
+12. Revisar móvil, tablet y escritorio: navegación, formularios, tablas, modales, botones y controles táctiles.
+13. Revisar logs de runtime y exigir cero errores de conexión, SQL, autorización o aislamiento.
 
-## 5. Orden de despliegue
+No considerar aprobado un módulo por compilar o por devolver una página HTML: debe pasar pruebas HTTP y funcionales.
 
-1. Esperar a que Vercel permita una nueva compilación sin el estado `build-rate-limit`.
-2. Generar el Preview del commit exacto que se pretende publicar.
-3. Confirmar que el Preview usa exclusivamente Neon QA y sus secretos propios.
-4. Probar inicio/cierre de sesión, recuperación, sesiones expiradas y bloqueo por intentos fallidos.
-5. Probar administrador de plataforma, administrador de negocio, supervisor y empleados con/sin permisos.
-6. Crear dos negocios de prueba y verificar que ninguno pueda leer, modificar ni eliminar datos del otro.
-7. Probar productos, inventario, ventas, caja, compras, producción, clientes, proveedores, licencias y notificaciones.
-8. Revisar móvil, tablet y escritorio; confirmar controles táctiles, tablas, formularios y navegación.
-9. Aplicar y verificar las migraciones de Producción, inicializar la clave HMAC de Producción y confirmar las variables Sensitive.
-10. Desplegar el commit aprobado y ejecutar las mismas pruebas de humo contra Producción.
+## 5. Publicación
 
-## 6. Reversión
+1. No fusionar mientras el Preview tenga errores o pruebas pendientes.
+2. Confirmar migraciones, roles, variables y secreto HMAC de Producción sin exponer credenciales.
+3. Mantener el PR abierto hasta completar la matriz de pruebas.
+4. Tras aprobación técnica, fusionar el PR y esperar el deployment Production READY del commit esperado.
+5. Ejecutar pruebas de humo de Producción: página, estado de autenticación, login autorizado, sesión, permisos y lectura/escritura controlada. No crear negocios ficticios ni modificar datos reales sin autorización.
+6. Confirmar que la fila HMAC de Producción se inicializó y coincide con la variable configurada.
+7. Vigilar logs y conservar el deployment anterior para rollback.
 
-- Conservar el deployment de Producción anterior y su URL/ID antes de promover.
-- Si el nuevo deployment falla, volver al deployment anterior desde Vercel.
-- No eliminar migraciones ni datos para revertir una publicación.
-- Las migraciones son parte del contrato de seguridad de la nueva API; cualquier reversión de esquema requiere un plan específico y revisión manual.
-- Registrar errores de runtime y detener nuevas operaciones si se detecta fuga entre negocios, permisos incorrectos o fallos de autenticación.
+## 6. Reversión y criterios de bloqueo
 
-## 7. Criterio de autorización
-
-No marcar la versión como publicada ni lista para clientes hasta tener un Preview READY del commit exacto, todas las pruebas funcionales aprobadas, migraciones verificadas en Producción, clave HMAC coincidente y despliegue Production READY.
+- Conservar el deployment anterior de Producción y su URL/ID.
+- Si la versión nueva falla, volver al deployment anterior desde Vercel.
+- No borrar datos ni revertir migraciones automáticamente.
+- Detener la publicación ante cualquier fuga entre negocios, bypass de permisos, fallo de autenticación, error 500, secreto HMAC no coincidente o inconsistencia de licencias.
+- No declarar el sistema listo para clientes hasta que el Preview pase todas las pruebas, Producción esté desplegada y las pruebas de humo de Producción sean satisfactorias.
