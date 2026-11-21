@@ -11,8 +11,8 @@
     purchases:{title:'Compras',read:['purchases.view','purchases.create'],write:'purchases.create'},
     recipes:{title:'Recetas',read:['recipes.view','recipes.manage'],write:'recipes.manage'},
     production:{title:'Producción',read:['production.view','production.manage'],write:'production.manage'},
-    cash:{title:'Caja',read:['cash.view','cash.manage'],write:'cash.manage'},
-    reports:{title:'Informes',read:['reports.view'],write:'reports.export'}
+    cash:{title:'Caja',read:['cash.view','cash.manage','cash.open','cash.close'],write:'cash.manage'},
+    reports:{title:'Informes',read:['reports.view','reports.export'],write:'reports.export'}
   };
   let currentModule = 'products';
   let cache = {};
