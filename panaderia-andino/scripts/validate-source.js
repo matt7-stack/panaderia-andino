@@ -79,6 +79,8 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+const packageConfig = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+requireContract(Boolean(packageConfig.dependencies && packageConfig.dependencies['@neondatabase/serverless']) && apiSource.includes("require('@neondatabase/serverless')") && !apiSource.includes("require('postgres')"), 'el driver PostgreSQL importado por la API debe existir en las dependencias instaladas del proyecto.');
 requireContract(apiSource.includes("searchParams.get('__route_path')") && apiSource.includes('routedPath.startsWith(routePrefix + \'/\')'), 'la API debe validar el prefijo antes de aceptar la ruta anidada reenviada.');
 const employeeAccessPath = path.join(root, 'employee-access.js');
 const employeeAccess = fs.readFileSync(employeeAccessPath, 'utf8');
