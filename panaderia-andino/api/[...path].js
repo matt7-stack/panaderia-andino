@@ -750,7 +750,7 @@ module.exports = async function handler(req, res) {
       const readPermissions = {
         products:['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
         customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
-        purchases:['purchases.view','purchases.create'], recipes:['recipes.view','recipes.manage'],
+        purchases:['purchases.view'], recipes:['recipes.view','recipes.manage'],
         production:['production.view','production.manage'], cash:['cash.view','cash.manage','cash.open','cash.close'],
         reports:['reports.view','reports.export']
       };
@@ -812,8 +812,12 @@ module.exports = async function handler(req, res) {
         }
         if (module === 'cash') {
           const [sessions,movements]=await Promise.all([
-            sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} ORDER BY opened_at DESC LIMIT 200`,
-            sql`SELECT m.*,s.status AS session_status FROM app_cash_movements m JOIN app_cash_sessions s ON s.business_id=m.business_id AND s.id=m.cash_session_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`
+            can('cash.view')
+              ? sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} ORDER BY opened_at DESC LIMIT 200`
+              : sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`,
+            can('cash.view')
+              ? sql`SELECT m.*,s.status AS session_status FROM app_cash_movements m JOIN app_cash_sessions s ON s.business_id=m.business_id AND s.id=m.cash_session_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`
+              : Promise.resolve([])
           ]);
           return send(res,200,{sessions,movements});
         }
@@ -1168,11 +1172,11 @@ module.exports = async function handler(req, res) {
         const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
         if (canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
         if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = (Array.isArray(source.products)?source.products:[]).map(product => { if (can('products.view') || can('reports.view')) return product; const {cost_price,...safeProduct}=product; return safeProduct; });
-        if (canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
+        if (canAny(['cash.view','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
         if (canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
         if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
         if (canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
-        if (canAny(['purchases.view','purchases.create','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
+        if (canAny(['purchases.view','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
         if (canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
         if (canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
         if (canAny(['reports.view'])) {
