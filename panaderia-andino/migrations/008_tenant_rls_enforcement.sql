@@ -1,5 +1,24 @@
 BEGIN;
 
+-- Rol de ejecución sin BYPASSRLS. La conexión privilegiada solo lo asume dentro
+-- de transacciones autenticadas, después de validar el HMAC del tenant.
+DO $role_setup$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mattsystem_app') THEN
+    CREATE ROLE mattsystem_app NOLOGIN NOSUPERUSER NOBYPASSRLS;
+  END IF;
+END
+$role_setup$;
+ALTER ROLE mattsystem_app NOSUPERUSER NOBYPASSRLS;
+GRANT USAGE ON SCHEMA public TO mattsystem_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO mattsystem_app;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO mattsystem_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE panaderia_owner IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mattsystem_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE panaderia_owner IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mattsystem_app;
+GRANT mattsystem_app TO panaderia_owner WITH INHERIT FALSE, SET TRUE;
+
 -- Contexto de seguridad establecido por la API dentro de cada transacción.
 CREATE OR REPLACE FUNCTION public.app_ctx_business_id() RETURNS uuid
 LANGUAGE sql STABLE AS $$
