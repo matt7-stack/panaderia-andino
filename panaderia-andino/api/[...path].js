@@ -216,7 +216,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
+        const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS display_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
         return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
       if(req.method==='POST'){
