@@ -55,6 +55,9 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+const employeeAccessPath = path.join(root, 'employee-access.js');
+const employeeAccess = fs.readFileSync(employeeAccessPath, 'utf8');
+new vm.Script(employeeAccess, { filename: employeeAccessPath });
 const erpPath = path.join(root, 'erp-modules.js');
 const erpSource = fs.readFileSync(erpPath, 'utf8');
 new vm.Script(erpSource, { filename: erpPath });
