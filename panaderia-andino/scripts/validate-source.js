@@ -128,7 +128,7 @@ requireContract(apiSource.includes("plan==='basic'?1:(plan==='professional'?4:nu
 requireContract(apiSource.includes('user_limit,device_limit') && apiSource.includes('${userLimit},${deviceLimit}'), 'cada licencia nueva debe guardar sus límites efectivos.');
 requireContract(!/if\(req\.method==='GET'\)\{\s*await sql`UPDATE app_licenses/.test(apiSource), 'consultar licencias no debe modificar datos.');
 requireContract(apiSource.includes('LICENSE_SYSTEM_NAME') && apiSource.includes('licenseSystem.toLowerCase()'), 'la activación debe usar el mismo identificador de producto que el inicio de sesión.');
-requireContract((apiSource.match(/ORDER BY l\\.created_at DESC, l\\.id DESC/g) || []).length >= 2, 'la licencia más reciente debe ser la autoridad para evitar reactivar licencias antiguas suspendidas o vencidas.');
+requireContract(apiSource.split('ORDER BY l.created_at DESC, l.id DESC').length - 1 >= 2, 'la licencia más reciente debe ser la autoridad para evitar reactivar licencias antiguas suspendidas o vencidas.');
 requireContract(employeeAccess.includes("setTimeout(resolve, 900)") && employeeAccess.includes("transient"), 'la consulta de empleados debe reintentar fallos transitorios de conexión una sola vez.');
 requireContract(employeeAccess.includes("error.message || 'Revisá la conexión"), 'la pantalla debe mostrar el error real de consulta en lugar de un mensaje genérico.');
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
