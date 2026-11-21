@@ -54,7 +54,7 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
 const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
-requireContract(Array.isArray(vercelConfig.rewrites) && vercelConfig.rewrites.some(rule => rule.source === "^/api/([^/]+)/(.+)$" && String(rule.destination).includes("__route_path")), "Vercel debe reenviar rutas API anidadas a la función central sin crear funciones adicionales.");
+requireContract(Array.isArray(vercelConfig.rewrites) && vercelConfig.rewrites.some(rule => rule.source === "/api/:first/:rest+" && String(rule.destination).includes("__route_path")), "Vercel debe reenviar rutas API anidadas a la función central sin crear funciones adicionales.");
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
 if (!html.includes('/erp-modules.js')) throw new Error('La interfaz no carga los módulos ERP.');
