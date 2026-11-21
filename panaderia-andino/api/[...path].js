@@ -37,10 +37,32 @@ function db() {
   }
   return scopedSqlClient;
 }
+let tenantSecretBootstrap;
 async function ensureSchema() {
   // Las tablas de autenticación se crean mediante migraciones versionadas.
-  // No ejecutar DDL en cada request serverless: evita latencia y bloqueos innecesarios.
-  return db();
+  // Inicializar el secreto HMAC de forma idempotente: nunca sobrescribir uno existente.
+  const sql = db();
+  if (!tenantSecretBootstrap) {
+    tenantSecretBootstrap = (async () => {
+      const tenantSecret = process.env.TENANT_CONTEXT_SECRET || '';
+      if (!/^[a-f0-9]{64}$/i.test(tenantSecret)) {
+        throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
+      }
+      await sql`INSERT INTO app_private.tenant_context_secret(singleton, secret_hex)
+        VALUES (TRUE, ${tenantSecret.toLowerCase()})
+        ON CONFLICT (singleton) DO NOTHING`;
+      const rows = await sql`SELECT secret_hex = ${tenantSecret.toLowerCase()} AS matches
+        FROM app_private.tenant_context_secret WHERE singleton = TRUE`;
+      if (rows[0]?.matches !== true) {
+        throw new Error('Database tenant context secret does not match deployment configuration');
+      }
+    })().catch(error => {
+      tenantSecretBootstrap = null;
+      throw error;
+    });
+  }
+  await tenantSecretBootstrap;
+  return sql;
 }
 function send(res, status, data, headers = {}) {
   res.statusCode = status;
