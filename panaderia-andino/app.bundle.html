@@ -23,16 +23,16 @@
   </script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Sistema de gestión empresarial de Mattsystem: dashboard, ingresos, gastos, notas y configuración.">
+  <meta name="description" content="Gestión de Negocio: sistema integral para administrar operaciones, ingresos, gastos, notas y configuración.">
   <meta name="theme-color" content="#653820">
-  <meta name="application-name" content="Mattsystem">
+  <meta name="application-name" content="Gestión de Negocio">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Mattsystem">
+  <meta name="apple-mobile-web-app-title" content="Gestión de Negocio">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/icon.svg">
-  <title>Mattsystem | Gestión</title>
+  <title>Gestión de Negocio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -1256,7 +1256,7 @@ img,svg,canvas,video{max-width:100%}
           </div>
 <article class="panel settings-card mt-3" id="clientSupportCenter"><div class="panel-heading"><div><h3>Centro de soporte</h3><p>Enviá una consulta identificada con el nombre de tu negocio y seguí las respuestas.</p></div></div><form id="clientSupportTicketForm" class="settings-form"><label class="form-label" for="supportTicketSubject">Asunto</label><input class="form-control" id="supportTicketSubject" maxlength="120" required><label class="form-label" for="supportTicketMessage">¿En qué podemos ayudarte?</label><textarea class="form-control" id="supportTicketMessage" rows="4" maxlength="3000" required></textarea><button class="btn btn-bakery" type="submit">Enviar solicitud</button></form><div id="clientSupportTickets" class="mt-3"></div></article></section>
 
-        <footer class="page-footer"><span>© 2026 Mattsystem</span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
+        <footer class="page-footer"><span>© 2026 Gestión de Negocio</span><span>Hecho para organizar mejor tu negocio <i class="bi bi-heart-fill"></i></span></footer>
       </div>
     </main>
   </div>
@@ -1288,7 +1288,7 @@ img,svg,canvas,video{max-width:100%}
   gate.setAttribute('role', 'dialog');
   gate.setAttribute('aria-modal', 'true');
   gate.setAttribute('aria-labelledby', 'authTitle');
-  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Mattsystem</strong><small>GESTIÓN DEL NEGOCIO</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
+  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon">🥐</span><div><strong>Gestión de Negocio</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
   document.body.appendChild(gate);
 
   const content = document.getElementById('authContent');
@@ -1390,7 +1390,7 @@ img,svg,canvas,video{max-width:100%}
       document.body.classList.add('auth-locked');
       const status = user.license.status || 'missing';
       const messages = {
-        missing: 'Este negocio todavía no tiene una licencia para Mattsystem. Contactá al administrador para activar el servicio.',
+        missing: 'Este negocio todavía no tiene una licencia activa para Gestión de Negocio. Contactá al administrador para activar el servicio.',
         pending: 'La licencia de este negocio está pendiente de activación.',
         suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
         cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
@@ -2234,7 +2234,7 @@ img,svg,canvas,video{max-width:100%}
   $('#adminBackupButton')?.addEventListener('click', exportAdminBackup);  $('#adminResetDataButton')?.addEventListener('click', async () => {
     const button = $('#adminResetDataButton');
     if (window.PanaderiaAuth?.user?.role !== 'admin') { notify('Solo el administrador puede realizar esta acción.'); return; }
-    if (!window.confirm('¿Confirmás limpiar los datos operativos de Mattsystem? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
+    if (!window.confirm('¿Confirmás limpiar los datos operativos de este negocio? Se eliminarán movimientos, notas, empleados y pagos históricos de todos los dispositivos. El administrador y la configuración se conservarán.')) return;
     if (!window.confirm('Última confirmación: esta eliminación no se puede deshacer. ¿Continuar?')) return;
     button.disabled = true;
     try {
