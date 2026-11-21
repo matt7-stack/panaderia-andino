@@ -198,7 +198,7 @@
   }
   function exportCsv(){
     const rows=cache.reports?.months||[];
-    const csv=[['Mes','Ventas','Costo de ventas','Gastos','Resultado neto'],...rows.map(r=>[r.month,r.sales,r.cost_of_goods,r.expenses,r.net_profit])]
+    const csv=[['Mes','Ventas','Otros ingresos','Costo de ventas','Gastos','Resultado neto'],...rows.map(r=>[r.month,r.sales,r.other_income,r.cost_of_goods,r.expenses,r.net_profit])]
       .map(row=>row.map(value=>'"'+String(value??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
     const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='informe-mensual-gestion-negocio.csv';a.click();URL.revokeObjectURL(url);
