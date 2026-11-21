@@ -1,13 +1,30 @@
 'use strict';
 const { neon } = require('@neondatabase/serverless');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const requestContext = new AsyncLocalStorage();
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
 let sqlClient;
+let scopedSqlClient;
 function db() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing');
   if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
-  return sqlClient;
+  if (!scopedSqlClient) {
+    const client = sqlClient;
+    scopedSqlClient = (strings, ...values) => {
+      const query = client(strings, ...values);
+      const context = requestContext.getStore();
+      if (!context) return query;
+      const contextQuery = client`SELECT
+        set_config('app.business_id', ${context.businessId || ''}, true),
+        set_config('app.user_id', ${context.userId || ''}, true),
+        set_config('app.is_platform_admin', ${context.isPlatformAdmin ? 'true' : 'false'}, true)`;
+      return client.transaction([contextQuery, query]).then(results => results[1]);
+    };
+    scopedSqlClient.transaction = (...args) => client.transaction(...args);
+  }
+  return scopedSqlClient;
 }
 async function ensureSchema() {
   // Las tablas de autenticación se crean mediante migraciones versionadas.
@@ -118,6 +135,7 @@ async function authenticated(req, res, adminOnly = false) {
     return null;
   }
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
+  requestContext.enterWith({ businessId: user.business_id || '', userId: user.id || '', isPlatformAdmin: user.is_platform_admin === true });
   return user;
 }
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -143,7 +161,7 @@ const publicUser = u => ({
   createdAt:u.created_at || u.createdAt
 });
 
-module.exports = async function handler(req, res) {
+async function handleRequest(req, res) {
   const path = new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
     if(path==='/api/support/tickets'){
@@ -495,6 +513,7 @@ module.exports = async function handler(req, res) {
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
+      requestContext.enterWith({ businessId: u.business_id || '', userId: u.id || '', isPlatformAdmin: u.is_platform_admin === true });
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
       return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
@@ -1365,15 +1384,9 @@ module.exports = async function handler(req, res) {
       const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
       if(!businessId) return send(res,400,{error:'Falta identificar el negocio.'});
       const sql=db();
-      const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
-      if(!rows.length) return send(res,404,{error:'No se encontró un negocio activa.'});
-      const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
-      const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
-        id:String(p.id||''),name:String(p.name||'').slice(0,100),category:String(p.category||'').slice(0,60),
-        description:String(p.description||'').slice(0,300),price:Math.max(0,Number(p.price)||0),
-        available:typeof p.available==='boolean'?p.available:Number(p.stock||0)>0
-      })).filter(p=>p.name);
-      return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
+      const rows=await sql`SELECT * FROM public.app_public_catalog(${businessId}::uuid)`;
+      if(!rows.length) return send(res,404,{error:'No se encontró un negocio activo.'});
+      return send(res,200,{business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||''},products:Array.isArray(rows[0].products)?rows[0].products:[],updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
@@ -1441,4 +1454,8 @@ module.exports = async function handler(req, res) {
     console.error('API request failed:',{reference,path,method:req.method,code:err&&err.code||null,constraint:err&&err.constraint||null,message:String(err&&err.message||'').slice(0,500)});
     return send(res,500,{error:'No se pudo completar la solicitud. Referencia: '+reference+'.',code:'INTERNAL_ERROR',reference});
   }
+}
+
+module.exports = async function handler(req, res) {
+  return requestContext.run(null, () => handleRequest(req, res));
 };
