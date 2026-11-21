@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "node scripts/validate-source.js",
-    "test": "node scripts/validate-source.js"
+    "test": "node scripts/validate-source.js",
+    "bootstrap:tenant-secret": "node scripts/bootstrap-tenant-context-secret.js"
   }
 }
