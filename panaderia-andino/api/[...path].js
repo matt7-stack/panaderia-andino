@@ -41,7 +41,6 @@ function db() {
         set_config('app.context_signature', ${contextSignature}, true)`;
       return client.transaction([contextQuery, query]).then(results => results[1]);
     };
-    scopedSqlClient.transaction = (...args) => client.transaction(...args);
   }
   return scopedSqlClient;
 }
