@@ -13,6 +13,7 @@ const requiredFiles = [
   'api/[...path].js',
   'app.bundle.html',
   'employee-access.js',
+  'js/runtime-enhancements.js',
   'erp-modules.js',
   'manifest.webmanifest',
   'vercel.json',
@@ -38,6 +39,8 @@ new vm.Script(fs.readFileSync(apiPath, 'utf8'), { filename: apiPath });
 
 const employeePath = path.join(root, 'employee-access.js');
 new vm.Script(fs.readFileSync(employeePath, 'utf8'), { filename: employeePath });
+const runtimeEnhancementsPath = path.join(root, 'js/runtime-enhancements.js');
+new vm.Script(fs.readFileSync(runtimeEnhancementsPath, 'utf8'), { filename: runtimeEnhancementsPath });
 
 const htmlPath = path.join(root, 'app.bundle.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
@@ -57,10 +60,11 @@ const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 
 requireContract(Array.isArray(vercelConfig.rewrites) && vercelConfig.rewrites.some(rule => rule.source === "/api/:first/:rest+" && String(rule.destination).includes("__route_path")), "Vercel debe reenviar rutas API anidadas a la función central sin crear funciones adicionales.");
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
+if (!html.includes('/js/runtime-enhancements.js')) throw new Error('La interfaz no carga el diagnóstico de conexión y mejoras responsive.');
 if (!html.includes('/erp-modules.js')) throw new Error('La interfaz no carga los módulos ERP.');
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 new vm.Script(serviceWorker, { filename: path.join(root, 'sw.js') });
-if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes("'/erp-modules.js'")) throw new Error('La caché PWA no incluye todos los módulos JavaScript.');
+if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes("'/erp-modules.js'") || !serviceWorker.includes("'/js/runtime-enhancements.js'")) throw new Error('La caché PWA no incluye todos los módulos JavaScript.');
 if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
   throw new Error('No está implementado el endpoint de datos con permisos para empleados.');
 }
@@ -154,9 +158,14 @@ const businessPostEnd = businessCreateBlock.indexOf("if(req.method==='PATCH')", 
 const businessPostBlock = businessPostStart >= 0 && businessPostEnd > businessPostStart ? businessCreateBlock.slice(businessPostStart, businessPostEnd) : '';
 requireContract(!!businessPostBlock && !businessPostBlock.includes('INSERT INTO app_licenses'), 'crear un negocio no debe generar ni asignar una licencia automáticamente.');
 requireContract(html.includes('El negocio se crea sin licencia') && html.includes('Crear licencia comercial') && html.includes('Iniciar prueba gratuita'), 'la administración debe separar alta de negocio, licencia comercial y prueba gratuita.');
-requireContract(html.includes('businessLicenseNav.hidden = user.isPlatformAdmin === true') && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
+requireContract(html.includes("businessLicenseNav.hidden = user.isPlatformAdmin === true || !['admin','supervisor'].includes(user.role)") && html.includes('id="page-licencia"'), 'el apartado Plan y licencia debe estar visible para las cuentas de negocio y oculto al administrador de plataforma sin negocio seleccionado.');
+requireContract(/!\['admin','supervisor'\]\.includes\(user\.role\)/.test(apiSource) && !apiSource.includes('code:license.license_code'), 'los datos económicos y el código de licencia no deben exponerse a empleados ni cuentas no autorizadas.');
+requireContract(/setup_amount,monthly_amount,billing_day,contract_reference/.test(apiSource) && /setupAmount:Number\(license\.setup_amount\|\|0\)/.test(apiSource) && /monthlyAmount:Number\(license\.monthly_amount\|\|0\)/.test(apiSource), 'la cuenta del cliente debe recibir los importes, día de facturación y referencia contractual de su licencia.');
+requireContract(html.includes('Costo de instalación') && html.includes('Abono mensual') && html.includes('Día de facturación') && html.includes('Referencia de contrato'), 'el apartado Plan y licencia debe mostrar las condiciones económicas y contractuales vigentes.');
+requireContract(html.includes('mattsystem-connection-status') && html.includes('min-height:44px') && html.includes('font-size:16px') && html.includes('@media(max-width:767.98px)'), 'la interfaz debe incluir estado de servidor y controles accesibles adaptados a móviles.');
+requireContract(runtimeEnhancementsPath && fs.readFileSync(runtimeEnhancementsPath,'utf8').includes("const CHECK_URL = '/api/auth/status'") && fs.readFileSync(runtimeEnhancementsPath,'utf8').includes('AbortController'), 'la conexión con el servidor debe verificarse con timeout y sin almacenar respuestas privadas en caché.');
 requireContract(apiSource.includes("if (path === '/api/business/erp')") && erpSource.includes("'/api/business/erp?module='"), 'la interfaz ERP debe estar conectada a su ruta autenticada del servidor.');
-requireContract(serviceWorker.includes("mattsystem-pwa-v8") && serviceWorker.includes("'/erp-modules.js'"), 'el despliegue debe invalidar la caché PWA anterior para entregar el módulo ERP actualizado.');
+requireContract(serviceWorker.includes("mattsystem-pwa-v9") && serviceWorker.includes("'/erp-modules.js'") && serviceWorker.includes("'/js/runtime-enhancements.js'"), 'el despliegue debe invalidar la caché PWA anterior y precargar las mejoras responsive y de conexión.');
 
 requireContract(html.includes('id="page-licencia"') && html.includes('businessLicenseActivationForm') && html.includes('id="businessLicenseNav"'), 'el cliente debe tener un apartado permanente para consultar y activar su licencia.');
 requireContract(html.includes('id="licenseStartTrial"') && html.includes("/api/admin/licenses/trial") && !html.includes('simpleStartTrial'), 'el inicio de prueba gratuita debe estar separado del alta del negocio y de la creación de licencia comercial.');
