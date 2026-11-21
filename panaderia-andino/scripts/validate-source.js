@@ -90,6 +90,10 @@ requireContract(/CASE WHEN \$\{canSeeCosts\} THEN m\.unit_cost ELSE NULL END/.te
 requireContract(/CASE WHEN \$\{canSeeCosts\} THEN cost_price ELSE NULL END AS cost_price/.test(apiSource), 'los productos asociados a recetas no deben revelar costes sin permiso.');
 requireContract(/const \{cost_price,\.\.\.safeProduct\}=product/.test(apiSource), 'el endpoint de empleado debe ocultar costes de producto sin permiso.');
 
+requireContract(/open_cash AS MATERIALIZED[\s\S]{0,250}?FOR UPDATE/.test(apiSource), 'las ventas en efectivo deben reservar una caja abierta de forma concurrente.');
+requireContract(/EXISTS\(SELECT 1 FROM open_cash\)/.test(apiSource), 'no deben registrarse ventas en efectivo sin caja abierta.');
+requireContract(/refund_entry AS \(INSERT INTO app_financial_entries/.test(apiSource), 'la anulación de una venta en efectivo debe quedar reflejada en los informes financieros.');
+
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
 requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
