@@ -675,11 +675,53 @@ module.exports = async function handler(req, res) {
       const sql = db();
       const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export'];
       if (req.method === 'GET') {
-        const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
-        const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
-        const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
-        const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
-        return send(res,200,{employees:rows,limits:{plan,employeeLimit:limit,activeEmployees:Number(count[0]?.total||0),remaining:limit===null?null:Math.max(0,limit-Number(count[0]?.total||0))}});
+        // Una sola consulta evita tres viajes secuenciales a Neon al abrir el panel de empleados.
+        const result = await sql`
+          WITH active_license AS (
+            SELECT plan,user_limit
+            FROM app_licenses
+            WHERE business_id=${user.business_id}
+              AND status='active'
+              AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
+            ORDER BY created_at DESC
+            LIMIT 1
+          ),
+          employee_rows AS (
+            SELECT COALESCE(json_agg(
+              json_build_object(
+                'id',id,'name',name,'email',email,'role',role,'active',active,
+                'permissions',permissions,'created_at',created_at
+              ) ORDER BY created_at DESC
+            ),'[]'::json) AS employees
+            FROM app_users
+            WHERE business_id=${user.business_id}
+              AND is_platform_admin=FALSE AND role='employee'
+          ),
+          employee_count AS (
+            SELECT COUNT(*)::int AS total
+            FROM app_users
+            WHERE business_id=${user.business_id}
+              AND role='employee' AND active=TRUE
+          )
+          SELECT
+            employee_rows.employees,
+            COALESCE(active_license.plan,'basic') AS plan,
+            COALESCE(active_license.user_limit,
+              CASE COALESCE(active_license.plan,'basic')
+                WHEN 'basic' THEN 1 WHEN 'professional' THEN 4 ELSE NULL END
+            ) AS employee_limit,
+            employee_count.total AS active_employees
+          FROM employee_rows CROSS JOIN employee_count
+          LEFT JOIN active_license ON TRUE
+        `;
+        const row=result[0]||{};
+        const employees=Array.isArray(row.employees)?row.employees:[];
+        const limit=row.employee_limit==null?null:Number(row.employee_limit);
+        const active=Number(row.active_employees||0);
+        return send(res,200,{employees,limits:{
+          plan:row.plan||'basic',employeeLimit:limit,activeEmployees:active,
+          remaining:limit===null?null:Math.max(0,limit-active)
+        }});
       }
       if (req.method === 'POST') {
         const input=body(req),name=String(input.name||'').trim().slice(0,70),email=String(input.email||'').trim().toLowerCase(),password=input.password;
