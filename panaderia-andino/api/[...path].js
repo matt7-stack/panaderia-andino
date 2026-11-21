@@ -495,7 +495,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
-        const input=body(req); const name=String(input.name||'').trim().slice(0,120);
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial!==false;
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         const id=crypto.randomUUID();
@@ -524,7 +524,7 @@ module.exports = async function handler(req, res) {
             settings.device_limit,1
           FROM created
           CROSS JOIN app_license_settings settings
-          WHERE settings.setting_key='default' AND settings.trial_enabled=TRUE
+          WHERE settings.setting_key='default' AND settings.trial_enabled=TRUE AND ${startTrial}=TRUE
           RETURNING id
         )
         SELECT * FROM created`;
