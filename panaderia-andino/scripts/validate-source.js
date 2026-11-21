@@ -133,4 +133,6 @@ requireContract(employeeAccess.includes("error.message || 'Revisá la conexión"
 const integrityMigration = fs.readFileSync(path.join(root, 'migrations/006_operational_integrity_and_tenant_constraints.sql'), 'utf8');
 requireContract((integrityMigration.match(/VALIDATE CONSTRAINT/g) || []).length >= 6, 'las seis relaciones compuestas entre negocios deben quedar validadas.');
 requireContract(/CREATE UNIQUE INDEX IF NOT EXISTS app_cash_sessions_one_open_per_business/.test(integrityMigration), 'la base debe impedir más de una caja abierta por negocio.');
+requireContract(apiSource.includes("input.action==='change_plan'") && apiSource.includes('dataPreserved:true'), 'la actualización de plan debe conservar el negocio y sus datos.');
+requireContract(apiSource.includes('active_employee_count < v_limit'), 'la base debe impedir superar el límite de empleados por concurrencia.');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
