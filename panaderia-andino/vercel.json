@@ -79,10 +79,6 @@
     {
       "source": "/api/:first/:rest+",
       "destination": "/api/:first?__route_path=/api/:first/:rest*"
-    },
-    {
-      "source": "/api/:first/:rest*",
-      "destination": "/api/:first?__route_path=/api/:first/:rest*"
     }
   ]
 }
