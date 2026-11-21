@@ -116,6 +116,7 @@
       const permissions = readPermissions($('#businessEmployeeCreatePermissions'));
       await api('/api/business/users', { method: 'POST', body: JSON.stringify({ name, email, password, permissions }) });
       form.reset();
+      $('#businessEmployeeCreatePermissions')?.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; });
       initializeCreatePermissions();
       await loadEmployees();
       window.alert('Cuenta de empleado creada. Puede iniciar sesión con su correo y contraseña.');
