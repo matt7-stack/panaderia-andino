@@ -744,13 +744,13 @@ module.exports = async function handler(req, res) {
       const sql = db();
       const businessId = user.is_platform_admin === true ? String(req.headers['x-business-id'] || '') : String(user.business_id || '');
       if (!/^[0-9a-f-]{36}$/i.test(businessId)) return send(res,400,{error:'Seleccioná un negocio válido.'});
-      const businesses = await sql\`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1\`;
+      const businesses = await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if (!businesses.length) return send(res,404,{error:'El negocio no existe o está desactivado.'});
       const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
       const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
       const can = key => manager || permissions[key] === true;
       const canAny = keys => keys.some(can);
-      const url = new URL(req.url, \`https://\${req.headers.host || 'localhost'}\`);
+      const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
       const input = req.method === 'GET' ? {} : body(req);
       const module = String(req.method === 'GET' ? url.searchParams.get('module') || '' : input.module || url.searchParams.get('module') || '').toLowerCase();
       const readPermissions = {
@@ -769,56 +769,56 @@ module.exports = async function handler(req, res) {
       if (req.method === 'GET') {
         if (!canAny(readPermissions[module])) return send(res,403,{error:'No tenés permiso para consultar este módulo.'});
         if (module === 'products') {
-          const rows=await sql\`SELECT id,sku,name,category,unit,sale_price,cost_price,stock,min_stock,active,created_at,updated_at FROM app_products WHERE business_id=${businessId} ORDER BY name LIMIT 2000\`;
+          const rows=await sql`SELECT id,sku,name,category,unit,sale_price,cost_price,stock,min_stock,active,created_at,updated_at FROM app_products WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
           return send(res,200,{products:rows});
         }
         if (module === 'customers') {
-          const rows=await sql\`SELECT id,name,document,phone,email,address,notes,active,created_at,updated_at FROM app_customers WHERE business_id=${businessId} ORDER BY name LIMIT 2000\`;
+          const rows=await sql`SELECT id,name,document,phone,email,address,notes,active,created_at,updated_at FROM app_customers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
           return send(res,200,{customers:rows});
         }
         if (module === 'suppliers') {
-          const rows=await sql\`SELECT id,name,ruc,phone,email,address,notes,active,created_at,updated_at FROM app_suppliers WHERE business_id=${businessId} ORDER BY name LIMIT 2000\`;
+          const rows=await sql`SELECT id,name,ruc,phone,email,address,notes,active,created_at,updated_at FROM app_suppliers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
           return send(res,200,{suppliers:rows});
         }
         if (module === 'sales') {
-          const rows=await sql\`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500\`;
+          const rows=await sql`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
           return send(res,200,{sales:rows});
         }
         if (module === 'purchases') {
-          const rows=await sql\`SELECT p.*,s.name AS supplier_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_purchase_items i WHERE i.business_id=p.business_id AND i.purchase_id=p.id),'[]'::json) AS items FROM app_purchases p LEFT JOIN app_suppliers s ON s.business_id=p.business_id AND s.id=p.supplier_id WHERE p.business_id=${businessId} ORDER BY p.created_at DESC LIMIT 500\`;
+          const rows=await sql`SELECT p.*,s.name AS supplier_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_purchase_items i WHERE i.business_id=p.business_id AND i.purchase_id=p.id),'[]'::json) AS items FROM app_purchases p LEFT JOIN app_suppliers s ON s.business_id=p.business_id AND s.id=p.supplier_id WHERE p.business_id=${businessId} ORDER BY p.created_at DESC LIMIT 500`;
           return send(res,200,{purchases:rows});
         }
         if (module === 'inventory') {
-          const rows=await sql\`SELECT m.*,p.name AS product_name,p.sku FROM app_inventory_movements m JOIN app_products p ON p.business_id=m.business_id AND p.id=m.product_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000\`;
-          const products=await sql\`SELECT id,name,sku,stock,min_stock,unit,cost_price FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name\`;
+          const rows=await sql`SELECT m.*,p.name AS product_name,p.sku FROM app_inventory_movements m JOIN app_products p ON p.business_id=m.business_id AND p.id=m.product_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`;
+          const products=await sql`SELECT id,name,sku,stock,min_stock,unit,cost_price FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
           return send(res,200,{movements:rows,products});
         }
         if (module === 'recipes') {
-          const rows=await sql\`SELECT r.*,p.name AS product_name,COALESCE((SELECT json_agg(json_build_object('id',ri.id,'product_id',ri.product_id,'product_name',ip.name,'quantity',ri.quantity,'unit',ri.unit) ORDER BY ip.name) FROM app_recipe_ingredients ri JOIN app_products ip ON ip.business_id=ri.business_id AND ip.id=ri.product_id WHERE ri.business_id=r.business_id AND ri.recipe_id=r.id),'[]'::json) AS ingredients FROM app_recipes r LEFT JOIN app_products p ON p.business_id=r.business_id AND p.id=r.product_id WHERE r.business_id=${businessId} ORDER BY r.name LIMIT 1000\`;
-          const products=await sql\`SELECT id,name,unit,cost_price,stock FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name\`;
+          const rows=await sql`SELECT r.*,p.name AS product_name,COALESCE((SELECT json_agg(json_build_object('id',ri.id,'product_id',ri.product_id,'product_name',ip.name,'quantity',ri.quantity,'unit',ri.unit) ORDER BY ip.name) FROM app_recipe_ingredients ri JOIN app_products ip ON ip.business_id=ri.business_id AND ip.id=ri.product_id WHERE ri.business_id=r.business_id AND ri.recipe_id=r.id),'[]'::json) AS ingredients FROM app_recipes r LEFT JOIN app_products p ON p.business_id=r.business_id AND p.id=r.product_id WHERE r.business_id=${businessId} ORDER BY r.name LIMIT 1000`;
+          const products=await sql`SELECT id,name,unit,cost_price,stock FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
           return send(res,200,{recipes:rows,products});
         }
         if (module === 'production') {
-          const rows=await sql\`SELECT b.*,r.name AS recipe_name,p.name AS product_name FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id LEFT JOIN app_products p ON p.business_id=b.business_id AND p.id=COALESCE(b.product_id,r.product_id) WHERE b.business_id=${businessId} ORDER BY b.created_at DESC LIMIT 500\`;
-          const recipes=await sql\`SELECT id,name,product_id,yield_quantity FROM app_recipes WHERE business_id=${businessId} AND active=TRUE ORDER BY name\`;
+          const rows=await sql`SELECT b.*,r.name AS recipe_name,p.name AS product_name FROM app_production_batches b LEFT JOIN app_recipes r ON r.business_id=b.business_id AND r.id=b.recipe_id LEFT JOIN app_products p ON p.business_id=b.business_id AND p.id=COALESCE(b.product_id,r.product_id) WHERE b.business_id=${businessId} ORDER BY b.created_at DESC LIMIT 500`;
+          const recipes=await sql`SELECT id,name,product_id,yield_quantity FROM app_recipes WHERE business_id=${businessId} AND active=TRUE ORDER BY name`;
           return send(res,200,{batches:rows,recipes});
         }
         if (module === 'cash') {
           const [sessions,movements]=await Promise.all([
-            sql\`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} ORDER BY opened_at DESC LIMIT 200\`,
-            sql\`SELECT m.*,s.status AS session_status FROM app_cash_movements m JOIN app_cash_sessions s ON s.business_id=m.business_id AND s.id=m.cash_session_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000\`
+            sql`SELECT * FROM app_cash_sessions WHERE business_id=${businessId} ORDER BY opened_at DESC LIMIT 200`,
+            sql`SELECT m.*,s.status AS session_status FROM app_cash_movements m JOIN app_cash_sessions s ON s.business_id=m.business_id AND s.id=m.cash_session_id WHERE m.business_id=${businessId} ORDER BY m.created_at DESC LIMIT 1000`
           ]);
           return send(res,200,{sessions,movements});
         }
         if (module === 'reports') {
-          const rows=await sql\`SELECT to_char(months.month,'YYYY-MM') AS month,
+          const rows=await sql`SELECT to_char(months.month,'YYYY-MM') AS month,
             (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS sales,
             (SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month) AS cost_of_goods,
             (SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS expenses,
             (SELECT COALESCE(SUM(s.total),0) FROM app_sales s WHERE s.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
               -(SELECT COALESCE(SUM(i.quantity*i.unit_cost),0) FROM app_sale_items i JOIN app_sales s ON s.business_id=i.business_id AND s.id=i.sale_id WHERE i.business_id=${businessId} AND s.status='completed' AND date_trunc('month',s.created_at)=months.month)
               -(SELECT COALESCE(SUM(e.amount),0) FROM app_financial_entries e WHERE e.business_id=${businessId} AND e.entry_type='expense' AND date_trunc('month',e.created_at)=months.month) AS net_profit
-            FROM generate_series(date_trunc('month',CURRENT_DATE)-INTERVAL '11 months',date_trunc('month',CURRENT_DATE),INTERVAL '1 month') months(month) ORDER BY months.month\`;
+            FROM generate_series(date_trunc('month',CURRENT_DATE)-INTERVAL '11 months',date_trunc('month',CURRENT_DATE),INTERVAL '1 month') months(month) ORDER BY months.month`;
           return send(res,200,{months:rows,calculation:'Ventas netas - costo de productos vendidos (costo histórico) - gastos registrados.'});
         }
       }
@@ -828,30 +828,30 @@ module.exports = async function handler(req, res) {
           const name=String(input.name||'').trim().slice(0,120),sku=String(input.sku||'').trim().slice(0,60)||null;
           const salePrice=Number(input.salePrice??0),costPrice=Number(input.costPrice??0),minStock=Number(input.minStock??0);
           if(!name||![salePrice,costPrice,minStock].every(Number.isFinite)||salePrice<0||costPrice<0||minStock<0)return send(res,400,{error:'Datos del producto no válidos.'});
-          const rows=await sql\`INSERT INTO app_products(business_id,sku,name,category,unit,sale_price,cost_price,stock,min_stock) VALUES(${businessId},${sku},${name},${String(input.category||'').trim().slice(0,80)||null},${String(input.unit||'unidad').trim().slice(0,24)},${salePrice},${costPrice},0,${minStock}) RETURNING *\`;
+          const rows=await sql`INSERT INTO app_products(business_id,sku,name,category,unit,sale_price,cost_price,stock,min_stock) VALUES(${businessId},${sku},${name},${String(input.category||'').trim().slice(0,80)||null},${String(input.unit||'unidad').trim().slice(0,24)},${salePrice},${costPrice},0,${minStock}) RETURNING *`;
           return send(res,201,{product:rows[0]});
         }
         if (module === 'customers') {
           const name=String(input.name||'').trim().slice(0,120);if(!name)return send(res,400,{error:'Ingresá el nombre del cliente.'});
-          const rows=await sql\`INSERT INTO app_customers(business_id,name,document,phone,email,address,notes) VALUES(${businessId},${name},${String(input.document||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *\`;
+          const rows=await sql`INSERT INTO app_customers(business_id,name,document,phone,email,address,notes) VALUES(${businessId},${name},${String(input.document||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
           return send(res,201,{customer:rows[0]});
         }
         if (module === 'suppliers') {
           const name=String(input.name||'').trim().slice(0,120);if(!name)return send(res,400,{error:'Ingresá el nombre del proveedor.'});
-          const rows=await sql\`INSERT INTO app_suppliers(business_id,name,ruc,phone,email,address,notes) VALUES(${businessId},${name},${String(input.ruc||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *\`;
+          const rows=await sql`INSERT INTO app_suppliers(business_id,name,ruc,phone,email,address,notes) VALUES(${businessId},${name},${String(input.ruc||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
           return send(res,201,{supplier:rows[0]});
         }
         if (module === 'inventory') {
           const productId=String(input.productId||''),type=String(input.movementType||''),quantity=Number(input.quantity),unitCost=Number(input.unitCost||0);
           if(!productId||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
-          const products=await sql\`SELECT id,stock FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1\`;
+          const products=await sql`SELECT id,stock FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1`;
           if(!products.length)return send(res,404,{error:'Producto no encontrado en este negocio.'});
           const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity);
           if(newStock<0)return send(res,409,{error:'No hay existencias suficientes para ese movimiento.'});
-          const rows=await sql\`WITH changed AS (UPDATE app_products SET stock=${newStock},updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} RETURNING id),
+          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} RETURNING id),
             movement AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
               SELECT ${businessId},id,${type},${quantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
-            SELECT * FROM movement\`;
+            SELECT * FROM movement`;
           return send(res,201,{movement:rows[0],stock:newStock});
         }
         if (module === 'sales') {
@@ -859,18 +859,18 @@ module.exports = async function handler(req, res) {
           const items=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_price:Number(item.unitPrice)}));
           if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_price)||item.unit_price<0))return send(res,400,{error:'Hay artículos con descripción, cantidad o precio no válidos.'});
           const productIds=[...new Set(items.filter(item=>item.product_id).map(item=>item.product_id))];
-          const products=productIds.length?await sql\`SELECT id,name,stock,cost_price FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))\`:[];
+          const products=productIds.length?await sql`SELECT id,name,stock,cost_price FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`:[];
           if(products.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio.'});
           const byId=new Map(products.map(product=>[String(product.id),product]));
           const required=new Map();for(const item of items)if(item.product_id)required.set(item.product_id,(required.get(item.product_id)||0)+item.quantity);
           for(const [id,qty] of required){if(Number(byId.get(id).stock||0)<qty)return send(res,409,{error:'Existencias insuficientes para '+byId.get(id).name+'.'});}
           const customerId=String(input.customerId||'')||null;
-          if(customerId){const customer=await sql\`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1\`;if(!customer.length)return send(res,400,{error:'El cliente no pertenece a este negocio o está inactivo.'});}
+          if(customerId){const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;if(!customer.length)return send(res,400,{error:'El cliente no pertenece a este negocio o está inactivo.'});}
           const payload=items.map(item=>({...item,unit_cost:item.product_id?Number(byId.get(item.product_id).cost_price||0):0}));
           const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0),discount=Number(input.discount||0);
           if(!Number.isFinite(discount)||discount<0||discount>subtotal)return send(res,400,{error:'El descuento no puede superar el subtotal.'});
           const total=subtotal-discount,saleNumber='VTA-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(2).toString('hex').toUpperCase();
-          const rows=await sql\`WITH sale AS (
+          const rows=await sql`WITH sale AS (
               INSERT INTO app_sales(business_id,customer_id,sale_number,status,subtotal,discount,total,payment_method,notes,actor_user_id)
               VALUES(${businessId},${customerId},${saleNumber},'completed',${subtotal},${discount},${total},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING id
             ), item_rows AS (
@@ -886,7 +886,7 @@ module.exports = async function handler(req, res) {
               SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,${saleNumber},${user.id}
               FROM item_rows i WHERE i.product_id IS NOT NULL RETURNING id
             )
-            SELECT sale.id FROM sale\`;
+            SELECT sale.id FROM sale`;
           if(!rows.length)return send(res,409,{error:'No se pudo registrar la venta.'});
           return send(res,201,{saleId:rows[0].id,saleNumber,subtotal,discount,total});
         }
@@ -895,10 +895,10 @@ module.exports = async function handler(req, res) {
           const items=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_cost:Number(item.unitCost)}));
           if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_cost)||item.unit_cost<0))return send(res,400,{error:'Hay artículos con descripción, cantidad o costo no válidos.'});
           const supplierId=String(input.supplierId||'')||null;
-          if(supplierId){const supplier=await sql\`SELECT id FROM app_suppliers WHERE id=${supplierId} AND business_id=${businessId} AND active=TRUE LIMIT 1\`;if(!supplier.length)return send(res,400,{error:'El proveedor no pertenece a este negocio o está inactivo.'});}
+          if(supplierId){const supplier=await sql`SELECT id FROM app_suppliers WHERE id=${supplierId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;if(!supplier.length)return send(res,400,{error:'El proveedor no pertenece a este negocio o está inactivo.'});}
           const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_cost,0),purchaseNumber=String(input.documentNumber||'').trim().slice(0,80)||('COMP-'+Date.now().toString(36).toUpperCase());
           const payload=JSON.stringify(items);
-          const rows=await sql\`WITH purchase AS (
+          const rows=await sql`WITH purchase AS (
               INSERT INTO app_purchases(business_id,supplier_id,document_number,status,subtotal,total,due_date,notes,actor_user_id)
               VALUES(${businessId},${supplierId},${purchaseNumber},'received',${subtotal},${subtotal},NULLIF(${String(input.dueDate||'')},'')::date,${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING id
             ), item_rows AS (
@@ -914,7 +914,7 @@ module.exports = async function handler(req, res) {
               SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,${purchaseNumber},${user.id}
               FROM item_rows i WHERE i.product_id IS NOT NULL RETURNING id
             )
-            SELECT purchase.id FROM purchase\`;
+            SELECT purchase.id FROM purchase`;
           if(!rows.length)return send(res,409,{error:'No se pudo registrar la compra.'});
           return send(res,201,{purchaseId:rows[0].id,documentNumber:purchaseNumber,total:subtotal});
         }
@@ -924,7 +924,7 @@ module.exports = async function handler(req, res) {
           const normalized=ingredients.map(item=>({product_id:String(item.productId||''),quantity:Number(item.quantity),unit:String(item.unit||'unidad').slice(0,24)}));
           if(normalized.some(item=>!item.product_id||!Number.isFinite(item.quantity)||item.quantity<=0))return send(res,400,{error:'Hay ingredientes no válidos.'});
           const productId=String(input.productId||'')||null,recipeId=crypto.randomUUID();
-          const rows=await sql\`WITH recipe AS (
+          const rows=await sql`WITH recipe AS (
               INSERT INTO app_recipes(id,business_id,product_id,name,yield_quantity,instructions)
               VALUES(${recipeId},${businessId},${productId},${name},${yieldQuantity},${String(input.instructions||'').slice(0,3000)||null}) RETURNING id
             ), ingredients AS (
@@ -933,14 +933,14 @@ module.exports = async function handler(req, res) {
               FROM recipe CROSS JOIN jsonb_to_recordset(${JSON.stringify(normalized)}::jsonb) AS x(product_id text,quantity numeric,unit text)
               RETURNING id
             )
-            SELECT recipe.id FROM recipe\`;
+            SELECT recipe.id FROM recipe`;
           return send(res,201,{recipeId:rows[0].id});
         }
         if (module === 'production') {
           const recipeId=String(input.recipeId||'')||null,productId=String(input.productId||'')||null,planned=Number(input.plannedQuantity);
           if(!Number.isFinite(planned)||planned<=0||(!recipeId&&!productId))return send(res,400,{error:'Seleccioná una receta o producto e ingresá una cantidad válida.'});
-          const rows=await sql\`INSERT INTO app_production_batches(business_id,recipe_id,product_id,planned_quantity,status,notes,actor_user_id)
-            VALUES(${businessId},${recipeId},${productId},${planned},'planned',${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING *\`;
+          const rows=await sql`INSERT INTO app_production_batches(business_id,recipe_id,product_id,planned_quantity,status,notes,actor_user_id)
+            VALUES(${businessId},${recipeId},${productId},${planned},'planned',${String(input.notes||'').slice(0,1000)||null},${user.id}) RETURNING *`;
           return send(res,201,{batch:rows[0]});
         }
         if (module === 'cash') {
@@ -948,32 +948,32 @@ module.exports = async function handler(req, res) {
           if(action==='open'){
             if(!can('cash.open'))return send(res,403,{error:'No tenés permiso para abrir caja.'});
             const amount=Number(input.openingAmount||0);if(!Number.isFinite(amount)||amount<0)return send(res,400,{error:'Importe inicial no válido.'});
-            const rows=await sql\`INSERT INTO app_cash_sessions(business_id,opened_by,opening_amount,status)
+            const rows=await sql`INSERT INTO app_cash_sessions(business_id,opened_by,opening_amount,status)
               SELECT ${businessId},${user.id},${amount},'open'
-              WHERE NOT EXISTS(SELECT 1 FROM app_cash_sessions WHERE business_id=${businessId} AND status='open') RETURNING *\`;
+              WHERE NOT EXISTS(SELECT 1 FROM app_cash_sessions WHERE business_id=${businessId} AND status='open') RETURNING *`;
             if(!rows.length)return send(res,409,{error:'Ya existe una caja abierta para este negocio.'});
             return send(res,201,{session:rows[0]});
           }
           if(action==='movement'){
             const type=String(input.movementType||''),amount=Number(input.amount);
             if(!['income','expense'].includes(type)||!Number.isFinite(amount)||amount<=0||!String(input.category||'').trim()||!String(input.description||'').trim())return send(res,400,{error:'Completá tipo, categoría, descripción e importe válido.'});
-            const session=await sql\`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1\`;
+            const session=await sql`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`;
             if(!session.length)return send(res,409,{error:'No hay una caja abierta.'});
-            const rows=await sql\`INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
-              VALUES(${businessId},${session[0].id},${type},${String(input.category).trim().slice(0,80)},${String(input.description).trim().slice(0,160)},${amount},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.reference||'').slice(0,120)||null},${user.id}) RETURNING *\`;
+            const rows=await sql`INSERT INTO app_cash_movements(business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id)
+              VALUES(${businessId},${session[0].id},${type},${String(input.category).trim().slice(0,80)},${String(input.description).trim().slice(0,160)},${amount},${String(input.paymentMethod||'').slice(0,40)||null},${String(input.reference||'').slice(0,120)||null},${user.id}) RETURNING *`;
             return send(res,201,{movement:rows[0]});
           }
           if(action==='close'){
             if(!can('cash.close'))return send(res,403,{error:'No tenés permiso para cerrar caja.'});
             const sessionId=String(input.sessionId||''),closingAmount=Number(input.closingAmount);
             if(!sessionId||!Number.isFinite(closingAmount)||closingAmount<0)return send(res,400,{error:'Ingresá el importe contado al cerrar la caja.'});
-            const rows=await sql\`WITH totals AS (
+            const rows=await sql`WITH totals AS (
                 SELECT COALESCE(SUM(CASE WHEN movement_type='income' THEN amount ELSE -amount END),0) AS net
                 FROM app_cash_movements WHERE business_id=${businessId} AND cash_session_id=${sessionId}
               )
               UPDATE app_cash_sessions cs SET status='closed',closed_by=${user.id},closed_at=NOW(),closing_amount=${closingAmount},
                 expected_amount=cs.opening_amount+totals.net,difference=${closingAmount}-(cs.opening_amount+totals.net)
-              FROM totals WHERE cs.id=${sessionId} AND cs.business_id=${businessId} AND cs.status='open' RETURNING cs.*\`;
+              FROM totals WHERE cs.id=${sessionId} AND cs.business_id=${businessId} AND cs.status='open' RETURNING cs.*`;
             if(!rows.length)return send(res,404,{error:'No se encontró una caja abierta para cerrar.'});
             return send(res,200,{session:rows[0]});
           }
@@ -983,53 +983,53 @@ module.exports = async function handler(req, res) {
       if (req.method === 'PATCH') {
         const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
         if(module==='products'&&can('products.manage')){
-          const rows=await sql\`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined} THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined} THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined} THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined} THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined} THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *\`;
+          const rows=await sql`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined} THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined} THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined} THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined} THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined} THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Producto no encontrado.'});return send(res,200,{product:rows[0]});
         }
         if(module==='customers'&&can('customers.manage')){
-          const rows=await sql\`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *\`;
+          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Cliente no encontrado.'});return send(res,200,{customer:rows[0]});
         }
         if(module==='suppliers'&&can('suppliers.manage')){
-          const rows=await sql\`UPDATE app_suppliers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *\`;
+          const rows=await sql`UPDATE app_suppliers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Proveedor no encontrado.'});return send(res,200,{supplier:rows[0]});
         }
         if(module==='sales'&&input.action==='cancel'&&can('sales.cancel')){
-          const rows=await sql\`WITH cancelled AS (UPDATE app_sales SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='completed' RETURNING id),
+          const rows=await sql`WITH cancelled AS (UPDATE app_sales SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='completed' RETURNING id),
             items AS (SELECT product_id,quantity,unit_cost FROM app_sale_items WHERE business_id=${businessId} AND sale_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL),
             stock AS (UPDATE app_products p SET stock=p.stock+i.quantity,updated_at=NOW() FROM items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
             movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'entry',i.quantity,i.unit_cost,'Anulación de venta '||${id},${user.id} FROM items i RETURNING id)
-            SELECT id FROM cancelled\`;
+            SELECT id FROM cancelled`;
           if(!rows.length)return send(res,404,{error:'Venta no encontrada o ya anulada.'});return send(res,200,{ok:true});
         }
         if(module==='purchases'&&input.action==='cancel'&&can('purchases.create')){
-          const items=await sql\`SELECT product_id,quantity,unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id=${id} AND product_id IS NOT NULL\`;
+          const items=await sql`SELECT product_id,quantity,unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id=${id} AND product_id IS NOT NULL`;
           const productIds=[...new Set(items.map(item=>String(item.product_id)))];
-          if(productIds.length){const products=await sql\`SELECT id,stock,name FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))\`;const available=new Map(products.map(p=>[String(p.id),Number(p.stock||0)]));for(const item of items){if((available.get(String(item.product_id))||0)<Number(item.quantity))return send(res,409,{error:'No se puede anular: el stock comprado ya fue utilizado.'});}}
-          const rows=await sql\`WITH cancelled AS (UPDATE app_purchases SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='received' RETURNING id),
+          if(productIds.length){const products=await sql`SELECT id,stock,name FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`;const available=new Map(products.map(p=>[String(p.id),Number(p.stock||0)]));for(const item of items){if((available.get(String(item.product_id))||0)<Number(item.quantity))return send(res,409,{error:'No se puede anular: el stock comprado ya fue utilizado.'});}}
+          const rows=await sql`WITH cancelled AS (UPDATE app_purchases SET status='cancelled' WHERE id=${id} AND business_id=${businessId} AND status='received' RETURNING id),
             purchase_items AS (SELECT product_id,quantity,unit_cost FROM app_purchase_items WHERE business_id=${businessId} AND purchase_id IN (SELECT id FROM cancelled) AND product_id IS NOT NULL),
             stock AS (UPDATE app_products p SET stock=p.stock-i.quantity,updated_at=NOW() FROM purchase_items i WHERE p.id=i.product_id AND p.business_id=${businessId} RETURNING p.id),
             movements AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,actor_user_id) SELECT ${businessId},i.product_id,'exit',i.quantity,i.unit_cost,'Anulación de compra '||${id},${user.id} FROM purchase_items i RETURNING id)
-            SELECT id FROM cancelled\`;
+            SELECT id FROM cancelled`;
           if(!rows.length)return send(res,404,{error:'Compra no encontrada o ya anulada.'});return send(res,200,{ok:true});
         }
         if(module==='recipes'&&can('recipes.manage')){
-          const rows=await sql\`UPDATE app_recipes SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),yield_quantity=CASE WHEN ${input.yieldQuantity===undefined} THEN yield_quantity ELSE ${Number(input.yieldQuantity)} END,instructions=CASE WHEN ${input.instructions===undefined} THEN instructions ELSE NULLIF(${String(input.instructions||'').slice(0,3000)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *\`;
+          const rows=await sql`UPDATE app_recipes SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),yield_quantity=CASE WHEN ${input.yieldQuantity===undefined} THEN yield_quantity ELSE ${Number(input.yieldQuantity)} END,instructions=CASE WHEN ${input.instructions===undefined} THEN instructions ELSE NULLIF(${String(input.instructions||'').slice(0,3000)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Receta no encontrada.'});return send(res,200,{recipe:rows[0]});
         }
         if(module==='production'&&can('production.manage')){
           const status=String(input.status||'');if(!['in_progress','cancelled'].includes(status))return send(res,400,{error:'Estado de producción no válido. Para completar un lote se debe registrar el consumo de ingredientes.'});
-          const rows=await sql\`UPDATE app_production_batches SET status=${status},started_at=CASE WHEN ${status}='in_progress' THEN COALESCE(started_at,NOW()) ELSE started_at END WHERE id=${id} AND business_id=${businessId} AND status IN ('planned','in_progress') RETURNING *\`;
+          const rows=await sql`UPDATE app_production_batches SET status=${status},started_at=CASE WHEN ${status}='in_progress' THEN COALESCE(started_at,NOW()) ELSE started_at END WHERE id=${id} AND business_id=${businessId} AND status IN ('planned','in_progress') RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Lote no encontrado o ya finalizado.'});return send(res,200,{batch:rows[0]});
         }
         return send(res,403,{error:'No tenés permiso para modificar este registro.'});
       }
       if (req.method === 'DELETE') {
         const id=String(body(req).id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
-        if(module==='products'&&can('products.manage')){const rows=await sql\`UPDATE app_products SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id\`;return send(res,rows.length?200:404,{ok:rows.length>0});}
-        if(module==='customers'&&can('customers.manage')){const rows=await sql\`UPDATE app_customers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id\`;return send(res,rows.length?200:404,{ok:rows.length>0});}
-        if(module==='suppliers'&&can('suppliers.manage')){const rows=await sql\`UPDATE app_suppliers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id\`;return send(res,rows.length?200:404,{ok:rows.length>0});}
-        if(module==='recipes'&&can('recipes.manage')){const rows=await sql\`UPDATE app_recipes SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id\`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='products'&&can('products.manage')){const rows=await sql`UPDATE app_products SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='customers'&&can('customers.manage')){const rows=await sql`UPDATE app_customers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='suppliers'&&can('suppliers.manage')){const rows=await sql`UPDATE app_suppliers SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
+        if(module==='recipes'&&can('recipes.manage')){const rows=await sql`UPDATE app_recipes SET active=FALSE,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING id`;return send(res,rows.length?200:404,{ok:rows.length>0});}
         return send(res,403,{error:'No tenés permiso para eliminar este registro.'});
       }
       return send(res,405,{error:'Método no permitido.'});
