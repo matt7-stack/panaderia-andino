@@ -499,7 +499,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
-        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial!==false;
+        const input=body(req); const name=String(input.name||'').trim().slice(0,120); const startTrial=input.startTrial!==false; const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         const id=crypto.randomUUID();
@@ -521,7 +521,7 @@ module.exports = async function handler(req, res) {
           SELECT
             created.id,
             'TRIAL-' || UPPER(SUBSTRING(REPLACE(created.id::text,'-','') FROM 1 FOR 12)),
-            'Mattsystem','basic','active',CURRENT_DATE,
+            ${licenseSystem},'basic','active',CURRENT_DATE,
             CURRENT_DATE + GREATEST(1,settings.trial_days) - 1,
             0,0,1,'Prueba gratuita automática de ' || settings.trial_days || ' días.',
             ${admin.id},TRUE,NOW(),GREATEST(1,settings.trial_days),
