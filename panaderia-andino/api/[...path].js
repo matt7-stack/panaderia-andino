@@ -594,15 +594,18 @@ module.exports = async function handler(req, res) {
         if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
         const rows=await sql`SELECT b.id AS business_id,b.name AS business_name,bc.industry_key,bc.config_mode,bc.modules,bc.updated_at FROM businesses b LEFT JOIN app_business_config bc ON bc.business_id=b.id WHERE b.id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,404,{error:'No se encontró el negocio.'});
-        const catalog=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`;
+        const catalog=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog WHERE implemented=TRUE ORDER BY sort_order,title`;
         return send(res,200,{config:rows[0],modules:catalog});
       }
       if(req.method==='PUT'){
         const input=body(req),businessId=String(input.businessId||''),industry=String(input.industry||''),mode=String(input.configMode||''),modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
         const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!modules.length||modules.length>50)return send(res,400,{error:'La configuración del negocio no es válida.'});
-        const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
-        if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o desactivados.'});
+        const valid=await sql`SELECT module_key,active FROM app_module_catalog WHERE implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+        if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o no implementados.'});
+        const currentConfig=await sql`SELECT modules FROM app_business_config WHERE business_id=${businessId} LIMIT 1`;
+        const previouslyConfigured=Array.isArray(currentConfig[0]?.modules)?currentConfig[0].modules:[];
+        if(valid.some(row=>row.active!==true&&!previouslyConfigured.includes(row.module_key)))return send(res,409,{error:'Un módulo desactivado comercialmente no puede agregarse a un negocio nuevo. Solo puede conservarse si ya estaba configurado.'});
         if(!modules.includes('dashboard'))modules.push('dashboard');
         if(modules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!modules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
