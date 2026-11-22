@@ -518,7 +518,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
+        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
         const templates=await sql`SELECT industry_key,module_key,enabled_by_default FROM app_industry_templates ORDER BY industry_key,module_key`;
         return send(res,200,{modules,templates});
       }
@@ -529,10 +529,13 @@ module.exports = async function handler(req, res) {
           const key=String(item.moduleKey||'').trim();
           const monthly=Number(item.monthlyPrice),setup=Number(item.setupPrice);
           if(!key||!Number.isFinite(monthly)||monthly<0||!Number.isFinite(setup)||setup<0)return send(res,400,{error:'Revisá los precios de los módulos.'});
-          const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
+          const moduleRow=await sql`SELECT implemented FROM app_module_catalog WHERE module_key=${key} LIMIT 1`;
+          if(!moduleRow.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
+          if(moduleRow[0].implemented!==true&&item.active===true)return send(res,409,{error:'El módulo '+key+' todavía no está implementado y no puede comercializarse.'});
+          const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} AND implemented=TRUE THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
           if(!rows.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
         }
-        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
+        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
         return send(res,200,{ok:true,modules});
       }
       return send(res,405,{error:'Método no permitido.'});
