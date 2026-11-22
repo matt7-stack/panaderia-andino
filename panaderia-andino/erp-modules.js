@@ -72,7 +72,7 @@
       target.innerHTML=rows.length?'<div class="border-top mt-3 pt-3"><strong class="small">Mis solicitudes</strong>'+rows.map(r=>{
         const status=r.status==='approved'?'Módulo habilitado':r.status==='rejected'?'Solicitud rechazada':r.status==='quoted'?(r.quotation_status==='sent'?'Cotización enviada':r.quotation_status==='accepted'?'Cotización aceptada':'Cotización en preparación'):'Pendiente de revisión';
         const money=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
-        const quote=r.quotation_status==='sent'?'<div class="small mt-1">Alta: '+money(r.quotation_setup_amount)+' · Mensual: '+money(r.quotation_monthly_amount)+' · Anual: '+money(r.quotation_annual_amount)+'</div>':'';
+        const quote=['sent','accepted'].includes(r.quotation_status)?'<div class="small mt-1">Alta: '+money(r.quotation_setup_amount)+' · Mensual: '+money(r.quotation_monthly_amount)+' · Anual: '+money(r.quotation_annual_amount)+'</div>':'';
         const actions=r.status==='quoted'&&r.quotation_status==='sent'&&['admin','supervisor'].includes(user()?.role)?'<div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-success" data-module-quote-response="accept" data-id="'+esc(r.id)+'">Aceptar cotización</button><button type="button" class="btn btn-sm btn-outline-secondary" data-module-quote-response="reject" data-id="'+esc(r.id)+'">Rechazar</button></div>':'';
         return '<div class="py-2 border-bottom"><div class="d-flex justify-content-between gap-2"><span>'+esc(r.module_title||r.module_key)+'</span><small class="text-muted">'+esc(status)+'</small></div>'+quote+actions+'</div>';
       }).join('')+'</div>':'<small class="text-muted d-block mt-3">Todavía no tenés solicitudes de módulos.</small>';
