@@ -2405,6 +2405,7 @@ img,svg,canvas,video{max-width:100%}
       window.PanaderiaAuth.api('/api/admin/module-catalog').then(result=>{
         if(simpleModalMode!=='business')return;
         unavailableModules=new Set((result.modules||[]).filter(module=>!module.active||!module.implemented).map(module=>module.module_key));
+        if(unavailableModules.has('products'))['sales','inventory','purchases','recipes','production'].forEach(key=>unavailableModules.add(key));
         boxes().forEach(box=>{const key=box.dataset.businessModule;if(unavailableModules.has(key)){box.checked=false;box.disabled=true;}else if(key!=='dashboard')box.disabled=modeSelect.value==='template';});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
       }).catch(()=>{});
