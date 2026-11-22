@@ -554,7 +554,33 @@ module.exports = async function handler(req, res) {
         if(Object.values(values).some(v=>!Number.isFinite(v)||v<0)||values.annualDiscountPercent>100)return send(res,400,{error:'Los importes deben ser positivos y el descuento anual no puede superar 100%.'});
         const currency=String(input.currency||'PYG').trim().toUpperCase();
         if(!/^[A-Z]{3}$/.test(currency))return send(res,400,{error:'Moneda no válida.'});
-        const rows=await sql`UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW() WHERE setting_key='default' RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`;
+        const items=Array.isArray(input.modules)?input.modules:[];
+        if(items.length>100)return send(res,400,{error:'Demasiados módulos en una sola actualización.'});
+        const seen=new Set();
+        for(const item of items){
+          const key=String(item.moduleKey||'').trim(),monthly=Number(item.monthlyPrice),setup=Number(item.setupPrice);
+          if(!key||seen.has(key)||!Number.isFinite(monthly)||monthly<0||!Number.isFinite(setup)||setup<0)return send(res,400,{error:'Revisá los precios y las claves de los módulos.'});
+          seen.add(key);
+        }
+        if(items.length){
+          const keys=await sql`SELECT module_key,implemented FROM app_module_catalog WHERE module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(items.map(item=>String(item.moduleKey)))}::jsonb))`;
+          if(keys.length!==items.length)return send(res,400,{error:'La lista contiene módulos desconocidos.'});
+          const status=new Map(keys.map(row=>[row.module_key,row.implemented]));
+          if(items.some(item=>status.get(String(item.moduleKey))!==true&&(Number(item.monthlyPrice)>0||Number(item.setupPrice)>0||item.active===true)))return send(res,409,{error:'No se pueden comercializar módulos que todavía no están implementados.'});
+        }
+        const rows=items.length
+          ? await sql`WITH module_update AS (
+              UPDATE app_module_catalog m SET monthly_price=item.monthly_price,setup_price=item.setup_price,
+                active=CASE WHEN item.active IS NULL OR m.implemented=FALSE THEN m.active ELSE item.active END,
+                updated_by=${admin.id},updated_at=NOW()
+              FROM jsonb_to_recordset(${JSON.stringify(items)}::jsonb) AS item(module_key text,monthly_price numeric,setup_price numeric,active boolean)
+              WHERE m.module_key=item.module_key RETURNING m.module_key
+            )
+            UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW()
+            WHERE setting_key='default' AND (SELECT COUNT(*) FROM module_update)=${items.length}
+            RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`
+          : await sql`UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW() WHERE setting_key='default' RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`;
+        if(!rows.length)return send(res,409,{error:'No se pudo guardar todo el catálogo comercial. No se aplicaron cambios parciales.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.pricing_updated','commercial_settings','default',${JSON.stringify(values)}::jsonb)`;
         return send(res,200,{settings:rows[0]});
       }
