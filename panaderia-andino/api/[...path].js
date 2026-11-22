@@ -237,8 +237,12 @@ module.exports = async function handler(req, res) {
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||(expiresAt&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(parsedExpiry.getTime())||parsedExpiry.toISOString().slice(0,10)!==expiresAt)))return send(res,400,{error:'Datos de licencia no válidos. Revisá importes, día de cobro y vencimiento.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
-        const linkedQuote=await sql`SELECT status FROM app_quotations WHERE business_id=${businessId} ORDER BY created_at DESC LIMIT 1`;
-        if(linkedQuote.length&&!['accepted','converted'].includes(linkedQuote[0].status))return send(res,409,{error:'La cotización asociada todavía no fue aceptada. No se puede emitir la licencia hasta confirmar la aceptación comercial.'});
+        const linkedQuote=await sql`SELECT status,modules,industry_key,config_mode FROM app_quotations WHERE business_id=${businessId} ORDER BY created_at DESC LIMIT 1`;
+        if(linkedQuote.length){
+          if(!['accepted','converted'].includes(linkedQuote[0].status))return send(res,409,{error:'La cotización asociada todavía no fue aceptada. No se puede emitir la licencia hasta confirmar la aceptación comercial.'});
+          const config=await sql`SELECT modules,industry_key,config_mode FROM app_business_config WHERE business_id=${businessId} LIMIT 1`;
+          if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
+        }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
         const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},(SELECT modules FROM app_business_config WHERE business_id=${businessId})) RETURNING *`;
         return send(res,201,{license:rows[0]});
