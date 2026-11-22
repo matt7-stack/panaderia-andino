@@ -954,6 +954,13 @@ module.exports = async function handler(req, res) {
       if (!/^[0-9a-f-]{36}$/i.test(businessId)) return send(res,400,{error:'Seleccioná un negocio válido.'});
       const businesses = await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if (!businesses.length) return send(res,404,{error:'El negocio no existe o está desactivado.'});
+      const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
+      const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
+      const can = key => manager || permissions[key] === true;
+      const canAny = keys => keys.some(can);
+      const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
+      const input = req.method === 'GET' ? {} : body(req);
+      const module = String(req.method === 'GET' ? url.searchParams.get('module') || '' : input.module || url.searchParams.get('module') || '').toLowerCase();
       if(user.is_platform_admin!==true){
         const moduleConfig=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules
           FROM app_business_config bc
@@ -963,13 +970,7 @@ module.exports = async function handler(req, res) {
         if(config&&Array.isArray(config.configured_modules)&&!config.configured_modules.includes(module))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'Este módulo no está incluido en la configuración contratada. Solicitá una ampliación al administrador.'});
         if(config&&Array.isArray(config.licensed_modules)&&!config.licensed_modules.includes(module))return send(res,403,{code:'MODULE_NOT_LICENSED',error:'Este módulo no está habilitado en la licencia de tu negocio. Contactá al administrador.'});
       }
-      const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
-      const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
-      const can = key => manager || permissions[key] === true;
-      const canAny = keys => keys.some(can);
-      const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
-      const input = req.method === 'GET' ? {} : body(req);
-      const module = String(req.method === 'GET' ? url.searchParams.get('module') || '' : input.module || url.searchParams.get('module') || '').toLowerCase();
+
       const readPermissions = {
         products:['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'], sales:['sales.view'], inventory:['inventory.view','inventory.manage'],
         customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
