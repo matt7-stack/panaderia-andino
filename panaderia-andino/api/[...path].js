@@ -581,7 +581,7 @@ module.exports = async function handler(req, res) {
             RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`
           : await sql`UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW() WHERE setting_key='default' RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`;
         if(!rows.length)return send(res,409,{error:'No se pudo guardar todo el catálogo comercial. No se aplicaron cambios parciales.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.pricing_updated','commercial_settings','default',${JSON.stringify(values)}::jsonb)`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.pricing_updated','commercial_settings','default',${JSON.stringify({...values,moduleKeys:items.map(item=>String(item.moduleKey))})}::jsonb)`;
         return send(res,200,{settings:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
