@@ -2303,7 +2303,10 @@ img,svg,canvas,video{max-width:100%}
   function openSimpleModal(mode, data = {}) {
     simpleModalMode = mode; simpleModalData = data;
     const dialog=$('#simpleModal .modal-dialog');
-    if(dialog){dialog.classList.toggle('modal-lg',mode==='business'||mode==='module-pricing');dialog.classList.toggle('modal-xl',mode==='module-pricing');}
+    const wide=['business','module-pricing','module-requests','quotations'].includes(mode);
+    if(dialog){dialog.classList.toggle('modal-sm',!wide);dialog.classList.toggle('modal-lg',wide);dialog.classList.toggle('modal-xl',mode==='module-pricing'||mode==='module-requests'||mode==='quotations');}
+    const submitControl=$('#simpleForm button[type="submit"]');
+    if(submitControl)submitControl.hidden=['module-requests','quotations'].includes(mode);
     const fields = $('#simpleModalFields');
     if (mode === 'category') {
       setText('#simpleModalTitle', data.type === 'income' ? 'Nueva categoría de ingreso' : 'Nueva categoría de gasto');
