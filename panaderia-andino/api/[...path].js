@@ -777,7 +777,11 @@ module.exports = async function handler(req, res) {
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         const quotationId=String(input.quotationId||'');
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
-        if(quotationId){const quote=await sql`SELECT id FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;if(!quote.length)return send(res,404,{error:'No se encontró una cotización abierta para vincular.'});}
+        if(quotationId){
+          const quote=await sql`SELECT id,prospect_name,industry_key,config_mode,modules FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
+          if(!quote.length)return send(res,404,{error:'No se encontró una cotización abierta para vincular.'});
+          if(quote[0].prospect_name!==name||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||JSON.stringify(quote[0].modules||[])!==JSON.stringify(selectedModules))return send(res,409,{error:'La cotización no coincide con el nombre, rubro o módulos actuales. Generá una cotización nueva.'});
+        }
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
