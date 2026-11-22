@@ -1880,9 +1880,22 @@ img,svg,canvas,video{max-width:100%}
   function sumType(items, type) {
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
+  function syncBusinessModuleNavigation() {
+    const user=window.PanaderiaAuth?.user;
+    const modules=user?.businessConfig?.modules;
+    const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
+    $('.nav-menu [data-page-link]').forEach(link=>{
+      const module=pageModules[link.dataset.pageLink];
+      if(module&&Array.isArray(modules))link.hidden=!modules.includes(module);
+    });
+  }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
+    syncBusinessModuleNavigation();
+    const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
+    const requestedModule=pageModules[page];
+    if(currentUser?.isPlatformAdmin!==true&&requestedModule&&Array.isArray(currentUser?.businessConfig?.modules)&&!currentUser.businessConfig.modules.includes(requestedModule))page='dashboard';
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
