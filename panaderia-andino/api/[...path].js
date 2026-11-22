@@ -572,6 +572,8 @@ module.exports = async function handler(req, res) {
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!modules.length||modules.length>50)return send(res,400,{error:'La configuración del negocio no es válida.'});
         const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
         if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o desactivados.'});
+        if(!modules.includes('dashboard'))modules.push('dashboard');
+        if(modules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!modules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'No se encontró el negocio.'});
         const rows=await sql`INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
@@ -720,6 +722,8 @@ module.exports = async function handler(req, res) {
         }
         const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(selectedModules)}::jsonb))`;
         if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
+        if(!selectedModules.includes('dashboard'))selectedModules.push('dashboard');
+        if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
@@ -1463,6 +1467,18 @@ module.exports = async function handler(req, res) {
         return send(res,403,{error:'Tu cuenta de empleado no tiene acceso directo a los datos generales. Solicitá al Supervisor los permisos o una operación habilitada.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
+      let enabledBusinessModules=null;
+      if(user.is_platform_admin!==true){
+        const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules
+          FROM app_business_config bc
+          LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+          WHERE bc.business_id=${businessId} LIMIT 1`;
+        if(Array.isArray(moduleRows[0]?.configured_modules)){
+          const configured=moduleRows[0].configured_modules,licensed=moduleRows[0].licensed_modules;
+          enabledBusinessModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured;
+        }
+      }
+      const moduleEnabled=key=>!Array.isArray(enabledBusinessModules)||enabledBusinessModules.includes(key);
       if(req.method==='GET'){
         const rows=await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner FROM app_state st JOIN businesses b ON b.id=st.business_id WHERE st.business_id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,200,{data:null,updatedAt:null},{'Cache-Control':'no-store, max-age=0'});
@@ -1470,11 +1486,23 @@ module.exports = async function handler(req, res) {
         // El registro businesses es la fuente principal de identidad del negocio.
         // Los datos operativos (productos, facturas, movimientos) permanecen en app_state.
         data.business={...(data.business&&typeof data.business==='object'?data.business:{}),id:row.business_id,name:row.business_name,address:row.business_address||'',phone:row.business_phone||'',email:row.business_email||'',ruc:row.business_ruc||'',owner:row.business_owner||''};
-        return send(res,200,{data,updatedAt:row.updated_at},{'Cache-Control':'no-store, max-age=0'});
+        const visibleData={...data};
+        const fieldsByModule={movements:['movements','categories','paymentMethods'],invoices:['invoices'],products:['products'],inventory:['productMovements'],customers:['customers'],suppliers:['suppliers'],purchases:['purchases'],recipes:['recipes'],production:['productionBatches'],employees:['employees','employeePayments']};
+        for(const [moduleKey,fields] of Object.entries(fieldsByModule))if(!moduleEnabled(moduleKey))for(const field of fields)delete visibleData[field];
+        if(!moduleEnabled('movements')&&!moduleEnabled('invoices')){delete visibleData.categories;delete visibleData.paymentMethods;}
+        return send(res,200,{data:visibleData,updatedAt:row.updated_at},{'Cache-Control':'no-store, max-age=0'});
       }
       if(req.method==='PUT'){
         const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
-        const data={...input.data}; delete data.users; const serialized=JSON.stringify(data);
+        const data={...input.data}; delete data.users;
+        if(Array.isArray(enabledBusinessModules)){
+          const currentRows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+          const current=currentRows[0]?.data&&typeof currentRows[0].data==='object'&&!Array.isArray(currentRows[0].data)?currentRows[0].data:{};
+          const fieldsByModule={movements:['movements'],invoices:['invoices'],products:['products'],inventory:['productMovements'],customers:['customers'],suppliers:['suppliers'],purchases:['purchases'],recipes:['recipes'],production:['productionBatches'],employees:['employees','employeePayments']};
+          for(const [moduleKey,fields] of Object.entries(fieldsByModule))if(!moduleEnabled(moduleKey))for(const field of fields){if(Object.prototype.hasOwnProperty.call(current,field))data[field]=current[field];else delete data[field];}
+          if(!moduleEnabled('movements')&&!moduleEnabled('invoices'))for(const field of ['categories','paymentMethods']){if(Object.prototype.hasOwnProperty.call(current,field))data[field]=current[field];else delete data[field];}
+        }
+        const serialized=JSON.stringify(data);
         if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
         const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
         if(user.is_platform_admin!==true){
