@@ -679,6 +679,13 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/business/module-catalog') {
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Este catálogo corresponde a cuentas de negocio.'});
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const modules=await db()`SELECT module_key,title,description,category,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE ORDER BY sort_order,title`;
+      return send(res,200,{modules});
+    }
     if (path === '/api/business/module-requests') {
       const user=await authenticated(req,res,false);if(!user)return;
       if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))return send(res,403,{error:'Solo el administrador o supervisor del negocio puede solicitar módulos.'});
