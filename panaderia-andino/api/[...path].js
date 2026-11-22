@@ -79,10 +79,12 @@ async function currentUser(req) {
   const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
   const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions,
       lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
-      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
+      lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid, lic.modules AS license_modules,
+      bc.industry_key AS business_industry, bc.config_mode AS business_config_mode, bc.modules AS business_modules
     FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
+    LEFT JOIN app_business_config bc ON bc.business_id=u.business_id
     LEFT JOIN LATERAL (
-      SELECT l.license_code, l.system_name, l.status, l.expires_at,
+      SELECT l.license_code, l.system_name, l.status, l.expires_at, l.modules,
         (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
       FROM app_licenses l
       WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
@@ -125,12 +127,20 @@ const publicUser = u => ({
   businessId:u.business_id || null, businessName:u.business_name || null,
   permissions:u.permissions && typeof u.permissions==='object' ? u.permissions : {},
   isPlatformAdmin:u.is_platform_admin === true,
+  businessConfig:u.is_platform_admin === true || !u.business_industry ? null : {
+    industry:u.business_industry,
+    mode:u.business_config_mode || 'legacy',
+    modules:Array.isArray(u.business_modules)
+      ? (Array.isArray(u.license_modules) ? u.business_modules.filter(key=>u.license_modules.includes(key)) : u.business_modules)
+      : null
+  },
   license:u.is_platform_admin === true ? null : {
     code:u.license_code || null,
     systemName:u.license_system_name || 'Mattsystem',
     status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
     valid:u.license_is_valid === true,
-    expiresAt:u.license_expires_at || null
+    expiresAt:u.license_expires_at || null,
+    modules:Array.isArray(u.license_modules) ? u.license_modules : null
   },
   createdAt:u.created_at || u.createdAt
 });
@@ -226,7 +236,7 @@ module.exports = async function handler(req, res) {
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id}) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},(SELECT modules FROM app_business_config WHERE business_id=${businessId})) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -488,6 +498,169 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/module-catalog') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
+        const templates=await sql`SELECT industry_key,module_key,enabled_by_default FROM app_industry_templates ORDER BY industry_key,module_key`;
+        return send(res,200,{modules,templates});
+      }
+      if(req.method==='PUT'){
+        const input=body(req),items=Array.isArray(input.modules)?input.modules:[input];
+        if(!items.length||items.length>100)return send(res,400,{error:'No hay precios válidos para actualizar.'});
+        for(const item of items){
+          const key=String(item.moduleKey||'').trim();
+          const monthly=Number(item.monthlyPrice),setup=Number(item.setupPrice);
+          if(!key||!Number.isFinite(monthly)||monthly<0||!Number.isFinite(setup)||setup<0)return send(res,400,{error:'Revisá los precios de los módulos.'});
+          const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
+          if(!rows.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
+        }
+        const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
+        return send(res,200,{ok:true,modules});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/commercial-settings') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency FROM app_commercial_settings WHERE setting_key='default' LIMIT 1`;
+        return send(res,200,{settings:rows[0]||null});
+      }
+      if(req.method==='PUT'){
+        const input=body(req);
+        const values={monthlyBase:Number(input.monthlyBase),annualDiscountPercent:Number(input.annualDiscountPercent),permanentPrice:Number(input.permanentPrice),fullSalePrice:Number(input.fullSalePrice),setupFee:Number(input.setupFee)};
+        if(Object.values(values).some(v=>!Number.isFinite(v)||v<0)||values.annualDiscountPercent>100)return send(res,400,{error:'Los importes deben ser positivos y el descuento anual no puede superar 100%.'});
+        const currency=String(input.currency||'PYG').trim().toUpperCase();
+        if(!/^[A-Z]{3}$/.test(currency))return send(res,400,{error:'Moneda no válida.'});
+        const rows=await sql`UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW() WHERE setting_key='default' RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`;
+        return send(res,200,{settings:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/business-config') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const url=new URL(req.url,`https://${req.headers.host||'localhost'}`),businessId=String(url.searchParams.get('businessId')||'');
+        if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
+        const rows=await sql`SELECT b.id AS business_id,b.name AS business_name,bc.industry_key,bc.config_mode,bc.modules,bc.updated_at FROM businesses b LEFT JOIN app_business_config bc ON bc.business_id=b.id WHERE b.id=${businessId} LIMIT 1`;
+        if(!rows.length)return send(res,404,{error:'No se encontró el negocio.'});
+        const catalog=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,sort_order FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`;
+        return send(res,200,{config:rows[0],modules:catalog});
+      }
+      if(req.method==='PUT'){
+        const input=body(req),businessId=String(input.businessId||''),industry=String(input.industry||''),mode=String(input.configMode||''),modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!modules.length||modules.length>50)return send(res,400,{error:'La configuración del negocio no es válida.'});
+        const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+        if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o desactivados.'});
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
+        if(!business.length)return send(res,404,{error:'No se encontró el negocio.'});
+        const rows=await sql`INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
+          VALUES(${businessId},${industry},${mode},${JSON.stringify(modules)}::jsonb,${admin.id},${admin.id})
+          ON CONFLICT(business_id) DO UPDATE SET industry_key=EXCLUDED.industry_key,config_mode=EXCLUDED.config_mode,modules=EXCLUDED.modules,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          RETURNING business_id,industry_key,config_mode,modules,updated_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'business.modules_updated','business',${businessId},${JSON.stringify({industry,mode,modules})}::jsonb)`;
+        return send(res,200,{config:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/quotations') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT q.*,b.name AS business_name FROM app_quotations q LEFT JOIN businesses b ON b.id=q.business_id ORDER BY q.created_at DESC LIMIT 300`;
+        return send(res,200,{quotations:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),prospectName=String(input.prospectName||'').trim().slice(0,120),prospectEmail=String(input.prospectEmail||'').trim().slice(0,254);
+        const industry=String(input.industry||''),mode=String(input.configMode||''),plan=String(input.planType||'monthly');
+        const modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        if(!prospectName||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!['monthly','annual','permanent','full_sale'].includes(plan)||!modules.length||modules.length>50)return send(res,400,{error:'Completá el prospecto, rubro, modalidad y módulos.'});
+        if(prospectEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prospectEmail))return send(res,400,{error:'Correo electrónico no válido.'});
+        const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+        if(catalog.length!==modules.length)return send(res,400,{error:'La cotización contiene módulos no disponibles.'});
+        const settingsRows=await sql`SELECT monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency FROM app_commercial_settings WHERE setting_key='default' LIMIT 1`;
+        const settings=settingsRows[0]||{monthly_base:0,annual_discount_percent:0,permanent_price:0,full_sale_price:0,setup_fee:0,currency:'PYG'};
+        const moduleMonthly=catalog.reduce((n,m)=>n+Number(m.monthly_price||0),0),moduleSetup=catalog.reduce((n,m)=>n+Number(m.setup_price||0),0);
+        const monthly=Number(settings.monthly_base||0)+moduleMonthly,setup=Number(settings.setup_fee||0)+moduleSetup;
+        const annual=monthly*12*(1-Number(settings.annual_discount_percent||0)/100);
+        const oneTime=plan==='permanent'?Number(settings.permanent_price||0)+setup:plan==='full_sale'?Number(settings.full_sale_price||0)+setup:setup;
+        if((plan==='permanent'&&!Number(settings.permanent_price||0))||(plan==='full_sale'&&!Number(settings.full_sale_price||0)))return send(res,409,{error:'Configurá primero el precio de licencia permanente o venta completa en el catálogo comercial.'});
+        const businessId=input.businessId&&/^[0-9a-f-]{36}$/i.test(String(input.businessId))?String(input.businessId):null;
+        const breakdown={currency:settings.currency||'PYG',monthlyBase:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
+        const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,created_by)
+          VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${input.validUntil||null},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${admin.id}) RETURNING *`;
+        return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||''),status=String(input.status||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!['sent','accepted','rejected','expired'].includes(status))return send(res,400,{error:'Estado de cotización no válido.'});
+        const rows=await sql`UPDATE app_quotations SET status=${status},updated_at=NOW() WHERE id=${id} AND status IN ('draft','sent') RETURNING *`;
+        if(!rows.length)return send(res,404,{error:'Cotización no encontrada o ya cerrada.'});
+        return send(res,200,{quotation:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/business/module-requests') {
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Este apartado corresponde a una cuenta de negocio.'});
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT r.*,m.title AS module_title FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key WHERE r.business_id=${user.business_id} ORDER BY r.created_at DESC LIMIT 100`;
+        return send(res,200,{requests:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),key=String(input.moduleKey||'').trim(),notes=String(input.notes||'').trim().slice(0,1000);
+        const module=await sql`SELECT module_key FROM app_module_catalog WHERE module_key=${key} AND active=TRUE LIMIT 1`;
+        if(!module.length)return send(res,404,{error:'Módulo no disponible.'});
+        const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${user.business_id} LIMIT 1`;
+        const licensed=user.license_modules;
+        if((Array.isArray(config[0]?.modules)&&config[0].modules.includes(key))||(Array.isArray(licensed)&&licensed.includes(key)))return send(res,409,{error:'Este módulo ya está habilitado.'});
+        const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) ON CONFLICT(business_id,module_key,status) DO NOTHING RETURNING *`;
+        if(!rows.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
+        return send(res,201,{request:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/module-requests') {
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT r.*,m.title AS module_title,b.name AS business_name,u.name AS requester_name FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key JOIN businesses b ON b.id=r.business_id LEFT JOIN app_users u ON u.id=r.requested_by ORDER BY r.created_at DESC LIMIT 300`;
+        return send(res,200,{requests:rows});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||''),action=String(input.action||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!['approve','reject','quote'].includes(action))return send(res,400,{error:'Acción de solicitud no válida.'});
+        const requestRows=await sql`SELECT * FROM app_module_requests WHERE id=${id} AND status IN ('requested','quoted') LIMIT 1`;
+        if(!requestRows.length)return send(res,404,{error:'Solicitud no encontrada o ya procesada.'});
+        const request=requestRows[0];
+        if(action==='quote'){
+          const rows=await sql`UPDATE app_module_requests SET status='quoted',reviewed_by=${admin.id},notes=CASE WHEN ${String(input.notes||'').trim()}='' THEN notes ELSE ${String(input.notes||'').trim().slice(0,1000)} END,updated_at=NOW() WHERE id=${id} RETURNING *`;
+          return send(res,200,{request:rows[0]});
+        }
+        if(action==='reject'){
+          const rows=await sql`UPDATE app_module_requests SET status='rejected',reviewed_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING *`;
+          return send(res,200,{request:rows[0]});
+        }
+        const license=await sql`SELECT id,modules FROM app_licenses WHERE business_id=${request.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        if(!license.length)return send(res,409,{error:'El negocio necesita una licencia activa antes de habilitar módulos.'});
+        const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${request.business_id} LIMIT 1`;
+        const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
+        const licensed=Array.isArray(license[0].modules)?license[0].modules:configured;
+        const nextConfig=[...new Set([...configured,request.module_key])],nextLicense=[...new Set([...licensed,request.module_key])];
+        await sql`UPDATE app_business_config SET modules=${JSON.stringify(nextConfig)}::jsonb,updated_by=${admin.id},updated_at=NOW() WHERE business_id=${request.business_id}`;
+        await sql`UPDATE app_licenses SET modules=${JSON.stringify(nextLicense)}::jsonb,updated_at=NOW() WHERE id=${license[0].id}`;
+        const rows=await sql`UPDATE app_module_requests SET status='approved',reviewed_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${request.business_id},${admin.id},'business.module_enabled','module',${request.module_key},${JSON.stringify({requestId:id})}::jsonb)`;
+        return send(res,200,{request:rows[0],enabledModule:request.module_key});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/admin/businesses') {
       const admin=await authenticated(req,res,true); if(!admin) return;
       const sql=db();
@@ -509,7 +682,17 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        const industry=String(input.industry||'comercios_generales'),configMode=String(input.configMode||'template');
+        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
+        if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
+        let selectedModules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        if(!selectedModules.length){
+          const defaults=await sql`SELECT module_key FROM app_industry_templates WHERE industry_key=${industry} AND enabled_by_default=TRUE ORDER BY module_key`;
+          selectedModules=defaults.map(row=>row.module_key);
+        }
+        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(selectedModules)}::jsonb))`;
+        if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
@@ -517,12 +700,15 @@ module.exports = async function handler(req, res) {
           RETURNING *
         ), state_created AS (
           INSERT INTO app_state(data,business_id) SELECT '{}'::jsonb,id FROM created ON CONFLICT(business_id) DO NOTHING RETURNING business_id
+        ), config_created AS (
+          INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
+          SELECT id,${industry},${configMode},${JSON.stringify(selectedModules)}::jsonb,${admin.id},${admin.id} FROM created RETURNING business_id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules})}::jsonb FROM created RETURNING id
         )
         SELECT * FROM created`;
-        return send(res,201,{business:rows[0]});
+        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:false});
       }
       if(req.method==='PATCH'){
         const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
@@ -768,6 +954,15 @@ module.exports = async function handler(req, res) {
       if (!/^[0-9a-f-]{36}$/i.test(businessId)) return send(res,400,{error:'Seleccioná un negocio válido.'});
       const businesses = await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if (!businesses.length) return send(res,404,{error:'El negocio no existe o está desactivado.'});
+      if(user.is_platform_admin!==true){
+        const moduleConfig=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules
+          FROM app_business_config bc
+          LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+          WHERE bc.business_id=${businessId} LIMIT 1`;
+        const config=moduleConfig[0];
+        if(config&&Array.isArray(config.configured_modules)&&!config.configured_modules.includes(module))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'Este módulo no está incluido en la configuración contratada. Solicitá una ampliación al administrador.'});
+        if(config&&Array.isArray(config.licensed_modules)&&!config.licensed_modules.includes(module))return send(res,403,{code:'MODULE_NOT_LICENSED',error:'Este módulo no está habilitado en la licencia de tu negocio. Contactá al administrador.'});
+      }
       const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
       const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
       const can = key => manager || permissions[key] === true;
