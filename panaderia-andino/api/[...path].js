@@ -666,11 +666,12 @@ module.exports = async function handler(req, res) {
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),status=String(input.status||'');
         if(!/^[0-9a-f-]{36}$/i.test(id)||!['sent','accepted','rejected','expired'].includes(status))return send(res,400,{error:'Estado de cotización no válido.'});
-        const current=await sql`SELECT status,setup_amount,monthly_amount,annual_amount FROM app_quotations WHERE id=${id} LIMIT 1`;
+        const current=await sql`SELECT status,setup_amount,monthly_amount,annual_amount,valid_until FROM app_quotations WHERE id=${id} LIMIT 1`;
         if(!current.length)return send(res,404,{error:'Cotización no encontrada.'});
         if(!['draft','sent'].includes(current[0].status))return send(res,409,{error:'La cotización ya está cerrada.'});
         if(status==='sent'&&Number(current[0].setup_amount||0)+Number(current[0].monthly_amount||0)+Number(current[0].annual_amount||0)<=0)return send(res,409,{error:'Configurá los precios comerciales antes de enviar una cotización con importe cero.'});
         if(status==='accepted'&&current[0].status!=='sent')return send(res,409,{error:'Primero enviá la cotización al cliente para poder marcarla como aceptada.'});
+        if(status==='accepted'&&current[0].valid_until&&String(current[0].valid_until).slice(0,10)<new Date().toISOString().slice(0,10))return send(res,409,{error:'La cotización venció. Generá una nueva antes de aceptarla.'});
         const rows=await sql`UPDATE app_quotations SET status=${status},updated_at=NOW() WHERE id=${id} AND status IN ('draft','sent') RETURNING *`;
         if(!rows.length)return send(res,409,{error:'La cotización cambió mientras se actualizaba. Volvé a cargarla.'});
         if(status==='sent'&&rows[0].business_id)await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${rows[0].business_id},u.id,'license_update','Cotización disponible','Hay una cotización disponible para un módulo adicional. Ingresá a Gestión operativa para revisarla.' FROM app_users u WHERE u.business_id=${rows[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
@@ -696,7 +697,7 @@ module.exports = async function handler(req, res) {
         if(!requests.length||!requests[0].quotation_id)return send(res,404,{error:'No se encontró una cotización pendiente para esta solicitud.'});
         const quoteId=requests[0].quotation_id;
         if(action==='accept'){
-          const accepted=await sql`UPDATE app_quotations SET status='accepted',updated_at=NOW() WHERE id=${quoteId} AND business_id=${user.business_id} AND status='sent' RETURNING id`;
+          const accepted=await sql`UPDATE app_quotations SET status='accepted',updated_at=NOW() WHERE id=${quoteId} AND business_id=${user.business_id} AND status='sent' AND (valid_until IS NULL OR valid_until>=CURRENT_DATE) RETURNING id`;
           if(!accepted.length)return send(res,409,{error:'La cotización todavía no fue enviada o ya no está disponible.'});
         }else{
           await sql`UPDATE app_quotations SET status='rejected',updated_at=NOW() WHERE id=${quoteId} AND business_id=${user.business_id} AND status IN ('draft','sent')`;
