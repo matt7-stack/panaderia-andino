@@ -40,7 +40,7 @@
     if(!$('#page-erp')){
       const page=document.createElement('section');
       page.className='page-view';page.id='page-erp';page.dataset.page='erp';
-      page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Módulos habilitados según la configuración y licencia del negocio.</p></div><div><button type="button" class="btn btn-outline-bakery btn-sm" id="erpRequestModuleButton">Solicitar módulo adicional</button></div></div><div id="erpRequestPanel" class="panel settings-card mb-3" hidden><div class="row g-2 align-items-end"><div class="col-md-7"><label class="form-label" for="erpRequestModuleSelect">Módulo que necesitás</label><select class="form-select" id="erpRequestModuleSelect"></select></div><div class="col-md-5"><button type="button" class="btn btn-bakery" id="erpSendModuleRequest">Enviar solicitud</button></div></div><small class="text-muted d-block mt-2">El administrador revisará la solicitud y podrá enviarte una cotización de ampliación.</small></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
+      page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Módulos habilitados según la configuración y licencia del negocio.</p></div><div><button type="button" class="btn btn-outline-bakery btn-sm" id="erpRequestModuleButton">Solicitar módulo adicional</button></div></div><div id="erpRequestPanel" class="panel settings-card mb-3" hidden><div class="row g-2 align-items-end"><div class="col-md-7"><label class="form-label" for="erpRequestModuleSelect">Módulo que necesitás</label><select class="form-select" id="erpRequestModuleSelect"></select></div><div class="col-md-5"><button type="button" class="btn btn-bakery" id="erpSendModuleRequest">Enviar solicitud</button></div></div><small class="text-muted d-block mt-2">El administrador revisará la solicitud y podrá enviarte una cotización de ampliación.</small><div id="erpModuleRequestHistory" class="mt-3"></div></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
       topbar.insertAdjacentElement('afterend',page);
     }
     if(!$('#erpModuleStyles')){
@@ -63,6 +63,21 @@
     ['reports','Informes avanzados'],['employees','Empleados y pagos'],
     ['users','Usuarios y permisos']
   ];
+  async function loadModuleRequestHistory(){
+    const target=$('#erpModuleRequestHistory');if(!target)return;
+    target.innerHTML='<small class="text-muted">Cargando solicitudes…</small>';
+    try{
+      const result=await window.PanaderiaAuth.api('/api/business/module-requests');
+      const rows=result.requests||[];
+      target.innerHTML=rows.length?'<div class="border-top mt-3 pt-3"><strong class="small">Mis solicitudes</strong>'+rows.map(r=>{
+        const status=r.status==='approved'?'Módulo habilitado':r.status==='rejected'?'Solicitud rechazada':r.status==='quoted'?(r.quotation_status==='sent'?'Cotización enviada':r.quotation_status==='accepted'?'Cotización aceptada':'Cotización en preparación'):'Pendiente de revisión';
+        const money=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
+        const quote=r.quotation_status==='sent'?'<div class="small mt-1">Alta: '+money(r.quotation_setup_amount)+' · Mensual: '+money(r.quotation_monthly_amount)+' · Anual: '+money(r.quotation_annual_amount)+'</div>':'';
+        const actions=r.status==='quoted'&&r.quotation_status==='sent'&&['admin','supervisor'].includes(user()?.role)?'<div class="d-flex gap-2 mt-2"><button type="button" class="btn btn-sm btn-success" data-module-quote-response="accept" data-id="'+esc(r.id)+'">Aceptar cotización</button><button type="button" class="btn btn-sm btn-outline-secondary" data-module-quote-response="reject" data-id="'+esc(r.id)+'">Rechazar</button></div>':'';
+        return '<div class="py-2 border-bottom"><div class="d-flex justify-content-between gap-2"><span>'+esc(r.module_title||r.module_key)+'</span><small class="text-muted">'+esc(status)+'</small></div>'+quote+actions+'</div>';
+      }).join('')+'</div>':'<small class="text-muted d-block mt-3">Todavía no tenés solicitudes de módulos.</small>';
+    }catch(error){target.innerHTML='<small class="text-danger">'+esc(error.message||'No se pudieron cargar las solicitudes.')+'</small>';}
+  }
   function syncRequestControls(){
     const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),u=user();
     if(!panel||!select)return;
@@ -218,12 +233,22 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
-    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();return;}
+    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();if(!$('#erpRequestPanel').hidden)loadModuleRequestHistory();return;}
+    const quoteResponse=event.target.closest('[data-module-quote-response]');
+    if(quoteResponse){
+      const action=quoteResponse.dataset.moduleQuoteResponse;
+      if(action==='accept'&&!window.confirm('¿Confirmás que aceptás esta cotización? La ampliación se habilitará después de la validación del administrador.'))return;
+      quoteResponse.disabled=true;
+      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'PATCH',body:JSON.stringify({id:quoteResponse.dataset.id,action})});await loadModuleRequestHistory();window.alert(action==='accept'?'Cotización aceptada. El administrador revisará la habilitación.':'Cotización rechazada.');}
+      catch(error){window.alert(error.message||'No se pudo responder la cotización.');}
+      finally{quoteResponse.disabled=false;}
+      return;
+    }
     if(event.target.closest('#erpSendModuleRequest')){
       const button=$('#erpSendModuleRequest'),key=$('#erpRequestModuleSelect')?.value;
       if(!key)return;
       button.disabled=true;
-      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'POST',body:JSON.stringify({moduleKey:key})});window.alert('Solicitud enviada. El administrador revisará la ampliación.');syncRequestControls();}
+      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'POST',body:JSON.stringify({moduleKey:key})});window.alert('Solicitud enviada. El administrador revisará la ampliación.');syncRequestControls();await loadModuleRequestHistory();}
       catch(error){window.alert(error.message||'No se pudo enviar la solicitud.');}
       finally{button.disabled=false;}
       return;
