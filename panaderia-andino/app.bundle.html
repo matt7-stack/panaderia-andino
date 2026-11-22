@@ -2728,6 +2728,8 @@ img,svg,canvas,video{max-width:100%}
     }
     const open=event.target.closest('[data-open-business]');
     if(open){await openBusinessForSupport(open);return;}
+    const configure=event.target.closest('[data-configure-business]');
+    if(configure){const business=cloudBusinesses.find(item=>item.id===configure.dataset.configureBusiness);if(business)openSimpleModal('business-config',{businessId:business.id});return;}
     const edit=event.target.closest('[data-edit-business]');
     if(edit){const b=cloudBusinesses.find((item)=>item.id===edit.dataset.editBusiness); if(!b)return;
       const name=prompt('Nombre del negocio:',b.name); if(name===null||!name.trim())return;
@@ -3089,7 +3091,7 @@ img,svg,canvas,video{max-width:100%}
       const actions=b.active
         ? '<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button><button class="btn btn-outline-warning btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Desactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Enviar a papelera</button>'
         : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Enviar a papelera</button>';
-      return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
+      return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small><small class="table-sub-text">'+escapeHTML(b.industry_key||'comercios_generales')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="btn btn-outline-bakery btn-sm" type="button" data-configure-business="'+escapeHTML(b.id)+'">Módulos</button><button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
     }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay negocios que coincidan con el filtro.':'Todavía no hay negocios registrados.')+'</td></tr>';
   }
   async function refreshCloudBusinesses() {
