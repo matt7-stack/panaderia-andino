@@ -20,7 +20,7 @@
   function user(){return window.PanaderiaAuth?.user||null;}
   function manager(){const u=user();return !!u&&(u.isPlatformAdmin===true||u.role==='admin'||u.role==='supervisor');}
   function allowed(key){const u=user();if(!u)return false;if(manager())return true;return u.permissions?.[key]===true;}
-  function canModule(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed)||allowed(m.write));}
+  function canModule(key){const m=labels[key],u=user(),configured=u?.businessConfig?.modules;return !!m&&(!Array.isArray(configured)||configured.includes(key))&&(manager()||m.read.some(allowed)||allowed(m.write));}
   function canRead(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed));}
   function canLoadProducts(){return manager()||['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'].some(allowed);}
   async function api(module,method,body){
@@ -40,7 +40,7 @@
     if(!$('#page-erp')){
       const page=document.createElement('section');
       page.className='page-view';page.id='page-erp';page.dataset.page='erp';
-      page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Ventas, compras, inventario, producción, caja e informes.</p></div></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
+      page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Módulos habilitados según la configuración y licencia del negocio.</p></div><div><button type="button" class="btn btn-outline-bakery btn-sm" id="erpRequestModuleButton">Solicitar módulo adicional</button></div></div><div id="erpRequestPanel" class="panel settings-card mb-3" hidden><div class="row g-2 align-items-end"><div class="col-md-7"><label class="form-label" for="erpRequestModuleSelect">Módulo que necesitás</label><select class="form-select" id="erpRequestModuleSelect"></select></div><div class="col-md-5"><button type="button" class="btn btn-bakery" id="erpSendModuleRequest">Enviar solicitud</button></div></div><small class="text-muted d-block mt-2">El administrador revisará la solicitud y podrá enviarte una cotización de ampliación.</small></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
       topbar.insertAdjacentElement('afterend',page);
     }
     if(!$('#erpModuleStyles')){
@@ -55,6 +55,22 @@
     if(!link)return;
     const hasAny=Object.keys(labels).some(canModule);
     link.hidden=!u||!hasAny||(u.isPlatformAdmin===true&&!window.PanaderiaAuth?.selectedBusinessId);
+  }
+  const requestableModules=[
+    ['dashboard','Panel principal'],['movements','Ingresos y gastos'],['invoices','Notas y cobros'],
+    ['products','Productos y costos'],['sales','Ventas'],['inventory','Inventario'],
+    ['customers','Clientes'],['suppliers','Proveedores'],['purchases','Compras'],
+    ['recipes','Recetas'],['production','Producción'],['cash','Caja'],
+    ['reports','Informes avanzados'],['employees','Empleados y pagos'],
+    ['users','Usuarios y permisos'],['branches','Sucursales'],['delivery','Pedidos y entregas']
+  ];
+  function syncRequestControls(){
+    const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),u=user();
+    if(!panel||!select)return;
+    const enabled=Array.isArray(u?.businessConfig?.modules)?u.businessConfig.modules:[];
+    const available=requestableModules.filter(([key])=>!enabled.includes(key));
+    panel.hidden=!u||u.isPlatformAdmin===true||!u.businessConfig||!available.length;
+    select.innerHTML=available.map(([key,label])=>'<option value="'+esc(key)+'">'+esc(label)+'</option>').join('');
   }
   function renderTabs(){
     const tabs=$('#erpTabs');if(!tabs)return;
@@ -159,7 +175,7 @@
   }
   function activate(user){
     if(!ensureUi())return;
-    syncNavigation();renderTabs();
+    syncNavigation();renderTabs();syncRequestControls();
     if(user&&canModule(currentModule))loadModule(currentModule);
   }
   async function submitForm(event){
@@ -203,6 +219,16 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
+    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();return;}
+    if(event.target.closest('#erpSendModuleRequest')){
+      const button=$('#erpSendModuleRequest'),key=$('#erpRequestModuleSelect')?.value;
+      if(!key)return;
+      button.disabled=true;
+      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'POST',body:JSON.stringify({moduleKey:key})});window.alert('Solicitud enviada. El administrador revisará la ampliación.');syncRequestControls();}
+      catch(error){window.alert(error.message||'No se pudo enviar la solicitud.');}
+      finally{button.disabled=false;}
+      return;
+    }
     const add=event.target.closest('[data-erp-add-row]');
     if(add){const kind=add.dataset.erpAddRow,container=$(kind==='sale'?'#erpSaleItems':kind==='purchase'?'#erpPurchaseItems':'#erpRecipeIngredients');if(container)container.insertAdjacentHTML('beforeend',kind==='sale'?saleItemRow():kind==='purchase'?purchaseItemRow():recipeIngredientRow());return;}
     const removeRow=event.target.closest('[data-erp-remove-row]');
