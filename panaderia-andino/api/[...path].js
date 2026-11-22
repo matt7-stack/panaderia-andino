@@ -243,6 +243,20 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||'');
+        if(input.action==='modules'){
+          const modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+          if(!id||!modules.length||modules.length>50)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
+          const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+          if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos no disponibles.'});
+          const license=await sql`SELECT business_id FROM app_licenses WHERE id=${id} LIMIT 1`;
+          if(!license.length)return send(res,404,{error:'Licencia no encontrada.'});
+          const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${license[0].business_id} LIMIT 1`;
+          const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
+          if(modules.some(key=>!configured.includes(key)))return send(res,409,{error:'Primero agregá esos módulos a la configuración comercial del negocio.'});
+          const rows=await sql`UPDATE app_licenses SET modules=${JSON.stringify(modules)}::jsonb,updated_at=NOW() WHERE id=${id} RETURNING *`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${license[0].business_id},${admin.id},'license.modules_updated','license',${id},${JSON.stringify({modules})}::jsonb)`;
+          return send(res,200,{license:rows[0]});
+        }
         if(input.action==='renew'){
           const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
           const parsedDate=new Date(expiresAt+'T00:00:00Z');
@@ -657,9 +671,18 @@ module.exports = async function handler(req, res) {
         const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
         const licensed=Array.isArray(license[0].modules)?license[0].modules:configured;
         const nextConfig=[...new Set([...configured,request.module_key])],nextLicense=[...new Set([...licensed,request.module_key])];
-        await sql`UPDATE app_business_config SET modules=${JSON.stringify(nextConfig)}::jsonb,updated_by=${admin.id},updated_at=NOW() WHERE business_id=${request.business_id}`;
-        await sql`UPDATE app_licenses SET modules=${JSON.stringify(nextLicense)}::jsonb,updated_at=NOW() WHERE id=${license[0].id}`;
-        const rows=await sql`UPDATE app_module_requests SET status='approved',reviewed_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING *`;
+        const rows=await sql`WITH config_updated AS (
+          UPDATE app_business_config SET modules=${JSON.stringify(nextConfig)}::jsonb,updated_by=${admin.id},updated_at=NOW()
+          WHERE business_id=${request.business_id} RETURNING business_id
+        ), license_updated AS (
+          UPDATE app_licenses SET modules=${JSON.stringify(nextLicense)}::jsonb,updated_at=NOW()
+          WHERE id=${license[0].id} AND business_id IN (SELECT business_id FROM config_updated) RETURNING id
+        ), request_updated AS (
+          UPDATE app_module_requests SET status='approved',reviewed_by=${admin.id},updated_at=NOW()
+          WHERE id=${id} AND EXISTS(SELECT 1 FROM license_updated) RETURNING *
+        )
+        SELECT * FROM request_updated`;
+        if(!rows.length)return send(res,409,{error:'No se pudo aplicar la ampliación de forma consistente. Verificá la licencia y la configuración.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${request.business_id},${admin.id},'business.module_enabled','module',${request.module_key},${JSON.stringify({requestId:id})}::jsonb)`;
         return send(res,200,{request:rows[0],enabledModule:request.module_key});
       }
