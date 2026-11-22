@@ -1556,6 +1556,11 @@ module.exports = async function handler(req, res) {
       const sql=db();
       const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
       if(!rows.length) return send(res,404,{error:'No se encontró un negocio activa.'});
+      const configRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
+        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+        WHERE bc.business_id=${businessId} LIMIT 1`;
+      const configured=configRows[0]?.configured_modules,licensed=configRows[0]?.licensed_modules;
+      if(Array.isArray(configured)&&(!configured.includes('products')||(Array.isArray(licensed)&&!licensed.includes('products'))))return send(res,403,{error:'El catálogo público no está incluido en la configuración de este negocio.'});
       const data=rows[0].data&&typeof rows[0].data==='object'?rows[0].data:{};
       const products=(Array.isArray(data.products)?data.products:[]).filter(p=>p&&p.active!==false).map(p=>({
         id:String(p.id||''),name:String(p.name||'').slice(0,100),category:String(p.category||'').slice(0,60),
