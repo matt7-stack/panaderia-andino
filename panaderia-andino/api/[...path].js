@@ -568,6 +568,7 @@ module.exports = async function handler(req, res) {
           if(!key||seen.has(key)||!Number.isFinite(monthly)||monthly<0||!Number.isFinite(setup)||setup<0)return send(res,400,{error:'Revisá los precios y las claves de los módulos.'});
           seen.add(key);
         }
+        const normalizedItems=items.map(item=>({module_key:String(item.moduleKey),monthly_price:Number(item.monthlyPrice),setup_price:Number(item.setupPrice),active:typeof item.active==='boolean'?item.active:null}));
         if(items.length){
           const keys=await sql`SELECT module_key,implemented FROM app_module_catalog WHERE module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(items.map(item=>String(item.moduleKey)))}::jsonb))`;
           if(keys.length!==items.length)return send(res,400,{error:'La lista contiene módulos desconocidos.'});
@@ -579,7 +580,7 @@ module.exports = async function handler(req, res) {
               UPDATE app_module_catalog m SET monthly_price=item.monthly_price,setup_price=item.setup_price,
                 active=CASE WHEN item.active IS NULL OR m.implemented=FALSE THEN m.active ELSE item.active END,
                 updated_by=${admin.id},updated_at=NOW()
-              FROM jsonb_to_recordset(${JSON.stringify(items)}::jsonb) AS item(module_key text,monthly_price numeric,setup_price numeric,active boolean)
+              FROM jsonb_to_recordset(${JSON.stringify(normalizedItems)}::jsonb) AS item(module_key text,monthly_price numeric,setup_price numeric,active boolean)
               WHERE m.module_key=item.module_key RETURNING m.module_key
             )
             UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW()
