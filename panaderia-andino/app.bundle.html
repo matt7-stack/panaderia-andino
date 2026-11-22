@@ -2316,7 +2316,7 @@ img,svg,canvas,video{max-width:100%}
   function openSimpleModal(mode, data = {}) {
     simpleModalMode = mode; simpleModalData = data;
     const dialog=$('#simpleModal .modal-dialog');
-    const wide=['business','module-pricing','module-requests','quotations'].includes(mode);
+    const wide=['business','business-config','module-pricing','module-requests','quotations'].includes(mode);
     if(dialog){dialog.classList.toggle('modal-sm',!wide);dialog.classList.toggle('modal-lg',wide);dialog.classList.toggle('modal-xl',mode==='module-pricing'||mode==='module-requests'||mode==='quotations');}
     const submitControl=$('#simpleForm button[type="submit"]');
     if(submitControl)submitControl.hidden=['module-requests','quotations'].includes(mode);
@@ -2397,6 +2397,15 @@ img,svg,canvas,video{max-width:100%}
         }catch(error){preview.textContent=error.message||'No se pudo generar la cotización.';}
         finally{button.disabled=false;}
       });
+    } else if (mode === 'business-config') {
+      setText('#simpleModalTitle','Configurar módulos del negocio');
+      fields.innerHTML='<p class="text-muted">Cargando configuración del negocio…</p>';
+      window.PanaderiaAuth.api('/api/admin/business-config?businessId='+encodeURIComponent(data.businessId)).then(result=>{
+        const cfg=result.config||{},catalog=result.modules||[];
+        fields.innerHTML='<div class="row g-2"><div class="col-md-6"><label class="form-label" for="editBusinessIndustry">Rubro</label><select id="editBusinessIndustry" class="form-select"><option value="panaderias">Panaderías</option><option value="minimercados">Minimercados</option><option value="tiendas">Tiendas</option><option value="restaurantes">Restaurantes</option><option value="comercios_generales">Comercios generales</option><option value="distribuidoras">Distribuidoras</option></select></div><div class="col-md-6"><label class="form-label" for="editBusinessMode">Configuración</label><select id="editBusinessMode" class="form-select"><option value="template">Automática</option><option value="hybrid">Combinada</option><option value="custom">Personalizada</option></select></div></div><h6 class="mt-3">Módulos contratados/configurados</h6><div id="editBusinessModules" class="row g-2">'+catalog.map(m=>'<div class="col-6 col-md-4"><label class="d-flex align-items-center gap-2 border rounded p-2 h-100"><input type="checkbox" class="form-check-input mt-0" data-edit-module="'+escapeHTML(m.module_key)+'" '+((cfg.modules||[]).includes(m.module_key)?'checked':'')+'><span>'+escapeHTML(m.title)+'</span></label></div>').join('')+'</div><small class="text-muted d-block mt-2">Los cambios de configuración no amplían automáticamente una licencia ya emitida. Para habilitar módulos nuevos, se requiere cotización, aceptación y actualización de la licencia.</small>';
+        $('#editBusinessIndustry').value=cfg.industry_key||'comercios_generales';
+        $('#editBusinessMode').value=['template','custom','hybrid'].includes(cfg.config_mode)?cfg.config_mode:'hybrid';
+      }).catch(error=>{fields.innerHTML='<p class="text-danger">'+escapeHTML(error.message||'No se pudo cargar la configuración.')+'</p>';});
     } else if (mode === 'module-pricing') {
       setText('#simpleModalTitle','Catálogo comercial: precios y módulos');
       fields.innerHTML='<p class="text-muted small">Definí los importes en guaraníes. Los cambios afectan las nuevas cotizaciones; no modifican contratos ni licencias ya emitidos.</p><div class="row g-2 mb-3"><div class="col-md-4"><label class="form-label" for="commercialMonthlyBase">Base mensual</label><input id="commercialMonthlyBase" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-4"><label class="form-label" for="commercialAnnualDiscount">Descuento anual (%)</label><input id="commercialAnnualDiscount" class="form-control" type="number" min="0" max="100" step="0.1" value="0"></div><div class="col-md-4"><label class="form-label" for="commercialSetupFee">Configuración inicial</label><input id="commercialSetupFee" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-6"><label class="form-label" for="commercialPermanentPrice">Licencia permanente</label><input id="commercialPermanentPrice" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-6"><label class="form-label" for="commercialFullSalePrice">Venta completa</label><input id="commercialFullSalePrice" class="form-control" type="number" min="0" step="1" value="0"></div></div><h6>Precios por módulo</h6><div id="commercialModulePrices" class="table-responsive"><p class="text-muted">Cargando catálogo…</p></div>';
@@ -2957,7 +2966,18 @@ img,svg,canvas,video{max-width:100%}
     $('#simpleForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
-    if (!name && !['employee-payment','module-pricing','module-requests','quotations'].includes(simpleModalMode)) return;
+    if (!name && !['employee-payment','business-config','module-pricing','module-requests','quotations'].includes(simpleModalMode)) return;
+    if (simpleModalMode === 'business-config') {
+      const submit=$('#simpleForm').querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Guardando…';}
+      try{
+        const modules=[...document.querySelectorAll('[data-edit-module]:checked')].map(input=>input.dataset.editModule);
+        if(!modules.length)throw new Error('Seleccioná al menos el panel principal.');
+        await window.PanaderiaAuth.api('/api/admin/business-config',{method:'PUT',body:JSON.stringify({businessId:simpleModalData.businessId,industry:$('#editBusinessIndustry').value,configMode:$('#editBusinessMode').value,modules})});
+        simpleModal.hide();await refreshCloudBusinesses();notify('Configuración de módulos actualizada. La licencia conserva sus límites contratados.');
+      }catch(error){notify(error.message||'No se pudo actualizar la configuración.');}
+      finally{if(submit){submit.disabled=false;submit.textContent='Guardar';}}
+      return;
+    }
     if (simpleModalMode === 'module-pricing') {
       const submit=$('#simpleForm').querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Guardando…';}
       try{
