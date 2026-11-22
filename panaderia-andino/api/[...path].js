@@ -627,7 +627,7 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/business/module-requests') {
       const user=await authenticated(req,res,false);if(!user)return;
-      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Este apartado corresponde a una cuenta de negocio.'});
+      if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))return send(res,403,{error:'Solo el administrador o supervisor del negocio puede solicitar módulos.'});
       const sql=db();
       if(req.method==='GET'){
         const rows=await sql`SELECT r.*,m.title AS module_title FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key WHERE r.business_id=${user.business_id} ORDER BY r.created_at DESC LIMIT 100`;
@@ -1376,6 +1376,12 @@ module.exports = async function handler(req, res) {
       const can = key => permissions[key] === true;
       const canAny = keys => keys.some(can);
       const sql = db();
+      const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
+        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+        WHERE bc.business_id=${user.business_id} LIMIT 1`;
+      const configured=moduleRows[0]?.configured_modules,licensed=moduleRows[0]?.licensed_modules;
+      const enabledModules=Array.isArray(configured)?(Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured):null;
+      const moduleEnabled=key=>!Array.isArray(enabledModules)||enabledModules.includes(key);
       if (req.method === 'GET') {
         const rows = await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner
           FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id
@@ -1383,16 +1389,16 @@ module.exports = async function handler(req, res) {
         if (!rows.length) return send(res,404,{error:'El negocio no está disponible.'});
         const source = rows[0].data && typeof rows[0].data === 'object' && !Array.isArray(rows[0].data) ? rows[0].data : {};
         const data = { business:{id:rows[0].business_id,name:rows[0].business_name,address:rows[0].business_address||'',phone:rows[0].business_phone||'',email:rows[0].business_email||'',ruc:rows[0].business_ruc||'',owner:rows[0].business_owner||''} };
-        if (canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
-        if (canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = Array.isArray(source.products)?source.products:[];
-        if (canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
-        if (canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
-        if (canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
-        if (canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
-        if (canAny(['purchases.view','purchases.create','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
-        if (canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
-        if (canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
-        if (canAny(['reports.view'])) {
+        if (moduleEnabled('invoices') && canAny(['sales.view','sales.create','sales.cancel','reports.view'])) data.invoices = can('sales.view') || can('reports.view') ? (Array.isArray(source.invoices)?source.invoices:[]) : [];
+        if (moduleEnabled('products') && canAny(['products.view','products.manage','inventory.view','inventory.manage','reports.view'])) data.products = Array.isArray(source.products)?source.products:[];
+        if (moduleEnabled('movements') && canAny(['cash.view','cash.manage','reports.view'])) data.movements = Array.isArray(source.movements)?source.movements:[];
+        if (moduleEnabled('inventory') && canAny(['inventory.view','inventory.manage','reports.view'])) data.productMovements = Array.isArray(source.productMovements)?source.productMovements:[];
+        if (moduleEnabled('customers') && canAny(['customers.view','customers.manage'])) data.customers = Array.isArray(source.customers)?source.customers:[];
+        if (moduleEnabled('suppliers') && canAny(['suppliers.view','suppliers.manage'])) data.suppliers = Array.isArray(source.suppliers)?source.suppliers:[];
+        if (moduleEnabled('purchases') && canAny(['purchases.view','purchases.create','reports.view'])) data.purchases = Array.isArray(source.purchases)?source.purchases:[];
+        if (moduleEnabled('recipes') && canAny(['recipes.view','recipes.manage'])) data.recipes = Array.isArray(source.recipes)?source.recipes:[];
+        if (moduleEnabled('production') && canAny(['production.view','production.manage'])) data.productionBatches = Array.isArray(source.productionBatches)?source.productionBatches:[];
+        if (moduleEnabled('reports') && canAny(['reports.view'])) {
           data.categories = source.categories && typeof source.categories === 'object' ? source.categories : {};
           data.paymentMethods = Array.isArray(source.paymentMethods)?source.paymentMethods:[];
         }
@@ -1417,8 +1423,8 @@ module.exports = async function handler(req, res) {
           }
           if (additions.length) { next[key] = oldItems.concat(additions); savedFields.push(key); }
         };
-        if (can('sales.create')) appendOnly('invoices');
-        if (can('sales.cancel') && Array.isArray(incoming.invoices)) {
+        if (moduleEnabled('invoices') && can('sales.create')) appendOnly('invoices');
+        if (moduleEnabled('invoices') && can('sales.cancel') && Array.isArray(incoming.invoices)) {
           const requested = new Set(incoming.invoices.filter(item=>item && item.status==='cancelled').map(item=>String(item.id||'')));
           const oldItems = Array.isArray(next.invoices) ? next.invoices : (Array.isArray(current.invoices)?current.invoices:[]);
           let changed = false;
@@ -1428,17 +1434,17 @@ module.exports = async function handler(req, res) {
           });
           if (changed) { if (!savedFields.includes('invoices')) savedFields.push('invoices'); }
         }
-        if (can('products.manage') && Array.isArray(incoming.products)) {
+        if (moduleEnabled('products') && can('products.manage') && Array.isArray(incoming.products)) {
           next.products = incoming.products.filter(item=>item&&String(item.name||'').trim()).slice(0,5000);
           savedFields.push('products');
         }
-        if (can('cash.manage')) appendOnly('movements');
-        if (can('inventory.manage')) appendOnly('productMovements');
-        if (can('customers.manage') && Array.isArray(incoming.customers)) { next.customers=incoming.customers.filter(item=>item&&String(item.name||'').trim()).slice(0,5000); savedFields.push('customers'); }
-        if (can('suppliers.manage') && Array.isArray(incoming.suppliers)) { next.suppliers=incoming.suppliers.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('suppliers'); }
-        if (can('purchases.create')) appendOnly('purchases');
-        if (can('recipes.manage') && Array.isArray(incoming.recipes)) { next.recipes=incoming.recipes.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('recipes'); }
-        if (can('production.manage')) appendOnly('productionBatches');
+        if (moduleEnabled('movements') && can('cash.manage')) appendOnly('movements');
+        if (moduleEnabled('inventory') && can('inventory.manage')) appendOnly('productMovements');
+        if (moduleEnabled('customers') && can('customers.manage') && Array.isArray(incoming.customers)) { next.customers=incoming.customers.filter(item=>item&&String(item.name||'').trim()).slice(0,5000); savedFields.push('customers'); }
+        if (moduleEnabled('suppliers') && can('suppliers.manage') && Array.isArray(incoming.suppliers)) { next.suppliers=incoming.suppliers.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('suppliers'); }
+        if (moduleEnabled('purchases') && can('purchases.create')) appendOnly('purchases');
+        if (moduleEnabled('recipes') && can('recipes.manage') && Array.isArray(incoming.recipes)) { next.recipes=incoming.recipes.filter(item=>item&&String(item.name||'').trim()).slice(0,2000); savedFields.push('recipes'); }
+        if (moduleEnabled('production') && can('production.manage')) appendOnly('productionBatches');
         if (!savedFields.length) return send(res,403,{error:'Tu cuenta no tiene permisos de escritura para los cambios enviados.'});
         const serialized = JSON.stringify(next);
         const saved = await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${user.business_id},NOW())
