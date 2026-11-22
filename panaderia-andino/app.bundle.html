@@ -3189,8 +3189,8 @@ img,svg,canvas,video{max-width:100%}
     } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
 
-  async function hydrateCloudData(loadSelectedBusiness = false) {
-    const user = window.PanaderiaAuth?.user;
+  async function hydrateCloudData(loadSelectedBusiness = false, userOverride = null) {
+    const user = userOverride || window.PanaderiaAuth?.user;
     if (!user) return;
     if (user.isPlatformAdmin === true && loadSelectedBusiness) {
       if (!window.PanaderiaAuth.selectedBusinessId) throw new Error('Seleccioná un negocio antes de abrirla.');
@@ -3334,7 +3334,7 @@ img,svg,canvas,video{max-width:100%}
   async function startAuthenticatedHydration(user) {
     if (!user || !user.id || authenticatedUserHydrated === user.id) return;
     authenticatedUserHydrated = user.id;
-    try { await hydrateCloudData(false); }
+    try { await hydrateCloudData(false,user); }
     catch (error) { authenticatedUserHydrated = ''; throw error; }
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshCloudData(); });
