@@ -2398,6 +2398,9 @@ img,svg,canvas,video{max-width:100%}
         const dependent=['sales','inventory','purchases','recipes','production'];
         if(target&&dependent.includes(target.dataset.businessModule)&&target.checked&&products)products.checked=true;
         if(target&&target.dataset.businessModule==='products'&&!target.checked)dependent.forEach(key=>{const box=picker.querySelector('[data-business-module="'+key+'"]');if(box)box.checked=false;});
+        const employees=picker.querySelector('[data-business-module="employees"]'),users=picker.querySelector('[data-business-module="users"]');
+        if(target&&target.dataset.businessModule==='users'&&target.checked&&employees)employees.checked=true;
+        if(target&&target.dataset.businessModule==='employees'&&!target.checked&&users)users.checked=false;
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
         invalidateBusinessQuote();
       });
@@ -2441,6 +2444,9 @@ img,svg,canvas,video{max-width:100%}
           const dependent=['sales','inventory','purchases','recipes','production'];
           if(target&&dependent.includes(target.dataset.editModule)&&target.checked&&products)products.checked=true;
           if(target&&target.dataset.editModule==='products'&&!target.checked)dependent.forEach(key=>{const box=editPicker.querySelector('[data-edit-module="'+key+'"]');if(box)box.checked=false;});
+          const employees=editPicker.querySelector('[data-edit-module="employees"]'),users=editPicker.querySelector('[data-edit-module="users"]');
+          if(target&&target.dataset.editModule==='users'&&target.checked&&employees)employees.checked=true;
+          if(target&&target.dataset.editModule==='employees'&&!target.checked&&users)users.checked=false;
         });
       }).catch(error=>{fields.innerHTML='<p class="text-danger">'+escapeHTML(error.message||'No se pudo cargar la configuración.')+'</p>';});
     } else if (mode === 'module-pricing') {
