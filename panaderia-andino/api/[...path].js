@@ -615,6 +615,7 @@ module.exports = async function handler(req, res) {
         if(valid.some(row=>row.active!==true&&!previouslyConfigured.includes(row.module_key)))return send(res,409,{error:'Un módulo desactivado comercialmente no puede agregarse a un negocio nuevo. Solo puede conservarse si ya estaba configurado.'});
         if(!modules.includes('dashboard'))modules.push('dashboard');
         if(modules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!modules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
+        if(modules.includes('users')&&!modules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'No se encontró el negocio.'});
         const rows=await sql`INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
@@ -827,6 +828,7 @@ module.exports = async function handler(req, res) {
         if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
         if(!selectedModules.includes('dashboard'))selectedModules.push('dashboard');
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
+        if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
         const quotationId=String(input.quotationId||'');
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
         if(quotationId){
