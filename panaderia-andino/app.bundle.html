@@ -2998,8 +2998,7 @@ img,svg,canvas,video{max-width:100%}
         const modules=[...document.querySelectorAll('[data-module-monthly]')].map(input=>({moduleKey:input.dataset.moduleMonthly,monthlyPrice:Number(input.value),setupPrice:Number(document.querySelector('[data-module-setup="'+input.dataset.moduleMonthly+'"]')?.value||0),active:document.querySelector('[data-module-active="'+input.dataset.moduleMonthly+'"]')?.checked===true}));
         const values=['#commercialMonthlyBase','#commercialAnnualDiscount','#commercialSetupFee','#commercialPermanentPrice','#commercialFullSalePrice'].map(selector=>Number($(selector).value));
         if(values.some(value=>!Number.isFinite(value)||value<0)||values[1]>100||modules.some(item=>!Number.isFinite(item.monthlyPrice)||item.monthlyPrice<0||!Number.isFinite(item.setupPrice)||item.setupPrice<0))throw new Error('Revisá los importes: deben ser números positivos.');
-        await window.PanaderiaAuth.api('/api/admin/module-catalog',{method:'PUT',body:JSON.stringify({modules})});
-        await window.PanaderiaAuth.api('/api/admin/commercial-settings',{method:'PUT',body:JSON.stringify({monthlyBase:values[0],annualDiscountPercent:values[1],setupFee:values[2],permanentPrice:values[3],fullSalePrice:values[4],currency:'PYG'})});
+        await window.PanaderiaAuth.api('/api/admin/commercial-settings',{method:'PUT',body:JSON.stringify({monthlyBase:values[0],annualDiscountPercent:values[1],setupFee:values[2],permanentPrice:values[3],fullSalePrice:values[4],currency:'PYG',modules})});
         simpleModal.hide();notify('Catálogo comercial actualizado. Las cotizaciones nuevas usarán estos precios.');
       }catch(error){notify(error.message||'No se pudo guardar el catálogo comercial.');}
       finally{if(submit){submit.disabled=false;submit.textContent='Guardar';}}
