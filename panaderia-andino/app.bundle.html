@@ -2416,7 +2416,7 @@ img,svg,canvas,video{max-width:100%}
       const renderRequests=async()=>{
         const result=await window.PanaderiaAuth.api('/api/admin/module-requests');
         const rows=result.requests||[];
-        $('#moduleRequestsContent').innerHTML=rows.length?'<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>NEGOCIO</th><th>MÓDULO</th><th>ESTADO</th><th>SOLICITADO POR</th><th>ACCIONES</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHTML(r.business_name||'')+'</td><td>'+escapeHTML(r.module_title||r.module_key)+'</td><td>'+escapeHTML(r.status)+'</td><td>'+escapeHTML(r.requester_name||'—')+'</td><td><div class="d-flex flex-wrap gap-1">'+(['requested','quoted'].includes(r.status)?'<button type="button" class="btn btn-sm btn-outline-bakery" data-module-request-action="quote" data-id="'+escapeHTML(r.id)+'">Marcar cotizada</button><button type="button" class="btn btn-sm btn-success" data-module-request-action="approve" data-id="'+escapeHTML(r.id)+'">Habilitar</button><button type="button" class="btn btn-sm btn-outline-danger" data-module-request-action="reject" data-id="'+escapeHTML(r.id)+'">Rechazar</button>':'—')+'</div></td></tr>').join('')+'</tbody></table></div>':'<p class="text-muted">No hay solicitudes de módulos.</p>';
+        $('#moduleRequestsContent').innerHTML=rows.length?'<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>NEGOCIO</th><th>MÓDULO</th><th>ESTADO</th><th>SOLICITADO POR</th><th>ACCIONES</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHTML(r.business_name||'')+'</td><td>'+escapeHTML(r.module_title||r.module_key)+'</td><td>'+escapeHTML(r.status)+'</td><td>'+escapeHTML(r.requester_name||'—')+'</td><td><div class="d-flex flex-wrap gap-1">'+(['requested','quoted'].includes(r.status)?'<button type="button" class="btn btn-sm btn-outline-bakery" data-module-request-action="quote" data-id="'+escapeHTML(r.id)+'" data-business-id="'+escapeHTML(r.business_id)+'" data-industry="'+escapeHTML(r.industry_key||'comercios_generales')+'" data-config-mode="'+escapeHTML(r.config_mode==='custom'?'custom':'hybrid')+'" data-module-key="'+escapeHTML(r.module_key)+'" data-prospect="'+escapeHTML(r.business_name||'')+'">Generar cotización</button><button type="button" class="btn btn-sm btn-success" data-module-request-action="approve" data-id="'+escapeHTML(r.id)+'">Habilitar</button><button type="button" class="btn btn-sm btn-outline-danger" data-module-request-action="reject" data-id="'+escapeHTML(r.id)+'">Rechazar</button>':'—')+'</div></td></tr>').join('')+'</tbody></table></div>':'<p class="text-muted">No hay solicitudes de módulos.</p>';
       };
       renderRequests().catch(error=>{$('#moduleRequestsContent').textContent=error.message||'No se pudieron cargar las solicitudes.';});
       fields.onclick=async event=>{
@@ -2424,8 +2424,19 @@ img,svg,canvas,video{max-width:100%}
         const action=button.dataset.moduleRequestAction;
         if(action==='approve'&&!window.confirm('Confirmá que la ampliación fue aceptada y pagada antes de habilitarla. ¿Continuar?'))return;
         button.disabled=true;
-        try{await window.PanaderiaAuth.api('/api/admin/module-requests',{method:'PATCH',body:JSON.stringify({id:button.dataset.id,action})});await renderRequests();notify(action==='approve'?'Módulo habilitado y licencia actualizada.':'Solicitud actualizada.');}
-        catch(error){notify(error.message||'No se pudo actualizar la solicitud.');}
+        try{
+          let quotationId='';
+          if(action==='quote'){
+            const quote=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName:button.dataset.prospect,businessId:button.dataset.businessId,industry:button.dataset.industry,configMode:button.dataset.configMode,modules:[button.dataset.moduleKey],planType:'monthly',moduleExpansion:true})});
+            quotationId=quote.quotation.id;
+            if(!quote.pricingConfigured)notify('Cotización creada, pero falta configurar el precio de este módulo.');
+          }
+          await window.PanaderiaAuth.api('/api/admin/module-requests',{method:'PATCH',body:JSON.stringify({id:button.dataset.id,action,quotationId})});
+          await renderRequests();
+          if(action==='approve')notify('Módulo habilitado y licencia actualizada.');
+          else if(action==='quote')notify('Cotización de ampliación generada y vinculada a la solicitud.');
+          else notify('Solicitud rechazada.');
+        }catch(error){notify(error.message||'No se pudo actualizar la solicitud.');}
       };
     } else if (mode === 'quotations') {
       setText('#simpleModalTitle','Cotizaciones comerciales');
