@@ -656,8 +656,13 @@ module.exports = async function handler(req, res) {
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),status=String(input.status||'');
         if(!/^[0-9a-f-]{36}$/i.test(id)||!['sent','accepted','rejected','expired'].includes(status))return send(res,400,{error:'Estado de cotización no válido.'});
+        const current=await sql`SELECT status,setup_amount,monthly_amount,annual_amount FROM app_quotations WHERE id=${id} LIMIT 1`;
+        if(!current.length)return send(res,404,{error:'Cotización no encontrada.'});
+        if(!['draft','sent'].includes(current[0].status))return send(res,409,{error:'La cotización ya está cerrada.'});
+        if(status==='sent'&&Number(current[0].setup_amount||0)+Number(current[0].monthly_amount||0)+Number(current[0].annual_amount||0)<=0)return send(res,409,{error:'Configurá los precios comerciales antes de enviar una cotización con importe cero.'});
+        if(status==='accepted'&&current[0].status!=='sent')return send(res,409,{error:'Primero enviá la cotización al cliente para poder marcarla como aceptada.'});
         const rows=await sql`UPDATE app_quotations SET status=${status},updated_at=NOW() WHERE id=${id} AND status IN ('draft','sent') RETURNING *`;
-        if(!rows.length)return send(res,404,{error:'Cotización no encontrada o ya cerrada.'});
+        if(!rows.length)return send(res,409,{error:'La cotización cambió mientras se actualizaba. Volvé a cargarla.'});
         return send(res,200,{quotation:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
@@ -701,6 +706,10 @@ module.exports = async function handler(req, res) {
         const requestRows=await sql`SELECT * FROM app_module_requests WHERE id=${id} AND status IN ('requested','quoted') LIMIT 1`;
         if(!requestRows.length)return send(res,404,{error:'Solicitud no encontrada o ya procesada.'});
         const request=requestRows[0];
+        if(action==='approve'&&request.quotation_id){
+          const quote=await sql`SELECT status FROM app_quotations WHERE id=${request.quotation_id} AND business_id=${request.business_id} LIMIT 1`;
+          if(!quote.length||quote[0].status!=='accepted')return send(res,409,{error:'La cotización asociada debe estar aceptada antes de habilitar el módulo.'});
+        }
         if(action==='quote'){
           const quotationId=String(input.quotationId||'');
           if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
