@@ -178,22 +178,38 @@ module.exports = async function handler(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/admin/license-settings'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT trial_enabled,trial_days,device_limit,activation_mode,currency_mode,billing_mode FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+        const row=rows[0]||{trial_enabled:true,trial_days:7,device_limit:3,activation_mode:'manual',currency_mode:'both',billing_mode:'both'};
+        return send(res,200,{settings:{trialEnabled:row.trial_enabled===true,trialDays:Number(row.trial_days||7),deviceLimit:row.device_limit===null?null:Number(row.device_limit),activationMode:row.activation_mode,currencyMode:row.currency_mode,billingMode:row.billing_mode}});
+      }
+      if(req.method==='PUT'){
+        const input=body(req),trialEnabled=input.trialEnabled===true,trialDays=Number(input.trialDays),deviceLimit=input.deviceLimit===null?null:Number(input.deviceLimit);
+        if(!Number.isInteger(trialDays)||trialDays<1||trialDays>90||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'La duración debe ser de 1 a 90 días y el límite de dispositivos de 1 a 100 (o sin límite).'});
+        const rows=await sql`INSERT INTO app_license_settings(setting_key,trial_enabled,trial_days,device_limit,updated_by,updated_at) VALUES('default',${trialEnabled},${trialDays},${deviceLimit},${admin.id},NOW()) ON CONFLICT(setting_key) DO UPDATE SET trial_enabled=EXCLUDED.trial_enabled,trial_days=EXCLUDED.trial_days,device_limit=EXCLUDED.device_limit,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING trial_enabled,trial_days,device_limit,activation_mode,currency_mode,billing_mode`;
+        const row=rows[0];return send(res,200,{settings:{trialEnabled:row.trial_enabled===true,trialDays:Number(row.trial_days),deviceLimit:row.device_limit===null?null:Number(row.device_limit),activationMode:row.activation_mode,currencyMode:row.currency_mode,billingMode:row.billing_mode}});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if(path==='/api/admin/licenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        await sql`UPDATE app_licenses SET status='expired',updated_at=NOW() WHERE status='active' AND expires_at<CURRENT_DATE`;
-        const rows=await sql`SELECT l.*,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
-        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.status==='active').length,monthly:rows.filter(x=>x.status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
+        const rows=await sql`SELECT l.*,CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,b.name AS business_name,b.ruc AS business_ruc,COALESCE((SELECT SUM(p.amount) FROM app_license_payments p WHERE p.license_id=l.id),0)::numeric AS paid_total,COALESCE((SELECT json_agg(json_build_object('id',p.id,'amount',p.amount,'payment_type',p.payment_type,'paid_at',p.paid_at,'reference',p.reference) ORDER BY p.paid_at DESC) FROM app_license_payments p WHERE p.license_id=l.id),'[]'::json) AS payments FROM app_licenses l JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 500`;
+        return send(res,200,{licenses:rows,totals:{count:rows.length,active:rows.filter(x=>x.effective_status==='active').length,monthly:rows.filter(x=>x.effective_status==='active').reduce((n,x)=>n+Number(x.monthly_amount||0),0)}});
       }
       if(req.method==='POST'){
         const input=body(req),businessId=String(input.businessId||''),systemName=String(input.systemName||'Mattsystem').trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
-        const setup=Math.max(0,Number(input.setupAmount)||0),monthly=Math.max(0,Number(input.monthlyAmount)||0),billingDay=Math.min(28,Math.max(1,Number(input.billingDay)||1));
-        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||!Number.isFinite(monthly))return send(res,400,{error:'Datos de licencia no válidos.'});
+        const setup=Number(input.setupAmount??0),monthly=Number(input.monthlyAmount??0),billingDay=Number(input.billingDay??1),expiresAt=input.expiresAt?String(input.expiresAt):null;
+        const parsedExpiry=expiresAt?new Date(expiresAt+'T00:00:00Z'):null;
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||(expiresAt&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(parsedExpiry.getTime())||parsedExpiry.toISOString().slice(0,10)!==expiresAt)))return send(res,400,{error:'Datos de licencia no válidos. Revisá importes, día de cobro y vencimiento.'});
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by) VALUES(${businessId},${code},${systemName},${plan},${status},${input.expiresAt||null},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id}) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by) VALUES(${businessId},${code},${systemName},${plan},${status},${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id}) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
