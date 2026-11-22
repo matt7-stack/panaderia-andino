@@ -2383,8 +2383,11 @@ img,svg,canvas,video{max-width:100%}
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
         fields.querySelector('#businessModuleHelp').textContent=modeValue==='template'?'Plantilla automática. Cambiá a modo combinado o personalizado para elegir los módulos.':modeValue==='custom'?'Elegí manualmente los módulos que contratará este negocio.':'Podés agregar o quitar módulos de la plantilla recomendada.';
       };
-      industrySelect.addEventListener('change',applyTemplate);
-      modeSelect.addEventListener('change',applyTemplate);
+      const invalidateBusinessQuote=()=>{delete fields.dataset.quotationId;const preview=fields.querySelector('#businessQuotePreview');if(preview)preview.textContent='La configuración cambió. Generá una nueva cotización antes de crear el negocio.';};
+      industrySelect.addEventListener('change',()=>{applyTemplate();invalidateBusinessQuote();});
+      modeSelect.addEventListener('change',()=>{applyTemplate();invalidateBusinessQuote();});
+      fields.querySelector('#businessQuotePlan').addEventListener('change',invalidateBusinessQuote);
+      fields.querySelector('#simpleName').addEventListener('input',invalidateBusinessQuote);
       picker.addEventListener('change',(event)=>{
         const target=event.target.closest('[data-business-module]');
         const products=picker.querySelector('[data-business-module="products"]');
@@ -2392,6 +2395,7 @@ img,svg,canvas,video{max-width:100%}
         if(target&&dependent.includes(target.dataset.businessModule)&&target.checked&&products)products.checked=true;
         if(target&&target.dataset.businessModule==='products'&&!target.checked)dependent.forEach(key=>{const box=picker.querySelector('[data-business-module="'+key+'"]');if(box)box.checked=false;});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
+        invalidateBusinessQuote();
       });
       applyTemplate();
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
