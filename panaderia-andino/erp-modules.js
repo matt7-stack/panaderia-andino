@@ -86,7 +86,8 @@
       const [catalog,history]=await Promise.all([window.PanaderiaAuth.api('/api/business/module-catalog'),window.PanaderiaAuth.api('/api/business/module-requests')]);
       const enabled=Array.isArray(user()?.businessConfig?.modules)?user().businessConfig.modules:[];
       const pending=new Set((history.requests||[]).filter(r=>['requested','quoted'].includes(r.status)).map(r=>r.module_key));
-      const available=(catalog.modules||[]).filter(m=>!enabled.includes(m.module_key)&&!pending.has(m.module_key));
+      const dependentOnProducts=['sales','inventory','purchases','recipes','production'];
+      const available=(catalog.modules||[]).filter(m=>!enabled.includes(m.module_key)&&!pending.has(m.module_key)&&(!dependentOnProducts.includes(m.module_key)||enabled.includes('products'))&&(m.module_key!=='users'||enabled.includes('employees')));
       select.innerHTML=available.map(m=>'<option value="'+esc(m.module_key)+'">'+esc(m.title)+'</option>').join('');
       select.disabled=!available.length;if(button)button.disabled=!available.length;
       if(!available.length)select.innerHTML='<option value="">No hay módulos adicionales disponibles para solicitar</option>';
