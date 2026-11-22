@@ -79,6 +79,21 @@
       }).join('')+'</div>':'<small class="text-muted d-block mt-3">Todavía no tenés solicitudes de módulos.</small>';
     }catch(error){target.innerHTML='<small class="text-danger">'+esc(error.message||'No se pudieron cargar las solicitudes.')+'</small>';}
   }
+  async function refreshRequestableOptions(){
+    const select=$('#erpRequestModuleSelect'),panel=$('#erpRequestPanel'),button=$('#erpSendModuleRequest');
+    if(!select||!panel)return;
+    try{
+      const [catalog,history]=await Promise.all([window.PanaderiaAuth.api('/api/business/module-catalog'),window.PanaderiaAuth.api('/api/business/module-requests')]);
+      const enabled=Array.isArray(user()?.businessConfig?.modules)?user().businessConfig.modules:[];
+      const pending=new Set((history.requests||[]).filter(r=>['requested','quoted'].includes(r.status)).map(r=>r.module_key));
+      const available=(catalog.modules||[]).filter(m=>!enabled.includes(m.module_key)&&!pending.has(m.module_key));
+      select.innerHTML=available.map(m=>'<option value="'+esc(m.module_key)+'">'+esc(m.title)+'</option>').join('');
+      select.disabled=!available.length;if(button)button.disabled=!available.length;
+      if(!available.length)select.innerHTML='<option value="">No hay módulos adicionales disponibles para solicitar</option>';
+    }catch(error){
+      select.innerHTML='<option value="">No se pudo cargar el catálogo</option>';select.disabled=true;if(button)button.disabled=true;
+    }
+  }
   function syncRequestControls(){
     const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),trigger=$('#erpRequestModuleButton'),u=user();
     if(!panel||!select)return;
@@ -236,7 +251,7 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
-    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();if(!$('#erpRequestPanel').hidden)loadModuleRequestHistory();return;}
+    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();if(!$('#erpRequestPanel').hidden){await refreshRequestableOptions();await loadModuleRequestHistory();}return;}
     const quoteResponse=event.target.closest('[data-module-quote-response]');
     if(quoteResponse){
       const action=quoteResponse.dataset.moduleQuoteResponse;
@@ -251,7 +266,7 @@
       const button=$('#erpSendModuleRequest'),key=$('#erpRequestModuleSelect')?.value;
       if(!key)return;
       button.disabled=true;
-      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'POST',body:JSON.stringify({moduleKey:key})});window.alert('Solicitud enviada. El administrador revisará la ampliación.');syncRequestControls();await loadModuleRequestHistory();}
+      try{await window.PanaderiaAuth.api('/api/business/module-requests',{method:'POST',body:JSON.stringify({moduleKey:key})});window.alert('Solicitud enviada. El administrador revisará la ampliación.');syncRequestControls();await refreshRequestableOptions();await loadModuleRequestHistory();}
       catch(error){window.alert(error.message||'No se pudo enviar la solicitud.');}
       finally{button.disabled=false;}
       return;
