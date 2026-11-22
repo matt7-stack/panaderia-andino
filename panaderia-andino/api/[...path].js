@@ -603,8 +603,10 @@ module.exports = async function handler(req, res) {
         if(catalog.length!==modules.length)return send(res,400,{error:'La cotización contiene módulos no disponibles.'});
         const settingsRows=await sql`SELECT monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency FROM app_commercial_settings WHERE setting_key='default' LIMIT 1`;
         const settings=settingsRows[0]||{monthly_base:0,annual_discount_percent:0,permanent_price:0,full_sale_price:0,setup_fee:0,currency:'PYG'};
+        const moduleExpansion=input.moduleExpansion===true;
+        if(moduleExpansion&&(!input.businessId||!['monthly','annual'].includes(plan)))return send(res,400,{error:'La ampliación de módulos requiere un negocio y una modalidad mensual o anual.'});
         const moduleMonthly=catalog.reduce((n,m)=>n+Number(m.monthly_price||0),0),moduleSetup=catalog.reduce((n,m)=>n+Number(m.setup_price||0),0);
-        const monthly=Number(settings.monthly_base||0)+moduleMonthly,setup=Number(settings.setup_fee||0)+moduleSetup;
+        const monthly=(moduleExpansion?0:Number(settings.monthly_base||0))+moduleMonthly,setup=(moduleExpansion?0:Number(settings.setup_fee||0))+moduleSetup;
         const annual=monthly*12*(1-Number(settings.annual_discount_percent||0)/100);
         const oneTime=plan==='permanent'?Number(settings.permanent_price||0)+setup:plan==='full_sale'?Number(settings.full_sale_price||0)+setup:setup;
         if((plan==='permanent'&&!Number(settings.permanent_price||0))||(plan==='full_sale'&&!Number(settings.full_sale_price||0)))return send(res,409,{error:'Configurá primero el precio de licencia permanente o venta completa en el catálogo comercial.'});
@@ -612,7 +614,7 @@ module.exports = async function handler(req, res) {
         const breakdown={currency:settings.currency||'PYG',monthlyBase:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
         const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,created_by)
           VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${input.validUntil||null},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${admin.id}) RETURNING *`;
-        return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0});
+        return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||(moduleExpansion?false:Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0)||((plan==='permanent'&&Number(settings.permanent_price||0)>0)||(plan==='full_sale'&&Number(settings.full_sale_price||0)>0))});
       }
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),status=String(input.status||'');
@@ -650,7 +652,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT r.*,m.title AS module_title,b.name AS business_name,u.name AS requester_name FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key JOIN businesses b ON b.id=r.business_id LEFT JOIN app_users u ON u.id=r.requested_by ORDER BY r.created_at DESC LIMIT 300`;
+        const rows=await sql`SELECT r.*,m.title AS module_title,b.name AS business_name,u.name AS requester_name,bc.industry_key,bc.config_mode FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key JOIN businesses b ON b.id=r.business_id LEFT JOIN app_users u ON u.id=r.requested_by LEFT JOIN app_business_config bc ON bc.business_id=b.id ORDER BY r.created_at DESC LIMIT 300`;
         return send(res,200,{requests:rows});
       }
       if(req.method==='PATCH'){
@@ -660,7 +662,12 @@ module.exports = async function handler(req, res) {
         if(!requestRows.length)return send(res,404,{error:'Solicitud no encontrada o ya procesada.'});
         const request=requestRows[0];
         if(action==='quote'){
-          const rows=await sql`UPDATE app_module_requests SET status='quoted',reviewed_by=${admin.id},notes=CASE WHEN ${String(input.notes||'').trim()}='' THEN notes ELSE ${String(input.notes||'').trim().slice(0,1000)} END,updated_at=NOW() WHERE id=${id} RETURNING *`;
+          const quotationId=String(input.quotationId||'');
+          if(quotationId){
+            const quote=await sql`SELECT id FROM app_quotations WHERE id=${quotationId} AND (business_id=${request.business_id} OR business_id IS NULL) LIMIT 1`;
+            if(!quote.length)return send(res,404,{error:'No se encontró la cotización asociada.'});
+          }
+          const rows=await sql`UPDATE app_module_requests SET status='quoted',quotation_id=COALESCE(NULLIF(${quotationId},'')::uuid,quotation_id),reviewed_by=${admin.id},notes=CASE WHEN ${String(input.notes||'').trim()}='' THEN notes ELSE ${String(input.notes||'').trim().slice(0,1000)} END,updated_at=NOW() WHERE id=${id} RETURNING *`;
           return send(res,200,{request:rows[0]});
         }
         if(action==='reject'){
