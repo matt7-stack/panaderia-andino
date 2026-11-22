@@ -236,6 +236,7 @@ module.exports = async function handler(req, res) {
         }
         const status=String(input.status||'');
         if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
+        if(status==='active'){const current=await sql`SELECT expires_at<CURRENT_DATE AS expired FROM app_licenses WHERE id=${id} LIMIT 1`;if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});if(current[0].expired===true)return send(res,409,{error:'La licencia ya venció. Usá Renovar para establecer una nueva fecha antes de reactivar el acceso.'});}
         const rows=await sql`UPDATE app_licenses SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
         if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
         return send(res,200,{license:rows[0]});
