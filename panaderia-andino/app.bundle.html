@@ -2380,7 +2380,7 @@ img,svg,canvas,video{max-width:100%}
       const boxes=()=>[...picker.querySelectorAll('[data-business-module]')];
       const applyTemplate=()=>{
         const modeValue=modeSelect.value, defaults=templates[industrySelect.value]||[];
-        boxes().forEach(box=>{const required=box.dataset.businessModule==='dashboard';box.checked=required||(modeValue==='custom'?false:defaults.includes(box.dataset.businessModule));box.disabled=required||modeValue==='template'||box.disabled;});
+        boxes().forEach(box=>{const required=box.dataset.businessModule==='dashboard';box.checked=required||(modeValue==='custom'?false:defaults.includes(box.dataset.businessModule));box.disabled=required||modeValue==='template'||['branches','delivery'].includes(box.dataset.businessModule);});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
         fields.querySelector('#businessModuleHelp').textContent=modeValue==='template'?'Plantilla automática. Cambiá a modo combinado o personalizado para elegir los módulos.':modeValue==='custom'?'Elegí manualmente los módulos que contratará este negocio.':'Podés agregar o quitar módulos de la plantilla recomendada.';
       };
