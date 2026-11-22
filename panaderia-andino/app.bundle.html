@@ -982,6 +982,7 @@ img,svg,canvas,video{max-width:100%}
         <a class="nav-link" href="#movimientos" data-page-link="movimientos"><i class="bi bi-arrow-left-right"></i><span>Movimientos</span><span class="nav-count" id="movementNavCount">0</span></a>
         <a class="nav-link" href="#notas" data-page-link="notas"><i class="bi bi-receipt-cutoff"></i><span>Notas</span><span class="nav-count" id="invoiceNavCount">0</span></a>
         <a class="nav-link" href="#notificaciones" data-page-link="notificaciones"><i class="bi bi-bell"></i><span>Notificaciones</span><span class="nav-count" id="notificationNavCount">0</span></a>
+        <a class="nav-link" href="#info" data-page-link="info" id="licenseInfoNav"><i class="bi bi-info-circle"></i><span>Info</span></a>
         <a class="nav-link" href="#productos" data-page-link="productos"><i class="bi bi-box-seam"></i><span>Disponibilidad</span></a>
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administrador</span></a>
@@ -1233,6 +1234,10 @@ img,svg,canvas,video{max-width:100%}
         <section class="page-view" id="page-notificaciones" data-page="notificaciones">
           <div class="page-heading"><div><p class="eyebrow">AVISOS DEL SISTEMA</p><h1><i class="bi bi-bell heading-page-icon"></i> Notificaciones</h1><p class="page-subtitle">Mensajes y avisos enviados por el administrador.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshNotificationsButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
           <div id="notificationsList" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando notificaciones…</p></article></div>
+        </section>
+        <section class="page-view" id="page-info" data-page="info">
+          <div class="page-heading"><div><p class="eyebrow">INFORMACIÓN DE TU SERVICIO</p><h1><i class="bi bi-info-circle heading-page-icon"></i> Info</h1><p class="page-subtitle">Consultá el plan de licencia asociado a tu negocio y las condiciones de tu servicio.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshLicenseInfo"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div id="licenseInfoContent" aria-live="polite" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando información de la licencia…</p></article></div>
         </section>
         <section class="page-view" id="page-configuracion" data-page="configuracion">
           <div class="page-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h1><i class="bi bi-gear heading-page-icon"></i> Configuración</h1><p class="page-subtitle">Personalizá el sistema de tu negocio.</p></div></div>
@@ -1664,9 +1669,9 @@ img,svg,canvas,video{max-width:100%}
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
       const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
-      const businessPages = ['dashboard','movimientos','notas','notificaciones','productos','empleados','erp','configuracion','guia-uso'];
+      const businessPages = ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
       const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
-      const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
+      const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
         (page === 'movimientos' && (employeePermissions['cash.view'] === true || employeePermissions['cash.manage'] === true)) ||
         (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => employeePermissions[key] === true)) ||
         (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true)) ||
@@ -1876,14 +1881,14 @@ img,svg,canvas,video{max-width:100%}
     return items.filter((item) => item.type === type).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
     if (currentUser?.role === 'employee') {
       const p = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
-      const allowed = page === 'dashboard' || page === 'notificaciones' || page === 'guia-uso' ||
+      const allowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
         (page === 'movimientos' && (p['cash.view'] === true || p['cash.manage'] === true)) ||
         (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => p[key] === true)) ||
         (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => p[key] === true)) ||
@@ -1891,7 +1896,7 @@ img,svg,canvas,video{max-width:100%}
       if (!allowed) return;
     }
     const platformPages=['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
-    const businessPages=['dashboard','movimientos','notas','notificaciones','productos','empleados','erp','configuracion','guia-uso'];
+    const businessPages=['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
     if (currentUser?.isPlatformAdmin !== true && ['actividad','seguridad','reportes-globales'].includes(page)) return;
@@ -1905,7 +1910,7 @@ img,svg,canvas,video{max-width:100%}
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -3173,6 +3178,19 @@ img,svg,canvas,video{max-width:100%}
  async function loadPrefs(){if(!$('#notificationPreferencesForm'))return;try{const r=await api('/api/notification-preferences');$('#prefSystem').checked=r.preferences.system!==false;$('#prefFinancial').checked=r.preferences.financial!==false;$('#prefSupport').checked=r.preferences.support!==false;}catch(e){console.warn(e);}}
  document.addEventListener('submit',async e=>{if(e.target.id==='clientSupportTicketForm'){e.preventDefault();try{await api('/api/support/tickets',{method:'POST',body:JSON.stringify({subject:$('#supportTicketSubject').value,message:$('#supportTicketMessage').value})});e.target.reset();await loadClientTickets();alert('Solicitud enviada correctamente.');}catch(x){alert(x.message);}}if(e.target.id==='notificationPreferencesForm'){e.preventDefault();try{await api('/api/notification-preferences',{method:'PUT',body:JSON.stringify({preferences:{system:$('#prefSystem').checked,financial:$('#prefFinancial').checked,support:$('#prefSupport').checked}})});alert('Preferencias guardadas.');}catch(x){alert(x.message);}}});
  document.addEventListener('click',async e=>{const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton');if(!t)return;try{if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
+ async function loadLicenseInfo(){
+   const container=$('#licenseInfoContent');if(!container)return;
+   container.innerHTML='<article class="panel settings-card"><p class="text-muted mb-0">Consultando tu licencia…</p></article>';
+   try{
+     const result=await api('/api/license/info'),l=result.license||{};
+     const labels={basic:'Básico',professional:'Profesional',enterprise:'Empresarial',active:'Activa',pending:'Pendiente de activación',suspended:'Suspendida',cancelled:'Cancelada',expired:'Vencida'};
+     const money=value=>'Gs. '+Number(value||0).toLocaleString('es-PY');
+     const date=value=>value?new Date(value+'T00:00:00').toLocaleDateString('es-PY'):'Sin vencimiento definido';
+     const field=(label,value)=>'<div class="col-12 col-md-6"><div class="p-3 h-100 rounded-3" style="background:#fbf5eb"><small class="text-muted d-block mb-1">'+label+'</small><strong>'+esc(value)+'</strong></div></div>';
+     const trial=l.is_trial===true;
+     container.innerHTML='<article class="panel settings-card"><div class="panel-heading"><div><p class="eyebrow mb-1">PLAN '+(trial?'DE PRUEBA':'CONTRATADO')+'</p><h3 class="mb-1">'+esc(labels[l.plan]||l.plan||'Plan no especificado')+'</h3><p class="text-muted mb-0">'+esc(l.system_name||'Mattsystem')+'</p></div><span class="badge '+(l.effective_status==='active'?'bg-success':'bg-secondary')+'">'+esc(labels[l.effective_status]||l.effective_status||'Sin estado')+'</span></div><div class="row g-3 mt-1">'+field('Código de licencia',l.license_code||'No disponible')+field('Tipo de licencia',trial?'Prueba gratuita':'Licencia contratada')+field('Fecha de inicio',date(l.sold_at||l.created_at))+field('Vencimiento',date(l.expires_at))+field('Días restantes',l.days_remaining===null?'Sin vencimiento':String(l.days_remaining)+' días')+field('Cargo mensual',money(l.monthly_amount))+field('Cargo de instalación',money(l.setup_amount))+field('Día de facturación','Día '+Number(l.billing_day||1)+' de cada mes')+field('Usuarios permitidos',l.user_limit===null||l.user_limit===undefined?'No especificado':String(l.user_limit))+field('Dispositivos permitidos',l.device_limit===null?'Sin límite':(l.device_limit===undefined?'No especificado':String(l.device_limit)))+(trial?field('Duración de prueba',Number(l.trial_days||0)+' días'):'')+(l.contract_reference?field('Referencia de contrato',l.contract_reference):'')+'</div></article><p class="text-muted small mb-0">Esta información corresponde a la licencia vinculada a tu negocio. Para solicitar cambios, renovación o aclaraciones, comunicate con soporte.</p>';
+   }catch(error){container.innerHTML='<article class="panel settings-card"><p class="text-danger mb-2">'+esc(error.message||'No se pudo cargar la información de la licencia.')+'</p><button type="button" class="btn btn-outline-bakery btn-sm" id="retryLicenseInfo">Reintentar</button></article>';}
+ }
  async function loadLicenses(){
    const table=$('#licensesTableBody'),businessSelect=$('#licenseBusiness');
    if(!table||!businessSelect)return false;
@@ -3208,6 +3226,8 @@ img,svg,canvas,video{max-width:100%}
  }
  $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,setupAmount:Number($('#licenseSetup').value),monthlyAmount:Number($('#licenseMonthlyInput').value),billingDay:Number($('#licenseBillingDay').value),expiresAt:$('#licenseExpires').value||null,contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseSetup').value=1200000;$('#licenseMonthlyInput').value=120000;$('#licenseBillingDay').value=1;await loadLicenses();alert('Licencia creada.');}catch(x){alert(x.message);}});
  $('#refreshLicenses')?.addEventListener('click',loadLicenses);
+  $('#refreshLicenseInfo')?.addEventListener('click',loadLicenseInfo);
+  document.addEventListener('click',event=>{if(event.target.closest('#retryLicenseInfo'))loadLicenseInfo();});
  $('#refreshClientSupportTickets')?.addEventListener('click',loadClientTickets);
  $('#licenseTrialSettingsForm')?.addEventListener('submit',async e=>{e.preventDefault();const button=e.target.querySelector('button[type="submit"]'),status=$('#trialSettingsStatus');if(button)button.disabled=true;if(status)status.textContent='Guardando…';try{const days=Number($('#trialDays').value),deviceRaw=$('#trialDeviceLimit').value.trim(),devices=deviceRaw===''?null:Number(deviceRaw);if(!Number.isInteger(days)||days<1||days>90)throw new Error('La duración debe estar entre 1 y 90 días.');if(!(devices===null||(Number.isInteger(devices)&&devices>=1&&devices<=100)))throw new Error('El límite debe estar entre 1 y 100 o vacío para indicar sin límite.');const result=await api('/api/admin/license-settings',{method:'PUT',body:JSON.stringify({trialEnabled:$('#trialEnabled').checked,trialDays:days,deviceLimit:devices})});$('#trialEnabled').checked=result.settings.trialEnabled;$('#trialDays').value=result.settings.trialDays;$('#trialDeviceLimit').value=result.settings.deviceLimit??'';if(status)status.textContent='Configuración guardada.';notify('Configuración de pruebas gratuitas guardada.');}catch(error){if(status)status.textContent='No se pudo guardar.';notify(error.message);}finally{if(button)button.disabled=false;}});
  $('#licensesTableBody')?.addEventListener('change',async e=>{if(e.target.matches('.license-status'))try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({id:e.target.dataset.id,status:e.target.value})});await loadLicenses();}catch(x){alert(x.message);}});
@@ -3250,6 +3270,7 @@ img,svg,canvas,video{max-width:100%}
    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) {
      if(event.detail?.page==='configuracion'){loadPrefs();loadClientTickets();}
      if(event.detail?.page==='notificaciones')refreshNotifications();
+      if(event.detail?.page==='info')loadLicenseInfo();
      return;
    }
    if (event.detail?.page === 'admin-licencias') loadLicenses();
