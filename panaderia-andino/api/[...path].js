@@ -531,7 +531,7 @@ module.exports = async function handler(req, res) {
           if(!key||!Number.isFinite(monthly)||monthly<0||!Number.isFinite(setup)||setup<0)return send(res,400,{error:'Revisá los precios de los módulos.'});
           const moduleRow=await sql`SELECT implemented FROM app_module_catalog WHERE module_key=${key} LIMIT 1`;
           if(!moduleRow.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
-          if(moduleRow[0].implemented!==true&&item.active===true)return send(res,409,{error:'El módulo '+key+' todavía no está implementado y no puede comercializarse.'});
+          if(moduleRow[0].implemented!==true&&(item.active===true||monthly>0||setup>0))return send(res,409,{error:'El módulo '+key+' todavía no está implementado y no puede comercializarse.'});
           const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} AND implemented=TRUE THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
           if(!rows.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
         }
