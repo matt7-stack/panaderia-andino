@@ -2426,6 +2426,13 @@ img,svg,canvas,video{max-width:100%}
         fields.innerHTML='<div class="row g-2"><div class="col-md-6"><label class="form-label" for="editBusinessIndustry">Rubro</label><select id="editBusinessIndustry" class="form-select"><option value="panaderias">Panaderías</option><option value="minimercados">Minimercados</option><option value="tiendas">Tiendas</option><option value="restaurantes">Restaurantes</option><option value="comercios_generales">Comercios generales</option><option value="distribuidoras">Distribuidoras</option></select></div><div class="col-md-6"><label class="form-label" for="editBusinessMode">Configuración</label><select id="editBusinessMode" class="form-select"><option value="template">Automática</option><option value="hybrid">Combinada</option><option value="custom">Personalizada</option></select></div></div><h6 class="mt-3">Módulos contratados/configurados</h6><div id="editBusinessModules" class="row g-2">'+catalog.map(m=>'<div class="col-6 col-md-4"><label class="d-flex align-items-center gap-2 border rounded p-2 h-100"><input type="checkbox" class="form-check-input mt-0" data-edit-module="'+escapeHTML(m.module_key)+'" '+((cfg.modules||[]).includes(m.module_key)?'checked':'')+'><span>'+escapeHTML(m.title)+'</span></label></div>').join('')+'</div><small class="text-muted d-block mt-2">Los cambios de configuración no amplían automáticamente una licencia ya emitida. Para habilitar módulos nuevos, se requiere cotización, aceptación y actualización de la licencia.</small>';
         $('#editBusinessIndustry').value=cfg.industry_key||'comercios_generales';
         $('#editBusinessMode').value=['template','custom','hybrid'].includes(cfg.config_mode)?cfg.config_mode:'hybrid';
+        const editPicker=$('#editBusinessModules');
+        editPicker.addEventListener('change',event=>{
+          const target=event.target.closest('[data-edit-module]'),products=editPicker.querySelector('[data-edit-module="products"]');
+          const dependent=['sales','inventory','purchases','recipes','production'];
+          if(target&&dependent.includes(target.dataset.editModule)&&target.checked&&products)products.checked=true;
+          if(target&&target.dataset.editModule==='products'&&!target.checked)dependent.forEach(key=>{const box=editPicker.querySelector('[data-edit-module="'+key+'"]');if(box)box.checked=false;});
+        });
       }).catch(error=>{fields.innerHTML='<p class="text-danger">'+escapeHTML(error.message||'No se pudo cargar la configuración.')+'</p>';});
     } else if (mode === 'module-pricing') {
       setText('#simpleModalTitle','Catálogo comercial: precios y módulos');
