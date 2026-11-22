@@ -2378,9 +2378,10 @@ img,svg,canvas,video{max-width:100%}
       const modeSelect=fields.querySelector('#businessConfigMode');
       const count=fields.querySelector('#businessModuleCount');
       const boxes=()=>[...picker.querySelectorAll('[data-business-module]')];
+      let unavailableModules=new Set(['branches','delivery']);
       const applyTemplate=()=>{
         const modeValue=modeSelect.value, defaults=templates[industrySelect.value]||[];
-        boxes().forEach(box=>{const required=box.dataset.businessModule==='dashboard';box.checked=required||(modeValue==='custom'?false:defaults.includes(box.dataset.businessModule));box.disabled=required||modeValue==='template'||['branches','delivery'].includes(box.dataset.businessModule);});
+        boxes().forEach(box=>{const key=box.dataset.businessModule,required=key==='dashboard',unavailable=unavailableModules.has(key);box.checked=required||(!unavailable&&(modeValue==='custom'?false:defaults.includes(key)));box.disabled=required||modeValue==='template'||unavailable;});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
         fields.querySelector('#businessModuleHelp').textContent=modeValue==='template'?'Plantilla automática. Cambiá a modo combinado o personalizado para elegir los módulos.':modeValue==='custom'?'Elegí manualmente los módulos que contratará este negocio.':'Podés agregar o quitar módulos de la plantilla recomendada.';
       };
@@ -2401,6 +2402,12 @@ img,svg,canvas,video{max-width:100%}
         invalidateBusinessQuote();
       });
       applyTemplate();
+      window.PanaderiaAuth.api('/api/admin/module-catalog').then(result=>{
+        if(simpleModalMode!=='business')return;
+        unavailableModules=new Set((result.modules||[]).filter(module=>!module.active||!module.implemented).map(module=>module.module_key));
+        boxes().forEach(box=>{const key=box.dataset.businessModule;if(unavailableModules.has(key)){box.checked=false;box.disabled=true;}else if(key!=='dashboard')box.disabled=modeSelect.value==='template';});
+        count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
+      }).catch(()=>{});
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
         const prospectName=fields.querySelector('#simpleName').value.trim();
         if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');return;}
