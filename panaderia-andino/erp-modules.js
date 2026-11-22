@@ -79,11 +79,13 @@
     }catch(error){target.innerHTML='<small class="text-danger">'+esc(error.message||'No se pudieron cargar las solicitudes.')+'</small>';}
   }
   function syncRequestControls(){
-    const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),u=user();
+    const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),trigger=$('#erpRequestModuleButton'),u=user();
     if(!panel||!select)return;
+    const allowed=!!u&&u.isPlatformAdmin!==true&&['admin','supervisor'].includes(u.role)&&!!u.businessConfig;
+    if(trigger)trigger.hidden=!allowed;
     const enabled=Array.isArray(u?.businessConfig?.modules)?u.businessConfig.modules:[];
     const available=requestableModules.filter(([key])=>!enabled.includes(key));
-    panel.hidden=!u||u.isPlatformAdmin===true||!['admin','supervisor'].includes(u.role)||!u.businessConfig||!available.length;
+    panel.hidden=!allowed||!available.length;
     select.innerHTML=available.map(([key,label])=>'<option value="'+esc(key)+'">'+esc(label)+'</option>').join('');
   }
   function renderTabs(){
