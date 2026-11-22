@@ -2379,7 +2379,14 @@ img,svg,canvas,video{max-width:100%}
       };
       industrySelect.addEventListener('change',applyTemplate);
       modeSelect.addEventListener('change',applyTemplate);
-      picker.addEventListener('change',()=>{count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';});
+      picker.addEventListener('change',(event)=>{
+        const target=event.target.closest('[data-business-module]');
+        const products=picker.querySelector('[data-business-module="products"]');
+        const dependent=['sales','inventory','purchases','recipes','production'];
+        if(target&&dependent.includes(target.dataset.businessModule)&&target.checked&&products)products.checked=true;
+        if(target&&target.dataset.businessModule==='products'&&!target.checked)dependent.forEach(key=>{const box=picker.querySelector('[data-business-module="'+key+'"]');if(box)box.checked=false;});
+        count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
+      });
       applyTemplate();
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
         const prospectName=fields.querySelector('#simpleName').value.trim();
@@ -2392,6 +2399,7 @@ img,svg,canvas,video{max-width:100%}
         const button=fields.querySelector('#generateBusinessQuote');button.disabled=true;preview.textContent='Calculando cotización…';
         try{
           const result=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName,prospectEmail:fields.querySelector('#simpleEmail').value.trim(),industry:industrySelect.value,configMode:modeSelect.value,modules:selected,planType:fields.querySelector('#businessQuotePlan').value,validUntil})});
+          fields.dataset.quotationId=result.quotation.id;
           const totals=result.totals||{},fmt=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
           preview.textContent='Cotización #'+result.quotation.id+' · Alta: '+fmt(totals.setup)+' · Mensual: '+fmt(totals.monthly)+' · Anual: '+fmt(totals.annual)+(result.pricingConfigured?'':' · Atención: configurá los precios de los módulos antes de enviar.');
         }catch(error){preview.textContent=error.message||'No se pudo generar la cotización.';}
@@ -3012,7 +3020,7 @@ img,svg,canvas,video{max-width:100%}
       try {
         const modules=[...$('#businessModulesPicker').querySelectorAll('[data-business-module]:checked')].map(item=>item.dataset.businessModule);
         if(!modules.length){notify('Seleccioná al menos un módulo para el negocio.');return;}
-        await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, address: $('#simpleAddress').value.trim(), phone: $('#simplePhone').value.trim(), email: $('#simpleEmail').value.trim(), ruc: $('#simpleRuc').value.trim(), ownerName: $('#simpleOwner').value.trim(), industry: $('#businessIndustry').value, configMode: $('#businessConfigMode').value, modules }) });
+        await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, address: $('#simpleAddress').value.trim(), phone: $('#simplePhone').value.trim(), email: $('#simpleEmail').value.trim(), ruc: $('#simpleRuc').value.trim(), ownerName: $('#simpleOwner').value.trim(), industry: $('#businessIndustry').value, configMode: $('#businessConfigMode').value, modules, quotationId: $('#simpleModalFields').dataset.quotationId || '' }) });
         simpleModal.hide();
         await refreshCloudBusinesses();
         notify('Negocios registrada correctamente. Ahora podés asignarle usuarios.');
