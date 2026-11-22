@@ -520,24 +520,6 @@ module.exports = async function handler(req, res) {
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
           SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug})}::jsonb FROM created RETURNING id
-        ), trial_created AS (
-          INSERT INTO app_licenses(
-            business_id,license_code,system_name,plan,status,sold_at,expires_at,
-            setup_amount,monthly_amount,billing_day,notes,created_by,
-            is_trial,trial_started_at,trial_days,device_limit,user_limit
-          )
-          SELECT
-            created.id,
-            'TRIAL-' || UPPER(SUBSTRING(REPLACE(created.id::text,'-','') FROM 1 FOR 12)),
-            'Mattsystem','basic','active',CURRENT_DATE,
-            CURRENT_DATE + GREATEST(1,settings.trial_days) - 1,
-            0,0,1,'Prueba gratuita automática de ' || settings.trial_days || ' días.',
-            ${admin.id},TRUE,NOW(),GREATEST(1,settings.trial_days),
-            settings.device_limit,1
-          FROM created
-          CROSS JOIN app_license_settings settings
-          WHERE settings.setting_key='default' AND settings.trial_enabled=TRUE
-          RETURNING id
         )
         SELECT * FROM created`;
         return send(res,201,{business:rows[0]});
