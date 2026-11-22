@@ -746,7 +746,7 @@ module.exports = async function handler(req, res) {
           return send(res,200,{request:rows[0]});
         }
         if(action==='reject'){
-          if(request.quotation_id)await sql`UPDATE app_quotations SET status='rejected',updated_at=NOW() WHERE id=${request.quotation_id} AND status IN ('draft','sent')`;
+          if(request.quotation_id)await sql`UPDATE app_quotations SET status='rejected',updated_at=NOW() WHERE id=${request.quotation_id} AND status IN ('draft','sent','accepted')`;
           const rows=await sql`UPDATE app_module_requests SET status='rejected',reviewed_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING *`;
           await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${request.business_id},u.id,'license_update','Solicitud de módulo rechazada',${'La solicitud del módulo '+request.module_key+' fue rechazada por el administrador.'} FROM app_users u WHERE u.business_id=${request.business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
           return send(res,200,{request:rows[0]});
