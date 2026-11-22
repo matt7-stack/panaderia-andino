@@ -2302,6 +2302,8 @@ img,svg,canvas,video{max-width:100%}
 
   function openSimpleModal(mode, data = {}) {
     simpleModalMode = mode; simpleModalData = data;
+    const dialog=$('#simpleModal .modal-dialog');
+    if(dialog){dialog.classList.toggle('modal-lg',mode==='business'||mode==='module-pricing');dialog.classList.toggle('modal-xl',mode==='module-pricing');}
     const fields = $('#simpleModalFields');
     if (mode === 'category') {
       setText('#simpleModalTitle', data.type === 'income' ? 'Nueva categoría de ingreso' : 'Nueva categoría de gasto');
@@ -2379,6 +2381,19 @@ img,svg,canvas,video{max-width:100%}
         }catch(error){preview.textContent=error.message||'No se pudo generar la cotización.';}
         finally{button.disabled=false;}
       });
+    } else if (mode === 'module-pricing') {
+      setText('#simpleModalTitle','Catálogo comercial: precios y módulos');
+      fields.innerHTML='<p class="text-muted small">Definí los importes en guaraníes. Los cambios afectan las nuevas cotizaciones; no modifican contratos ni licencias ya emitidos.</p><div class="row g-2 mb-3"><div class="col-md-4"><label class="form-label" for="commercialMonthlyBase">Base mensual</label><input id="commercialMonthlyBase" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-4"><label class="form-label" for="commercialAnnualDiscount">Descuento anual (%)</label><input id="commercialAnnualDiscount" class="form-control" type="number" min="0" max="100" step="0.1" value="0"></div><div class="col-md-4"><label class="form-label" for="commercialSetupFee">Configuración inicial</label><input id="commercialSetupFee" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-6"><label class="form-label" for="commercialPermanentPrice">Licencia permanente</label><input id="commercialPermanentPrice" class="form-control" type="number" min="0" step="1" value="0"></div><div class="col-md-6"><label class="form-label" for="commercialFullSalePrice">Venta completa</label><input id="commercialFullSalePrice" class="form-control" type="number" min="0" step="1" value="0"></div></div><h6>Precios por módulo</h6><div id="commercialModulePrices" class="table-responsive"><p class="text-muted">Cargando catálogo…</p></div>';
+      Promise.all([window.PanaderiaAuth.api('/api/admin/module-catalog'),window.PanaderiaAuth.api('/api/admin/commercial-settings')]).then(([catalog,settings])=>{
+        const cfg=settings.settings||{};
+        $('#commercialMonthlyBase').value=Number(cfg.monthly_base||0);
+        $('#commercialAnnualDiscount').value=Number(cfg.annual_discount_percent||0);
+        $('#commercialSetupFee').value=Number(cfg.setup_fee||0);
+        $('#commercialPermanentPrice').value=Number(cfg.permanent_price||0);
+        $('#commercialFullSalePrice').value=Number(cfg.full_sale_price||0);
+        const target=$('#commercialModulePrices');
+        target.innerHTML='<table class="table table-sm align-middle"><thead><tr><th>MÓDULO</th><th>PRECIO MENSUAL</th><th>CONFIGURACIÓN</th><th>ACTIVO</th></tr></thead><tbody>'+(catalog.modules||[]).map(m=>'<tr><td><strong>'+escapeHTML(m.title)+'</strong><small class="d-block text-muted">'+escapeHTML(m.description||'')+'</small></td><td><input class="form-control form-control-sm" type="number" min="0" step="1" data-module-monthly="'+escapeHTML(m.module_key)+'" value="'+Number(m.monthly_price||0)+'"></td><td><input class="form-control form-control-sm" type="number" min="0" step="1" data-module-setup="'+escapeHTML(m.module_key)+'" value="'+Number(m.setup_price||0)+'"></td><td><input type="checkbox" class="form-check-input" data-module-active="'+escapeHTML(m.module_key)+'" '+(m.active?'checked':'')+'></td></tr>').join('')+'</tbody></table>';
+      }).catch(error=>{const target=$('#commercialModulePrices');if(target)target.textContent=error.message||'No se pudo cargar el catálogo.';});
     } else if (mode === 'user') {
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
@@ -2871,7 +2886,20 @@ img,svg,canvas,video{max-width:100%}
     $('#simpleForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
-    if (!name && simpleModalMode !== 'employee-payment') return;
+    if (!name && simpleModalMode !== 'employee-payment' && simpleModalMode !== 'module-pricing') return;
+    if (simpleModalMode === 'module-pricing') {
+      const submit=$('#simpleForm').querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Guardando…';}
+      try{
+        const modules=[...document.querySelectorAll('[data-module-monthly]')].map(input=>({moduleKey:input.dataset.moduleMonthly,monthlyPrice:Number(input.value),setupPrice:Number(document.querySelector('[data-module-setup="'+input.dataset.moduleMonthly+'"]')?.value||0),active:document.querySelector('[data-module-active="'+input.dataset.moduleMonthly+'"]')?.checked===true}));
+        const values=['#commercialMonthlyBase','#commercialAnnualDiscount','#commercialSetupFee','#commercialPermanentPrice','#commercialFullSalePrice'].map(selector=>Number($(selector).value));
+        if(values.some(value=>!Number.isFinite(value)||value<0)||values[1]>100||modules.some(item=>!Number.isFinite(item.monthlyPrice)||item.monthlyPrice<0||!Number.isFinite(item.setupPrice)||item.setupPrice<0))throw new Error('Revisá los importes: deben ser números positivos.');
+        await window.PanaderiaAuth.api('/api/admin/module-catalog',{method:'PUT',body:JSON.stringify({modules})});
+        await window.PanaderiaAuth.api('/api/admin/commercial-settings',{method:'PUT',body:JSON.stringify({monthlyBase:values[0],annualDiscountPercent:values[1],setupFee:values[2],permanentPrice:values[3],fullSalePrice:values[4],currency:'PYG'})});
+        simpleModal.hide();notify('Catálogo comercial actualizado. Las cotizaciones nuevas usarán estos precios.');
+      }catch(error){notify(error.message||'No se pudo guardar el catálogo comercial.');}
+      finally{if(submit){submit.disabled=false;submit.textContent='Guardar';}}
+      return;
+    }
     if (simpleModalMode === 'employee') {
       const salary = Number($('#employeeSalary').value || 0); if (!Number.isFinite(salary) || salary < 0) { notify('Ingresá un salario válido.'); return; }
       state.employees = state.employees || [];
