@@ -954,6 +954,12 @@ module.exports = async function handler(req, res) {
       if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
         return send(res,403,{error:'Solo el Supervisor del negocio puede administrar sus empleados.'});
       const sql = db();
+      const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
+        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+        WHERE bc.business_id=${user.business_id} LIMIT 1`;
+      const configured=moduleRows[0]?.configured_modules,licensed=moduleRows[0]?.licensed_modules;
+      const enabledModules=Array.isArray(configured)?(Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured):null;
+      if(Array.isArray(enabledModules)&&!enabledModules.includes('users'))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'La gestión de usuarios no está incluida en la configuración contratada.'});
       const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export'];
       if (req.method === 'GET') {
         const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
