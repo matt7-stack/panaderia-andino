@@ -852,6 +852,121 @@ img,svg,canvas,video{max-width:100%}
 #page-admin-licencias #licenseTrialSettingsForm .trial-settings-actions{align-items:center;flex-direction:row;}
 #page-admin-licencias #licenseTrialSettingsForm .trial-settings-actions button[type="submit"]{width:auto!important;min-width:0;min-height:36px;height:auto;flex:0 0 auto;padding:8px 14px!important;font-size:11px!important;line-height:1.2;border-radius:8px;}
 @media(max-width:767.98px){#page-admin-licencias #licenseTrialSettingsForm .trial-settings-actions{align-items:flex-start;flex-direction:row;}#page-admin-licencias #licenseTrialSettingsForm .trial-settings-actions button[type="submit"]{width:auto!important;min-height:40px;max-width:100%;}}
+
+/* Normalización integral de botones para administración y clientes */
+.page-view button:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close),
+.page-view .btn:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close) {
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  width:auto;
+  min-width:0;
+  max-width:100%;
+  min-height:38px;
+  height:auto;
+  flex:0 1 auto;
+  padding:8px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.2;
+  white-space:normal;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+.page-view .btn-sm,
+.page-view button.btn-sm,
+.page-view .table .btn,
+.page-view .table button {
+  min-height:34px;
+  padding:6px 9px;
+  font-size:11px;
+}
+.page-view .icon-action,
+.page-view .icon-button {
+  display:inline-grid;
+  place-items:center;
+  width:36px;
+  min-width:36px;
+  max-width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  flex:0 0 36px;
+}
+.page-view .page-heading,
+.page-view .panel-heading,
+.page-view .heading-actions,
+.page-view .form-actions,
+.page-view .table-actions,
+.page-view .modal-footer,
+.page-view .filter-bar,
+.page-view .invoice-toolbar {
+  min-width:0;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.page-view .page-heading > .btn,
+.page-view .panel-heading > .btn,
+.page-view .heading-actions > .btn,
+.page-view .form-actions > .btn,
+.page-view .table-actions > .btn,
+.page-view .table-actions > button {
+  width:auto;
+  flex:0 1 auto;
+}
+.page-view .form-actions > .btn { min-height:40px; }
+.page-view .table-actions > .btn,
+.page-view .table-actions > button { min-height:34px; }
+.page-view .quick-action,
+.page-view .admin-quick-card,
+.page-view .settings-tab,
+.page-view .invoice-tab,
+.page-view .type-option,
+.page-view .text-link,
+.page-view .icon-action,
+.page-view .icon-button { flex-shrink:0; }
+@media(max-width:767.98px) {
+  .page-view button:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close),
+  .page-view .btn:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close) {
+    min-height:40px;
+    padding:8px 11px;
+    font-size:12px;
+  }
+  .page-view .btn-sm,
+  .page-view button.btn-sm,
+  .page-view .table .btn,
+  .page-view .table button,
+  .page-view .table-actions > .btn,
+  .page-view .table-actions > button {
+    min-height:36px;
+    padding:7px 9px;
+    font-size:11px;
+  }
+  .page-view .page-heading > .btn,
+  .page-view .panel-heading > .btn,
+  .page-view .heading-actions > .btn,
+  .page-view .form-actions > .btn,
+  .page-view .filter-bar > .btn,
+  .page-view .invoice-toolbar > .btn {
+    width:auto;
+    max-width:100%;
+    flex:0 1 auto;
+  }
+  .page-view .form-actions > .btn { flex:0 1 auto; }
+  .page-view .table-actions { display:flex; flex-wrap:wrap; }
+}
+@media(max-width:380px) {
+  .page-view button:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close),
+  .page-view .btn:not(.quick-action):not(.admin-quick-card):not(.settings-tab):not(.invoice-tab):not(.type-option):not(.text-link):not(.icon-action):not(.icon-button):not(.btn-close) {
+    padding:7px 9px;
+    font-size:11px;
+  }
+  .page-view .table-actions { gap:5px; }
+}
 </style>
 </head>
 <body>
