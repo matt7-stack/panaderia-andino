@@ -3365,10 +3365,21 @@ img,svg,canvas,video{max-width:100%}
     if (user?.isPlatformAdmin === true) {
       document.body.classList.add('platform-admin');
       pageNavigate('administracion');
+      // Respaldo visual: si la sesión global todavía no terminó de sincronizarse,
+      // la ruta protegida ya fue validada por PanaderiaAuthReady y no debe quedar en blanco.
+      const adminPage=$('[data-page="administracion"]');
+      if(adminPage&&!adminPage.classList.contains('active')){
+        $('.page-view').forEach(view=>view.classList.toggle('active',view===adminPage));
+        $('.nav-menu [data-page-link]').forEach(link=>{const active=link.dataset.pageLink==='administracion';link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+        selectedPage='administracion';
+        setText('#breadcrumbCurrent','Administrador');
+        $('#globalMonthPicker').classList.add('d-none');
+        window.history.replaceState(null,'','#administracion');
+        renderAdminPanel();
+      }
       // No bloquear el primer render mientras Neon responde: la pantalla administrativa
       // debe aparecer de inmediato y los datos se hidratan en segundo plano.
       startAuthenticatedHydration(user).catch(error => console.error('Error al iniciar administración:', error));
-      pageNavigate('administracion');
       return;
     }
     if (user) await startAuthenticatedHydration(user);
