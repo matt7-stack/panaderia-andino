@@ -53,7 +53,8 @@
   function syncNavigation(){
     const link=$('[data-page-link="erp"]'),u=user();
     if(!link)return;
-    link.hidden=!u||(u.isPlatformAdmin===true&&!window.PanaderiaAuth?.selectedBusinessId);
+    const hasAny=Object.keys(labels).some(canModule);
+    link.hidden=!u||(u.isPlatformAdmin===true&&!window.PanaderiaAuth?.selectedBusinessId)||(u.role==='employee'&&!hasAny);
   }
   const requestableModules=[
     ['dashboard','Panel principal'],['movements','Ingresos y gastos'],['invoices','Notas y cobros'],
