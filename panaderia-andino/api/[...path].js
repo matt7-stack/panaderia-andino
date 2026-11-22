@@ -751,6 +751,10 @@ module.exports = async function handler(req, res) {
         const requestRows=await sql`SELECT * FROM app_module_requests WHERE id=${id} AND status IN ('requested','quoted') LIMIT 1`;
         if(!requestRows.length)return send(res,404,{error:'Solicitud no encontrada o ya procesada.'});
         const request=requestRows[0];
+        if(action==='approve'){
+          const moduleStatus=await sql`SELECT active,implemented FROM app_module_catalog WHERE module_key=${request.module_key} LIMIT 1`;
+          if(!moduleStatus.length||moduleStatus[0].active!==true||moduleStatus[0].implemented!==true)return send(res,409,{error:'Este módulo ya no está disponible para nuevas habilitaciones.'});
+        }
         if(action==='approve'&&request.quotation_id){
           const quote=await sql`SELECT status FROM app_quotations WHERE id=${request.quotation_id} AND business_id=${request.business_id} LIMIT 1`;
           if(!quote.length||quote[0].status!=='accepted')return send(res,409,{error:'La cotización asociada debe estar aceptada antes de habilitar el módulo.'});
