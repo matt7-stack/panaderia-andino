@@ -1888,6 +1888,12 @@ img,svg,canvas,video{max-width:100%}
       const module=pageModules[link.dataset.pageLink];
       if(module&&Array.isArray(modules))link.hidden=!modules.includes(module);
     });
+    if(Array.isArray(modules)){
+      const usersTab=$('[data-settings-tab="users"]'),usersPanel=$('[data-settings-panel="users"]');
+      const showUsers=modules.includes('users')&&user?.role==='admin';
+      if(usersTab)usersTab.hidden=!showUsers;
+      if(usersPanel)usersPanel.hidden=!showUsers;
+    }
   }
   function pageNavigate(page) {
     if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
