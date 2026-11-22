@@ -61,7 +61,7 @@
     ['customers','Clientes'],['suppliers','Proveedores'],['purchases','Compras'],
     ['recipes','Recetas'],['production','Producción'],['cash','Caja'],
     ['reports','Informes avanzados'],['employees','Empleados y pagos'],
-    ['users','Usuarios y permisos'],['branches','Sucursales'],['delivery','Pedidos y entregas']
+    ['users','Usuarios y permisos']
   ];
   function syncRequestControls(){
     const panel=$('#erpRequestPanel'),select=$('#erpRequestModuleSelect'),u=user();
