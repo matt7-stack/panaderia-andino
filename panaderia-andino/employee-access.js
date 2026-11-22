@@ -155,7 +155,9 @@
   function activate(user) {
     const panel = $('#supervisorEmployeeAccounts');
     if (!panel) return;
-    panel.hidden = !user || user.isPlatformAdmin === true || user.role !== 'supervisor';
+    const modules=user?.businessConfig?.modules;
+    const moduleAllowed=!Array.isArray(modules)||(modules.includes('users')&&modules.includes('employees'));
+    panel.hidden = !user || user.isPlatformAdmin === true || user.role !== 'supervisor' || !moduleAllowed;
     if (!panel.hidden) {
       initializeCreatePermissions();
       loadEmployees();
