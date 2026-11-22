@@ -663,6 +663,7 @@ module.exports = async function handler(req, res) {
         if(status==='accepted'&&current[0].status!=='sent')return send(res,409,{error:'Primero enviá la cotización al cliente para poder marcarla como aceptada.'});
         const rows=await sql`UPDATE app_quotations SET status=${status},updated_at=NOW() WHERE id=${id} AND status IN ('draft','sent') RETURNING *`;
         if(!rows.length)return send(res,409,{error:'La cotización cambió mientras se actualizaba. Volvé a cargarla.'});
+        if(status==='sent'&&rows[0].business_id)await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${rows[0].business_id},u.id,'license_update','Cotización disponible','Hay una cotización disponible para un módulo adicional. Ingresá a Gestión operativa para revisarla.' FROM app_users u WHERE u.business_id=${rows[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{quotation:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
@@ -672,8 +673,27 @@ module.exports = async function handler(req, res) {
       if(user.is_platform_admin===true||!user.business_id||!['admin','supervisor'].includes(user.role))return send(res,403,{error:'Solo el administrador o supervisor del negocio puede solicitar módulos.'});
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT r.*,m.title AS module_title FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key WHERE r.business_id=${user.business_id} ORDER BY r.created_at DESC LIMIT 100`;
+        const rows=await sql`SELECT r.*,m.title AS module_title,q.status AS quotation_status,q.setup_amount AS quotation_setup_amount,q.monthly_amount AS quotation_monthly_amount,q.annual_amount AS quotation_annual_amount,q.currency AS quotation_currency
+          FROM app_module_requests r JOIN app_module_catalog m ON m.module_key=r.module_key LEFT JOIN app_quotations q ON q.id=r.quotation_id
+          WHERE r.business_id=${user.business_id} ORDER BY r.created_at DESC LIMIT 100`;
         return send(res,200,{requests:rows});
+      }
+      if(req.method==='PATCH'){
+        if(!['admin','supervisor'].includes(user.role))return send(res,403,{error:'Solo el administrador o supervisor puede responder cotizaciones.'});
+        const input=body(req),id=String(input.id||''),action=String(input.action||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!['accept','reject'].includes(action))return send(res,400,{error:'Respuesta de cotización no válida.'});
+        const requests=await sql`SELECT id,quotation_id,module_key FROM app_module_requests WHERE id=${id} AND business_id=${user.business_id} AND status='quoted' LIMIT 1`;
+        if(!requests.length||!requests[0].quotation_id)return send(res,404,{error:'No se encontró una cotización pendiente para esta solicitud.'});
+        const quoteId=requests[0].quotation_id;
+        if(action==='accept'){
+          const accepted=await sql`UPDATE app_quotations SET status='accepted',updated_at=NOW() WHERE id=${quoteId} AND business_id=${user.business_id} AND status='sent' RETURNING id`;
+          if(!accepted.length)return send(res,409,{error:'La cotización todavía no fue enviada o ya no está disponible.'});
+        }else{
+          await sql`UPDATE app_quotations SET status='rejected',updated_at=NOW() WHERE id=${quoteId} AND business_id=${user.business_id} AND status IN ('draft','sent')`;
+          await sql`UPDATE app_module_requests SET status='rejected',updated_at=NOW() WHERE id=${id} AND business_id=${user.business_id}`;
+        }
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},${action==='accept'?'business.module_quote_accepted':'business.module_quote_rejected'},'module_request',${id},${JSON.stringify({quotationId:quoteId,moduleKey:requests[0].module_key})}::jsonb)`;
+        return send(res,200,{ok:true,status:action==='accept'?'accepted':'rejected'});
       }
       if(req.method==='POST'){
         const input=body(req),key=String(input.moduleKey||'').trim(),notes=String(input.notes||'').trim().slice(0,1000);
