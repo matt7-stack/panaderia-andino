@@ -721,7 +721,11 @@ module.exports = async function handler(req, res) {
         if(!module.length)return send(res,404,{error:'Módulo no disponible.'});
         const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${user.business_id} LIMIT 1`;
         const licensed=user.license_modules;
-        const configHas=Array.isArray(config[0]?.modules)&&config[0].modules.includes(key);
+        const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
+        const effective=configured.filter(moduleKey=>!Array.isArray(licensed)||licensed.includes(moduleKey));
+        if(['sales','inventory','purchases','recipes','production'].includes(key)&&!effective.includes('products'))return send(res,409,{error:'Primero necesitás habilitar Productos y costos para solicitar este módulo.'});
+        if(key==='users'&&!effective.includes('employees'))return send(res,409,{error:'Primero necesitás habilitar Empleados y pagos para solicitar la gestión de usuarios.'});
+        const configHas=configured.includes(key);
         const licenseAllows=!Array.isArray(licensed)||licensed.includes(key);
         if(configHas&&licenseAllows)return send(res,409,{error:'Este módulo ya está habilitado.'});
         const pending=await sql`SELECT id FROM app_module_requests WHERE business_id=${user.business_id} AND module_key=${key} AND status IN ('requested','quoted') LIMIT 1`;
@@ -772,6 +776,9 @@ module.exports = async function handler(req, res) {
         const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${request.business_id} LIMIT 1`;
         const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
         const licensed=Array.isArray(license[0].modules)?license[0].modules:configured;
+        const effective=configured.filter(moduleKey=>!Array.isArray(license[0].modules)||license[0].modules.includes(moduleKey));
+        if(['sales','inventory','purchases','recipes','production'].includes(request.module_key)&&!effective.includes('products'))return send(res,409,{error:'Habilitá primero Productos y costos para poder activar este módulo.'});
+        if(request.module_key==='users'&&!effective.includes('employees'))return send(res,409,{error:'Habilitá primero Empleados y pagos para poder activar la gestión de usuarios.'});
         const nextConfig=[...new Set([...configured,request.module_key])],nextLicense=[...new Set([...licensed,request.module_key])];
         const rows=await sql`WITH config_updated AS (
           UPDATE app_business_config SET modules=${JSON.stringify(nextConfig)}::jsonb,updated_by=${admin.id},updated_at=NOW()
