@@ -2347,6 +2347,7 @@ img,svg,canvas,video{max-width:100%}
       const setDefaultAmount = () => { const employee = (state.employees || []).find((item) => item.id === employeeSelect.value); if (employee && !amountInput.value) amountInput.value = employee.salary || ''; };
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'business') {
+      delete fields.dataset.quotationId;
       setText('#simpleModalTitle', 'Registrar negocio y configurar módulos');
       const moduleDefs = [
         ['dashboard','Panel principal'],['movements','Ingresos y gastos'],['invoices','Notas y cobros'],
@@ -2388,6 +2389,8 @@ img,svg,canvas,video{max-width:100%}
       modeSelect.addEventListener('change',()=>{applyTemplate();invalidateBusinessQuote();});
       fields.querySelector('#businessQuotePlan').addEventListener('change',invalidateBusinessQuote);
       fields.querySelector('#simpleName').addEventListener('input',invalidateBusinessQuote);
+      fields.querySelector('#simpleEmail').addEventListener('input',invalidateBusinessQuote);
+      fields.querySelector('#businessQuoteValid').addEventListener('change',invalidateBusinessQuote);
       picker.addEventListener('change',(event)=>{
         const target=event.target.closest('[data-business-module]');
         const products=picker.querySelector('[data-business-module="products"]');
