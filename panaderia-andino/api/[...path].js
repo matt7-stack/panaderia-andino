@@ -535,6 +535,7 @@ module.exports = async function handler(req, res) {
           const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} AND implemented=TRUE THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
           if(!rows.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
         }
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.catalog_updated','module_catalog','catalog',${JSON.stringify({moduleKeys:items.map(item=>String(item.moduleKey||''))})}::jsonb)`;
         const modules=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog ORDER BY sort_order,title`;
         return send(res,200,{ok:true,modules});
       }
@@ -554,6 +555,7 @@ module.exports = async function handler(req, res) {
         const currency=String(input.currency||'PYG').trim().toUpperCase();
         if(!/^[A-Z]{3}$/.test(currency))return send(res,400,{error:'Moneda no válida.'});
         const rows=await sql`UPDATE app_commercial_settings SET monthly_base=${values.monthlyBase},annual_discount_percent=${values.annualDiscountPercent},permanent_price=${values.permanentPrice},full_sale_price=${values.fullSalePrice},setup_fee=${values.setupFee},currency=${currency},updated_by=${admin.id},updated_at=NOW() WHERE setting_key='default' RETURNING monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.pricing_updated','commercial_settings','default',${JSON.stringify(values)}::jsonb)`;
         return send(res,200,{settings:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
@@ -611,6 +613,7 @@ module.exports = async function handler(req, res) {
         const moduleMonthly=catalog.reduce((n,m)=>n+Number(m.monthly_price||0),0),moduleSetup=catalog.reduce((n,m)=>n+Number(m.setup_price||0),0);
         const monthly=(moduleExpansion?0:Number(settings.monthly_base||0))+moduleMonthly,setup=(moduleExpansion?0:Number(settings.setup_fee||0))+moduleSetup;
         const annual=monthly*12*(1-Number(settings.annual_discount_percent||0)/100);
+        if(moduleExpansion&&moduleMonthly<=0&&moduleSetup<=0)return send(res,409,{error:'Configurá un precio mensual o de instalación para este módulo antes de cotizar la ampliación.'});
         const oneTime=plan==='permanent'?Number(settings.permanent_price||0)+setup:plan==='full_sale'?Number(settings.full_sale_price||0)+setup:setup;
         if((plan==='permanent'&&!Number(settings.permanent_price||0))||(plan==='full_sale'&&!Number(settings.full_sale_price||0)))return send(res,409,{error:'Configurá primero el precio de licencia permanente o venta completa en el catálogo comercial.'});
         const businessId=input.businessId?String(input.businessId):null;
@@ -621,6 +624,7 @@ module.exports = async function handler(req, res) {
         const breakdown={currency:settings.currency||'PYG',monthlyBase:moduleExpansion?0:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:moduleExpansion?0:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
         const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,created_by)
           VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${validUntil},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${admin.id}) RETURNING *`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'commercial.quotation_created','quotation',${rows[0].id},${JSON.stringify({prospectName,industry,plan,modules,moduleExpansion})}::jsonb)`;
         return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||(moduleExpansion?false:Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0)||((plan==='permanent'&&Number(settings.permanent_price||0)>0)||(plan==='full_sale'&&Number(settings.full_sale_price||0)>0))});
       }
       if(req.method==='PATCH'){
@@ -653,6 +657,7 @@ module.exports = async function handler(req, res) {
         if(pending.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
         const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) RETURNING *`;
         if(!rows.length)return send(res,409,{error:'No se pudo registrar la solicitud.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'business.module_requested','module_request',${rows[0].id},${JSON.stringify({moduleKey:key})}::jsonb)`;
         return send(res,201,{request:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
