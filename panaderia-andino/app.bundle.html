@@ -1150,7 +1150,7 @@ img,svg,canvas,video{max-width:100%}
 
         <section class="page-view" id="page-admin-panaderias" data-page="admin-panaderias">
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Negocios</h1><p class="page-subtitle">Registrá, editá y supervisá los negocios de la plataforma.</p></div></div>
-          <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registrados</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
+          <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registrados</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModulePricingButton"><i class="bi bi-tags"></i> Precios y módulos</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
         </section>
 
         <section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
@@ -2323,8 +2323,62 @@ img,svg,canvas,video{max-width:100%}
       const setDefaultAmount = () => { const employee = (state.employees || []).find((item) => item.id === employeeSelect.value); if (employee && !amountInput.value) amountInput.value = employee.salary || ''; };
       employeeSelect.addEventListener('change', () => { amountInput.value = ''; setDefaultAmount(); }); setDefaultAmount();
     } else if (mode === 'business') {
-      setText('#simpleModalTitle', 'Registrar negocio');
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre del negocio</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Negocios Central"></div><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div>';
+      setText('#simpleModalTitle', 'Registrar negocio y configurar módulos');
+      const moduleDefs = [
+        ['dashboard','Panel principal'],['movements','Ingresos y gastos'],['invoices','Notas y cobros'],
+        ['products','Productos y costos'],['sales','Ventas'],['inventory','Inventario'],
+        ['customers','Clientes'],['suppliers','Proveedores'],['purchases','Compras'],
+        ['recipes','Recetas'],['production','Producción'],['cash','Caja'],
+        ['reports','Informes avanzados'],['employees','Empleados y pagos'],
+        ['users','Usuarios y permisos'],['branches','Sucursales'],['delivery','Pedidos y entregas']
+      ];
+      const templates = {
+        panaderias:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','recipes','production','cash','reports','employees','users'],
+        minimercados:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','cash','reports','employees','users'],
+        tiendas:['dashboard','movements','invoices','products','sales','inventory','customers','purchases','cash','reports','employees','users'],
+        restaurantes:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','recipes','production','cash','reports','employees','users','delivery'],
+        comercios_generales:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','cash','reports','employees','users'],
+        distribuidoras:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','cash','reports','employees','users','branches','delivery']
+      };
+      fields.innerHTML =
+        '<div class="simple-modal-field"><label for="simpleName">Nombre del negocio</label><input id="simpleName" name="name" maxlength="120" required placeholder="Ej. Negocios Central"></div>' +
+        '<div class="row g-2"><div class="col-md-6"><div class="simple-modal-field"><label for="businessIndustry">Tipo de negocio</label><select id="businessIndustry" class="form-select" required><option value="panaderias">Panaderías</option><option value="minimercados">Minimercados</option><option value="tiendas">Tiendas</option><option value="restaurantes">Restaurantes</option><option value="comercios_generales" selected>Comercios generales</option><option value="distribuidoras">Distribuidoras</option></select></div></div><div class="col-md-6"><div class="simple-modal-field"><label for="businessConfigMode">Configuración</label><select id="businessConfigMode" class="form-select"><option value="template">Automática según el rubro</option><option value="hybrid">Combinada: plantilla + selección manual</option><option value="custom">Personalizada desde cero</option></select></div></div></div>' +
+        '<div class="simple-modal-field"><div class="d-flex align-items-center justify-content-between flex-wrap gap-2"><label class="mb-0">Módulos incluidos</label><small id="businessModuleCount" class="text-muted">—</small></div><div id="businessModulesPicker" class="row g-2 mt-1">' +
+        moduleDefs.map(item=>'<div class="col-6 col-md-4"><label class="d-flex align-items-center gap-2 border rounded p-2 h-100"><input type="checkbox" class="form-check-input mt-0" data-business-module="'+item[0]+'"><span>'+item[1]+'</span></label></div>').join('') +
+        '</div><small class="text-muted d-block mt-2" id="businessModuleHelp">La plantilla activa los módulos recomendados. Podés personalizar la selección en modo combinado.</small></div>' +
+        '<div class="row g-2"><div class="col-md-6"><div class="simple-modal-field"><label for="simpleAddress">Dirección</label><input id="simpleAddress" maxlength="250" placeholder="Dirección (opcional)"></div></div><div class="col-md-6"><div class="simple-modal-field"><label for="simplePhone">Teléfono</label><input id="simplePhone" maxlength="60" placeholder="Teléfono (opcional)"></div></div><div class="col-md-6"><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" type="email" maxlength="254" placeholder="Correo (opcional)"></div></div><div class="col-md-6"><div class="simple-modal-field"><label for="simpleRuc">RUC</label><input id="simpleRuc" maxlength="40" placeholder="RUC (opcional)"></div></div><div class="col-12"><div class="simple-modal-field"><label for="simpleOwner">Responsable</label><input id="simpleOwner" maxlength="120" placeholder="Nombre del responsable (opcional)"></div></div></div>' +
+        '<div class="border rounded p-3 mt-2"><div class="d-flex align-items-center justify-content-between flex-wrap gap-2"><strong>Cotización comercial</strong><button type="button" class="btn btn-outline-bakery btn-sm" id="generateBusinessQuote">Generar cotización</button></div><div class="row g-2 mt-1"><div class="col-md-6"><label class="form-label" for="businessQuotePlan">Modalidad</label><select id="businessQuotePlan" class="form-select"><option value="monthly">Suscripción mensual</option><option value="annual">Suscripción anual</option><option value="permanent">Licencia permanente</option><option value="full_sale">Venta completa</option></select></div><div class="col-md-6"><label class="form-label" for="businessQuoteValid">Validez (días)</label><input id="businessQuoteValid" type="number" class="form-control" min="1" max="90" value="15"></div></div><div id="businessQuotePreview" class="small text-muted mt-2" aria-live="polite">La cotización se calculará con los precios configurados por el administrador.</div></div>';
+      const picker=fields.querySelector('#businessModulesPicker');
+      const industrySelect=fields.querySelector('#businessIndustry');
+      const modeSelect=fields.querySelector('#businessConfigMode');
+      const count=fields.querySelector('#businessModuleCount');
+      const boxes=()=>[...picker.querySelectorAll('[data-business-module]')];
+      const applyTemplate=()=>{
+        const modeValue=modeSelect.value, defaults=templates[industrySelect.value]||[];
+        boxes().forEach(box=>{box.checked=modeValue==='custom'?false:defaults.includes(box.dataset.businessModule);box.disabled=modeValue==='template';});
+        count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
+        fields.querySelector('#businessModuleHelp').textContent=modeValue==='template'?'Plantilla automática. Cambiá a modo combinado o personalizado para elegir los módulos.':modeValue==='custom'?'Elegí manualmente los módulos que contratará este negocio.':'Podés agregar o quitar módulos de la plantilla recomendada.';
+      };
+      industrySelect.addEventListener('change',applyTemplate);
+      modeSelect.addEventListener('change',applyTemplate);
+      picker.addEventListener('change',()=>{count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';});
+      applyTemplate();
+      fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
+        const prospectName=fields.querySelector('#simpleName').value.trim();
+        if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');return;}
+        const selected=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
+        if(!selected.length){notify('Seleccioná al menos un módulo.');return;}
+        const validDays=Math.max(1,Math.min(90,Number(fields.querySelector('#businessQuoteValid').value)||15));
+        const validUntil=new Date(Date.now()+validDays*86400000).toISOString().slice(0,10);
+        const preview=fields.querySelector('#businessQuotePreview');
+        const button=fields.querySelector('#generateBusinessQuote');button.disabled=true;preview.textContent='Calculando cotización…';
+        try{
+          const result=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName,prospectEmail:fields.querySelector('#simpleEmail').value.trim(),industry:industrySelect.value,configMode:modeSelect.value,modules:selected,planType:fields.querySelector('#businessQuotePlan').value,validUntil})});
+          const totals=result.totals||{},fmt=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
+          preview.textContent='Cotización #'+result.quotation.id+' · Alta: '+fmt(totals.setup)+' · Mensual: '+fmt(totals.monthly)+' · Anual: '+fmt(totals.annual)+(result.pricingConfigured?'':' · Atención: configurá los precios de los módulos antes de enviar.');
+        }catch(error){preview.textContent=error.message||'No se pudo generar la cotización.';}
+        finally{button.disabled=false;}
+      });
     } else if (mode === 'user') {
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
@@ -2526,6 +2580,10 @@ img,svg,canvas,video{max-width:100%}
   $('#addBusinessButton')?.addEventListener('click', () => {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede crear negocios.'); return; }
     openSimpleModal('business');
+  });
+  $('#manageModulePricingButton')?.addEventListener('click', () => {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede modificar precios.'); return; }
+    openSimpleModal('module-pricing');
   });
   async function runAdminRefresh(button, refreshFn, label) {
     if (!button || button.disabled) return;
@@ -2833,7 +2891,9 @@ img,svg,canvas,video{max-width:100%}
       if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede crear negocios.'); return; }
       if (button) { button.disabled = true; button.textContent = 'Registrando…'; }
       try {
-        await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, address: $('#simpleAddress').value.trim(), phone: $('#simplePhone').value.trim(), email: $('#simpleEmail').value.trim(), ruc: $('#simpleRuc').value.trim(), ownerName: $('#simpleOwner').value.trim() }) });
+        const modules=[...$('#businessModulesPicker').querySelectorAll('[data-business-module]:checked')].map(item=>item.dataset.businessModule);
+        if(!modules.length){notify('Seleccioná al menos un módulo para el negocio.');return;}
+        await window.PanaderiaAuth.api('/api/admin/businesses', { method: 'POST', body: JSON.stringify({ name, address: $('#simpleAddress').value.trim(), phone: $('#simplePhone').value.trim(), email: $('#simpleEmail').value.trim(), ruc: $('#simpleRuc').value.trim(), ownerName: $('#simpleOwner').value.trim(), industry: $('#businessIndustry').value, configMode: $('#businessConfigMode').value, modules }) });
         simpleModal.hide();
         await refreshCloudBusinesses();
         notify('Negocios registrada correctamente. Ahora podés asignarle usuarios.');
