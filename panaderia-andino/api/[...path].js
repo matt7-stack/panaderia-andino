@@ -717,7 +717,7 @@ module.exports = async function handler(req, res) {
         if(configHas&&licenseAllows)return send(res,409,{error:'Este módulo ya está habilitado.'});
         const pending=await sql`SELECT id FROM app_module_requests WHERE business_id=${user.business_id} AND module_key=${key} AND status IN ('requested','quoted') LIMIT 1`;
         if(pending.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
-        const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) RETURNING *`;
+        const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) ON CONFLICT(business_id,module_key,status) DO NOTHING RETURNING *`;
         if(!rows.length)return send(res,409,{error:'No se pudo registrar la solicitud.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'business.module_requested','module_request',${rows[0].id},${JSON.stringify({moduleKey:key})}::jsonb)`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'license_update','Solicitud de módulo',${'Un negocio solicitó ampliar su configuración con el módulo '+key+'.'} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
