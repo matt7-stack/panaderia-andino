@@ -610,10 +610,14 @@ module.exports = async function handler(req, res) {
         const annual=monthly*12*(1-Number(settings.annual_discount_percent||0)/100);
         const oneTime=plan==='permanent'?Number(settings.permanent_price||0)+setup:plan==='full_sale'?Number(settings.full_sale_price||0)+setup:setup;
         if((plan==='permanent'&&!Number(settings.permanent_price||0))||(plan==='full_sale'&&!Number(settings.full_sale_price||0)))return send(res,409,{error:'Configurá primero el precio de licencia permanente o venta completa en el catálogo comercial.'});
-        const businessId=input.businessId&&/^[0-9a-f-]{36}$/i.test(String(input.businessId))?String(input.businessId):null;
-        const breakdown={currency:settings.currency||'PYG',monthlyBase:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
+        const businessId=input.businessId?String(input.businessId):null;
+        if(businessId&&!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio asociado a la cotización no válido.'});
+        if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
+        const validUntil=input.validUntil?String(input.validUntil):null;
+        if(validUntil){const parsed=new Date(validUntil+'T00:00:00Z');if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(validUntil)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==validUntil)return send(res,400,{error:'Fecha de validez de cotización no válida.'});}
+        const breakdown={currency:settings.currency||'PYG',monthlyBase:moduleExpansion?0:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:moduleExpansion?0:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
         const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,created_by)
-          VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${input.validUntil||null},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${admin.id}) RETURNING *`;
+          VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${validUntil},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${admin.id}) RETURNING *`;
         return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||(moduleExpansion?false:Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0)||((plan==='permanent'&&Number(settings.permanent_price||0)>0)||(plan==='full_sale'&&Number(settings.full_sale_price||0)>0))});
       }
       if(req.method==='PATCH'){
@@ -642,8 +646,10 @@ module.exports = async function handler(req, res) {
         const configHas=Array.isArray(config[0]?.modules)&&config[0].modules.includes(key);
         const licenseAllows=!Array.isArray(licensed)||licensed.includes(key);
         if(configHas&&licenseAllows)return send(res,409,{error:'Este módulo ya está habilitado.'});
-        const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) ON CONFLICT(business_id,module_key,status) DO NOTHING RETURNING *`;
-        if(!rows.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
+        const pending=await sql`SELECT id FROM app_module_requests WHERE business_id=${user.business_id} AND module_key=${key} AND status IN ('requested','quoted') LIMIT 1`;
+        if(pending.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
+        const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) RETURNING *`;
+        if(!rows.length)return send(res,409,{error:'No se pudo registrar la solicitud.'});
         return send(res,201,{request:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
@@ -726,6 +732,7 @@ module.exports = async function handler(req, res) {
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
         let selectedModules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        if(configMode==='custom'&&!selectedModules.length)return send(res,400,{error:'En configuración personalizada seleccioná al menos un módulo.'});
         if(!selectedModules.length){
           const defaults=await sql`SELECT module_key FROM app_industry_templates WHERE industry_key=${industry} AND enabled_by_default=TRUE ORDER BY module_key`;
           selectedModules=defaults.map(row=>row.module_key);
