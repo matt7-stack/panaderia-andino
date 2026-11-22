@@ -1150,7 +1150,7 @@ img,svg,canvas,video{max-width:100%}
 
         <section class="page-view" id="page-admin-panaderias" data-page="admin-panaderias">
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Negocios</h1><p class="page-subtitle">Registrá, editá y supervisá los negocios de la plataforma.</p></div></div>
-          <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registrados</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModulePricingButton"><i class="bi bi-tags"></i> Precios y módulos</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
+          <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registrados</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModulePricingButton"><i class="bi bi-tags"></i> Precios y módulos</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModuleRequestsButton"><i class="bi bi-inbox"></i> Solicitudes de módulos</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageQuotationsButton"><i class="bi bi-file-earmark-text"></i> Cotizaciones</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
         </section>
 
         <section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
@@ -2394,6 +2394,40 @@ img,svg,canvas,video{max-width:100%}
         const target=$('#commercialModulePrices');
         target.innerHTML='<table class="table table-sm align-middle"><thead><tr><th>MÓDULO</th><th>PRECIO MENSUAL</th><th>CONFIGURACIÓN</th><th>ACTIVO</th></tr></thead><tbody>'+(catalog.modules||[]).map(m=>'<tr><td><strong>'+escapeHTML(m.title)+'</strong><small class="d-block text-muted">'+escapeHTML(m.description||'')+'</small></td><td><input class="form-control form-control-sm" type="number" min="0" step="1" data-module-monthly="'+escapeHTML(m.module_key)+'" value="'+Number(m.monthly_price||0)+'"></td><td><input class="form-control form-control-sm" type="number" min="0" step="1" data-module-setup="'+escapeHTML(m.module_key)+'" value="'+Number(m.setup_price||0)+'"></td><td><input type="checkbox" class="form-check-input" data-module-active="'+escapeHTML(m.module_key)+'" '+(m.active?'checked':'')+'></td></tr>').join('')+'</tbody></table>';
       }).catch(error=>{const target=$('#commercialModulePrices');if(target)target.textContent=error.message||'No se pudo cargar el catálogo.';});
+    } else if (mode === 'module-requests') {
+      setText('#simpleModalTitle','Solicitudes de módulos');
+      fields.innerHTML='<div id="moduleRequestsContent"><p class="text-muted">Cargando solicitudes…</p></div>';
+      const renderRequests=async()=>{
+        const result=await window.PanaderiaAuth.api('/api/admin/module-requests');
+        const rows=result.requests||[];
+        $('#moduleRequestsContent').innerHTML=rows.length?'<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>NEGOCIO</th><th>MÓDULO</th><th>ESTADO</th><th>SOLICITADO POR</th><th>ACCIONES</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHTML(r.business_name||'')+'</td><td>'+escapeHTML(r.module_title||r.module_key)+'</td><td>'+escapeHTML(r.status)+'</td><td>'+escapeHTML(r.requester_name||'—')+'</td><td><div class="d-flex flex-wrap gap-1">'+(['requested','quoted'].includes(r.status)?'<button type="button" class="btn btn-sm btn-outline-bakery" data-module-request-action="quote" data-id="'+escapeHTML(r.id)+'">Marcar cotizada</button><button type="button" class="btn btn-sm btn-success" data-module-request-action="approve" data-id="'+escapeHTML(r.id)+'">Habilitar</button><button type="button" class="btn btn-sm btn-outline-danger" data-module-request-action="reject" data-id="'+escapeHTML(r.id)+'">Rechazar</button>':'—')+'</div></td></tr>').join('')+'</tbody></table></div>':'<p class="text-muted">No hay solicitudes de módulos.</p>';
+      };
+      renderRequests().catch(error=>{$('#moduleRequestsContent').textContent=error.message||'No se pudieron cargar las solicitudes.';});
+      fields.onclick=async event=>{
+        const button=event.target.closest('[data-module-request-action]');if(!button)return;
+        const action=button.dataset.moduleRequestAction;
+        if(action==='approve'&&!window.confirm('Confirmá que la ampliación fue aceptada y pagada antes de habilitarla. ¿Continuar?'))return;
+        button.disabled=true;
+        try{await window.PanaderiaAuth.api('/api/admin/module-requests',{method:'PATCH',body:JSON.stringify({id:button.dataset.id,action})});await renderRequests();notify(action==='approve'?'Módulo habilitado y licencia actualizada.':'Solicitud actualizada.');}
+        catch(error){notify(error.message||'No se pudo actualizar la solicitud.');}
+      };
+    } else if (mode === 'quotations') {
+      setText('#simpleModalTitle','Cotizaciones comerciales');
+      fields.innerHTML='<div id="quotationsContent"><p class="text-muted">Cargando cotizaciones…</p></div>';
+      const renderQuotes=async()=>{
+        const result=await window.PanaderiaAuth.api('/api/admin/quotations');
+        const rows=result.quotations||[];
+        const fmt=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
+        $('#quotationsContent').innerHTML=rows.length?'<div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>CLIENTE</th><th>RUBRO</th><th>MODALIDAD</th><th>IMPORTES</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>'+rows.map(q=>'<tr><td>'+escapeHTML(q.prospect_name)+'</td><td>'+escapeHTML(q.industry_key)+'</td><td>'+escapeHTML(q.plan_type)+'</td><td>Alta: '+fmt(q.setup_amount)+'<br>Mensual: '+fmt(q.monthly_amount)+'<br>Anual: '+fmt(q.annual_amount)+'</td><td>'+escapeHTML(q.status)+'</td><td><div class="d-flex flex-wrap gap-1">'+(['draft','sent'].includes(q.status)?'<button type="button" class="btn btn-sm btn-outline-bakery" data-quote-status="sent" data-id="'+escapeHTML(q.id)+'">Enviar</button><button type="button" class="btn btn-sm btn-success" data-quote-status="accepted" data-id="'+escapeHTML(q.id)+'">Aceptada</button><button type="button" class="btn btn-sm btn-outline-danger" data-quote-status="rejected" data-id="'+escapeHTML(q.id)+'">Rechazar</button>':'—')+'</div></td></tr>').join('')+'</tbody></table></div>':'<p class="text-muted">Todavía no hay cotizaciones.</p>';
+      };
+      renderQuotes().catch(error=>{$('#quotationsContent').textContent=error.message||'No se pudieron cargar las cotizaciones.';});
+      fields.onclick=async event=>{
+        const button=event.target.closest('[data-quote-status]');if(!button)return;
+        if(button.dataset.quoteStatus==='accepted'&&!window.confirm('La cotización quedará aceptada. La licencia seguirá requiriendo emisión manual. ¿Continuar?'))return;
+        button.disabled=true;
+        try{await window.PanaderiaAuth.api('/api/admin/quotations',{method:'PATCH',body:JSON.stringify({id:button.dataset.id,status:button.dataset.quoteStatus})});await renderQuotes();notify('Estado de cotización actualizado.');}
+        catch(error){notify(error.message||'No se pudo actualizar la cotización.');}
+      };
     } else if (mode === 'user') {
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
@@ -2599,6 +2633,14 @@ img,svg,canvas,video{max-width:100%}
   $('#manageModulePricingButton')?.addEventListener('click', () => {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede modificar precios.'); return; }
     openSimpleModal('module-pricing');
+  });
+  $('#manageModuleRequestsButton')?.addEventListener('click', () => {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede revisar solicitudes.'); return; }
+    openSimpleModal('module-requests');
+  });
+  $('#manageQuotationsButton')?.addEventListener('click', () => {
+    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede consultar cotizaciones.'); return; }
+    openSimpleModal('quotations');
   });
   async function runAdminRefresh(button, refreshFn, label) {
     if (!button || button.disabled) return;
@@ -2886,7 +2928,7 @@ img,svg,canvas,video{max-width:100%}
     $('#simpleForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
-    if (!name && simpleModalMode !== 'employee-payment' && simpleModalMode !== 'module-pricing') return;
+    if (!name && !['employee-payment','module-pricing','module-requests','quotations'].includes(simpleModalMode)) return;
     if (simpleModalMode === 'module-pricing') {
       const submit=$('#simpleForm').querySelector('button[type="submit"]');if(submit){submit.disabled=true;submit.textContent='Guardando…';}
       try{
