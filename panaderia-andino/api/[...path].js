@@ -178,6 +178,23 @@ module.exports = async function handler(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/license/info'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta información está disponible desde una cuenta vinculada a un negocio.'});
+      const sql=db();
+      const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
+        CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
+        l.sold_at,l.created_at,l.expires_at,l.setup_amount,l.monthly_amount,l.billing_day,
+        l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit
+        FROM app_licenses l
+        WHERE l.business_id=${user.business_id} AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+        ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC
+        LIMIT 1`;
+      if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
+      const license=rows[0];
+      return send(res,200,{license:{...license,days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
+    }
     if(path==='/api/admin/license-settings'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
