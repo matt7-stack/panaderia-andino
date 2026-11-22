@@ -693,6 +693,7 @@ module.exports = async function handler(req, res) {
           await sql`UPDATE app_module_requests SET status='rejected',updated_at=NOW() WHERE id=${id} AND business_id=${user.business_id}`;
         }
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},${action==='accept'?'business.module_quote_accepted':'business.module_quote_rejected'},'module_request',${id},${JSON.stringify({quotationId:quoteId,moduleKey:requests[0].module_key})}::jsonb)`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'license_update',${action==='accept'?'Cotización aceptada':'Cotización rechazada'},${action==='accept'?'El cliente aceptó una cotización de ampliación. Revisá el pago antes de habilitar el módulo.':'El cliente rechazó una cotización de ampliación.'} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
         return send(res,200,{ok:true,status:action==='accept'?'accepted':'rejected'});
       }
       if(req.method==='POST'){
@@ -709,6 +710,7 @@ module.exports = async function handler(req, res) {
         const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) RETURNING *`;
         if(!rows.length)return send(res,409,{error:'No se pudo registrar la solicitud.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'business.module_requested','module_request',${rows[0].id},${JSON.stringify({moduleKey:key})}::jsonb)`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'license_update','Solicitud de módulo','Un negocio solicitó ampliar su configuración con el módulo '+${key}+'.' FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
         return send(res,201,{request:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
@@ -741,7 +743,9 @@ module.exports = async function handler(req, res) {
           return send(res,200,{request:rows[0]});
         }
         if(action==='reject'){
+          if(request.quotation_id)await sql`UPDATE app_quotations SET status='rejected',updated_at=NOW() WHERE id=${request.quotation_id} AND status IN ('draft','sent')`;
           const rows=await sql`UPDATE app_module_requests SET status='rejected',reviewed_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING *`;
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${request.business_id},u.id,'license_update','Solicitud de módulo rechazada','La solicitud del módulo '+${request.module_key}+' fue rechazada por el administrador.' FROM app_users u WHERE u.business_id=${request.business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
           return send(res,200,{request:rows[0]});
         }
         const license=await sql`SELECT id,modules FROM app_licenses WHERE business_id=${request.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
@@ -763,6 +767,7 @@ module.exports = async function handler(req, res) {
         SELECT * FROM request_updated`;
         if(!rows.length)return send(res,409,{error:'No se pudo aplicar la ampliación de forma consistente. Verificá la licencia y la configuración.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${request.business_id},${admin.id},'business.module_enabled','module',${request.module_key},${JSON.stringify({requestId:id})}::jsonb)`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${request.business_id},u.id,'license_update','Módulo habilitado','El módulo '+${request.module_key}+' ya está habilitado en la licencia de tu negocio.' FROM app_users u WHERE u.business_id=${request.business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{request:rows[0],enabledModule:request.module_key});
       }
       return send(res,405,{error:'Método no permitido.'});
