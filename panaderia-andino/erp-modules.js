@@ -68,7 +68,7 @@
     if(!panel||!select)return;
     const enabled=Array.isArray(u?.businessConfig?.modules)?u.businessConfig.modules:[];
     const available=requestableModules.filter(([key])=>!enabled.includes(key));
-    panel.hidden=!u||u.isPlatformAdmin===true||!u.businessConfig||!available.length;
+    panel.hidden=!u||u.isPlatformAdmin===true||!['admin','supervisor'].includes(u.role)||!u.businessConfig||!available.length;
     select.innerHTML=available.map(([key,label])=>'<option value="'+esc(key)+'">'+esc(label)+'</option>').join('');
   }
   function renderTabs(){
