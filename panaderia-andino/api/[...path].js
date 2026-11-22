@@ -130,6 +130,8 @@ const publicUser = u => ({
   businessConfig:u.is_platform_admin === true || !u.business_industry ? null : {
     industry:u.business_industry,
     mode:u.business_config_mode || 'legacy',
+    configuredModules:Array.isArray(u.business_modules)?u.business_modules:[],
+    licensedModules:Array.isArray(u.license_modules)?u.license_modules:null,
     modules:Array.isArray(u.business_modules)
       ? (Array.isArray(u.license_modules) ? u.business_modules.filter(key=>u.license_modules.includes(key)) : u.business_modules)
       : null
@@ -619,7 +621,9 @@ module.exports = async function handler(req, res) {
         if(!module.length)return send(res,404,{error:'Módulo no disponible.'});
         const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${user.business_id} LIMIT 1`;
         const licensed=user.license_modules;
-        if((Array.isArray(config[0]?.modules)&&config[0].modules.includes(key))||(Array.isArray(licensed)&&licensed.includes(key)))return send(res,409,{error:'Este módulo ya está habilitado.'});
+        const configHas=Array.isArray(config[0]?.modules)&&config[0].modules.includes(key);
+        const licenseAllows=!Array.isArray(licensed)||licensed.includes(key);
+        if(configHas&&licenseAllows)return send(res,409,{error:'Este módulo ya está habilitado.'});
         const rows=await sql`INSERT INTO app_module_requests(business_id,module_key,requested_by,notes) VALUES(${user.business_id},${key},${user.id},${notes}) ON CONFLICT(business_id,module_key,status) DO NOTHING RETURNING *`;
         if(!rows.length)return send(res,409,{error:'Ya existe una solicitud abierta para este módulo.'});
         return send(res,201,{request:rows[0]});
