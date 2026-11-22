@@ -733,6 +733,8 @@ module.exports = async function handler(req, res) {
         if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
         if(!selectedModules.includes('dashboard'))selectedModules.push('dashboard');
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
+        const quotationId=String(input.quotationId||'');
+        if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
         const id=crypto.randomUUID();
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
@@ -743,9 +745,12 @@ module.exports = async function handler(req, res) {
         ), config_created AS (
           INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
           SELECT id,${industry},${configMode},${JSON.stringify(selectedModules)}::jsonb,${admin.id},${admin.id} FROM created RETURNING business_id
+        ), quote_linked AS (
+          UPDATE app_quotations SET business_id=(SELECT id FROM created),status=CASE WHEN status='accepted' THEN 'converted' ELSE status END,updated_at=NOW()
+          WHERE id=NULLIF(${quotationId},'')::uuid AND (business_id IS NULL OR business_id=(SELECT id FROM created)) RETURNING id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null})}::jsonb FROM created RETURNING id
         )
         SELECT * FROM created`;
         return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:false});
