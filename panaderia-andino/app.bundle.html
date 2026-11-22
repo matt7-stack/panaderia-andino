@@ -1890,7 +1890,7 @@ img,svg,canvas,video{max-width:100%}
     });
     if(Array.isArray(modules)){
       const usersTab=$('[data-settings-tab="users"]'),usersPanel=$('[data-settings-panel="users"]');
-      const showUsers=modules.includes('users')&&user?.role==='admin';
+      const showUsers=modules.includes('users')&&modules.includes('employees')&&user?.role==='admin';
       if(usersTab)usersTab.hidden=!showUsers;
       if(usersPanel)usersPanel.hidden=!showUsers;
     }
