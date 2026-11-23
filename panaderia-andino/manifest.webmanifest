@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Gestión de Negocio",
-  "short_name": "Gestión de Negocio",
-  "description": "Aplicación integral para la gestión de negocios",
+  "name": "MATTSYSTEM",
+  "short_name": "MATTSYSTEM",
+  "description": "Plataforma integral para la gestión y administración de negocios",
   "lang": "es-PY",
   "start_url": "/app.bundle.html",
   "scope": "/",
@@ -10,7 +10,7 @@
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#fbf5eb",
-  "theme_color": "#653820",
+  "theme_color": "#142b45",
   "icons": [
     { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
