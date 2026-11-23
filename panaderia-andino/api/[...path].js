@@ -206,7 +206,7 @@ module.exports = async function handler(req, res) {
         EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
         WHERE l.business_id=${user.business_id} AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
-        ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC
+        ORDER BY (l.id=(SELECT verified_license_id FROM app_users WHERE id=${user.id} AND business_id=${user.business_id})) DESC,(l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC
         LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
       const license=rows[0];
@@ -223,6 +223,7 @@ module.exports = async function handler(req, res) {
         FROM app_licenses WHERE business_id=${user.business_id} AND UPPER(license_code)=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${system})) LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'El código no corresponde a una licencia de este negocio. Verificá el código con el administrador.'});
       const license=rows[0];
+      await sql`UPDATE app_users SET verified_license_id=${license.id} WHERE id=${user.id} AND business_id=${user.business_id}`;
       if(license.status!=='active')return send(res,409,{error:'El código es correcto, pero la licencia todavía no está activa. Contactá al administrador.'});
       if(license.expires_at&&license.expires_at<new Date().toISOString().slice(0,10))return send(res,409,{error:'La licencia está vencida. Contactá al administrador para renovarla.'});
       await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'license.code_verified','license',${license.id},${JSON.stringify({license_code:license.license_code})}::jsonb)`;
