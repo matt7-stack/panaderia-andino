@@ -1009,7 +1009,7 @@ module.exports = async function handler(req, res) {
             trial_started_at,trial_days,device_limit,modules
           )
           SELECT created.id,${trialCode},${licenseSystem},'basic','active',CURRENT_DATE,
-            (CURRENT_DATE + (trial_settings.trial_days || ' days')::interval)::date,
+            (CURRENT_DATE + trial_settings.trial_days),
             0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
             trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
           FROM created CROSS JOIN trial_settings
