@@ -1236,7 +1236,7 @@ img,svg,canvas,video{max-width:100%}
           <div id="notificationsList" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando notificaciones…</p></article></div>
         </section>
         <section class="page-view" id="page-info" data-page="info">
-          <div class="page-heading"><div><p class="eyebrow">INFORMACIÓN DE TU SERVICIO</p><h1><i class="bi bi-info-circle heading-page-icon"></i> Info</h1><p class="page-subtitle">Consultá el plan de licencia asociado a tu negocio y las condiciones de tu servicio.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshLicenseInfo"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <div class="page-heading"><div><p class="eyebrow">INFORMACIÓN DE TU SERVICIO</p><h1><i class="bi bi-info-circle heading-page-icon"></i> Info</h1><p class="page-subtitle">Consultá el plan de licencia asociado a tu negocio y las condiciones de tu servicio.</p></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshLicenseInfo"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-bakery btn-sm" type="button" id="requestLicenseActivation" hidden><i class="bi bi-key"></i> Activar licencia</button></div></div>
           <div id="licenseInfoContent" aria-live="polite" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando información de la licencia…</p></article></div>
         </section>
         <section class="page-view" id="page-configuracion" data-page="configuracion">
@@ -3435,11 +3435,20 @@ img,svg,canvas,video{max-width:100%}
  async function loadPrefs(){if(!$('#notificationPreferencesForm'))return;try{const r=await api('/api/notification-preferences');$('#prefSystem').checked=r.preferences.system!==false;$('#prefFinancial').checked=r.preferences.financial!==false;$('#prefSupport').checked=r.preferences.support!==false;}catch(e){console.warn(e);}}
  document.addEventListener('submit',async e=>{if(e.target.id==='clientSupportTicketForm'){e.preventDefault();try{await api('/api/support/tickets',{method:'POST',body:JSON.stringify({subject:$('#supportTicketSubject').value,message:$('#supportTicketMessage').value})});e.target.reset();await loadClientTickets();alert('Solicitud enviada correctamente.');}catch(x){alert(x.message);}}if(e.target.id==='notificationPreferencesForm'){e.preventDefault();try{await api('/api/notification-preferences',{method:'PUT',body:JSON.stringify({preferences:{system:$('#prefSystem').checked,financial:$('#prefFinancial').checked,support:$('#prefSupport').checked}})});alert('Preferencias guardadas.');}catch(x){alert(x.message);}}});
  document.addEventListener('click',async e=>{const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton');if(!t)return;try{if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
+ document.addEventListener('click',async event=>{
+   const button=event.target.closest('#requestLicenseActivation');
+   if(!button||button.hidden||button.disabled)return;
+   button.disabled=true;const original=button.innerHTML;button.textContent='Enviando solicitud…';
+   try{await api('/api/license/activation-request',{method:'POST',body:JSON.stringify({})});button.textContent='Solicitud enviada';notify('Tu solicitud fue enviada al administrador. La activación se completará cuando se gestione tu licencia contratada.');await loadLicenseInfo();}
+   catch(error){button.disabled=false;button.innerHTML=original;notify(error.message||'No se pudo enviar la solicitud.');}
+ });
  async function loadLicenseInfo(){
    const container=$('#licenseInfoContent');if(!container)return;
    container.innerHTML='<article class="panel settings-card"><p class="text-muted mb-0">Consultando tu licencia…</p></article>';
    try{
      const result=await api('/api/license/info'),l=result.license||{};
+     const activationButton=$('#requestLicenseActivation');
+     if(activationButton){activationButton.hidden=l.is_trial!==true||l.activation_requested===true;activationButton.disabled=l.activation_requested===true;activationButton.innerHTML=l.activation_requested===true?'Solicitud enviada':'<i class="bi bi-key"></i> Activar licencia';}
      const labels={basic:'Básico',professional:'Profesional',enterprise:'Empresarial',active:'Activa',pending:'Pendiente de activación',suspended:'Suspendida',cancelled:'Cancelada',expired:'Vencida'};
      const money=value=>'Gs. '+Number(value||0).toLocaleString('es-PY');
      const date=value=>value?new Date(value+'T00:00:00').toLocaleDateString('es-PY'):'Sin vencimiento definido';

@@ -202,7 +202,8 @@ module.exports = async function handler(req, res) {
       const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
         l.sold_at,l.created_at,l.expires_at,l.setup_amount,l.monthly_amount,l.billing_day,
-        l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit
+        l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,
+        EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
         WHERE l.business_id=${user.business_id} AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
         ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC
@@ -210,6 +211,20 @@ module.exports = async function handler(req, res) {
       if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
       const license=rows[0];
       return send(res,200,{license:{...license,days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
+    }
+    if(path==='/api/license/activation-request'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta acción está disponible únicamente para cuentas de negocio.'});
+      const sql=db(),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const licenses=await sql`SELECT id,is_trial FROM app_licenses WHERE business_id=${user.business_id} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${licenseSystem})) ORDER BY (status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)) DESC,created_at DESC LIMIT 1`;
+      if(!licenses.length)return send(res,404,{error:'No encontramos una prueba o licencia asociada a este negocio.'});
+      if(licenses[0].is_trial!==true)return send(res,409,{error:'Este negocio ya tiene una licencia contratada.'});
+      const subject='Solicitud de activación de licencia';
+      const existing=await sql`SELECT id FROM app_support_tickets WHERE business_id=${user.business_id} AND subject=${subject} AND status IN ('open','in_progress') ORDER BY created_at DESC LIMIT 1`;
+      if(existing.length)return send(res,200,{requested:true,alreadyRequested:true});
+      const tickets=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},'El negocio solicita convertir su prueba gratuita en una licencia contratada. Contactar para coordinar plan, condiciones y activación comercial.') RETURNING id`;
+      return send(res,201,{requested:true,ticketId:tickets[0].id});
     }
     if(path==='/api/admin/license-settings'){
       const admin=await authenticated(req,res,true);if(!admin)return;
