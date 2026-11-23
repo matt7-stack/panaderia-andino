@@ -34,6 +34,7 @@ const apiPath = path.join(root, 'api/[...path].js');
 const receivablesApiPath = path.join(root, 'api/business/receivables.js');
 const addonsApiPath = path.join(root, 'api/admin/business-addons.js');
 const erpPath = path.join(root, 'erp-modules.js');
+const receivablesMigrationPath = path.join(root, 'migrations/015_receivables_payment_idempotency_guard.sql');
 
 const htmlPath = path.join(root, 'app.bundle.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
@@ -62,6 +63,8 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 if (!fs.readFileSync(apiPath, 'utf8').includes('module.exports._internal')) throw new Error('Faltan helpers compartidos para las rutas especializadas.');
 if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_payments')) throw new Error('La API de cuentas por cobrar no está conectada a pagos.');
 if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_audit')) throw new Error('La API de cuentas por cobrar no consulta la auditoría.');
+if (!fs.readFileSync(apiPath, 'utf8').includes('last_name')) throw new Error('El módulo de clientes no integra los apellidos.');
+if (!fs.readFileSync(receivablesMigrationPath, 'utf8').includes('pg_advisory_xact_lock')) throw new Error('Falta el bloqueo de idempotencia para pagos concurrentes.');
 if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
