@@ -74,4 +74,25 @@ if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) thr
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
 if (!html.includes('saveBusinessAddons')) throw new Error('La administración no incluye controles de complementos.');
 
-process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');
+function collectServerlessFiles(directory, relative = '') {
+  const entries = fs.readdirSync(directory, { withFileTypes: true });
+  return entries.flatMap(entry => {
+    const absolute = path.join(directory, entry.name);
+    const nextRelative = path.posix.join(relative, entry.name);
+    if (entry.isDirectory()) return collectServerlessFiles(absolute, nextRelative);
+    if (!entry.isFile() || !/\\.(?:js|mjs|cjs|ts)$/.test(entry.name) || entry.name.startsWith('_')) return [];
+    return [nextRelative];
+  });
+}
+
+const serverlessFiles = collectServerlessFiles(path.join(root, 'api'));
+if (serverlessFiles.length > 12) {
+  throw new Error('Vercel Hobby admite como máximo 12 Serverless Functions; se detectaron ' + serverlessFiles.length + ': ' + serverlessFiles.join(', '));
+}
+for (const requiredRoute of ['/api/auth/login', '/api/auth/me', '/api/admin/businesses', '/api/admin/users', '/api/admin/reset-data', '/api/data']) {
+  if (!fs.readFileSync(path.join(root, 'api/[...path].js'), 'utf8').includes(requiredRoute)) {
+    throw new Error('La ruta API consolidada no contiene el endpoint requerido: ' + requiredRoute);
+  }
+}
+
+process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
