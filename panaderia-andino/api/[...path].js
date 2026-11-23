@@ -1671,3 +1671,5 @@ module.exports = async function handler(req, res) {
     return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
   }
 };
+
+module.exports._internal = { db, authenticated, send, body };

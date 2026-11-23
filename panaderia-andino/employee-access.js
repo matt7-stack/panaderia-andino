@@ -13,7 +13,8 @@
     { title: 'Compras', items: [['purchases.view', 'Ver compras'], ['purchases.create', 'Registrar compras']] },
     { title: 'Caja y finanzas', items: [['cash.view', 'Ver movimientos de caja'], ['cash.manage', 'Registrar movimientos de caja'], ['cash.open', 'Abrir caja'], ['cash.close', 'Cerrar caja']] },
     { title: 'Producción', items: [['recipes.view', 'Ver recetas'], ['recipes.manage', 'Administrar recetas'], ['production.view', 'Ver producción'], ['production.manage', 'Registrar producción']] },
-    { title: 'Informes', items: [['reports.view', 'Consultar informes'], ['reports.export', 'Exportar informes']] }
+    { title: 'Informes', items: [['reports.view', 'Consultar informes'], ['reports.export', 'Exportar informes']] },
+    { title: 'Cuentas por cobrar', items: [['receivables.view', 'Consultar cuentas por cobrar'], ['receivables.manage', 'Registrar deudas y pagos']] }
   ];
   const allPermissionKeys = groups.flatMap(group => group.items.map(item => item[0]));
   let loading = false;
