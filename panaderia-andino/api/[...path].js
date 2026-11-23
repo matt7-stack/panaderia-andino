@@ -1158,7 +1158,7 @@ module.exports = async function handler(req, res) {
           return send(res,200,{products:rows});
         }
         if (module === 'customers') {
-          const rows=await sql`SELECT id,name,document,phone,email,address,notes,active,created_at,updated_at FROM app_customers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
+          const rows=await sql`SELECT id,name,last_name,document,phone,email,address,notes,active,created_at,updated_at FROM app_customers WHERE business_id=${businessId} ORDER BY name LIMIT 2000`;
           return send(res,200,{customers:rows});
         }
         if (module === 'suppliers') {
@@ -1166,7 +1166,7 @@ module.exports = async function handler(req, res) {
           return send(res,200,{suppliers:rows});
         }
         if (module === 'sales') {
-          const rows=await sql`SELECT s.*,c.name AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
+          const rows=await sql`SELECT s.*,concat_ws(' ',c.name,c.last_name) AS customer_name,COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'unit_cost',i.unit_cost,'line_total',i.line_total) ORDER BY i.created_at) FROM app_sale_items i WHERE i.business_id=s.business_id AND i.sale_id=s.id),'[]'::json) AS items FROM app_sales s LEFT JOIN app_customers c ON c.business_id=s.business_id AND c.id=s.customer_id WHERE s.business_id=${businessId} ORDER BY s.created_at DESC LIMIT 500`;
           return send(res,200,{sales:rows});
         }
         if (module === 'purchases') {
@@ -1220,7 +1220,7 @@ module.exports = async function handler(req, res) {
         }
         if (module === 'customers') {
           const name=String(input.name||'').trim().slice(0,120);if(!name)return send(res,400,{error:'Ingresá el nombre del cliente.'});
-          const rows=await sql`INSERT INTO app_customers(business_id,name,document,phone,email,address,notes) VALUES(${businessId},${name},${String(input.document||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
+          const rows=await sql`INSERT INTO app_customers(business_id,name,last_name,document,phone,email,address,notes) VALUES(${businessId},${name},${String(input.lastName||'').trim().slice(0,100)||''},${String(input.document||'').trim().slice(0,40)||null},${String(input.phone||'').trim().slice(0,60)||null},${String(input.email||'').trim().slice(0,254)||null},${String(input.address||'').trim().slice(0,250)||null},${String(input.notes||'').trim().slice(0,1000)||null}) RETURNING *`;
           return send(res,201,{customer:rows[0]});
         }
         if (module === 'suppliers') {
@@ -1391,7 +1391,7 @@ module.exports = async function handler(req, res) {
           if(!rows.length)return send(res,404,{error:'Producto no encontrado.'});return send(res,200,{product:rows[0]});
         }
         if(module==='customers'&&can('customers.manage')){
-          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),last_name=CASE WHEN ${input.lastName===undefined} THEN last_name ELSE ${String(input.lastName||'').trim().slice(0,100)} END,phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Cliente no encontrado.'});return send(res,200,{customer:rows[0]});
         }
         if(module==='suppliers'&&can('suppliers.manage')){
