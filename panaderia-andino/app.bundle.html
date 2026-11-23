@@ -1086,10 +1086,10 @@ img,svg,canvas,video{max-width:100%}
                 <div class="panel-heading"><div><h3 id="productFormTitle">Agregar al catálogo</h3><p>Solo necesitás el nombre y, si querés, el precio y una categoría.</p></div></div>
                 <form id="productForm" class="row g-3">
                   <input type="hidden" id="productId">
-                  <div class="col-12"><label class="form-label" for="productName">Nombre del producto *</label><input class="form-control" id="productName" maxlength="100" required placeholder="Ej.: Chipa, pan francés, medialunas"></div>
-                  <div class="col-sm-6"><label class="form-label" for="productCategory">Categoría (opcional)</label><input class="form-control" id="productCategory" maxlength="60" placeholder="Ej.: Panificados"></div>
+                  <div class="col-12"><label class="form-label" for="productName">Nombre del producto *</label><input class="form-control" id="productName" maxlength="100" required ></div>
+                  <div class="col-sm-6"><label class="form-label" for="productCategory">Categoría (opcional)</label><input class="form-control" id="productCategory" maxlength="60" ></div>
                   <div class="col-sm-6"><label class="form-label" for="productPrice">Precio (Gs., opcional)</label><input class="form-control" id="productPrice" type="number" min="0" step="1" value="0"></div>
-                  <div class="col-12"><label class="form-label" for="productDescription">Descripción (opcional)</label><textarea class="form-control" id="productDescription" rows="2" maxlength="300" placeholder="Descripción breve para los clientes"></textarea></div>
+                  <div class="col-12"><label class="form-label" for="productDescription">Descripción (opcional)</label><textarea class="form-control" id="productDescription" rows="2" maxlength="300" ></textarea></div>
                   <div class="col-12"><label class="form-label">Disponibilidad inicial</label><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="productAvailable" checked><label class="form-check-label" for="productAvailable">Está disponible para los clientes</label></div></div>
                   <div class="col-12 d-flex gap-2 flex-wrap"><button class="btn btn-bakery" type="submit" id="saveProductButton"><i class="bi bi-check2"></i> Guardar producto</button><button class="btn btn-outline-bakery" type="button" id="cancelProductEdit" hidden>Cancelar edición</button></div>
                 </form>
