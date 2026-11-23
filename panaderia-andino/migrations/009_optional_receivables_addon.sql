@@ -11,8 +11,10 @@ ON CONFLICT(module_key) DO UPDATE SET
   commercial_mode='addon',
   sort_order=EXCLUDED.sort_order;
 
+ALTER TABLE app_financial_entries ADD COLUMN IF NOT EXISTS receivable_debt_id uuid;
 ALTER TABLE app_financial_entries ADD COLUMN IF NOT EXISTS receivable_payment_id uuid;
 ALTER TABLE app_financial_entries ADD COLUMN IF NOT EXISTS receivable_action text;
+ALTER TABLE app_cash_movements ADD COLUMN IF NOT EXISTS receivable_debt_id uuid;
 ALTER TABLE app_cash_movements ADD COLUMN IF NOT EXISTS receivable_payment_id uuid;
 ALTER TABLE app_cash_movements ADD COLUMN IF NOT EXISTS receivable_action text;
 
@@ -77,6 +79,15 @@ CREATE TABLE IF NOT EXISTS app_receivable_audit (
 
 CREATE INDEX IF NOT EXISTS app_receivable_audit_business_debt_idx
   ON app_receivable_audit(business_id,debt_id,created_at DESC);
+
+ALTER TABLE app_financial_entries ADD CONSTRAINT app_financial_entries_receivable_debt_fk
+  FOREIGN KEY(business_id,receivable_debt_id) REFERENCES app_receivable_debts(business_id,id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS app_financial_entries_receivable_debt_idx
+  ON app_financial_entries(business_id,receivable_debt_id) WHERE receivable_debt_id IS NOT NULL;
+ALTER TABLE app_cash_movements ADD CONSTRAINT app_cash_movements_receivable_debt_fk
+  FOREIGN KEY(business_id,receivable_debt_id) REFERENCES app_receivable_debts(business_id,id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS app_cash_movements_receivable_debt_idx
+  ON app_cash_movements(business_id,receivable_debt_id) WHERE receivable_debt_id IS NOT NULL;
 
 ALTER TABLE app_financial_entries
   ADD CONSTRAINT app_financial_entries_receivable_payment_fk
@@ -248,12 +259,12 @@ BEGIN
 
   INSERT INTO app_financial_entries(
     business_id,entry_type,category,description,amount,payment_method,reference,paid_at,actor_user_id,
-    receivable_payment_id,receivable_action
+    receivable_debt_id,receivable_payment_id,receivable_action
   ) VALUES (
     NEW.business_id,entry_kind,'Cuentas por cobrar',description_value,amount_value,
     NEW.payment_method,'CC-'||NEW.id::text,CASE WHEN action_kind='payment' THEN NEW.paid_at ELSE NEW.reversed_at END,
     CASE WHEN action_kind='payment' THEN NEW.actor_user_id ELSE NEW.reversed_by END,
-    NEW.id,action_kind
+    NEW.debt_id,NEW.id,action_kind
   );
 
   IF lower(btrim(NEW.payment_method)) IN ('efectivo','cash') THEN
@@ -263,12 +274,12 @@ BEGIN
     IF cash_session IS NOT NULL THEN
       INSERT INTO app_cash_movements(
         business_id,cash_session_id,movement_type,category,description,amount,payment_method,reference,actor_user_id,
-        receivable_payment_id,receivable_action
+        receivable_debt_id,receivable_payment_id,receivable_action
       ) VALUES (
         NEW.business_id,cash_session,entry_kind,'Cuentas por cobrar',description_value,amount_value,
         NEW.payment_method,'CC-'||NEW.id::text,
         CASE WHEN action_kind='payment' THEN NEW.actor_user_id ELSE NEW.reversed_by END,
-        NEW.id,action_kind
+        NEW.debt_id,NEW.id,action_kind
       );
     END IF;
   END IF;
