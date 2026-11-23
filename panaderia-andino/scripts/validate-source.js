@@ -7,9 +7,13 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
   'api/[...path].js',
+  'api/business/receivables.js',
+  'api/admin/business-addons.js',
   'app.bundle.html',
   'employee-access.js',
   'erp-modules.js',
+  'migrations/013_receivables_idempotency.sql',
+  'migrations/014_expand_industry_templates.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -20,11 +24,15 @@ for (const relative of requiredFiles) {
   if (!fs.existsSync(absolute)) throw new Error('Falta el archivo requerido: ' + relative);
 }
 
-const apiPath = path.join(root, 'api/[...path].js');
-new vm.Script(fs.readFileSync(apiPath, 'utf8'), { filename: apiPath });
+for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','employee-access.js','erp-modules.js']) {
+  const absolute = path.join(root, relative);
+  new vm.Script(fs.readFileSync(absolute, 'utf8'), { filename: absolute });
+}
 
-const employeePath = path.join(root, 'employee-access.js');
-new vm.Script(fs.readFileSync(employeePath, 'utf8'), { filename: employeePath });
+const apiPath = path.join(root, 'api/[...path].js');
+const receivablesApiPath = path.join(root, 'api/business/receivables.js');
+const addonsApiPath = path.join(root, 'api/admin/business-addons.js');
+const erpPath = path.join(root, 'erp-modules.js');
 
 const htmlPath = path.join(root, 'app.bundle.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
@@ -49,5 +57,11 @@ if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes(
 if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
   throw new Error('No está implementado el endpoint de datos con permisos para empleados.');
 }
+
+if (!fs.readFileSync(apiPath, 'utf8').includes('module.exports._internal')) throw new Error('Faltan helpers compartidos para las rutas especializadas.');
+if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_payments')) throw new Error('La API de cuentas por cobrar no está conectada a pagos.');
+if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
+if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
+if (!html.includes('saveBusinessAddons')) throw new Error('La administración no incluye controles de complementos.');
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos de empleados y JSON.\n');

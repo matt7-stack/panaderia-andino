@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/erp-multiempresa
+      - fix/admin-client-panels-licenses-preview
   pull_request:
     branches:
       - main
