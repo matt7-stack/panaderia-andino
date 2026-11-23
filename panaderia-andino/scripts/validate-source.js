@@ -72,6 +72,8 @@ if (!fs.readFileSync(path.join(root, 'migrations/016_receivables_direct_debt_lin
 if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
+if (!html.includes("const link = event.target.closest('[data-page-link]')")) throw new Error('La navegación no admite enlaces dinámicos agregados después de la carga inicial.');
+if (!fs.readFileSync(erpPath, 'utf8').includes('#page-erp .page-heading h1')) throw new Error('Gestión operativa no tiene alineación de textos adaptada.');
 if (!html.includes('saveBusinessAddons')) throw new Error('La administración no incluye controles de complementos.');
 
 function collectServerlessFiles(directory, relative = '') {

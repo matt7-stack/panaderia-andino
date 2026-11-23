@@ -2537,7 +2537,12 @@ img,svg,canvas,video{max-width:100%}
   }
 
   // Navegación principal
-  $$('[data-page-link]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); pageNavigate(link.dataset.pageLink); }));
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-page-link]');
+    if (!link || link.hidden || link.getAttribute('aria-disabled') === 'true') return;
+    event.preventDefault();
+    pageNavigate(link.dataset.pageLink);
+  });
   $$('[data-go-page]').forEach((button) => button.addEventListener('click', () => pageNavigate(button.dataset.goPage)));
   $('#menuToggle')?.addEventListener('click', () => {
     const open = $('#sidebar').classList.toggle('open');
