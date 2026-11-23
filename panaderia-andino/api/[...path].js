@@ -95,13 +95,13 @@ async function currentUser(req) {
   const user = rows[0];
   return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
 }
-async function authenticated(req, res, adminOnly = false) {
+async function authenticated(req, res, adminOnly = false, allowInactiveLicense = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
   try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
-  if (user.is_platform_admin !== true && user.license_is_valid !== true) {
+  if (!allowInactiveLicense && user.is_platform_admin !== true && user.license_is_valid !== true) {
     const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
     const messages = {
       missing: 'Este negocio todavía no tiene una licencia para Mattsystem. Contactá al administrador para activar el servicio.',
@@ -195,7 +195,7 @@ module.exports = async function handler(req, res) {
       return send(res,201,{reply:rows[0]});
     }
     if(path==='/api/license/info'){
-      const user=await authenticated(req,res,false);if(!user)return;
+      const user=await authenticated(req,res,false,true);if(!user)return;
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta información está disponible desde una cuenta vinculada a un negocio.'});
       const sql=db();
       const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
@@ -213,7 +213,7 @@ module.exports = async function handler(req, res) {
       return send(res,200,{license:{...license,is_trial:license.is_trial===true||license.is_trial==='true',days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
     }
     if(path==='/api/license/verify-code'){
-      const user=await authenticated(req,res,false);if(!user)return;
+      const user=await authenticated(req,res,false,true);if(!user)return;
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta verificación está disponible únicamente para cuentas de negocio.'});
       const code=String(body(req).licenseCode||'').trim().toUpperCase();
@@ -230,7 +230,7 @@ module.exports = async function handler(req, res) {
       return send(res,200,{verified:true,message:'Licencia verificada correctamente.',license});
     }
     if(path==='/api/license/activation-request'){
-      const user=await authenticated(req,res,false);if(!user)return;
+      const user=await authenticated(req,res,false,true);if(!user)return;
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta acción está disponible únicamente para cuentas de negocio.'});
       const sql=db(),licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
@@ -1016,7 +1016,7 @@ module.exports = async function handler(req, res) {
             0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
             trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
           FROM created CROSS JOIN trial_settings
-          WHERE trial_settings.enabled=TRUE AND ${activateTrial}::boolean=TRUE
+          WHERE ${activateTrial}::boolean=TRUE
           RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,trial_days,device_limit,modules
         ), quote_linked AS (
           UPDATE app_quotations SET business_id=(SELECT id FROM created),status=CASE WHEN status='accepted' THEN 'converted' ELSE status END,updated_at=NOW()
