@@ -16,6 +16,7 @@ const requiredFiles = [
   'migrations/013_receivables_idempotency.sql',
   'migrations/014_expand_industry_templates.sql',
   'migrations/015_receivables_payment_idempotency_guard.sql',
+  'migrations/016_receivables_direct_debt_link.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -67,6 +68,7 @@ if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_audit'
 if (!fs.readFileSync(apiPath, 'utf8').includes('last_name')) throw new Error('El módulo de clientes no integra los apellidos.');
 if (!fs.readFileSync(apiPath, 'utf8').includes('receivables.view') || !fs.readFileSync(apiPath, 'utf8').includes('receivables.manage')) throw new Error('La API de empleados no reconoce los permisos de cuentas por cobrar.');
 if (!fs.readFileSync(receivablesMigrationPath, 'utf8').includes('pg_advisory_xact_lock')) throw new Error('Falta el bloqueo de idempotencia para pagos concurrentes.');
+if (!fs.readFileSync(path.join(root, 'migrations/016_receivables_direct_debt_link.sql'), 'utf8').includes('receivable_debt_id')) throw new Error('Los movimientos financieros no quedan enlazados directamente a la deuda.');
 if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
