@@ -14,6 +14,7 @@ const requiredFiles = [
   'erp-modules.js',
   'migrations/013_receivables_idempotency.sql',
   'migrations/014_expand_industry_templates.sql',
+  'migrations/015_receivables_payment_idempotency_guard.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -60,6 +61,8 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
 
 if (!fs.readFileSync(apiPath, 'utf8').includes('module.exports._internal')) throw new Error('Faltan helpers compartidos para las rutas especializadas.');
 if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_payments')) throw new Error('La API de cuentas por cobrar no está conectada a pagos.');
+if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_audit')) throw new Error('La API de cuentas por cobrar no consulta la auditoría.');
+if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
 if (!html.includes('saveBusinessAddons')) throw new Error('La administración no incluye controles de complementos.');
