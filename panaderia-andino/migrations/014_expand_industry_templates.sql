@@ -1,5 +1,4 @@
 -- 014: add the requested business industries without changing existing templates.
-BEGIN;
 ALTER TABLE app_business_config DROP CONSTRAINT IF EXISTS app_business_config_industry_key_check;
 ALTER TABLE app_business_config ADD CONSTRAINT app_business_config_industry_key_check
   CHECK (industry_key = ANY (ARRAY[
@@ -34,4 +33,3 @@ FROM (VALUES
 ON CONFLICT(industry_key,module_key) DO UPDATE SET enabled_by_default=EXCLUDED.enabled_by_default;
 INSERT INTO schema_migrations(version) VALUES('014_expand_industry_templates')
 ON CONFLICT(version) DO NOTHING;
-COMMIT;
