@@ -315,15 +315,15 @@ module.exports = async function handler(req, res) {
         for(const item of items){
           const planKey=String(item.planKey),setup=Number(item.setupAmount),monthly=Number(item.monthlyAmount);
           const userLimit=item.userLimit===null||item.userLimit===''?null:Number(item.userLimit);
-          const annualDiscount=Number(item.annualDiscountPercent??15),permanent=Number(item.permanentPrice??0),fullSale=Number(item.fullSalePrice??0);
+          const annualDiscount=item.annualDiscountPercent===undefined?null:Number(item.annualDiscountPercent),permanent=item.permanentPrice===undefined?null:Number(item.permanentPrice),fullSale=item.fullSalePrice===undefined?null:Number(item.fullSalePrice);
           const modules=[...new Set((Array.isArray(item.modules)?item.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-          const modulePrices=item.modulePrices&&typeof item.modulePrices==='object'&&!Array.isArray(item.modulePrices)?item.modulePrices:{};
+          const modulePrices=item.modulePrices===undefined?null:(item.modulePrices&&typeof item.modulePrices==='object'&&!Array.isArray(item.modulePrices)?item.modulePrices:{});
           if(!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||
-             !Number.isFinite(annualDiscount)||annualDiscount<0||annualDiscount>100||
-             !Number.isFinite(permanent)||permanent<0||!Number.isFinite(fullSale)||fullSale<0||
+             (annualDiscount!==null&&(!Number.isFinite(annualDiscount)||annualDiscount<0||annualDiscount>100))||
+             (permanent!==null&&(!Number.isFinite(permanent)||permanent<0))||(fullSale!==null&&(!Number.isFinite(fullSale)||fullSale<0))||
              (userLimit!==null&&(!Number.isInteger(userLimit)||userLimit<1))||modules.length===0||modules.length>50)
             return send(res,400,{error:'Revisá los precios, descuento, límite de usuarios y módulos de cada plan.'});
-          for(const [key,price] of Object.entries(modulePrices)){
+          for(const [key,price] of Object.entries(modulePrices||{})){
             if(!modules.includes(key))continue;
             const m=Number(price?.monthly??0),s=Number(price?.setup??0);
             if(!Number.isFinite(m)||m<0||!Number.isFinite(s)||s<0)return send(res,400,{error:'Revisá los precios de los módulos de cada plan.'});
@@ -334,10 +334,10 @@ module.exports = async function handler(req, res) {
         const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
         if(valid.length!==allKeys.length)return send(res,400,{error:'Un plan contiene módulos no disponibles o todavía no implementados.'});
         const rows=await sql`INSERT INTO app_license_plan_settings(plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_by,updated_at)
-          SELECT x.plan_key,x.display_name,x.setup_amount,x.monthly_amount,x.user_limit,x.modules,x.annual_discount_percent,x.permanent_price,x.full_sale_price,x.module_prices,x.updated_by,NOW()
+          SELECT x.plan_key,x.display_name,x.setup_amount,x.monthly_amount,x.user_limit,x.modules,COALESCE(x.annual_discount_percent,15),COALESCE(x.permanent_price,0),COALESCE(x.full_sale_price,0),COALESCE(x.module_prices,'{}'::jsonb),x.updated_by,NOW()
           FROM jsonb_to_recordset(${JSON.stringify(normalized.map(x=>({...x,updated_by:admin.id})))}::jsonb)
           AS x(plan_key text,display_name text,setup_amount numeric,monthly_amount numeric,user_limit integer,modules jsonb,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb,updated_by uuid)
-          ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,modules=EXCLUDED.modules,annual_discount_percent=EXCLUDED.annual_discount_percent,permanent_price=EXCLUDED.permanent_price,full_sale_price=EXCLUDED.full_sale_price,module_prices=EXCLUDED.module_prices,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,modules=EXCLUDED.modules,annual_discount_percent=COALESCE(EXCLUDED.annual_discount_percent,app_license_plan_settings.annual_discount_percent),permanent_price=COALESCE(EXCLUDED.permanent_price,app_license_plan_settings.permanent_price),full_sale_price=COALESCE(EXCLUDED.full_sale_price,app_license_plan_settings.full_sale_price),module_prices=COALESCE(EXCLUDED.module_prices,app_license_plan_settings.module_prices),updated_by=EXCLUDED.updated_by,updated_at=NOW()
           RETURNING plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at`;
         return send(res,200,{plans:rows,updated:true});
       }
