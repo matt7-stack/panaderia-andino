@@ -2854,7 +2854,7 @@ img,svg,canvas,video{max-width:100%}
             await window.PanaderiaAuth.api('/api/admin/business-license',{method:'PATCH',body:JSON.stringify({
               id:license.id,plan:form.querySelector('#editLicensePlan').value,status:form.querySelector('#editLicenseStatus').value,
               setupAmount:number('#editLicenseSetup'),monthlyAmount:number('#editLicenseMonthly'),
-              expiresAt:form.querySelector('#editLicenseExpiry').value||null,billingDay:number('#editLicenseBillingDay'),
+              billingDay:number('#editLicenseBillingDay'),
               userLimit:optionalNumber('#editLicenseUsers'),deviceLimit:optionalNumber('#editLicenseDevices')
             })});
             dialog.close();dialog.remove();
