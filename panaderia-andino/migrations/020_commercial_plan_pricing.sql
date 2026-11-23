@@ -6,6 +6,7 @@ ALTER TABLE app_license_plan_settings
   ADD COLUMN IF NOT EXISTS full_sale_price NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (full_sale_price >= 0),
   ADD COLUMN IF NOT EXISTS module_prices JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(module_prices)='object');
 UPDATE app_license_plan_settings SET
+  setup_amount=CASE plan_key WHEN 'basic' THEN 1200000 WHEN 'professional' THEN 1500000 ELSE 2000000 END,
   permanent_price=CASE plan_key WHEN 'basic' THEN 3500000 WHEN 'professional' THEN 5500000 ELSE 8500000 END,
   full_sale_price=CASE plan_key WHEN 'basic' THEN 8000000 WHEN 'professional' THEN 12000000 ELSE 18000000 END
 WHERE permanent_price=0 AND full_sale_price=0;
