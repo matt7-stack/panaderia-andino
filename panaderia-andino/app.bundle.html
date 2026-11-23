@@ -1884,7 +1884,7 @@ img,svg,canvas,video{max-width:100%}
     const user=window.PanaderiaAuth?.user;
     const modules=user?.businessConfig?.modules;
     const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
-    $('.nav-menu [data-page-link]').forEach(link=>{
+    $$('.nav-menu [data-page-link]').forEach(link=>{
       const module=pageModules[link.dataset.pageLink];
       if(module&&Array.isArray(modules))link.hidden=!modules.includes(module);
     });
@@ -3388,8 +3388,8 @@ img,svg,canvas,video{max-width:100%}
       // la ruta protegida ya fue validada por PanaderiaAuthReady y no debe quedar en blanco.
       const adminPage=$('[data-page="administracion"]');
       if(adminPage&&!adminPage.classList.contains('active')){
-        $('.page-view').forEach(view=>view.classList.toggle('active',view===adminPage));
-        $('.nav-menu [data-page-link]').forEach(link=>{const active=link.dataset.pageLink==='administracion';link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+        $$('.page-view').forEach(view=>view.classList.toggle('active',view===adminPage));
+        $$('.nav-menu [data-page-link]').forEach(link=>{const active=link.dataset.pageLink==='administracion';link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
         selectedPage='administracion';
         setText('#breadcrumbCurrent','Administrador');
         $('#globalMonthPicker').classList.add('d-none');
