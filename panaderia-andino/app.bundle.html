@@ -3651,11 +3651,10 @@ img,svg,canvas,video{max-width:100%}
    const copy=e.target.closest('.license-copy-code');if(copy){try{await copyLicenseCode(copy.dataset.code);notify('Código de licencia copiado.');}catch(error){alert(error.message);}return;}
    const renew=e.target.closest('.license-renew');
    if(renew){
-     const expiresAt=prompt('Nueva fecha de vencimiento (AAAA-MM-DD):');
-     if(!expiresAt)return;
      const amount=prompt('Importe recibido en guaraníes (0 si no vas a registrar el pago ahora):','120000');
      if(amount===null)return;
-     try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'renew',id:renew.dataset.id,expiresAt,amount:Number(amount)})});await loadLicenses();alert('Licencia renovada y acceso reactivado.');}
+     if(!Number.isFinite(Number(amount))||Number(amount)<0){alert('Ingresá un importe igual o mayor que cero.');return;}
+     try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'renew',id:renew.dataset.id,amount:Number(amount)})});await loadLicenses();alert('Licencia renovada por un mes y acceso reactivado.');}
      catch(x){alert(x.message);}
      return;
    }
