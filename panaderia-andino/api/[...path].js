@@ -681,8 +681,15 @@ module.exports = async function handler(req, res) {
         const settings=settingsRows[0]||{monthly_base:0,annual_discount_percent:0,permanent_price:0,full_sale_price:0,setup_fee:0,currency:'PYG'};
         const moduleExpansion=input.moduleExpansion===true;
         if(moduleExpansion&&(!input.businessId||!['monthly','annual'].includes(plan)))return send(res,400,{error:'La ampliación de módulos requiere un negocio y una modalidad mensual o anual.'});
+        const reusableInMattsystem=input.reusableInMattsystem===true;
+        const reuseConsentNotes=String(input.reuseConsentNotes||'').trim().slice(0,1000);
+        if(reusableInMattsystem&&!reuseConsentNotes)return send(res,400,{error:'Registrá la aceptación expresa del cliente para reutilizar y comercializar el módulo.'});
+        const requestedReuseDiscount=Number(input.reuseDiscountPercent??20);
+        if(!Number.isFinite(requestedReuseDiscount)||requestedReuseDiscount<0||requestedReuseDiscount>30)return send(res,400,{error:'El descuento por reutilización debe estar entre 0 y 30 por ciento.'});
+        const reuseDiscountPercent=reusableInMattsystem?requestedReuseDiscount:0;
         const moduleMonthly=catalog.reduce((n,m)=>n+Number(m.monthly_price||0),0),moduleSetup=catalog.reduce((n,m)=>n+Number(m.setup_price||0),0);
-        const monthly=(moduleExpansion?0:Number(settings.monthly_base||0))+moduleMonthly,setup=(moduleExpansion?0:Number(settings.setup_fee||0))+moduleSetup;
+        const grossMonthly=(moduleExpansion?0:Number(settings.monthly_base||0))+moduleMonthly,grossSetup=(moduleExpansion?0:Number(settings.setup_fee||0))+moduleSetup;
+        const monthly=grossMonthly,setup=Math.round(grossSetup*(1-reuseDiscountPercent/100));
         const annual=monthly*12*(1-Number(settings.annual_discount_percent||0)/100);
         if(moduleExpansion&&moduleMonthly<=0&&moduleSetup<=0)return send(res,409,{error:'Configurá un precio mensual o de instalación para este módulo antes de cotizar la ampliación.'});
         const oneTime=plan==='permanent'?Number(settings.permanent_price||0)+setup:plan==='full_sale'?Number(settings.full_sale_price||0)+setup:setup;
@@ -692,9 +699,9 @@ module.exports = async function handler(req, res) {
         if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
         const validUntil=input.validUntil?String(input.validUntil):null;
         if(validUntil){const parsed=new Date(validUntil+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==validUntil)return send(res,400,{error:'Fecha de validez de cotización no válida.'});}
-        const breakdown={currency:settings.currency||'PYG',monthlyBase:moduleExpansion?0:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:moduleExpansion?0:Number(settings.setup_fee||0),modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
-        const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,is_module_expansion,created_by)
-          VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:oneTime},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${validUntil},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${moduleExpansion},${admin.id}) RETURNING *`;
+        const breakdown={currency:settings.currency||'PYG',monthlyBase:moduleExpansion?0:Number(settings.monthly_base||0),annualDiscountPercent:Number(settings.annual_discount_percent||0),setupFee:moduleExpansion?0:Number(settings.setup_fee||0),grossSetup, reuseDiscountPercent, modules:catalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
+        const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,is_module_expansion,created_by,reusable_in_mattsystem,reuse_discount_percent,reuse_consent_recorded_at,reuse_consent_notes)
+          VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:Math.round(oneTime*(1-reuseDiscountPercent/100))},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${validUntil},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${moduleExpansion},${admin.id},${reusableInMattsystem},${reuseDiscountPercent},${reusableInMattsystem?new Date().toISOString():null},${reuseConsentNotes}) RETURNING *`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'commercial.quotation_created','quotation',${rows[0].id},${JSON.stringify({prospectName,industry,plan,modules,moduleExpansion})}::jsonb)`;
         return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:catalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||(moduleExpansion?false:Number(settings.monthly_base||0)>0||Number(settings.setup_fee||0)>0)||((plan==='permanent'&&Number(settings.permanent_price||0)>0)||(plan==='full_sale'&&Number(settings.full_sale_price||0)>0))});
       }
