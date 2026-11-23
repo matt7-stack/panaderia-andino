@@ -32,8 +32,8 @@
     return window.PanaderiaAuth.api(endpoint,options);
   }
   function ensureUi(){
-    const nav=$('.nav-menu'),main=$('.main-content'),topbar=main?.querySelector('.topbar');
-    if(!nav||!main||!topbar)return false;
+    const nav=$('.nav-menu'),main=$('.main-content'),pageContent=main?.querySelector('.page-content');
+    if(!nav||!main||!pageContent)return false;
     if(!nav.querySelector('[data-page-link="erp"]')){
       const link=document.createElement('a');
       link.href='#erp';link.className='nav-link';link.dataset.pageLink='erp';
@@ -44,7 +44,8 @@
       const page=document.createElement('section');
       page.className='page-view';page.id='page-erp';page.dataset.page='erp';
       page.innerHTML='<div class="page-heading"><div><p class="eyebrow">OPERACIÓN DEL NEGOCIO</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Gestión operativa</h1><p class="page-subtitle">Módulos habilitados según la configuración y licencia del negocio.</p></div><div><button type="button" class="btn btn-outline-bakery btn-sm" id="erpRequestModuleButton">Solicitar módulo adicional</button></div></div><div id="erpRequestPanel" class="panel settings-card mb-3" hidden><div class="row g-2 align-items-end"><div class="col-md-7"><label class="form-label" for="erpRequestModuleSelect">Módulo que necesitás</label><select class="form-select" id="erpRequestModuleSelect"></select></div><div class="col-md-5"><button type="button" class="btn btn-bakery" id="erpSendModuleRequest">Enviar solicitud</button></div></div><small class="text-muted d-block mt-2">El administrador revisará la solicitud y podrá enviarte una cotización de ampliación.</small><div id="erpModuleRequestHistory" class="mt-3"></div></div><div class="erp-tabs" id="erpTabs" role="tablist"></div><div id="erpContent" class="mt-3"><p class="text-muted">Seleccioná un módulo.</p></div>';
-      topbar.insertAdjacentElement('afterend',page);
+      const footer=pageContent.querySelector('.page-footer');
+      if(footer)pageContent.insertBefore(page,footer);else pageContent.appendChild(page);
     }
     if(!$('#erpModuleStyles')){
       const style=document.createElement('style');style.id='erpModuleStyles';
@@ -233,12 +234,13 @@
     }catch(error){content.innerHTML='<div class="alert alert-danger">'+esc(error.message||'No se pudo cargar el módulo.')+'</div>';}
   }
   async function activate(user){
+    if(!ensureUi())return;
     receivablesEnabled=false;
+    syncNavigation();
     if(user&&user.isPlatformAdmin!==true&&user.businessId){
       try{cache.receivables=await api('receivables');receivablesEnabled=true;}
       catch(error){delete cache.receivables;receivablesEnabled=false;}
     }
-    if(!ensureUi())return;
     syncNavigation();renderTabs();syncRequestControls();
     if(user&&canModule(currentModule))loadModule(currentModule);
   }

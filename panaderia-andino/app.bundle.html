@@ -499,7 +499,7 @@ img,svg,canvas,video{max-width:100%}
 #page-dashboard .quick-action-icon{width:42px;height:42px;flex:0 0 42px;font-size:18px}
 #page-dashboard .quick-action strong{font-size:13px}
 #page-dashboard .quick-action small{font-size:11px}
-#page-notas .page-heading,#page-notificaciones .page-heading{align-items:center;gap:14px;flex-wrap:wrap}
+#page-notas .page-heading,#page-notificaciones .page-heading{align-items:flex-start;gap:14px;flex-wrap:wrap;text-align:left} #page-notificaciones .page-heading>div{width:100%;margin:0;text-align:left} #page-notificaciones .page-heading h1,#page-notificaciones .page-heading .page-subtitle,#page-notificaciones .page-heading .eyebrow{text-align:left;margin-left:0;margin-right:0}
 #page-notas .page-heading>.btn,#page-notificaciones .page-heading>.btn{min-width:124px}
 #page-notificaciones #notificationsList .panel{padding:clamp(16px,2vw,24px);width:100%}
 #page-notificaciones #notificationsList button{min-width:104px}
@@ -1941,7 +1941,7 @@ img,svg,canvas,video{max-width:100%}
     if (page === 'empleados') renderEmployees();
     if (['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos'].includes(page)) renderAdminPanel();
     if (page === 'admin-support') loadAdminSupportSettings();
-    if (page === 'notificaciones') refreshNotifications();
+    if (page === 'notificaciones') window.refreshNotifications();
     if (page === 'actividad') refreshAdminActivity(true);
     if (page === 'seguridad') refreshAdminSecurity(true);
     if (page === 'reportes-globales') refreshGlobalReports();
@@ -2929,7 +2929,7 @@ img,svg,canvas,video{max-width:100%}
   $('#refreshAdminSecurity')?.addEventListener('click',()=>refreshAdminSecurity(false));
   $('#refreshAdminActivity')?.addEventListener('click',()=>refreshAdminActivity(false));
   $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
-    async function refreshNotifications(){
+    window.refreshNotifications = async function refreshNotifications(){
     if(!window.PanaderiaAuth?.user)return;
     try{
       const result=await window.PanaderiaAuth.api('/api/notifications');
@@ -3022,10 +3022,10 @@ img,svg,canvas,video{max-width:100%}
   }, true);
   $('#notificationsList')?.addEventListener('click',async(event)=>{
     const button=event.target.closest('[data-read-notification]');if(!button)return;
-    try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.readNotification})});await refreshNotifications();}
+    try{await window.PanaderiaAuth.api('/api/notifications',{method:'PATCH',body:JSON.stringify({id:button.dataset.readNotification})});await window.refreshNotifications();}
     catch(error){notify(error.message);}
   });
-  $('#refreshNotificationsButton')?.addEventListener('click',refreshNotifications);
+  $('#refreshNotificationsButton')?.addEventListener('click',window.refreshNotifications);
     $('#simpleForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const name = $('#simpleName')?.value.trim();
@@ -3227,12 +3227,12 @@ img,svg,canvas,video{max-width:100%}
         await Promise.all([refreshCloudBusinesses(), refreshCloudUsers()]);
         // El historial y las notificaciones no deben bloquear la apertura del panel.
         refreshAdminActivity(true);
-        refreshNotifications();
+        window.refreshNotifications();
         refreshAdminNotifications();
         if (cloudSyncInterval) clearInterval(cloudSyncInterval);
         cloudSyncInterval = setInterval(() => {
           refreshAdminActivity(true);
-          refreshNotifications();
+          window.refreshNotifications();
           refreshAdminNotifications();
         }, 60000);
       } catch (error) {
@@ -3263,10 +3263,10 @@ img,svg,canvas,video{max-width:100%}
       if (cloudSyncInterval) clearInterval(cloudSyncInterval);
       cloudSyncInterval = setInterval(() => {
         refreshCloudData();
-        refreshNotifications();
+        window.refreshNotifications();
         if (window.PanaderiaAuth?.user?.isPlatformAdmin === true) refreshAdminActivity(true);
       }, 10000);
-      await refreshNotifications();
+      await window.refreshNotifications();
     } catch (error) {
       console.error('No se pudo cargar el espacio compartido.', error);
       if (user.isPlatformAdmin === true && loadSelectedBusiness) throw error;
@@ -3522,7 +3522,7 @@ img,svg,canvas,video{max-width:100%}
  window.addEventListener('panaderia:pagenavigate', event => {
    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) {
      if(event.detail?.page==='configuracion'){loadPrefs();loadClientTickets();}
-     if(event.detail?.page==='notificaciones')refreshNotifications();
+     if(event.detail?.page==='notificaciones')window.refreshNotifications();
       if(event.detail?.page==='info')loadLicenseInfo();
      return;
    }
@@ -3540,7 +3540,7 @@ img,svg,canvas,video{max-width:100%}
    if (document.visibilityState === 'visible' && window.PanaderiaAuth?.user?.isPlatformAdmin === true) loadPlatformAdminData(true);
  });
  Promise.resolve(window.PanaderiaAuthReady)
-   .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); if(user){loadClientTickets();loadPrefs();refreshNotifications();} })
+   .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); if(user){loadClientTickets();loadPrefs();window.refreshNotifications();} })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
 })();
 </script><script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
