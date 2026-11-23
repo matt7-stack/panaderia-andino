@@ -298,6 +298,43 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if(path==='/api/admin/license-plan-settings'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const [plans,modules]=await Promise.all([
+          sql`SELECT plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
+          sql`SELECT module_key,title,category FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE ORDER BY sort_order,title`
+        ]);
+        return send(res,200,{plans,modules});
+      }
+      if(req.method==='PUT'){
+        const input=body(req),items=Array.isArray(input.plans)?input.plans:[];
+        if(items.length!==3||new Set(items.map(x=>String(x.planKey||''))).size!==3||!['basic','professional','enterprise'].every(k=>items.some(x=>x.planKey===k)))
+          return send(res,400,{error:'Debés configurar los tres tipos de licencia.'});
+        const normalized=[];
+        for(const item of items){
+          const planKey=String(item.planKey),setup=Number(item.setupAmount),monthly=Number(item.monthlyAmount);
+          const userLimit=item.userLimit===null||item.userLimit===''?null:Number(item.userLimit);
+          const modules=[...new Set((Array.isArray(item.modules)?item.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+          if(!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||
+             (userLimit!==null&&(!Number.isInteger(userLimit)||userLimit<1))||modules.length===0||modules.length>50)
+            return send(res,400,{error:'Revisá precios, límite de usuarios y módulos de cada plan.'});
+          normalized.push({plan_key:planKey,display_name:({basic:'Básico',professional:'Profesional',enterprise:'Empresa'})[planKey],setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,modules});
+        }
+        const allKeys=[...new Set(normalized.flatMap(x=>x.modules))];
+        const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
+        if(valid.length!==allKeys.length)return send(res,400,{error:'Un plan contiene módulos no disponibles o todavía no implementados.'});
+        const rows=await sql`INSERT INTO app_license_plan_settings(plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,updated_by,updated_at)
+          SELECT x.plan_key,x.display_name,x.setup_amount,x.monthly_amount,x.user_limit,x.modules,x.updated_by,NOW()
+          FROM jsonb_to_recordset(${JSON.stringify(normalized.map(x=>({...x,updated_by:admin.id})))}::jsonb)
+          AS x(plan_key text,display_name text,setup_amount numeric,monthly_amount numeric,user_limit integer,modules jsonb,updated_by uuid)
+          ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,modules=EXCLUDED.modules,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          RETURNING plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,updated_at`;
+        return send(res,200,{plans:rows,updated:true});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if(path==='/api/admin/licenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
@@ -307,9 +344,11 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req),businessId=String(input.businessId||''),systemName=String(input.systemName||'Mattsystem').trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
-        const setup=Number(input.setupAmount??0),monthly=Number(input.monthlyAmount??0),billingDay=Number(input.billingDay??1),expiresAt=input.expiresAt?String(input.expiresAt):null;
-        const parsedExpiry=expiresAt?new Date(expiresAt+'T00:00:00Z'):null;
-        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||(expiresAt&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)||Number.isNaN(parsedExpiry.getTime())||parsedExpiry.toISOString().slice(0,10)!==expiresAt)))return send(res,400,{error:'Datos de licencia no válidos. Revisá importes, día de cobro y vencimiento.'});
+        const billingDay=Number(input.billingDay??1);
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28)return send(res,400,{error:'Datos de licencia no válidos. Revisá negocio, tipo, estado y día de cobro.'});
+        const planRows=await sql`SELECT setup_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
+        if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
+        const setup=Number(planRows[0].setup_amount),monthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const linkedQuote=await sql`SELECT status,modules,industry_key,config_mode FROM app_quotations WHERE business_id=${businessId} AND is_module_expansion=FALSE ORDER BY created_at DESC LIMIT 1`;
@@ -319,7 +358,7 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,${expiresAt},${setup},${monthly},${billingDay},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},(SELECT modules FROM app_business_config WHERE business_id=${businessId})) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,(CURRENT_DATE + INTERVAL '1 month')::date,${setup},${monthly},${billingDay},${planRows[0].user_limit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
