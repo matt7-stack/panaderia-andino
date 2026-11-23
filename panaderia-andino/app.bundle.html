@@ -1026,6 +1026,39 @@ img,svg,canvas,video{max-width:100%}
   }
   .page-view .table-actions { gap:5px; }
 }
+
+/* Login MATTSYSTEM: composición renovada y accesible */
+.auth-gate{overflow-y:auto;padding:clamp(16px,4vw,44px);background:radial-gradient(ellipse at 12% 8%,rgba(103,91,232,.22),transparent 35%),radial-gradient(ellipse at 92% 92%,rgba(49,111,224,.22),transparent 38%),linear-gradient(135deg,#101a3a 0%,#192452 48%,#29205b 100%)}
+.auth-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);width:min(100%,1040px);min-height:min(660px,calc(100dvh - 64px));overflow:hidden;border:1px solid rgba(255,255,255,.15);border-radius:30px;background:rgba(255,255,255,.96);box-shadow:0 35px 100px rgba(3,8,35,.38)}
+.auth-showcase{position:relative;display:flex;flex-direction:column;justify-content:space-between;min-width:0;padding:clamp(30px,5vw,62px);overflow:hidden;color:#fff;background:radial-gradient(circle at 82% 20%,rgba(150,125,255,.35),transparent 34%),linear-gradient(145deg,#243b91 0%,#4541a2 48%,#633ca4 100%)}
+.auth-showcase:after{content:"";position:absolute;width:360px;height:360px;right:-155px;bottom:-180px;border:1px solid rgba(255,255,255,.14);border-radius:50%;box-shadow:0 0 0 38px rgba(255,255,255,.035),0 0 0 82px rgba(255,255,255,.025)}
+.auth-showcase-brand{position:relative;z-index:1;display:flex;align-items:center;gap:12px;font-size:15px;font-weight:850;letter-spacing:2px}
+.auth-showcase-mark{display:grid;place-items:center;width:42px;height:42px;border:1px solid rgba(255,255,255,.34);border-radius:13px;background:rgba(255,255,255,.13);font-size:22px;font-weight:900}
+.auth-showcase-copy{position:relative;z-index:1;max-width:440px;margin:auto 0;padding:48px 0}
+.auth-kicker{color:#d4d1ff;font-size:10px;font-weight:850;letter-spacing:2.2px}
+.auth-showcase-copy h2{margin:18px 0;color:#fff;font-size:clamp(42px,5.2vw,64px);font-weight:850;letter-spacing:-2.6px;line-height:1.03}
+.auth-showcase-copy h2 em{color:#c6baff;font-style:normal}
+.auth-showcase-copy>p{max-width:360px;color:rgba(255,255,255,.76);font-size:14px;line-height:1.8}
+.auth-benefits{display:grid;gap:15px;margin-top:38px}
+.auth-benefits>div{display:flex;align-items:center;gap:13px;color:rgba(255,255,255,.9);font-size:12px;font-weight:650}
+.auth-benefits b{display:grid;place-items:center;width:31px;height:31px;border:1px solid rgba(255,255,255,.25);border-radius:9px;color:#d8d1ff;font-size:10px}
+.auth-showcase-bottom{position:relative;z-index:1;color:rgba(255,255,255,.55);font-size:9px;font-weight:800;letter-spacing:1.7px}
+.auth-card{align-self:center;width:100%;padding:clamp(28px,4vw,46px);border:0;border-radius:0;background:#fff;box-shadow:none;backdrop-filter:none}
+.auth-brand{margin-bottom:42px}.auth-brand-icon{background:linear-gradient(145deg,#eef0ff,#e7eaff)}
+.auth-heading h1{font-size:clamp(29px,4vw,35px);letter-spacing:-1px}
+.auth-heading p{font-size:13px}
+.auth-form{gap:10px}.auth-form label{margin-top:10px;font-size:12px}
+.auth-form input{min-height:52px;border-color:#e4e7f2;border-radius:13px;background:#f8f9fd}
+.auth-password-field{position:relative}.auth-password-field input{padding-right:54px}
+.auth-password-toggle{position:absolute;top:50%;right:10px;display:grid;place-items:center;width:36px;height:36px;transform:translateY(-50%);border:0;border-radius:9px;color:#858aa7;background:transparent;cursor:pointer}
+.auth-password-toggle:hover{color:#5e58c8;background:#eeefff}.auth-password-toggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.auth-submit{min-height:53px;margin-top:20px;padding:14px 18px;border-radius:13px}
+.auth-submit:disabled{cursor:wait}
+.auth-footnote{margin-top:30px}
+@media(max-width:760px){.auth-gate{padding:14px}.auth-layout{display:block;width:min(100%,470px);min-height:0;border-radius:24px}.auth-showcase{display:none}.auth-card{padding:clamp(25px,7vw,38px)}}
+@media(max-width:380px){.auth-card{padding:24px 19px}.auth-brand{margin-bottom:30px}.auth-heading h1{font-size:27px}}
+@media(max-height:650px) and (min-width:761px){.auth-layout{min-height:0}.auth-showcase{padding:30px 38px}.auth-showcase-copy{padding:24px 0}.auth-benefits{gap:9px;margin-top:20px}.auth-brand{margin-bottom:25px}}
+
 </style>
 <style>
 /* Alineación consistente de los encabezados en la cuenta de cada negocio. */
@@ -1801,7 +1834,7 @@ img,svg,canvas,video{max-width:100%}
   gate.setAttribute('role', 'dialog');
   gate.setAttribute('aria-modal', 'true');
   gate.setAttribute('aria-labelledby', 'authTitle');
-  gate.innerHTML = '<div class="auth-card"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="44" height="44"></span><div><strong>MATTSYSTEM</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></div>';
+  gate.innerHTML = '<div class="auth-layout"><section class="auth-showcase" aria-label="MATTSYSTEM"><div class="auth-showcase-brand"><span class="auth-showcase-mark">M</span><span>MATTSYSTEM</span></div><div class="auth-showcase-copy"><span class="auth-kicker">GESTIÓN INTELIGENTE</span><h2>Tu negocio,<br>en <em>control.</em></h2><p>Administrá tus operaciones desde un solo lugar, con claridad, seguridad y eficiencia.</p><div class="auth-benefits"><div><b>01</b><span>Información organizada</span></div><div><b>02</b><span>Control de cada operación</span></div><div><b>03</b><span>Acceso seguro y centralizado</span></div></div></div><div class="auth-showcase-bottom">GESTIÓN EMPRESARIAL · MATTSYSTEM</div></section><section class="auth-card"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="44" height="44"></span><div><strong>MATTSYSTEM</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></section></div>';
   document.body.appendChild(gate);
 
   const content = document.getElementById('authContent');
@@ -1860,8 +1893,16 @@ img,svg,canvas,video{max-width:100%}
   function showLogin(message = '') {
     gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><input id="authPassword" name="password" type="password" autocomplete="current-password" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Entrar al sistema <span>→</span></button></form>`;
+    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><div class="auth-password-field"><input id="authPassword" name="password" type="password" autocomplete="current-password" required placeholder="Ingresá tu contraseña"><button class="auth-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit"><span class="auth-submit-label">Ingresar al sistema</span><span aria-hidden="true">→</span></button></form>`;
     showMessage(message);
+    const passwordInput = document.getElementById('authPassword');
+    const passwordToggle = content.querySelector('.auth-password-toggle');
+    passwordToggle.addEventListener('click', () => {
+      const reveal = passwordInput.type === 'password';
+      passwordInput.type = reveal ? 'text' : 'password';
+      passwordToggle.setAttribute('aria-label', reveal ? 'Ocultar contraseña' : 'Mostrar contraseña');
+      passwordToggle.setAttribute('aria-pressed', String(reveal));
+    });
     document.getElementById('loginForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = event.currentTarget.querySelector('button');
