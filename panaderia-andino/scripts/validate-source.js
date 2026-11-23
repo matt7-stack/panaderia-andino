@@ -65,6 +65,7 @@ if (!fs.readFileSync(apiPath, 'utf8').includes('module.exports._internal')) thro
 if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_payments')) throw new Error('La API de cuentas por cobrar no está conectada a pagos.');
 if (!fs.readFileSync(receivablesApiPath, 'utf8').includes('app_receivable_audit')) throw new Error('La API de cuentas por cobrar no consulta la auditoría.');
 if (!fs.readFileSync(apiPath, 'utf8').includes('last_name')) throw new Error('El módulo de clientes no integra los apellidos.');
+if (!fs.readFileSync(apiPath, 'utf8').includes('receivables.view') || !fs.readFileSync(apiPath, 'utf8').includes('receivables.manage')) throw new Error('La API de empleados no reconoce los permisos de cuentas por cobrar.');
 if (!fs.readFileSync(receivablesMigrationPath, 'utf8').includes('pg_advisory_xact_lock')) throw new Error('Falta el bloqueo de idempotencia para pagos concurrentes.');
 if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
