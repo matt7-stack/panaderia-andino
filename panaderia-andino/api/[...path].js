@@ -151,7 +151,7 @@ module.exports = async function handler(req, res) {
   const routeParam = req.query && req.query.path;
   const routeSegments = Array.isArray(routeParam) ? routeParam : (routeParam ? [routeParam] : []);
   const path = routeSegments.length
-    ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\\/+|\\/+$/g, '')).filter(Boolean).join('/')
+    ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
     if(path==='/api/support/tickets'){
