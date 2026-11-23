@@ -1983,8 +1983,8 @@ img,svg,canvas,video{max-width:100%}
   const parseGsAmount = (value) => {
     const raw = String(value ?? '').trim();
     if (!raw) return NaN;
-    const normalized = raw.replace(/(?:Gs\\.?|₲)/gi, '').replace(/[\\s.]/g, '').replace(/,/g, '');
-    if (!/^\\d+$/.test(normalized)) return NaN;
+    const normalized = raw.replace(/(?:Gs\.?|₲)/gi, '').replace(/[\s.]/g, '').replace(/,/g, '');
+    if (!/^\d+$/.test(normalized)) return NaN;
     const amount = Number(normalized);
     return Number.isSafeInteger(amount) ? amount : NaN;
   };
