@@ -979,6 +979,9 @@ module.exports = async function handler(req, res) {
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
         const quotationId=String(input.quotationId||'');
+        const activateTrial=input.activateTrial===true;
+        const requestedTrialDays=Number(input.trialDays||7);
+        if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>90))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 90 días.'});
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
         if(quotationId){
           const quote=await sql`SELECT id,prospect_name,prospect_email,industry_key,config_mode,modules FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
@@ -1000,7 +1003,7 @@ module.exports = async function handler(req, res) {
         ), trial_settings AS (
           SELECT
             COALESCE((SELECT trial_enabled FROM app_license_settings WHERE setting_key='default'),TRUE) AS enabled,
-            COALESCE((SELECT trial_days FROM app_license_settings WHERE setting_key='default'),7) AS trial_days,
+            ${activateTrial?requestedTrialDays:7}::int AS trial_days,
             (SELECT device_limit FROM app_license_settings WHERE setting_key='default') AS device_limit
         ), trial_created AS (
           INSERT INTO app_licenses(
@@ -1013,14 +1016,14 @@ module.exports = async function handler(req, res) {
             0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
             trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
           FROM created CROSS JOIN trial_settings
-          WHERE trial_settings.enabled=TRUE
+          WHERE trial_settings.enabled=TRUE AND ${activateTrial}::boolean=TRUE
           RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,trial_days,device_limit,modules
         ), quote_linked AS (
           UPDATE app_quotations SET business_id=(SELECT id FROM created),status=CASE WHEN status='accepted' THEN 'converted' ELSE status END,updated_at=NOW()
           WHERE id=NULLIF(${quotationId},'')::uuid AND (business_id IS NULL OR business_id=(SELECT id FROM created)) RETURNING id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null,trialLicense:true})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null,trialLicense:activateTrial,trialDays:activateTrial?requestedTrialDays:null})}::jsonb FROM created RETURNING id
         )
         SELECT created.*,
           (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'isTrial',l.is_trial,'trialDays',l.trial_days,'modules',l.modules) FROM trial_created l LIMIT 1) AS trial_license
