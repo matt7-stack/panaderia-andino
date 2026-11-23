@@ -4084,7 +4084,15 @@ html.auth-locked body::-webkit-scrollbar {
 </style>
 <script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script>
 <style id="auth-root-scrollbar-fix">
-/* Bloquea el documento durante el login para que no reserve el canal de scroll. */
+/* El fondo del documento y del canal lateral coincide con el degradado del login. */
+html.auth-locked,
+html.auth-locked body {
+  background:
+    radial-gradient(ellipse at 12% 12%,rgba(130,105,255,.20),transparent 38%),
+    radial-gradient(ellipse at 88% 86%,rgba(62,113,235,.16),transparent 38%),
+    linear-gradient(135deg,#f5f6ff 0%,#edf1ff 48%,#f7f4ff 100%) !important;
+  background-attachment: fixed !important;
+}
 html.auth-locked {
   position: fixed !important;
   inset: 0 !important;
@@ -4096,7 +4104,6 @@ html.auth-locked {
   scrollbar-gutter: auto !important;
   scrollbar-width: none !important;
   overscroll-behavior: none !important;
-  background: #f5f6ff !important;
 }
 html.auth-locked body {
   position: fixed !important;
@@ -4117,6 +4124,13 @@ html.auth-locked body::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
 }
+html.auth-locked::-webkit-scrollbar-track,
+html.auth-locked body::-webkit-scrollbar-track {
+  background:
+    radial-gradient(ellipse at 12% 12%,rgba(130,105,255,.20),transparent 38%),
+    radial-gradient(ellipse at 88% 86%,rgba(62,113,235,.16),transparent 38%),
+    linear-gradient(135deg,#f5f6ff 0%,#edf1ff 48%,#f7f4ff 100%) !important;
+}
 html.auth-locked #authGate {
   position: fixed !important;
   inset: 0 !important;
@@ -4124,7 +4138,6 @@ html.auth-locked #authGate {
   max-width: none !important;
   height: 100% !important;
   margin: 0 !important;
-  border-radius: 0 !important;
 }
 </style>
 </body>
