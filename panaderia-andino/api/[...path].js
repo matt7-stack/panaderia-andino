@@ -252,7 +252,7 @@ module.exports = async function handler(req, res) {
         if(input.action==='modules'){
           const modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
           if(!id||!modules.length||modules.length>50)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
-          const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+          const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
           if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos no disponibles.'});
           const license=await sql`SELECT business_id FROM app_licenses WHERE id=${id} LIMIT 1`;
           if(!license.length)return send(res,404,{error:'Licencia no encontrada.'});
@@ -836,7 +836,7 @@ module.exports = async function handler(req, res) {
           const defaults=await sql`SELECT module_key FROM app_industry_templates WHERE industry_key=${industry} AND enabled_by_default=TRUE ORDER BY module_key`;
           selectedModules=defaults.map(row=>row.module_key);
         }
-        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(selectedModules)}::jsonb))`;
+        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(selectedModules)}::jsonb))`;
         if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
         if(!selectedModules.includes('dashboard'))selectedModules.push('dashboard');
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
