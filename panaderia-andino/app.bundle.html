@@ -2776,25 +2776,71 @@ img,svg,canvas,video{max-width:100%}
   $('#businessesTableBody')?.addEventListener('click', async (event) => {
     const updateLicense=event.target.closest('[data-update-business-license]');
     if(updateLicense){
-      const business=cloudBusinesses.find(item=>item.id===updateLicense.dataset.updateBusinessLicense);if(!business)return;
+      const business=cloudBusinesses.find(item=>item.id===updateLicense.dataset.updateBusinessLicense);
+      if(!business){notify('No se encontró el negocio seleccionado. Actualizá la lista e intentá nuevamente.');return;}
       updateLicense.disabled=true;
       try{
         const result=await window.PanaderiaAuth.api('/api/admin/business-license?businessId='+encodeURIComponent(business.id));
         const license=result.license;
-        const plan=prompt('Plan (basic, professional, enterprise):',license.plan);if(plan===null)return;
-        const normalizedPlan=plan.trim().toLowerCase();
-        const status=prompt('Estado (pending, active, suspended, cancelled):',license.status);if(status===null)return;
-        const setupAmount=prompt('Pago inicial en Gs.:',String(license.setup_amount??0));if(setupAmount===null)return;
-        const monthlyAmount=prompt('Mensualidad en Gs.:',String(license.monthly_amount??0));if(monthlyAmount===null)return;
-        const expiresAt=prompt('Vencimiento (AAAA-MM-DD; vacío = sin vencimiento):',license.expires_at?String(license.expires_at).slice(0,10):'');if(expiresAt===null)return;
-        const billingDay=prompt('Día de facturación (1 a 28):',String(license.billing_day||1));if(billingDay===null)return;
-        const userLimit=prompt('Límite de usuarios (vacío = sin límite):',license.user_limit==null?'':String(license.user_limit));if(userLimit===null)return;
-        const deviceLimit=prompt('Límite de dispositivos (vacío = sin límite):',license.device_limit==null?'':String(license.device_limit));if(deviceLimit===null)return;
-        if(!['basic','professional','enterprise'].includes(normalizedPlan))throw new Error('Plan inválido. Usá basic, professional o enterprise.');
-        await window.PanaderiaAuth.api('/api/admin/business-license',{method:'PATCH',body:JSON.stringify({id:license.id,plan:normalizedPlan,status,setupAmount:Number(setupAmount),monthlyAmount:Number(monthlyAmount),expiresAt:expiresAt.trim()||null,billingDay:Number(billingDay),userLimit:userLimit.trim()===''?null:Number(userLimit),deviceLimit:deviceLimit.trim()===''?null:Number(deviceLimit)})});
-        notify('Licencia actualizada. El cliente verá los nuevos datos en Info y recibirá una notificación.');
-        await loadLicenses();
-      }catch(error){notify(error.message||'No se pudo actualizar la licencia.');}
+        if(!license?.id)throw new Error('El servidor no devolvió una licencia para este negocio.');
+        document.getElementById('businessLicenseEditDialog')?.remove();
+        const dialog=document.createElement('dialog');
+        dialog.id='businessLicenseEditDialog';
+        dialog.style.cssText='width:min(680px,calc(100vw - 28px));max-height:90vh;overflow:auto;border:0;border-radius:16px;padding:0;box-shadow:0 20px 70px rgba(0,0,0,.28);';
+        const val=(v)=>escapeHTML(v===null||v===undefined?'':String(v));
+        dialog.innerHTML=`
+          <form id="businessLicenseEditForm" style="padding:24px">
+            <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+              <div><h3 class="mb-1">Actualizar licencia</h3><p class="text-muted mb-0">${escapeHTML(business.name)} · Modificá los datos y guardá los cambios.</p></div>
+              <button type="button" class="btn-close" data-license-modal-close aria-label="Cerrar"></button>
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicensePlan">Tipo de licencia</label><select class="form-select" id="editLicensePlan" required><option value="basic">Básico</option><option value="professional">Profesional</option><option value="enterprise">Empresa</option></select></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseStatus">Estado</label><select class="form-select" id="editLicenseStatus" required><option value="pending">Pendiente</option><option value="active">Activa</option><option value="suspended">Suspendida</option><option value="cancelled">Cancelada</option></select></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseSetup">Pago inicial (Gs.)</label><input class="form-control" id="editLicenseSetup" type="number" min="0" step="1" required></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseMonthly">Mensualidad (Gs.)</label><input class="form-control" id="editLicenseMonthly" type="number" min="0" step="1" required></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseExpiry">Vencimiento</label><input class="form-control" id="editLicenseExpiry" type="date"></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseBillingDay">Día de facturación (1–28)</label><input class="form-control" id="editLicenseBillingDay" type="number" min="1" max="28" step="1" required></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseUsers">Límite de usuarios (vacío = sin límite)</label><input class="form-control" id="editLicenseUsers" type="number" min="1" max="500" step="1"></div>
+              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseDevices">Límite de dispositivos (vacío = sin límite)</label><input class="form-control" id="editLicenseDevices" type="number" min="1" max="100" step="1"></div>
+              <div class="col-12"><div class="small text-muted">Código actual: <strong>${val(license.license_code)}</strong>. Los módulos habilitados se conservan según la configuración del negocio.</div></div>
+            </div>
+            <p id="businessLicenseEditError" class="text-danger small mt-3 mb-0" role="alert"></p>
+            <div class="d-flex justify-content-end gap-2 mt-4"><button type="button" class="btn btn-outline-secondary" data-license-modal-close>Cancelar</button><button type="submit" class="btn btn-bakery" id="saveBusinessLicenseButton"><i class="bi bi-check2"></i> Guardar cambios</button></div>
+          </form>`;
+        document.body.appendChild(dialog);
+        const form=dialog.querySelector('#businessLicenseEditForm');
+        form.querySelector('#editLicensePlan').value=license.plan||'basic';
+        form.querySelector('#editLicenseStatus').value=license.status||'pending';
+        form.querySelector('#editLicenseSetup').value=license.setup_amount??0;
+        form.querySelector('#editLicenseMonthly').value=license.monthly_amount??0;
+        form.querySelector('#editLicenseExpiry').value=license.expires_at?String(license.expires_at).slice(0,10):'';
+        form.querySelector('#editLicenseBillingDay').value=license.billing_day||1;
+        form.querySelector('#editLicenseUsers').value=license.user_limit??'';
+        form.querySelector('#editLicenseDevices').value=license.device_limit??'';
+        dialog.querySelectorAll('[data-license-modal-close]').forEach(button=>button.addEventListener('click',()=>dialog.close()));
+        dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+        form.addEventListener('submit',async event=>{
+          event.preventDefault();
+          const save=form.querySelector('#saveBusinessLicenseButton'),error=form.querySelector('#businessLicenseEditError');
+          save.disabled=true;save.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span> Guardando…';error.textContent='';
+          const number=(id)=>Number(form.querySelector(id).value);
+          const optionalNumber=(id)=>form.querySelector(id).value.trim()===''?null:number(id);
+          try{
+            await window.PanaderiaAuth.api('/api/admin/business-license',{method:'PATCH',body:JSON.stringify({
+              id:license.id,plan:form.querySelector('#editLicensePlan').value,status:form.querySelector('#editLicenseStatus').value,
+              setupAmount:number('#editLicenseSetup'),monthlyAmount:number('#editLicenseMonthly'),
+              expiresAt:form.querySelector('#editLicenseExpiry').value||null,billingDay:number('#editLicenseBillingDay'),
+              userLimit:optionalNumber('#editLicenseUsers'),deviceLimit:optionalNumber('#editLicenseDevices')
+            })});
+            dialog.close();dialog.remove();
+            notify('Licencia de '+business.name+' actualizada correctamente.');
+            await loadLicenses();
+            await refreshCloudBusinesses();
+          }catch(error){error.textContent=error.message||'No se pudo guardar la licencia.';save.disabled=false;save.innerHTML='<i class="bi bi-check2"></i> Guardar cambios';}
+        });
+        dialog.showModal();
+      }catch(error){notify(error.message||'No se pudo abrir el formulario de licencia.');}
       finally{updateLicense.disabled=false;}
       return;
     }
@@ -3204,7 +3250,7 @@ img,svg,canvas,video{max-width:100%}
       const actions=b.active
         ? '<button class="btn btn-outline-bakery btn-sm" type="button" data-open-business="'+escapeHTML(b.id)+'">Abrir</button><button class="btn btn-outline-warning btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Desactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Enviar a papelera</button>'
         : '<button class="btn btn-outline-success btn-sm" type="button" data-toggle-business="'+escapeHTML(b.id)+'">Reactivar</button><button class="btn btn-outline-danger btn-sm" type="button" data-permanent-delete-business="'+escapeHTML(b.id)+'">Enviar a papelera</button>';
-      return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small><small class="table-sub-text">'+escapeHTML(({panaderias:'Panaderías',minimercados:'Minimercados',tiendas:'Tiendas',restaurantes:'Restaurantes',comercios_generales:'Comercios generales',distribuidoras:'Distribuidoras'})[b.industry_key]||'Comercios generales')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="btn btn-outline-bakery btn-sm" type="button" data-configure-business="'+escapeHTML(b.id)+'">Módulos</button><button class="btn btn-outline-primary btn-sm" type="button" data-update-business-license="${escapeHTML(b.id)}" title="Actualizar licencia"><i class="bi bi-arrow-repeat"></i> Actualizar licencia</button><button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
+      return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="table-sub-text">'+escapeHTML(b.slug||'')+'</small><small class="table-sub-text">'+escapeHTML(({panaderias:'Panaderías',minimercados:'Minimercados',tiendas:'Tiendas',restaurantes:'Restaurantes',comercios_generales:'Comercios generales',distribuidoras:'Distribuidoras'})[b.industry_key]||'Comercios generales')+'</small></td><td>'+Number(b.active_user_count||0)+' / '+Number(b.user_count||0)+'</td><td class="amount-income">'+money(b.recorded_income)+'</td><td class="amount-expense">'+money(b.recorded_expenses)+'</td><td>'+money(b.sales_total)+'</td><td><span class="status-pill '+(b.active?'status-paid':'status-cancelled')+'">'+(b.active?'Activa':'Desactivada')+'</span></td><td><div class="table-actions flex-wrap">'+actions+'<button class="btn btn-outline-bakery btn-sm" type="button" data-configure-business="'+escapeHTML(b.id)+'">Módulos</button><button class="btn btn-outline-primary btn-sm" type="button" data-update-business-license="'+escapeHTML(b.id)+'" title="Actualizar licencia"><i class="bi bi-arrow-repeat"></i> Actualizar licencia</button><button class="icon-action" type="button" data-edit-business="'+escapeHTML(b.id)+'" title="Editar negocio"><i class="bi bi-pencil"></i></button></div></td></tr>';
     }).join('') || '<tr><td colspan="7" class="text-center text-muted py-4">'+(cloudBusinesses.length?'No hay negocios que coincidan con el filtro.':'Todavía no hay negocios registrados.')+'</td></tr>';
   }
   async function refreshCloudBusinesses() {
