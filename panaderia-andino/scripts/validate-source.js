@@ -12,6 +12,7 @@ const requiredFiles = [
   'app.bundle.html',
   'employee-access.js',
   'erp-modules.js',
+  'migrations/009_optional_receivables_addon.sql',
   'migrations/013_receivables_idempotency.sql',
   'migrations/014_expand_industry_templates.sql',
   'migrations/015_receivables_payment_idempotency_guard.sql',
