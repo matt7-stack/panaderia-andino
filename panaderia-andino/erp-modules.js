@@ -49,7 +49,7 @@
     }
     if(!$('#erpModuleStyles')){
       const style=document.createElement('style');style.id='erpModuleStyles';
-      style.textContent='#page-erp,#page-erp .page-heading,#page-erp .page-heading>div,#page-erp .page-heading .eyebrow,#page-erp .page-heading h1,#page-erp .page-heading .page-subtitle,#page-erp .panel,#page-erp .panel h3,#page-erp .panel p{text-align:left}#page-erp .page-heading{align-items:flex-start;justify-content:flex-start}#page-erp .page-heading>div{margin:0}#erpTabs{display:flex;flex-wrap:wrap;gap:.5rem}#erpTabs .btn{min-height:38px;white-space:nowrap}.erp-line-item .btn{min-height:38px}@media(max-width:768px){#erpTabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}#erpTabs .btn{flex:0 0 auto}#page-erp .settings-card{padding:1rem}#page-erp .table-responsive{font-size:.86rem}}@media print{body *{visibility:hidden!important}#page-erp,#page-erp *{visibility:visible!important}#page-erp{position:absolute;inset:0;width:100%}#page-erp button,#erpTabs{display:none!important}}';
+      style.textContent='#page-erp,#page-erp .page-heading,#page-erp .page-heading>div,#page-erp .page-heading .eyebrow,#page-erp .page-heading h1,#page-erp .page-heading .page-subtitle,#page-erp .panel,#page-erp .panel h3,#page-erp .panel p,#page-erp label,#page-erp small,#page-erp .text-muted,#page-erp th,#page-erp td{text-align:left}#page-erp .page-heading{align-items:flex-start;justify-content:flex-start}#page-erp .page-heading>div{margin:0}#erpTabs{display:flex;flex-wrap:wrap;gap:.5rem}#erpTabs .btn{min-height:38px;white-space:nowrap}.erp-line-item .btn{min-height:38px}@media(max-width:768px){#erpTabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.5rem}#erpTabs .btn{flex:0 0 auto}#page-erp .settings-card{padding:1rem}#page-erp .table-responsive{font-size:.86rem}}@media print{body *{visibility:hidden!important}#page-erp,#page-erp *{visibility:visible!important}#page-erp{position:absolute;inset:0;width:100%}#page-erp button,#erpTabs{display:none!important}}';
       document.head.appendChild(style);
     }
     return true;
@@ -112,8 +112,12 @@
   function renderTabs(){
     const tabs=$('#erpTabs');if(!tabs)return;
     const available=Object.keys(labels).filter(canModule);
+    if(!available.includes(currentModule))currentModule=available[0]||'';
     tabs.innerHTML=available.map(key=>'<button type="button" class="btn btn-sm '+(key===currentModule?'btn-bakery':'btn-outline-bakery')+'" data-erp-tab="'+key+'">'+esc(labels[key].title)+'</button>').join('');
-    if(!available.includes(currentModule))currentModule=available[0]||'products';
+    if(!available.length){
+      const content=$('#erpContent');
+      if(content)content.innerHTML='<div class="alert alert-info">Tu negocio todavía no tiene módulos operativos habilitados para esta cuenta. Si necesitás ampliar el servicio, solicitá los módulos al administrador.</div>';
+    }
   }
   function productOptions(selected){
     const products=cache.products?.products||[];
