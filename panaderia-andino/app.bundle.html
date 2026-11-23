@@ -3165,13 +3165,13 @@ img,svg,canvas,video{max-width:100%}
         const selector=$('#commercialPlanSelector'),editor=$('#commercialPlanEditor');
         if(!selector||!editor)throw new Error('Esperá a que se carguen los planes.');
         const capture=name=>editor.querySelector('[data-commercial-field="'+name+'"]')?.value;
-        const selectedPlan=commercialPlansCache.find(p=>p.planKey===selector.value);
+        const selectedPlan=window.commercialPlansCache?.find(p=>p.planKey===selector.value);
         if(!selectedPlan)throw new Error('No se encontró el tipo de licencia seleccionado.');
         selectedPlan.setupAmount=Number(capture('setup')||0);selectedPlan.monthlyAmount=Number(capture('monthly')||0);selectedPlan.annualDiscountPercent=Number(capture('annual')||0);selectedPlan.permanentPrice=Number(capture('permanent')||0);selectedPlan.fullSalePrice=Number(capture('fullsale')||0);
         selectedPlan.userLimit=capture('users')===''?null:Number(capture('users'));
         selectedPlan.modules=[...editor.querySelectorAll('[data-commercial-module]:checked')].map(x=>x.dataset.commercialModule);
-        selectedPlan.modulePrices={};(commercialModuleCatalog||[]).forEach(m=>{const monthly=editor.querySelector('[data-commercial-monthly="'+m.module_key+'"]'),setup=editor.querySelector('[data-commercial-setup="'+m.module_key+'"]');if(monthly&&setup)selectedPlan.modulePrices[m.module_key]={monthly:Number(monthly.value||0),setup:Number(setup.value||0)};});
-        const plans=commercialPlansCache.map(p=>({planKey:p.planKey,setupAmount:p.setupAmount,monthlyAmount:p.monthlyAmount,annualDiscountPercent:p.annualDiscountPercent,permanentPrice:p.permanentPrice,fullSalePrice:p.fullSalePrice,userLimit:p.userLimit,modules:p.modules,modulePrices:p.modulePrices}));
+        selectedPlan.modulePrices={};(window.commercialModuleCatalog||[]).forEach(m=>{const monthly=editor.querySelector('[data-commercial-monthly="'+m.module_key+'"]'),setup=editor.querySelector('[data-commercial-setup="'+m.module_key+'"]');if(monthly&&setup)selectedPlan.modulePrices[m.module_key]={monthly:Number(monthly.value||0),setup:Number(setup.value||0)};});
+        const plans=(window.commercialPlansCache||[]).map(p=>({planKey:p.planKey,setupAmount:p.setupAmount,monthlyAmount:p.monthlyAmount,annualDiscountPercent:p.annualDiscountPercent,permanentPrice:p.permanentPrice,fullSalePrice:p.fullSalePrice,userLimit:p.userLimit,modules:p.modules,modulePrices:p.modulePrices}));
         if(plans.some(p=>[p.setupAmount,p.monthlyAmount,p.annualDiscountPercent,p.permanentPrice,p.fullSalePrice].some(v=>!Number.isFinite(v)||v<0)||p.annualDiscountPercent>100||p.userLimit!==null&&(!Number.isInteger(p.userLimit)||p.userLimit<1)||!p.modules.length))throw new Error('Revisá los precios, el descuento, el límite de usuarios y los módulos de cada plan.');
         await window.PanaderiaAuth.api('/api/admin/license-plan-settings',{method:'PUT',body:JSON.stringify({plans})});
         simpleModal.hide();notify('Catálogo comercial actualizado para los tres tipos de licencia.');
