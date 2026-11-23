@@ -2102,7 +2102,22 @@ body.auth-locked{overflow:hidden!important}
   window.PanaderiaAuthReady = (async () => {
     try {
       const current = await api('/api/auth/me');
-      if (current.authenticated && current.user) { establish(current.user); return current.user; }
+      if (current.authenticated && current.user) {
+        try {
+          establish(current.user);
+        } catch (activationError) {
+          // Si falla una tarea secundaria de la interfaz, no bloquear una sesión
+          // que el servidor ya confirmó como válida.
+          console.error('Error al preparar el panel autenticado:', activationError);
+          window.PanaderiaAuth.user = current.user;
+          document.body.classList.remove('auth-locked');
+          document.documentElement.classList.remove('auth-locked');
+          document.body.classList.toggle('platform-admin', current.user.isPlatformAdmin === true || current.user.is_platform_admin === true);
+          gate.classList.add('auth-gate-hidden');
+          window.location.hash = current.user.isPlatformAdmin === true || current.user.is_platform_admin === true ? '#administracion' : '#dashboard';
+        }
+        return current.user;
+      }
       const status = await api('/api/auth/status');
       if (!status.adminExists && activationToken) showSetup();
       else if (!status.adminExists) showLogin('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
