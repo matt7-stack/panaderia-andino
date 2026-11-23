@@ -601,12 +601,13 @@ module.exports = async function handler(req, res) {
         if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Seleccioná un negocio válido.'});
         const rows=await sql`SELECT b.id AS business_id,b.name AS business_name,bc.industry_key,bc.config_mode,bc.modules,bc.updated_at FROM businesses b LEFT JOIN app_business_config bc ON bc.business_id=b.id WHERE b.id=${businessId} LIMIT 1`;
         if(!rows.length)return send(res,404,{error:'No se encontró el negocio.'});
-        const catalog=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog WHERE implemented=TRUE ORDER BY sort_order,title`;
-        return send(res,200,{config:rows[0],modules:catalog});
+        const catalog=await sql`SELECT module_key,title,description,category,monthly_price,setup_price,active,implemented,sort_order FROM app_module_catalog WHERE implemented=TRUE AND commercial_mode='core' ORDER BY sort_order,title`;
+        const addons=await sql`SELECT m.module_key,m.title,m.description,m.monthly_price,m.setup_price,COALESCE(a.contracted,FALSE) AS contracted,COALESCE(a.enabled,FALSE) AS enabled,COALESCE(a.status,'not_contracted') AS status,a.contracted_at,a.activated_at,a.deactivated_at,a.updated_at FROM app_module_catalog m LEFT JOIN app_business_addons a ON a.module_key=m.module_key AND a.business_id=${businessId} WHERE m.commercial_mode='addon' AND m.implemented=TRUE ORDER BY m.sort_order,m.title`;
+        return send(res,200,{config:rows[0],modules:catalog,addons});
       }
       if(req.method==='PUT'){
         const input=body(req),businessId=String(input.businessId||''),industry=String(input.industry||''),mode=String(input.configMode||''),modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!modules.length||modules.length>50)return send(res,400,{error:'La configuración del negocio no es válida.'});
         const valid=await sql`SELECT module_key,active FROM app_module_catalog WHERE implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
         if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o no implementados.'});
@@ -638,7 +639,7 @@ module.exports = async function handler(req, res) {
         const input=body(req),prospectName=String(input.prospectName||'').trim().slice(0,120),prospectEmail=String(input.prospectEmail||'').trim().slice(0,254);
         const industry=String(input.industry||''),mode=String(input.configMode||''),plan=String(input.planType||'monthly');
         const modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!prospectName||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!['monthly','annual','permanent','full_sale'].includes(plan)||!modules.length||modules.length>50)return send(res,400,{error:'Completá el prospecto, rubro, modalidad y módulos.'});
         if(prospectEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prospectEmail))return send(res,400,{error:'Correo electrónico no válido.'});
         const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
@@ -684,7 +685,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false);if(!user)return;
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Este catálogo corresponde a cuentas de negocio.'});
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
-      const modules=await db()`SELECT module_key,title,description,category FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE ORDER BY sort_order,title`;
+      const modules=await db()`SELECT module_key,title,description,category FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' ORDER BY sort_order,title`;
       return send(res,200,{modules});
     }
     if (path === '/api/business/module-requests') {
@@ -717,7 +718,7 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req),key=String(input.moduleKey||'').trim(),notes=String(input.notes||'').trim().slice(0,1000);
-        const module=await sql`SELECT module_key FROM app_module_catalog WHERE module_key=${key} AND active=TRUE LIMIT 1`;
+        const module=await sql`SELECT module_key FROM app_module_catalog WHERE module_key=${key} AND active=TRUE AND commercial_mode='core' LIMIT 1`;
         if(!module.length)return send(res,404,{error:'Módulo no disponible.'});
         const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${user.business_id} LIMIT 1`;
         const licensed=user.license_modules;
@@ -826,7 +827,7 @@ module.exports = async function handler(req, res) {
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         const industry=String(input.industry||'comercios_generales'),configMode=String(input.configMode||'template');
-        const industries=['panaderias','minimercados','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
         let selectedModules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
