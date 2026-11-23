@@ -1905,6 +1905,8 @@ body.auth-locked{overflow:hidden!important}
     box.hidden = !message;
   }
 
+  let authInitializationComplete = false;
+
   function showLogin(message = '') {
     gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
@@ -1923,6 +1925,10 @@ body.auth-locked{overflow:hidden!important}
     const loginButton = document.getElementById('authLoginButton');
     const emailInput = document.getElementById('authEmail');
     const submitLogin = async () => {
+      if (!authInitializationComplete) {
+        showMessage('Verificando la sesión. Esperá un momento y volvé a ingresar.');
+        return;
+      }
       if (!loginButton || loginForm.dataset.submitting === 'true') return;
       loginForm.dataset.submitting = 'true';
       showMessage('');
@@ -2152,8 +2158,17 @@ body.auth-locked{overflow:hidden!important}
     }
   };
 
-  // Mostrar el formulario de inmediato; la validación de sesión puede ocultarlo si ya existe una sesión activa.
+  // Mostrar el formulario de inmediato, pero no aceptar el envío hasta terminar
+  // la comprobación inicial. Así evitamos que /auth/status reconstruya el login
+  // mientras el usuario está autenticándose.
   showLogin();
+  const initialLoginButton = document.getElementById('authLoginButton');
+  if (initialLoginButton) {
+    initialLoginButton.disabled = true;
+    initialLoginButton.setAttribute('aria-busy', 'true');
+    const initialLabel = initialLoginButton.querySelector('.auth-submit-label');
+    if (initialLabel) initialLabel.textContent = 'Comprobando sesión...';
+  }
 
   window.PanaderiaAuthReady = (async () => {
     try {
@@ -2176,12 +2191,22 @@ body.auth-locked{overflow:hidden!important}
       }
       const status = await api('/api/auth/status');
       if (!status.adminExists && activationToken) showSetup();
-      else if (!status.adminExists) showLogin('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
-      else showLogin();
+      else if (!status.adminExists) showMessage('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
+      // Si ya existe administrador, conservar el formulario actual: no destruir
+      // campos ni listeners mientras el usuario puede estar interactuando.
       return null;
     } catch (error) {
-      showLogin('No se pudo conectar con el servidor. Verificá la conexión y volvé a cargar la página.');
+      showMessage('No se pudo conectar con el servidor. Verificá la conexión e intentá ingresar nuevamente.');
       return null;
+    } finally {
+      authInitializationComplete = true;
+      const button = document.getElementById('authLoginButton');
+      if (button) {
+        button.disabled = false;
+        button.removeAttribute('aria-busy');
+        const label = button.querySelector('.auth-submit-label');
+        if (label) label.textContent = 'Ingresar al sistema';
+      }
     }
   })();
 })();
