@@ -290,7 +290,7 @@ module.exports = async function handler(req, res) {
         if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});
         const configured=await sql`SELECT modules FROM app_business_config WHERE business_id=${current[0].business_id} LIMIT 1`;
         const authorizedModules=Array.isArray(configured[0]?.modules)?configured[0].modules:(Array.isArray(current[0].modules)?current[0].modules:[]);
-        const rows=await sql`UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},user_limit=${userLimit},device_limit=${deviceLimit},modules=${JSON.stringify(authorizedModules)}::jsonb,updated_at=NOW() WHERE id=${id} RETURNING id,business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at`;
+        const rows=await sql`UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},user_limit=${userLimit},device_limit=${deviceLimit},modules=${JSON.stringify(authorizedModules)}::jsonb,expires_at=((CASE WHEN expires_at IS NULL OR expires_at<CURRENT_DATE THEN CURRENT_DATE ELSE expires_at END)+INTERVAL '1 month')::date,updated_at=NOW() WHERE id=${id} RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules})}::jsonb)`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${current[0].business_id},u.id,'license_update','Licencia actualizada','El administrador actualizó tu plan o las condiciones de tu licencia. Consultá el apartado Info para ver los nuevos datos.' FROM app_users u WHERE u.business_id=${current[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{license:rows[0],updated:true});
@@ -377,18 +377,20 @@ module.exports = async function handler(req, res) {
           return send(res,200,{license:rows[0]});
         }
         if(input.action==='renew'){
-          const expiresAt=String(input.expiresAt||''),amount=Number(input.amount??0);
-          const parsedDate=new Date(expiresAt+'T00:00:00Z');
-          if(!id||!/^\d{4}-\d{2}-\d{2}$/.test(expiresAt)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==expiresAt||expiresAt<=new Date().toISOString().slice(0,10)||!Number.isFinite(amount)||amount<0)
-            return send(res,400,{error:'Ingresá una fecha futura válida y un importe igual o mayor que cero.'});
+          const amount=Number(input.amount??0);
+          if(!id||!Number.isFinite(amount)||amount<0)
+            return send(res,400,{error:'Ingresá un importe igual o mayor que cero.'});
           const rows=await sql`
             WITH renewed AS (
-              UPDATE app_licenses SET status='active',expires_at=${expiresAt},updated_at=NOW()
+              UPDATE app_licenses
+              SET status='active',
+                  expires_at=((CASE WHEN expires_at IS NULL OR expires_at<CURRENT_DATE THEN CURRENT_DATE ELSE expires_at END)+INTERVAL '1 month')::date,
+                  updated_at=NOW()
               WHERE id=${id} RETURNING *
             ),
             payment AS (
               INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by)
-              SELECT id,${amount},'monthly',CURRENT_DATE,${expiresAt},'Renovación de licencia','Pago registrado al renovar la licencia.',${admin.id}
+              SELECT id,${amount},'monthly',CURRENT_DATE,expires_at,'Renovación de licencia','Pago registrado al renovar la licencia.',${admin.id}
               FROM renewed WHERE ${amount}>0 RETURNING id
             )
             SELECT renewed.*,(SELECT COUNT(*)::int FROM payment) AS payment_recorded FROM renewed
