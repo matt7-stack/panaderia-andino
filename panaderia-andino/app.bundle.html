@@ -3455,26 +3455,38 @@ img,svg,canvas,video{max-width:100%}
   $('#movementStartDate').value = `${initialYear}-${String(initialMonthNumber).padStart(2, '0')}-01`;
   $('#movementEndDate').value = todayISO();
   setInterval(updateGreeting, 60000);
-  renderAll();
+  // Un error al dibujar una tarjeta o un dato no debe impedir que se active la vista inicial.
+  try { renderAll(); } catch (error) { console.error('Error al renderizar el contenido inicial:', error); }
   const applyInitialRoute = async (user) => {
     const hashPage = window.location.hash.replace('#', '');
     if (user?.isPlatformAdmin === true) {
       document.body.classList.add('platform-admin');
-      pageNavigate('administracion');
-      // Respaldo visual: si la sesión global todavía no terminó de sincronizarse,
-      // la ruta protegida ya fue validada por PanaderiaAuthReady y no debe quedar en blanco.
-      const adminPage=$('[data-page="administracion"]');
-      if(adminPage&&!adminPage.classList.contains('active')){
-        $$('.page-view').forEach(view=>view.classList.toggle('active',view===adminPage));
-        $$('.nav-menu [data-page-link]').forEach(link=>{const active=link.dataset.pageLink==='administracion';link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
-        selectedPage='administracion';
-        setText('#breadcrumbCurrent','Administrador');
-        $('#globalMonthPicker').classList.add('d-none');
-        window.history.replaceState(null,'','#administracion');
-        renderAdminPanel();
+      // Activar primero el panel principal de forma directa: nunca dejar activa una
+      // vista operativa que el CSS oculta para el administrador de plataforma.
+      const adminPage = $('[data-page="administracion"]');
+      if (adminPage) {
+        $('.page-view').forEach(view => view.classList.toggle('active', view === adminPage));
+        $('.nav-menu [data-page-link]').forEach(link => {
+          const active = link.dataset.pageLink === 'administracion';
+          link.classList.toggle('active', active);
+          if (active) link.setAttribute('aria-current', 'page');
+          else link.removeAttribute('aria-current');
+        });
+        selectedPage = 'administracion';
+        setText('#breadcrumbCurrent', 'Administrador');
+        const monthPicker = $('#globalMonthPicker');
+        if (monthPicker) monthPicker.classList.add('d-none');
+        window.history.replaceState(null, '', '#administracion');
+      } else {
+        console.error('No se encontró la vista principal de administración.');
       }
-      // No bloquear el primer render mientras Neon responde: la pantalla administrativa
-      // debe aparecer de inmediato y los datos se hidratan en segundo plano.
+      // La navegación completa puede ejecutar cargas auxiliares; si alguna falla,
+      // la vista principal ya está activa y permanece visible.
+      try { pageNavigate('administracion'); }
+      catch (error) { console.error('Error al preparar el panel de administración:', error); }
+      try { renderAdminPanel(); }
+      catch (error) { console.error('Error al actualizar el resumen administrativo:', error); }
+      // Neon se hidrata en segundo plano, sin bloquear la pantalla inicial.
       startAuthenticatedHydration(user).catch(error => console.error('Error al iniciar administración:', error));
       return;
     }
