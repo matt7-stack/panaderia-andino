@@ -6,6 +6,7 @@ const { db, authenticated, send, body } = core._internal || {};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const clean = (value, max) => String(value ?? '').trim().slice(0, max);
 const money = value => Number(value);
+const validDate = value => { if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(value||''))) return false; const date=new Date(String(value)+'T00:00:00Z'); return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0,10)===String(value); };
 
 async function requireAddon(sql, businessId) {
   const rows = await sql`SELECT 1 FROM app_business_addons a
@@ -19,7 +20,7 @@ async function requireAddon(sql, businessId) {
 
 module.exports = async function receivablesHandler(req, res) {
   try {
-    if (!db || !authenticated || !send || !body) return res.status(500).end();
+    if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const user = await authenticated(req, res, false);
     if (!user) return;
     if (user.is_platform_admin === true || !user.business_id) {
@@ -40,7 +41,7 @@ module.exports = async function receivablesHandler(req, res) {
 
     if (req.method === 'GET') {
       if (!canRead) return send(res, 403, { error: 'No tenés permiso para consultar cuentas por cobrar.' });
-      const [debts, customers, payments, settings] = await Promise.all([
+      const [debts, customers, payments, settings, audit] = await Promise.all([
         sql`SELECT d.id,d.customer_id,c.name AS customer_name,c.last_name AS customer_last_name,
             c.phone AS customer_phone,d.description,d.amount,d.due_date,d.status,d.created_at,d.updated_at,
             COALESCE(SUM(p.amount) FILTER (WHERE p.status='active'),0)::numeric(14,2) AS paid_total,
@@ -64,16 +65,22 @@ module.exports = async function receivablesHandler(req, res) {
         sql`SELECT CASE WHEN jsonb_typeof(data->'paymentMethods')='array'
           THEN data->'paymentMethods'
           ELSE '["Efectivo","Transferencia","Tarjeta","QR"]'::jsonb END AS payment_methods
-          FROM app_state WHERE business_id=${businessId} LIMIT 1`
+          FROM app_state WHERE business_id=${businessId} LIMIT 1`,
+        sql`SELECT a.id,a.debt_id,a.payment_id,a.event_type,a.details,a.created_at,u.name AS actor_name,c.name AS customer_name,c.last_name AS customer_last_name
+          FROM app_receivable_audit a
+          JOIN app_receivable_debts d ON d.business_id=a.business_id AND d.id=a.debt_id
+          JOIN app_customers c ON c.business_id=d.business_id AND c.id=d.customer_id
+          LEFT JOIN app_users u ON u.id=a.actor_user_id
+          WHERE a.business_id=${businessId} ORDER BY a.created_at DESC LIMIT 500`
       ]);
       const paymentMethods = Array.isArray(settings[0]?.payment_methods) ? settings[0].payment_methods : ['Efectivo','Transferencia','Tarjeta','QR'];
-      const today = new Date().toISOString().slice(0,10);
+      const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Asuncion'}).format(new Date());
       const openDebts = debts.filter(row => row.status === 'open');
       const pendingTotal = openDebts.reduce((sum,row) => sum + Math.max(0,money(row.balance)),0);
       const overdue = openDebts.filter(row => row.due_date && String(row.due_date).slice(0,10) < today);
       const customersOwing = new Set(openDebts.filter(row => money(row.balance)>0).map(row => String(row.customer_id)));
       return send(res, 200, {
-        debts, customers, payments, paymentMethods,
+        debts, customers, payments, paymentMethods, audit,
         summary: {
           pendingTotal,
           indebtedCustomers: customersOwing.size,
@@ -92,11 +99,14 @@ module.exports = async function receivablesHandler(req, res) {
         const name = clean(input.name, 100);
         const lastName = clean(input.lastName, 100);
         if (!name) return send(res, 400, { error: 'Ingresá el nombre del cliente.' });
-        const rows = await sql`INSERT INTO app_customers(business_id,name,last_name,phone,address,notes)
-          VALUES(${businessId},${name},${lastName},${clean(input.phone,60)||null},${clean(input.address,250)||null},${clean(input.notes,1000)||null})
-          RETURNING id,name,last_name,phone,address,notes,active`;
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          VALUES(${businessId},${user.id},'receivables.customer_created','customer',${rows[0].id},${JSON.stringify({name,lastName})}::jsonb)`;
+        const rows = await sql`WITH created AS (
+            INSERT INTO app_customers(business_id,name,last_name,phone,address,notes)
+            VALUES(${businessId},${name},${lastName},${clean(input.phone,60)||null},${clean(input.address,250)||null},${clean(input.notes,1000)||null})
+            RETURNING id,name,last_name,phone,address,notes,active
+          ), logged AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT ${businessId},${user.id},'receivables.customer_created','customer',id,${JSON.stringify({name,lastName})}::jsonb FROM created RETURNING id
+          ) SELECT * FROM created`;
         return send(res, 201, { customer: rows[0] });
       }
 
@@ -107,7 +117,7 @@ module.exports = async function receivablesHandler(req, res) {
         const dueDate = input.dueDate ? clean(input.dueDate,10) : null;
         const idempotencyKey = clean(input.idempotencyKey,128);
         if (!UUID.test(customerId) || !description || !Number.isFinite(amount) || amount <= 0 ||
-            (dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(dueDate+'T00:00:00Z')))) ||
+            (dueDate && (!validDate(dueDate))) ||
             idempotencyKey.length < 8) {
           return send(res, 400, { error: 'Completá cliente, concepto, importe, fecha e identificador de operación válidos.' });
         }
@@ -166,7 +176,7 @@ module.exports = async function receivablesHandler(req, res) {
         const amount = money(input.amount);
         const dueDate = input.dueDate ? clean(input.dueDate,10) : null;
         if (!UUID.test(id) || !description || !Number.isFinite(amount) || amount <= 0 ||
-            (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) {
+            (dueDate && !validDate(dueDate))) {
           return send(res,400,{error:'Los datos de la deuda no son válidos.'});
         }
         const rows = await sql`WITH changed AS (

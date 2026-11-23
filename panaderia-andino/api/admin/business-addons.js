@@ -6,7 +6,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 module.exports = async function businessAddonsHandler(req,res) {
   try {
-    if (!db || !authenticated || !send || !body) return res.status(500).end();
+    if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const admin = await authenticated(req,res,true);
     if (!admin) return;
     const sql = db();
@@ -37,9 +37,9 @@ module.exports = async function businessAddonsHandler(req,res) {
         return send(res,400,{error:'Confirmá que el negocio contrató este complemento antes de activarlo.'});
       }
       const eligible = await sql`SELECT module_key,title FROM app_module_catalog
-        WHERE module_key=${moduleKey} AND commercial_mode='addon' AND active=TRUE AND implemented=TRUE LIMIT 1`;
+        WHERE module_key=${moduleKey} AND commercial_mode='addon' AND implemented=TRUE AND (${status}<>'active' OR active=TRUE) LIMIT 1`;
       if (!eligible.length) return send(res,409,{error:'El complemento no está disponible para contratación.'});
-      const business = await sql`SELECT id,name FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+      const business = await sql`SELECT id,name FROM businesses WHERE id=${businessId} LIMIT 1`;
       if (!business.length) return send(res,404,{error:'El negocio no existe o está inactivo.'});
 
       const contracted = status === 'active' || status === 'suspended';
