@@ -968,6 +968,28 @@ img,svg,canvas,video{max-width:100%}
   .page-view .table-actions { gap:5px; }
 }
 </style>
+<style>
+/* Alineación consistente de los encabezados en la cuenta de cada negocio. */
+#page-dashboard .page-heading,
+#page-movimientos .page-heading,
+#page-dashboard .page-heading > div,
+#page-movimientos .page-heading > div,
+#page-dashboard .page-heading .eyebrow,
+#page-dashboard .page-heading h1,
+#page-dashboard .page-heading .page-subtitle,
+#page-movimientos .page-heading .eyebrow,
+#page-movimientos .page-heading h1,
+#page-movimientos .page-heading .page-subtitle {
+  text-align: left !important;
+  margin-left: 0;
+  margin-right: 0;
+}
+#page-dashboard .page-heading,
+#page-movimientos .page-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+</style>
 </head>
 <body>
   <div class="app-shell">
