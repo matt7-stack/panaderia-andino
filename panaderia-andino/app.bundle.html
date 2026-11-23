@@ -4030,5 +4030,33 @@ body.auth-locked{overflow:hidden!important}
    .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); if(user){loadClientTickets();loadPrefs();window.refreshNotifications();} })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
 })();
-</script><script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
+</script>
+<style id="auth-viewport-edge-fix">
+/* El fondo del viewport acompaña al login y evita una franja clara junto al borde derecho. */
+html:has(body.auth-locked) {
+  background: #101a3a !important;
+  scrollbar-color: #39416f #101a3a !important;
+}
+html:has(body.auth-locked)::-webkit-scrollbar,
+html:has(body.auth-locked) body::-webkit-scrollbar {
+  background: #101a3a !important;
+}
+html:has(body.auth-locked)::-webkit-scrollbar-track,
+html:has(body.auth-locked) body::-webkit-scrollbar-track {
+  background: #101a3a !important;
+}
+html:has(body.auth-locked)::-webkit-scrollbar-corner {
+  background: #101a3a !important;
+}
+body.auth-locked {
+  background: #101a3a !important;
+}
+body.auth-locked #authGate {
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+}
+</style>
+<script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
 </html>
