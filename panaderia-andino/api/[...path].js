@@ -222,9 +222,23 @@ module.exports = async function handler(req, res) {
       if(licenses[0].is_trial!==true)return send(res,409,{error:'Este negocio ya tiene una licencia contratada.'});
       const subject='Solicitud de activación de licencia';
       const existing=await sql`SELECT id FROM app_support_tickets WHERE business_id=${user.business_id} AND subject=${subject} AND status IN ('open','in_progress') ORDER BY created_at DESC LIMIT 1`;
-      if(existing.length)return send(res,200,{requested:true,alreadyRequested:true});
-      const tickets=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},'El negocio solicita convertir su prueba gratuita en una licencia contratada. Contactar para coordinar plan, condiciones y activación comercial.') RETURNING id`;
-      return send(res,201,{requested:true,ticketId:tickets[0].id});
+      const alreadyRequested=existing.length>0;
+      const tickets=alreadyRequested?existing:await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},'El negocio solicita convertir su prueba gratuita en una licencia contratada. Contactar para coordinar plan, condiciones y activación comercial.') RETURNING id`;
+      const ticketId=tickets[0].id;
+      const businessRows=await sql`SELECT name FROM businesses WHERE id=${user.business_id} LIMIT 1`;
+      const businessName=String(businessRows[0]?.name||'Un negocio').trim();
+      const clientTitle='Solicitud de activación recibida';
+      const clientMessage='Recibimos tu solicitud de activación de licencia. El administrador se pondrá en contacto para coordinar el plan y las condiciones. Podés consultar el estado desde Soporte.';
+      await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+        SELECT ${user.business_id},${user.id},'license_update',${clientTitle},${clientMessage}
+        WHERE NOT EXISTS(SELECT 1 FROM app_notifications WHERE user_id=${user.id} AND type='license_update' AND title=${clientTitle} AND message=${clientMessage} AND created_at>NOW()-INTERVAL '10 minutes')`;
+      const adminTitle='Solicitud de activación de licencia';
+      const adminMessage='El negocio '+businessName+' solicitó convertir su prueba gratuita en una licencia contratada. Revisá la solicitud en Soporte.';
+      await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+        SELECT ${user.business_id},u.id,'system_activity',${adminTitle},${adminMessage}
+        FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE
+        AND NOT EXISTS(SELECT 1 FROM app_notifications n WHERE n.user_id=u.id AND n.type='system_activity' AND n.title=${adminTitle} AND n.message=${adminMessage} AND n.created_at>NOW()-INTERVAL '10 minutes')`;
+      return send(res,alreadyRequested?200:201,{requested:true,alreadyRequested,ticketId});
     }
     if(path==='/api/admin/license-settings'){
       const admin=await authenticated(req,res,true);if(!admin)return;
