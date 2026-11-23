@@ -2822,7 +2822,7 @@ img,svg,canvas,video{max-width:100%}
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseStatus">Estado</label><select class="form-select" id="editLicenseStatus" required><option value="pending">Pendiente</option><option value="active">Activa</option><option value="suspended">Suspendida</option><option value="cancelled">Cancelada</option></select></div>
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseSetup">Pago inicial (Gs.)</label><input class="form-control" id="editLicenseSetup" type="number" min="0" step="1" required></div>
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseMonthly">Mensualidad (Gs.)</label><input class="form-control" id="editLicenseMonthly" type="number" min="0" step="1" required></div>
-              <div class="col-12 col-md-6"><label class="form-label" for="editLicenseExpiry">Vencimiento</label><input class="form-control" id="editLicenseExpiry" type="date"></div>
+              <div class="col-12 col-md-6"><label class="form-label">Fecha de creación</label><input class="form-control" id="editLicenseCreatedAt" type="text" readonly></div><div class="col-12 col-md-6"><label class="form-label">Fecha de vencimiento</label><input class="form-control" id="editLicenseExpiry" type="text" readonly></div>
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseBillingDay">Día de facturación (1–28)</label><input class="form-control" id="editLicenseBillingDay" type="number" min="1" max="28" step="1" required></div>
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseUsers">Límite de usuarios (vacío = sin límite)</label><input class="form-control" id="editLicenseUsers" type="number" min="1" max="500" step="1"></div>
               <div class="col-12 col-md-6"><label class="form-label" for="editLicenseDevices">Límite de dispositivos (vacío = sin límite)</label><input class="form-control" id="editLicenseDevices" type="number" min="1" max="100" step="1"></div>
@@ -2837,7 +2837,8 @@ img,svg,canvas,video{max-width:100%}
         form.querySelector('#editLicenseStatus').value=license.status||'pending';
         form.querySelector('#editLicenseSetup').value=license.setup_amount??0;
         form.querySelector('#editLicenseMonthly').value=license.monthly_amount??0;
-        form.querySelector('#editLicenseExpiry').value=license.expires_at?String(license.expires_at).slice(0,10):'';
+        form.querySelector('#editLicenseCreatedAt').value=license.created_at?new Date(String(license.created_at)).toLocaleDateString('es-PY'):'—';
+        form.querySelector('#editLicenseExpiry').value=license.expires_at?new Date(String(license.expires_at).slice(0,10)+'T00:00:00').toLocaleDateString('es-PY'):'Sin vencimiento';
         form.querySelector('#editLicenseBillingDay').value=license.billing_day||1;
         form.querySelector('#editLicenseUsers').value=license.user_limit??'';
         form.querySelector('#editLicenseDevices').value=license.device_limit??'';
