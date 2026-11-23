@@ -80,7 +80,7 @@ function collectServerlessFiles(directory, relative = '') {
     const absolute = path.join(directory, entry.name);
     const nextRelative = path.posix.join(relative, entry.name);
     if (entry.isDirectory()) return collectServerlessFiles(absolute, nextRelative);
-    if (!entry.isFile() || !/\\.(?:js|mjs|cjs|ts)$/.test(entry.name) || entry.name.startsWith('_')) return [];
+    if (!entry.isFile() || !/\.(?:js|mjs|cjs|ts)$/.test(entry.name) || entry.name.startsWith('_')) return [];
     return [nextRelative];
   });
 }
