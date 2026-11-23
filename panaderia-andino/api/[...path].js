@@ -36,7 +36,9 @@ function sameOrigin(req) {
 function cookie(req) {
   for (const part of String(req.headers.cookie || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > -1 && part.slice(0, i).trim() === 'pa_session') return decodeURIComponent(part.slice(i + 1).trim());
+    if (i > -1 && part.slice(0, i).trim() === 'pa_session') {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch (_) { return ''; }
+    }
   }
   return '';
 }
@@ -575,9 +577,12 @@ module.exports = async function handler(req, res) {
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
+      // Generar la cookie antes de registrar el acceso como exitoso. Si falta
+      // SESSION_SECRET, el error queda visible como fallo y no como login exitoso.
+      const issuedCookie = sessionCookie(u.id,u.session_version);
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
-      return send(res,200,{user:publicUser(u)},{'Set-Cookie':sessionCookie(u.id,u.session_version)});
+      return send(res,200,{user:publicUser(u)},{'Set-Cookie':issuedCookie});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
       // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
