@@ -3448,7 +3448,7 @@ img,svg,canvas,video{max-width:100%}
    try{
      const result=await api('/api/license/info'),l=result.license||{};
      const activationButton=$('#requestLicenseActivation');
-     if(activationButton){activationButton.hidden=l.is_trial!==true||l.activation_requested===true;activationButton.disabled=l.activation_requested===true;activationButton.innerHTML=l.activation_requested===true?'Solicitud enviada':'<i class="bi bi-key"></i> Activar licencia';}
+     if(activationButton){const trialLicense=l.is_trial===true||l.is_trial==='true';activationButton.hidden=!trialLicense;activationButton.disabled=!trialLicense||l.activation_requested===true;activationButton.innerHTML=l.activation_requested===true?'Solicitud enviada':'<i class="bi bi-key"></i> Activar licencia';}
      const labels={basic:'Básico',professional:'Profesional',enterprise:'Empresarial',active:'Activa',pending:'Pendiente de activación',suspended:'Suspendida',cancelled:'Cancelada',expired:'Vencida'};
      const money=value=>'Gs. '+Number(value||0).toLocaleString('es-PY');
      const date=value=>value?new Date(value+'T00:00:00').toLocaleDateString('es-PY'):'Sin vencimiento definido';

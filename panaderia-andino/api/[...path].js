@@ -210,7 +210,7 @@ module.exports = async function handler(req, res) {
         LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
       const license=rows[0];
-      return send(res,200,{license:{...license,days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
+      return send(res,200,{license:{...license,is_trial:license.is_trial===true||license.is_trial==='true',days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
     }
     if(path==='/api/license/activation-request'){
       const user=await authenticated(req,res,false);if(!user)return;

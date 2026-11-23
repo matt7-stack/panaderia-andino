@@ -73,6 +73,9 @@ if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new E
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
 if (!html.includes("const link = event.target.closest('[data-page-link]')")) throw new Error('La navegación no admite enlaces dinámicos agregados después de la carga inicial.');
+if (!html.includes('id="requestLicenseActivation" hidden')) throw new Error('Falta el botón de activación de licencia en Info.');
+if (!html.includes('activationButton.hidden=!trialLicense')) throw new Error('El botón de activación debe mostrarse solo durante la prueba gratuita.');
+if (!fs.readFileSync(apiPath, 'utf8').includes("is_trial:license.is_trial===true||license.is_trial==='true'")) throw new Error('La API debe normalizar el estado de prueba de licencia.');
 if (!fs.readFileSync(erpPath, 'utf8').includes('#page-erp .page-heading h1')) throw new Error('Gestión operativa no tiene alineación de textos adaptada.');
 if (!html.includes('saveBusinessAddons')) throw new Error('La administración no incluye controles de complementos.');
 
