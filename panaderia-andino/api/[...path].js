@@ -986,6 +986,8 @@ module.exports = async function handler(req, res) {
           if(quote[0].prospect_name!==name||quote[0].prospect_email!==String(input.email||'').trim()||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||JSON.stringify(quote[0].modules||[])!==JSON.stringify(selectedModules))return send(res,409,{error:'La cotización no coincide con el nombre, rubro o módulos actuales. Generá una cotización nueva.'});
         }
         const id=crypto.randomUUID();
+        const trialCode='TRIAL-'+id.replace(/-/g,'').slice(0,16).toUpperCase();
+        const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
         const rows=await sql`WITH created AS (
           INSERT INTO businesses(id,name,slug,active,address,phone,email,ruc,owner_name)
           VALUES(${id},${name},${slug},TRUE,${String(input.address||'').slice(0,250)},${String(input.phone||'').slice(0,60)},${String(input.email||'').slice(0,254)},${String(input.ruc||'').slice(0,40)},${String(input.ownerName||'').slice(0,120)})
@@ -995,15 +997,36 @@ module.exports = async function handler(req, res) {
         ), config_created AS (
           INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
           SELECT id,${industry},${configMode},${JSON.stringify(selectedModules)}::jsonb,${admin.id},${admin.id} FROM created RETURNING business_id
+        ), trial_settings AS (
+          SELECT
+            COALESCE((SELECT trial_enabled FROM app_license_settings WHERE setting_key='default'),TRUE) AS enabled,
+            COALESCE((SELECT trial_days FROM app_license_settings WHERE setting_key='default'),7) AS trial_days,
+            (SELECT device_limit FROM app_license_settings WHERE setting_key='default') AS device_limit
+        ), trial_created AS (
+          INSERT INTO app_licenses(
+            business_id,license_code,system_name,plan,status,sold_at,expires_at,
+            setup_amount,monthly_amount,billing_day,created_by,is_trial,
+            trial_started_at,trial_days,device_limit,modules
+          )
+          SELECT created.id,${trialCode},${licenseSystem},'basic','active',CURRENT_DATE,
+            (CURRENT_DATE + (trial_settings.trial_days || ' days')::interval)::date,
+            0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
+            trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
+          FROM created CROSS JOIN trial_settings
+          WHERE trial_settings.enabled=TRUE
+          RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,trial_days,device_limit,modules
         ), quote_linked AS (
           UPDATE app_quotations SET business_id=(SELECT id FROM created),status=CASE WHEN status='accepted' THEN 'converted' ELSE status END,updated_at=NOW()
           WHERE id=NULLIF(${quotationId},'')::uuid AND (business_id IS NULL OR business_id=(SELECT id FROM created)) RETURNING id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null,trialLicense:true})}::jsonb FROM created RETURNING id
         )
-        SELECT * FROM created`;
-        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:false});
+        SELECT created.*,
+          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'isTrial',l.is_trial,'trialDays',l.trial_days,'modules',l.modules) FROM trial_created l LIMIT 1) AS trial_license
+        FROM created`;
+        const trialLicense=rows[0]?.trial_license||null;
+        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:!!trialLicense,trialLicense});
       }
       if(req.method==='PATCH'){
         const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
