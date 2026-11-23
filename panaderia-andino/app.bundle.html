@@ -1848,13 +1848,6 @@ body.auth-locked{overflow:hidden!important}
   gate.innerHTML = '<div class="auth-layout"><section class="auth-showcase" aria-label="MATTSYSTEM"><div class="auth-showcase-brand"><span class="auth-showcase-mark">M</span><span>MATTSYSTEM</span></div><div class="auth-showcase-copy"><span class="auth-kicker">GESTIÓN INTELIGENTE</span><h2>Tu negocio,<br>en <em>control.</em></h2><p>Administrá tus operaciones desde un solo lugar, con claridad, seguridad y eficiencia.</p><div class="auth-benefits"><div><b>01</b><span>Información organizada</span></div><div><b>02</b><span>Control de cada operación</span></div><div><b>03</b><span>Acceso seguro y centralizado</span></div></div></div><div class="auth-showcase-bottom">GESTIÓN EMPRESARIAL · MATTSYSTEM</div></section><section class="auth-card"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="44" height="44"></span><div><strong>MATTSYSTEM</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></section></div>';
   document.body.appendChild(gate);
 
-  // Mantener sincronizado el estado del login en el viewport completo.
-  const syncAuthViewport = () => {
-    document.documentElement.classList.toggle('auth-locked', document.body.classList.contains('auth-locked'));
-  };
-  new MutationObserver(syncAuthViewport).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  syncAuthViewport();
-
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
@@ -1889,6 +1882,7 @@ body.auth-locked{overflow:hidden!important}
       if (result.code === 'LICENSE_INACTIVE') {
         if (window.PanaderiaAuth) window.PanaderiaAuth.user = null;
         document.body.classList.add('auth-locked');
+        document.documentElement.classList.add('auth-locked');
         showLogin(result.error || 'La licencia de este negocio no está habilitada.');
       }
       if (response.status === 401 && window.PanaderiaAuth?.user) {
@@ -1911,6 +1905,7 @@ body.auth-locked{overflow:hidden!important}
   function showLogin(message = '') {
     gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
+    document.documentElement.classList.add('auth-locked');
     content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form"><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><div class="auth-password-field"><input id="authPassword" name="password" type="password" autocomplete="current-password" required placeholder="Ingresá tu contraseña"><button class="auth-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit"><span class="auth-submit-label">Ingresar al sistema</span><span aria-hidden="true">→</span></button></form>`;
     showMessage(message);
     const passwordInput = document.getElementById('authPassword');
@@ -1939,6 +1934,7 @@ body.auth-locked{overflow:hidden!important}
 
   function showSetup() {
     document.body.classList.add('auth-locked');
+    document.documentElement.classList.add('auth-locked');
     content.innerHTML = `<div class="auth-heading"><span>PRIMER ACCESO</span><h1 id="authTitle">Activar administrador</h1><p>Creá tu cuenta principal. Solo esta cuenta podrá agregar nuevos usuarios.</p></div><form id="setupForm" class="auth-form"><label for="authName">Tu nombre</label><input id="authName" name="name" autocomplete="name" required maxlength="70" placeholder="Nombre y apellido"><label for="authSetupEmail">Correo electrónico</label><input id="authSetupEmail" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Crear contraseña</label><input id="authPassword" name="password" type="password" autocomplete="new-password" minlength="12" required placeholder="Mínimo 12 caracteres"><label for="authConfirm">Confirmar contraseña</label><input id="authConfirm" name="confirm" type="password" autocomplete="new-password" minlength="12" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit">Activar mi cuenta <span>→</span></button></form>`;
     document.getElementById('setupForm').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -1976,6 +1972,7 @@ body.auth-locked{overflow:hidden!important}
     }
     window.PanaderiaAuth.user = user;
     document.body.classList.remove('auth-locked');
+    document.documentElement.classList.remove('auth-locked');
     document.body.classList.toggle('platform-admin', user.isPlatformAdmin === true);
     gate.classList.add('auth-gate-hidden');
     const name = document.getElementById('topUserName');
@@ -2063,6 +2060,9 @@ body.auth-locked{overflow:hidden!important}
       }
     }
   };
+
+  // Mostrar el formulario de inmediato; la validación de sesión puede ocultarlo si ya existe una sesión activa.
+  showLogin();
 
   window.PanaderiaAuthReady = (async () => {
     try {
@@ -4042,36 +4042,44 @@ body.auth-locked{overflow:hidden!important}
 })();
 </script>
 <style id="auth-viewport-edge-fix">
-/* El login ocupa todo el viewport y mantiene el mismo fondo en los bordes. */
+/* Fondo uniforme durante el acceso, también en los bordes del viewport móvil. */
 html.auth-locked,
-html.auth-locked body {
+html.auth-locked body,
+body.auth-locked {
+  background-color: #101a3a !important;
+  color-scheme: dark;
   width: 100% !important;
   max-width: 100% !important;
-  height: 100% !important;
+  min-height: 100% !important;
   margin: 0 !important;
-  overflow: hidden !important;
-  background: #101a3a !important;
-  scrollbar-color: #39416f #101a3a !important;
+  overflow-x: clip !important;
+}
+html.auth-locked body {
+  overflow-y: hidden !important;
+}
+html.auth-locked #authGate {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  overflow-y: auto !important;
+  overflow-x: clip !important;
+  background:
+    radial-gradient(ellipse at 12% 12%,rgba(130,105,255,.20),transparent 38%),
+    radial-gradient(ellipse at 88% 86%,rgba(62,113,235,.16),transparent 38%),
+    linear-gradient(135deg,#f5f6ff 0%,#edf1ff 48%,#f7f4ff 100%) !important;
 }
 html.auth-locked::-webkit-scrollbar,
 html.auth-locked body::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
-  background: #101a3a !important;
-}
-html.auth-locked #authGate,
-body.auth-locked #authGate {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
-  height: 100% !important;
-  height: 100dvh !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
 }
 </style>
 <script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
