@@ -1848,6 +1848,13 @@ body.auth-locked{overflow:hidden!important}
   gate.innerHTML = '<div class="auth-layout"><section class="auth-showcase" aria-label="MATTSYSTEM"><div class="auth-showcase-brand"><span class="auth-showcase-mark">M</span><span>MATTSYSTEM</span></div><div class="auth-showcase-copy"><span class="auth-kicker">GESTIÓN INTELIGENTE</span><h2>Tu negocio,<br>en <em>control.</em></h2><p>Administrá tus operaciones desde un solo lugar, con claridad, seguridad y eficiencia.</p><div class="auth-benefits"><div><b>01</b><span>Información organizada</span></div><div><b>02</b><span>Control de cada operación</span></div><div><b>03</b><span>Acceso seguro y centralizado</span></div></div></div><div class="auth-showcase-bottom">GESTIÓN EMPRESARIAL · MATTSYSTEM</div></section><section class="auth-card"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="44" height="44"></span><div><strong>MATTSYSTEM</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></section></div>';
   document.body.appendChild(gate);
 
+  // Mantener sincronizado el estado del login en el viewport completo.
+  const syncAuthViewport = () => {
+    document.documentElement.classList.toggle('auth-locked', document.body.classList.contains('auth-locked'));
+  };
+  new MutationObserver(syncAuthViewport).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  syncAuthViewport();
+
   const content = document.getElementById('authContent');
   const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let activationToken = '';
@@ -1916,13 +1923,16 @@ body.auth-locked{overflow:hidden!important}
     });
     document.getElementById('loginForm').addEventListener('submit', async (event) => {
       event.preventDefault();
-      const button = event.currentTarget.querySelector('button');
+      const button = event.currentTarget.querySelector('.auth-submit');
+      if (!button) return;
       button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
       showMessage('');
       try {
         const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: document.getElementById('authEmail').value, password: document.getElementById('authPassword').value }) });
         establish(result.user);
-      } catch (error) { showMessage(error.message); button.disabled = false; }
+      } catch (error) { showMessage(error.message); button.disabled = false; button.removeAttribute('aria-busy'); }
+      finally { if (button.isConnected) { button.disabled = false; button.removeAttribute('aria-busy'); } }
     });
     document.getElementById('authEmail').focus();
   }
@@ -4032,30 +4042,36 @@ body.auth-locked{overflow:hidden!important}
 })();
 </script>
 <style id="auth-viewport-edge-fix">
-/* El fondo del viewport acompaña al login y evita una franja clara junto al borde derecho. */
-html:has(body.auth-locked) {
+/* El login ocupa todo el viewport y mantiene el mismo fondo en los bordes. */
+html.auth-locked,
+html.auth-locked body {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  overflow: hidden !important;
   background: #101a3a !important;
   scrollbar-color: #39416f #101a3a !important;
 }
-html:has(body.auth-locked)::-webkit-scrollbar,
-html:has(body.auth-locked) body::-webkit-scrollbar {
+html.auth-locked::-webkit-scrollbar,
+html.auth-locked body::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
   background: #101a3a !important;
 }
-html:has(body.auth-locked)::-webkit-scrollbar-track,
-html:has(body.auth-locked) body::-webkit-scrollbar-track {
-  background: #101a3a !important;
-}
-html:has(body.auth-locked)::-webkit-scrollbar-corner {
-  background: #101a3a !important;
-}
-body.auth-locked {
-  background: #101a3a !important;
-}
+html.auth-locked #authGate,
 body.auth-locked #authGate {
-  left: 0 !important;
-  right: 0 !important;
-  width: auto !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
   max-width: none !important;
+  height: 100% !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 </style>
 <script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script></body>
