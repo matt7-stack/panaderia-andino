@@ -104,10 +104,10 @@
     if(!panel||!select)return;
     const allowed=!!u&&u.isPlatformAdmin!==true&&['admin','supervisor'].includes(u.role)&&!!u.businessConfig;
     if(trigger)trigger.hidden=!allowed;
-    const enabled=Array.isArray(u?.businessConfig?.modules)?u.businessConfig.modules:[];
-    const available=requestableModules.filter(([key])=>!enabled.includes(key));
-    panel.hidden=!allowed||!available.length;
-    select.innerHTML=available.map(([key,label])=>'<option value="'+esc(key)+'">'+esc(label)+'</option>').join('');
+    // No calcular disponibilidad con una lista local desactualizable: el catálogo del
+    // servidor es la fuente de verdad y refreshRequestableOptions decide si hay opciones.
+    if(!allowed)panel.hidden=true;
+    else if(select.options.length===0)panel.hidden=true;
   }
   function renderTabs(){
     const tabs=$('#erpTabs');if(!tabs)return;
@@ -292,7 +292,18 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
-    if(event.target.closest('#erpRequestModuleButton')){$('#erpRequestPanel').hidden=!$('#erpRequestPanel').hidden;syncRequestControls();if(!$('#erpRequestPanel').hidden){await refreshRequestableOptions();await loadModuleRequestHistory();}return;}
+    if(event.target.closest('#erpRequestModuleButton')){
+      const panel=$('#erpRequestPanel');if(!panel)return;
+      const opening=panel.hidden;
+      syncRequestControls();
+      if(opening){
+        panel.hidden=false;
+        await refreshRequestableOptions();
+        await loadModuleRequestHistory();
+        if($('#erpRequestModuleSelect')?.disabled)panel.hidden=false;
+      }else panel.hidden=true;
+      return;
+    }
     const quoteResponse=event.target.closest('[data-module-quote-response]');
     if(quoteResponse){
       const action=quoteResponse.dataset.moduleQuoteResponse;
