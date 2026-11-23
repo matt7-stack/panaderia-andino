@@ -202,7 +202,7 @@ module.exports = async function handler(req, res) {
       const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
         l.sold_at,l.created_at,l.expires_at,l.setup_amount,l.monthly_amount,l.billing_day,
-        l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,
+        l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,l.modules,
         EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
         WHERE l.business_id=${user.business_id} AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
@@ -211,6 +211,22 @@ module.exports = async function handler(req, res) {
       if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
       const license=rows[0];
       return send(res,200,{license:{...license,is_trial:license.is_trial===true||license.is_trial==='true',days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
+    }
+    if(path==='/api/license/verify-code'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta verificación está disponible únicamente para cuentas de negocio.'});
+      const code=String(body(req).licenseCode||'').trim().toUpperCase();
+      if(!/^MTS-[A-Z0-9]+-[A-F0-9]{6}$/.test(code))return send(res,400,{error:'Ingresá un código de licencia válido.'});
+      const sql=db(),system=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+      const rows=await sql`SELECT id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial
+        FROM app_licenses WHERE business_id=${user.business_id} AND UPPER(license_code)=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${system})) LIMIT 1`;
+      if(!rows.length)return send(res,404,{error:'El código no corresponde a una licencia de este negocio. Verificá el código con el administrador.'});
+      const license=rows[0];
+      if(license.status!=='active')return send(res,409,{error:'El código es correcto, pero la licencia todavía no está activa. Contactá al administrador.'});
+      if(license.expires_at&&license.expires_at<new Date().toISOString().slice(0,10))return send(res,409,{error:'La licencia está vencida. Contactá al administrador para renovarla.'});
+      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'license.code_verified','license',${license.id},${JSON.stringify({license_code:license.license_code})}::jsonb)`;
+      return send(res,200,{verified:true,message:'Licencia verificada correctamente.',license});
     }
     if(path==='/api/license/activation-request'){
       const user=await authenticated(req,res,false);if(!user)return;
@@ -253,6 +269,29 @@ module.exports = async function handler(req, res) {
         if(!Number.isInteger(trialDays)||trialDays<1||trialDays>90||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'La duración debe ser de 1 a 90 días y el límite de dispositivos de 1 a 100 (o sin límite).'});
         const rows=await sql`INSERT INTO app_license_settings(setting_key,trial_enabled,trial_days,device_limit,updated_by,updated_at) VALUES('default',${trialEnabled},${trialDays},${deviceLimit},${admin.id},NOW()) ON CONFLICT(setting_key) DO UPDATE SET trial_enabled=EXCLUDED.trial_enabled,trial_days=EXCLUDED.trial_days,device_limit=EXCLUDED.device_limit,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING trial_enabled,trial_days,device_limit,activation_mode,currency_mode,billing_mode`;
         const row=rows[0];return send(res,200,{settings:{trialEnabled:row.trial_enabled===true,trialDays:Number(row.trial_days),deviceLimit:row.device_limit===null?null:Number(row.device_limit),activationMode:row.activation_mode,currencyMode:row.currency_mode,billingMode:row.billing_mode}});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/business-license'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const businessId=String(req.query?.businessId||'');
+        if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio no válido.'});
+        const rows=await sql`SELECT id,business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,created_at,updated_at FROM app_licenses WHERE business_id=${businessId} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)) DESC,created_at DESC LIMIT 1`;
+        if(!rows.length)return send(res,404,{error:'Este negocio todavía no tiene una licencia registrada. Creá la licencia desde Licencias y ventas.'});
+        return send(res,200,{license:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||''),plan=String(input.plan||''),status=String(input.status||''),setup=Number(input.setupAmount),monthly=Number(input.monthlyAmount),billingDay=Number(input.billingDay),expiresAt=input.expiresAt?String(input.expiresAt):null,userLimit=input.userLimit===''||input.userLimit===null?null:Number(input.userLimit),deviceLimit=input.deviceLimit===''||input.deviceLimit===null?null:Number(input.deviceLimit);
+        const validDate=!expiresAt||(/^\\d{4}-\\d{2}-\\d{2}$/.test(expiresAt)&&!Number.isNaN(new Date(expiresAt+'T00:00:00Z').getTime())&&new Date(expiresAt+'T00:00:00Z').toISOString().slice(0,10)===expiresAt);
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended','cancelled'].includes(status)||!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!validDate||!(userLimit===null||(Number.isInteger(userLimit)&&userLimit>=1&&userLimit<=500))||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'Revisá el plan, estado, importes, fecha y límites de la licencia.'});
+        const current=await sql`SELECT id,business_id,license_code FROM app_licenses WHERE id=${id} LIMIT 1`;
+        if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});
+        const rows=await sql`UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},expires_at=${expiresAt},user_limit=${userLimit},device_limit=${deviceLimit},updated_at=NOW() WHERE id=${id} RETURNING id,business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,expires_at:expiresAt,user_limit:userLimit,device_limit:deviceLimit})}::jsonb)`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${current[0].business_id},u.id,'license_update','Licencia actualizada','El administrador actualizó tu plan o las condiciones de tu licencia. Consultá el apartado Info para ver los nuevos datos.' FROM app_users u WHERE u.business_id=${current[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
+        return send(res,200,{license:rows[0],updated:true});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
