@@ -6,7 +6,7 @@ const { db, authenticated, send, body } = core._internal || {};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const clean = (value, max) => String(value ?? '').trim().slice(0, max);
 const money = value => Number(value);
-const validDate = value => { if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(value||''))) return false; const date=new Date(String(value)+'T00:00:00Z'); return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0,10)===String(value); };
+const validDate = value => { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value||''))) return false; const date=new Date(String(value)+'T00:00:00Z'); return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0,10)===String(value); };
 
 async function requireAddon(sql, businessId) {
   const rows = await sql`SELECT 1 FROM app_business_addons a
