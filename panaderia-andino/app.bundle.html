@@ -2504,7 +2504,7 @@ img,svg,canvas,video{max-width:100%}
         plan.setupAmount=Number(val('setup')||0);plan.monthlyAmount=Number(val('monthly')||0);
         plan.annualDiscountPercent=Number(val('annual')||0);plan.permanentPrice=Number(val('permanent')||0);plan.fullSalePrice=Number(val('fullsale')||0);
         const limit=val('users');plan.userLimit=limit===''?null:Number(limit);
-        plan.modules=[...$('#commercialPlanEditor [data-commercial-module]:checked')].map(x=>x.dataset.commercialModule);
+        plan.modules=$('#commercialPlanEditor [data-commercial-module]:checked').map(x=>x.dataset.commercialModule);
         plan.modulePrices={};
         commercialModuleCatalog.forEach(m=>{const monthly=$('#commercialPlanEditor [data-commercial-monthly="'+m.module_key+'"]'),setup=$('#commercialPlanEditor [data-commercial-setup="'+m.module_key+'"]');if(monthly&&setup)plan.modulePrices[m.module_key]={monthly:Number(monthly.value||0),setup:Number(setup.value||0)};});
       };
