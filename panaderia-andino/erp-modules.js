@@ -12,21 +12,24 @@
     recipes:{title:'Recetas',read:['recipes.view','recipes.manage'],write:'recipes.manage'},
     production:{title:'Producción',read:['production.view','production.manage'],write:'production.manage'},
     cash:{title:'Caja',read:['cash.view','cash.manage','cash.open','cash.close'],write:'cash.manage'},
-    reports:{title:'Informes',read:['reports.view','reports.export'],write:'reports.export'}
+    reports:{title:'Informes',read:['reports.view','reports.export'],write:'reports.export'},
+    receivables:{title:'Cuentas por cobrar',read:['receivables.view','receivables.manage'],write:'receivables.manage'}
   };
   let currentModule = 'products';
   let cache = {};
   let loading = false;
+  let receivablesEnabled = false;
   function user(){return window.PanaderiaAuth?.user||null;}
   function manager(){const u=user();return !!u&&(u.isPlatformAdmin===true||u.role==='admin'||u.role==='supervisor');}
   function allowed(key){const u=user();if(!u)return false;if(manager())return true;return u.permissions?.[key]===true;}
-  function canModule(key){const m=labels[key],u=user(),configured=u?.businessConfig?.modules;return !!m&&(!Array.isArray(configured)||configured.includes(key))&&(manager()||m.read.some(allowed)||allowed(m.write));}
+  function canModule(key){const m=labels[key],u=user(),configured=u?.businessConfig?.modules;if(!m||!u)return false;if(key==='receivables')return receivablesEnabled&&(manager()||m.read.some(allowed)||allowed(m.write));return (!Array.isArray(configured)||configured.includes(key))&&(manager()||m.read.some(allowed)||allowed(m.write));}
   function canRead(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed));}
   function canLoadProducts(){return manager()||['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'].some(allowed);}
   async function api(module,method,body){
     const options={method:method||'GET'};
     if(body!==undefined)options.body=JSON.stringify({...body,module});
-    return window.PanaderiaAuth.api('/api/business/erp?module='+encodeURIComponent(module),options);
+    const endpoint=module==='receivables'?'/api/business/receivables':'/api/business/erp?module='+encodeURIComponent(module);
+    return window.PanaderiaAuth.api(endpoint,options);
   }
   function ensureUi(){
     const nav=$('.nav-menu'),main=$('.main-content'),topbar=main?.querySelector('.topbar');
@@ -180,6 +183,25 @@
     const rows=(data.months||[]).map(m=>'<tr><td>'+esc(m.month)+'</td><td>'+money(m.sales)+'</td><td>'+money(m.other_income)+'</td><td>'+money(m.cost_of_goods)+'</td><td>'+money(m.expenses)+'</td><td>'+money(m.net_profit)+'</td></tr>');
     return '<article class="panel settings-card"><div class="d-flex flex-wrap justify-content-between gap-2"><div><h3>Resultado mensual</h3><p class="text-muted">Ventas + otros ingresos − costo histórico de productos vendidos − gastos registrados.</p></div><div class="d-flex gap-2"><button class="btn btn-outline-bakery btn-sm" id="erpExportCsv">Descargar CSV para Excel</button><button class="btn btn-outline-bakery btn-sm" id="erpPrintReport">Imprimir / guardar PDF</button></div></div>'+table(['MES','VENTAS','OTROS INGRESOS','COSTO DE VENTAS','GASTOS','RESULTADO NETO'],rows)+'</article>';
   }
+  function newIdempotencyKey(){return window.crypto&&typeof window.crypto.randomUUID==='function'?window.crypto.randomUUID():'rcv-'+Date.now()+'-'+Math.random().toString(36).slice(2,14);}
+  function renderReceivables(data){
+    const customers=data.customers||[],debts=data.debts||[],payments=data.payments||[],methods=(data.paymentMethods||['Efectivo','Transferencia','Tarjeta','QR']).map(String);
+    const fullName=(row)=>[row.name,row.last_name].filter(Boolean).join(' ');
+    const options='<option value="">Seleccionar cliente</option>'+customers.map(c=>'<option value="'+esc(c.id)+'">'+esc(fullName(c))+'</option>').join('');
+    const canManage=allowed('receivables.manage');
+    const summary=data.summary||{};
+    const debtRows=debts.map(d=>{
+      const balance=Number(d.balance||0),due=String(d.due_date||'').slice(0,10),overdue=d.status==='open'&&due&&due<new Date().toISOString().slice(0,10);
+      const status=d.status==='paid'?'Pagada':d.status==='cancelled'?'Anulada':overdue?'Atrasada':'Pendiente';
+      const actions=canManage&&d.status==='open'?'<div class="d-flex flex-wrap gap-1"><button type="button" class="btn btn-sm btn-outline-primary" data-erp-edit-debt="'+esc(d.id)+'" data-description="'+esc(d.description)+'" data-amount="'+esc(d.amount)+'" data-due="'+esc(due)+'">Modificar</button><button type="button" class="btn btn-sm btn-outline-danger" data-erp-cancel-debt="'+esc(d.id)+'">Anular</button></div>':'';
+      const paymentForm=canManage&&d.status==='open'&&balance>0?'<form data-erp-form="receivables-payment" data-debt-id="'+esc(d.id)+'" class="d-flex flex-wrap gap-1 mt-2"><input type="hidden" name="idempotencyKey" value="'+newIdempotencyKey()+'"><input class="form-control form-control-sm" style="max-width:130px" name="amount" type="number" min="0.01" max="'+balance+'" step="1" placeholder="Importe" required><select class="form-select form-select-sm" style="max-width:150px" name="paymentMethod">'+methods.map(m=>'<option value="'+esc(m)+'">'+esc(m)+'</option>').join('')+'</select><button class="btn btn-sm btn-bakery" type="submit">Registrar pago</button></form>':'';
+      return '<tr><td><strong>'+esc(fullName({name:d.customer_name,last_name:d.customer_last_name}))+'</strong><small class="d-block text-muted">'+esc(d.description)+'</small></td><td>'+new Date(d.created_at).toLocaleDateString('es-PY')+'</td><td>'+money(d.amount)+'</td><td>'+money(d.paid_total)+'</td><td><strong>'+money(balance)+'</strong></td><td>'+esc(due||'—')+'<small class="d-block '+(overdue?'text-danger':'text-muted')+'">'+status+'</small></td><td>'+actions+paymentForm+'</td></tr>';
+    });
+    const paymentRows=payments.map(p=>'<tr><td>'+new Date(p.paid_at).toLocaleString('es-PY')+'</td><td>'+esc(fullName({name:p.customer_name,last_name:p.customer_last_name}))+'</td><td>'+esc(p.debt_description)+'</td><td>'+esc(p.payment_method)+'</td><td>'+money(p.amount)+'</td><td>'+esc(p.status==='reversed'?'Anulado':'Registrado')+(p.status==='reversed'?'<small class="d-block text-muted">'+esc(p.reversal_reason||'')+'</small>':'')+'</td><td>'+(canManage&&p.status==='active'?'<button type="button" class="btn btn-sm btn-outline-danger" data-erp-reverse-payment="'+esc(p.id)+'">Anular pago</button>':'—')+'</td></tr>');
+    const customerForm=canManage?'<article class="panel settings-card"><h3>Registrar cliente</h3><form data-erp-form="receivables-customer" class="row g-3">'+formField('Nombre *','name','text','','required maxlength="100"')+formField('Apellido','lastName','text','','maxlength="100"')+formField('Teléfono','phone','text','','maxlength="60"')+formField('Dirección','address','text','','maxlength="250"')+'<div class="col-12"><label class="form-label">Observaciones</label><textarea class="form-control" name="notes" maxlength="1000" rows="2"></textarea></div><div class="col-12"><button class="btn btn-bakery" type="submit">Guardar cliente</button></div></form></article>':'';
+    const debtForm=canManage?'<article class="panel settings-card mt-3"><h3>Registrar compra fiada / deuda</h3>'+(customers.length?'<form data-erp-form="receivables-debt" class="row g-3"><input type="hidden" name="idempotencyKey" value="'+newIdempotencyKey()+'"><div class="col-md-4"><label class="form-label">Cliente *</label><select class="form-select" name="customerId" required>'+options+'</select></div>'+formField('Concepto / compra *','description','text','','required maxlength="240"')+formField('Importe (Gs.) *','amount','number','','min="0.01" step="1" required')+formField('Vencimiento','dueDate','date','','')+'<div class="col-12"><button class="btn btn-bakery" type="submit">Registrar deuda</button></div></form>':'<p class="text-muted mb-0">Primero registrá un cliente para poder cargar una deuda.</p>')+'</article>':'';
+    return '<div class="row g-3 mb-3"><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Saldo pendiente</small><h3 class="mb-0">'+money(summary.pendingTotal)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Clientes con deuda</small><h3 class="mb-0">'+Number(summary.indebtedCustomers||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Deudas atrasadas</small><h3 class="mb-0">'+Number(summary.overdueDebts||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Pagos recientes</small><h3 class="mb-0">'+Number((summary.recentPayments||[]).length)+'</h3></article></div></div>'+customerForm+debtForm+'<article class="panel settings-card mt-3"><div class="d-flex justify-content-between flex-wrap gap-2"><h3>Historial de deudas</h3><input id="receivablesSearch" class="form-control form-control-sm" style="max-width:240px" type="search" placeholder="Buscar cliente o concepto"></div>'+table(['CLIENTE / CONCEPTO','FECHA','DEUDA','PAGADO','SALDO','VENCIMIENTO / ESTADO','ACCIONES'],debtRows,'Todavía no hay deudas registradas.')+'</article><article class="panel settings-card mt-3"><h3>Historial de pagos</h3>'+table(['FECHA','CLIENTE','CONCEPTO','MÉTODO','IMPORTE','ESTADO','ACCIÓN'],paymentRows,'Todavía no hay pagos registrados.')+'</article>';
+  }
   function renderModule(module,data){
     if(module==='products')return renderProducts(data);
     if(module==='sales')return renderSales(data);
@@ -190,6 +212,7 @@
     if(module==='production')return renderProduction(data);
     if(module==='cash')return renderCash(data);
     if(module==='reports')return renderReports(data);
+    if(module==='receivables')return renderReceivables(data);
     return '<p class="text-muted">Módulo no disponible.</p>';
   }
   async function loadModule(module){
@@ -198,7 +221,7 @@
     content.innerHTML='<p class="text-muted">Cargando '+esc(labels[module].title.toLowerCase())+'…</p>';
     try{
       const jobs=[];
-      if(canRead(module))jobs.push(api(module).then(result=>{cache[module]=result;}));
+      if(canRead(module)&&!(module==='receivables'&&cache.receivables))jobs.push(api(module).then(result=>{cache[module]=result;}));
       if(['sales','purchases','inventory','recipes','production'].includes(module)&&canLoadProducts()&&!cache.products)jobs.push(api('products').then(result=>{cache.products=result;}));
       if(['sales','purchases'].includes(module)&&canModule('customers')&&!cache.customers)jobs.push(api('customers').then(result=>{cache.customers=result;}));
       if(module==='purchases'&&canModule('suppliers')&&!cache.suppliers)jobs.push(api('suppliers').then(result=>{cache.suppliers=result;}));
@@ -206,7 +229,12 @@
       content.innerHTML=renderModule(module,cache[module]||{});
     }catch(error){content.innerHTML='<div class="alert alert-danger">'+esc(error.message||'No se pudo cargar el módulo.')+'</div>';}
   }
-  function activate(user){
+  async function activate(user){
+    receivablesEnabled=false;
+    if(user&&user.isPlatformAdmin!==true&&user.businessId){
+      try{cache.receivables=await api('receivables');receivablesEnabled=true;}
+      catch(error){delete cache.receivables;receivablesEnabled=false;}
+    }
     if(!ensureUi())return;
     syncNavigation();renderTabs();syncRequestControls();
     if(user&&canModule(currentModule))loadModule(currentModule);
@@ -234,7 +262,10 @@
       if(module==='production')payload={recipeId:value('recipeId'),productId:value('productId'),plannedQuantity:Number(value('plannedQuantity')),notes:value('notes')};
       if(module==='cash-open')payload={module:'cash',action:'open',openingAmount:Number(value('openingAmount'))};
       if(module==='cash')payload={module:'cash',action:'movement',movementType:value('movementType'),category:value('category'),description:value('description'),amount:Number(value('amount')),paymentMethod:value('paymentMethod')};
-      const endpoint=module==='cash-open'?'cash':module;
+      if(module==='receivables-customer')payload={action:'customer',name:value('name'),lastName:value('lastName'),phone:value('phone'),address:value('address'),notes:value('notes')};
+      if(module==='receivables-debt')payload={action:'debt',customerId:value('customerId'),description:value('description'),amount:Number(value('amount')),dueDate:value('dueDate')||null,idempotencyKey:value('idempotencyKey')};
+      if(module==='receivables-payment')payload={action:'payment',debtId:form.dataset.debtId,amount:Number(value('amount')),paymentMethod:value('paymentMethod'),idempotencyKey:value('idempotencyKey')};
+      const endpoint=module==='cash-open'?'cash':module.startsWith('receivables-')?'receivables':module;
       await api(endpoint,'POST',payload);
       form.reset();cache={};await loadModule(currentModule);
       window.alert('Operación registrada correctamente.');
@@ -283,8 +314,27 @@
     const remove=event.target.closest('[data-erp-delete]');
     const production=event.target.closest('[data-erp-production]');
     const closeCash=event.target.closest('[data-erp-close-cash]');
+    const editDebt=event.target.closest('[data-erp-edit-debt]');
+    const cancelDebt=event.target.closest('[data-erp-cancel-debt]');
+    const reversePayment=event.target.closest('[data-erp-reverse-payment]');
     try{
-      if(cancelSale){if(!window.confirm('¿Anular esta venta y devolver los productos al inventario?'))return;await api('sales','PATCH',{id:cancelSale.dataset.erpCancelSale,action:'cancel'});}
+      if(editDebt){
+        const description=window.prompt('Concepto de la deuda:',editDebt.dataset.description||'');if(description===null)return;
+        const amount=window.prompt('Importe total de la deuda (Gs.):',editDebt.dataset.amount||'');if(amount===null)return;
+        const dueDate=window.prompt('Vencimiento (AAAA-MM-DD, vacío si no corresponde):',editDebt.dataset.due||'');if(dueDate===null)return;
+        await api('receivables','PATCH',{action:'debt_update',id:editDebt.dataset.erpEditDebt,description,amount:Number(amount),dueDate:dueDate||null});
+      }
+      else if(cancelDebt){
+        if(!window.confirm('¿Anular esta deuda? Solo se permite si no tiene pagos activos.'))return;
+        const reason=window.prompt('Motivo de anulación:');if(!reason)return;
+        await api('receivables','PATCH',{action:'debt_cancel',id:cancelDebt.dataset.erpCancelDebt,reason});
+      }
+      else if(reversePayment){
+        if(!window.confirm('¿Anular este pago? Se registrará el movimiento de reversión en finanzas.'))return;
+        const reason=window.prompt('Motivo de anulación:');if(!reason)return;
+        await api('receivables','PATCH',{action:'reverse_payment',paymentId:reversePayment.dataset.erpReversePayment,reason});
+      }
+      else if(cancelSale){if(!window.confirm('¿Anular esta venta y devolver los productos al inventario?'))return;await api('sales','PATCH',{id:cancelSale.dataset.erpCancelSale,action:'cancel'});}
       else if(cancelPurchase){if(!window.confirm('¿Anular esta compra y descontar el stock ingresado?'))return;await api('purchases','PATCH',{id:cancelPurchase.dataset.erpCancelPurchase,action:'cancel'});}
       else if(remove){if(!window.confirm('¿Desactivar este registro? Los datos históricos se conservarán.'))return;await api(remove.dataset.erpDelete,'DELETE',{id:remove.dataset.id});}
       else if(production){if(production.dataset.action==='complete'){const produced=window.prompt('Cantidad realmente producida:','1');if(produced===null)return;const waste=window.prompt('Cantidad de merma:','0');if(waste===null)return;await api('production','PATCH',{id:production.dataset.erpProduction,action:'complete',producedQuantity:Number(produced),wasteQuantity:Number(waste)});}else{await api('production','PATCH',{id:production.dataset.erpProduction,status:production.dataset.status});}}
