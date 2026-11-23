@@ -1906,7 +1906,7 @@ body.auth-locked{overflow:hidden!important}
     gate.classList.remove('auth-gate-hidden');
     document.body.classList.add('auth-locked');
     document.documentElement.classList.add('auth-locked');
-    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form" novalidate><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><div class="auth-password-field"><input id="authPassword" name="password" type="password" autocomplete="current-password" required placeholder="Ingresá tu contraseña"><button class="auth-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="button" id="authLoginButton"><span class="auth-submit-label">Ingresar al sistema</span><span aria-hidden="true">→</span></button></form>`;
+    content.innerHTML = `<div class="auth-heading"><span>BIENVENIDO</span><h1 id="authTitle">Iniciar sesión</h1><p>Ingresá con tu cuenta para acceder al panel.</p></div><form id="loginForm" class="auth-form" novalidate><label for="authEmail">Correo electrónico</label><input id="authEmail" name="email" type="email" autocomplete="username" required maxlength="254" placeholder="tu@correo.com"><label for="authPassword">Contraseña</label><div class="auth-password-field"><input id="authPassword" name="password" type="password" autocomplete="current-password" required placeholder="Ingresá tu contraseña"><button class="auth-password-toggle" type="button" aria-label="Mostrar contraseña" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg></button></div><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit" id="authLoginButton"><span class="auth-submit-label">Ingresar al sistema</span><span aria-hidden="true">→</span></button></form>`;
     showMessage(message);
     const passwordInput = document.getElementById('authPassword');
     const passwordToggle = content.querySelector('.auth-password-toggle');
@@ -1920,20 +1920,25 @@ body.auth-locked{overflow:hidden!important}
     const loginButton = document.getElementById('authLoginButton');
     const emailInput = document.getElementById('authEmail');
     const submitLogin = async () => {
-      if (!loginButton || loginButton.disabled) return;
+      if (!loginButton || loginForm.dataset.submitting === 'true') return;
+      loginForm.dataset.submitting = 'true';
       showMessage('');
       if (!emailInput.value.trim() || !emailInput.checkValidity()) {
         showMessage('Ingresá un correo electrónico válido.');
         emailInput.focus();
+        loginForm.dataset.submitting = 'false';
         return;
       }
       if (!passwordInput.value) {
         showMessage('Ingresá tu contraseña.');
         passwordInput.focus();
+        loginForm.dataset.submitting = 'false';
         return;
       }
       loginButton.disabled = true;
       loginButton.setAttribute('aria-busy', 'true');
+      loginButton.querySelector('.auth-submit-label').textContent = 'Verificando acceso...';
+      showMessage('Conectando con MATTSYSTEM...');
       try {
         const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: emailInput.value.trim(), password: passwordInput.value }) });
         if (!result || !result.user) throw new Error('El servidor no devolvió los datos de acceso. Volvé a intentarlo.');
@@ -1941,13 +1946,20 @@ body.auth-locked{overflow:hidden!important}
       } catch (error) {
         showMessage(error && error.message ? error.message : 'No se pudo iniciar sesión. Volvé a intentarlo.');
       } finally {
+        loginForm.dataset.submitting = 'false';
         if (loginButton.isConnected) {
           loginButton.disabled = false;
           loginButton.removeAttribute('aria-busy');
+          loginButton.querySelector('.auth-submit-label').textContent = 'Ingresar al sistema';
         }
       }
     };
-    loginButton.addEventListener('click', submitLogin);
+    // El clic inicia el proceso directamente; el submit nativo queda como respaldo
+    // para navegadores móviles que no despachen el evento click como se espera.
+    loginButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      submitLogin();
+    });
     loginForm.addEventListener('submit', (event) => {
       event.preventDefault();
       submitLogin();
