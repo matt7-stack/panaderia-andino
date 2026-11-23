@@ -303,7 +303,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='GET'){
         const [plans,modules]=await Promise.all([
           sql`SELECT plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
-          sql`SELECT module_key,title,category,description,implemented FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`
+          sql`SELECT module_key,title,category,description,implemented,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`
         ]);
         return send(res,200,{plans,modules});
       }
