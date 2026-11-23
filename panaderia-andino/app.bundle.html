@@ -4084,16 +4084,30 @@ html.auth-locked body::-webkit-scrollbar {
 </style>
 <script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script>
 <style id="auth-root-scrollbar-fix">
-/* Elimina el canal del scroll del documento que queda visible junto al login. */
+/* Bloquea el documento durante el login para que no reserve el canal de scroll. */
 html.auth-locked {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
   overflow: hidden !important;
+  scrollbar-gutter: auto !important;
   scrollbar-width: none !important;
-  scrollbar-color: #f5f6ff #f5f6ff !important;
-  background: #f5f6ff !important;
   overscroll-behavior: none !important;
+  background: #f5f6ff !important;
 }
 html.auth-locked body {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
   overflow: hidden !important;
+  scrollbar-gutter: auto !important;
   scrollbar-width: none !important;
   overscroll-behavior: none !important;
 }
@@ -4102,12 +4116,15 @@ html.auth-locked body::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-  background: transparent !important;
 }
 html.auth-locked #authGate {
-  inset: 0 -2px 0 0 !important;
-  width: auto !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
   max-width: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
 }
 </style>
 </body>
