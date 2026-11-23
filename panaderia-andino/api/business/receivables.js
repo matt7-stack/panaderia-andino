@@ -105,7 +105,7 @@ module.exports = async function receivablesHandler(req, res) {
             RETURNING id,name,last_name,phone,address,notes,active
           ), logged AS (
             INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-            SELECT ${businessId},${user.id},'receivables.customer_created','customer',id,${JSON.stringify({name,lastName})}::jsonb FROM created RETURNING id
+            SELECT ${businessId},${user.id},'receivables.customer_created','customer',id::text,${JSON.stringify({name,lastName})}::jsonb FROM created RETURNING id
           ) SELECT * FROM created`;
         return send(res, 201, { customer: rows[0] });
       }
@@ -137,7 +137,7 @@ module.exports = async function receivablesHandler(req, res) {
         const existing = await sql`SELECT * FROM app_receivable_debts WHERE business_id=${businessId} AND idempotency_key=${idempotencyKey} LIMIT 1`;
         if (!existing.length) return send(res, 409, { error: 'No se pudo registrar la deuda. Intentá nuevamente.' });
         const same = String(existing[0].customer_id)===customerId &&
-          Number(existing[0].amount)===amount && String(existing[0].description)===description;
+          Number(existing[0].amount)===amount && String(existing[0].description)===description && String(existing[0].due_date||'')===String(dueDate||'');
         if (!same) return send(res, 409, { error: 'El identificador de esta operación ya fue utilizado con otros datos.' });
         return send(res, 200, { debt: existing[0], duplicate: true });
       }
