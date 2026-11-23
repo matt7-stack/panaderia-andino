@@ -1088,6 +1088,83 @@ img,svg,canvas,video{max-width:100%}
   .sidebar { transition:none!important; }
 }
 
+
+/* MATTSYSTEM responsive refinement — mobile, small tablets and touch */
+@media (max-width: 767.98px) {
+  body { font-size:14px; }
+  .topbar { position:sticky; top:0; z-index:1010; min-height:58px; height:auto; }
+  .topbar-actions { gap:6px; }
+  .topbar-actions .btn, .topbar-actions button { min-height:40px; }
+  .sidebar { z-index:1040; padding-top:max(14px,env(safe-area-inset-top)); }
+  .sidebar-backdrop.show { z-index:1035; }
+  .nav-menu { gap:5px; }
+  .nav-menu .nav-link { min-height:46px; font-size:13px; }
+  .page-content { padding-top:16px; }
+  .page-heading { width:100%; }
+  .page-heading h1 { overflow-wrap:anywhere; }
+  .panel, .settings-card, .table-panel, .invoices-panel, .admin-panel-card { overflow:hidden; }
+  .panel-heading, .section-heading, .admin-section-heading { width:100%; }
+  .panel-heading .btn, .section-heading .btn, .admin-section-heading .btn { max-width:100%; white-space:normal; }
+  .summary-card, .invoice-summary-card, .admin-stat-card { min-width:0; }
+  .summary-card p, .summary-card small, .summary-card span, .invoice-summary-card small { overflow-wrap:anywhere; }
+  .content-grid, .settings-grid, .admin-quick-grid, .admin-home-shortcuts { min-width:0; }
+  .chart-container, .chart-wrap, .canvas-wrap { width:100%; max-width:100%; min-width:0; overflow:hidden; }
+  canvas, svg { max-width:100%; }
+  .table-panel > table, .invoices-panel > table, .admin-table-wrap > table {
+    display:block; width:100%; max-width:100%; overflow-x:auto; overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch; white-space:nowrap;
+  }
+  .table-responsive { scrollbar-width:thin; }
+  .table-responsive > table { min-width:640px; }
+  .table-actions .btn, .table-actions button { min-height:38px; }
+  .invoice-tabs, .settings-tabs, .nav-tabs, .tab-list {
+    max-width:100%; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .invoice-tabs > *, .settings-tabs > *, .nav-tabs > *, .tab-list > * { flex:0 0 auto; }
+  .form-label { line-height:1.35; }
+  .form-control, .form-select, .form-check-input { max-width:100%; }
+  .input-group, .input-with-prefix { min-width:0; max-width:100%; }
+  .modal { padding:0!important; }
+  .modal-dialog { display:flex; align-items:center; min-height:calc(100% - 12px); }
+  .modal-content { width:100%; }
+  .modal-footer { flex-wrap:wrap; }
+  .modal-footer .btn { flex:1 1 120px; }
+  .dropdown-menu { max-width:calc(100vw - 24px); }
+  .page-footer { display:flex; flex-direction:column; gap:5px; text-align:center; padding:18px 8px; }
+}
+@media (max-width: 480px) {
+  .topbar { padding-left:9px; padding-right:9px; }
+  .mobile-menu-button { flex-basis:40px; width:40px; height:40px; }
+  .breadcrumb-label { font-size:11px; }
+  .topbar-actions { gap:4px; }
+  .user-menu { gap:5px; }
+  .page-content { padding-top:13px; }
+  .page-heading h1 { font-size:clamp(21px,6vw,26px); }
+  .heading-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .heading-actions .btn { min-width:0; white-space:normal; line-height:1.25; }
+  .summary-card { min-height:100px; }
+  .filter-bar > *, .invoice-toolbar > * { flex-basis:100%; }
+  .date-range { width:100%; min-width:0; }
+  .date-range input { min-width:0; width:100%; }
+  .table-bottom, .table-bottom-actions { flex-wrap:wrap; }
+  .table-bottom-actions > * { flex:1 1 120px; }
+  .simple-modal-field label { overflow-wrap:anywhere; }
+}
+@media (max-width: 359.98px) {
+  .topbar { gap:5px; }
+  .topbar-actions .month-picker { max-width:94px; }
+  .topbar-actions .month-picker input { width:62px; }
+  .summary-grid, .summary-grid.three-cards, .admin-business-overview { grid-template-columns:minmax(0,1fr); }
+  .heading-actions { grid-template-columns:minmax(0,1fr); }
+  .panel, .settings-card, .table-panel, .invoices-panel { padding:9px; }
+}
+@media (min-width:768px) and (max-width:1024px) {
+  .page-content { padding-left:20px; padding-right:20px; }
+  .summary-grid, .summary-grid.three-cards, .admin-business-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .content-grid, .settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .table-responsive { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+}
 </style>
 </head>
 <body>
