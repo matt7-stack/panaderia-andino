@@ -223,9 +223,9 @@ module.exports = async function handler(req, res) {
         FROM app_licenses WHERE business_id=${user.business_id} AND UPPER(license_code)=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${system})) LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'El código no corresponde a una licencia de este negocio. Verificá el código con el administrador.'});
       const license=rows[0];
-      await sql`UPDATE app_users SET verified_license_id=${license.id} WHERE id=${user.id} AND business_id=${user.business_id}`;
       if(license.status!=='active')return send(res,409,{error:'El código es correcto, pero la licencia todavía no está activa. Contactá al administrador.'});
       if(license.expires_at&&license.expires_at<new Date().toISOString().slice(0,10))return send(res,409,{error:'La licencia está vencida. Contactá al administrador para renovarla.'});
+      await sql`UPDATE app_users SET verified_license_id=${license.id} WHERE id=${user.id} AND business_id=${user.business_id}`;
       await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${user.business_id},${user.id},'license.code_verified','license',${license.id},${JSON.stringify({license_code:license.license_code})}::jsonb)`;
       return send(res,200,{verified:true,message:'Licencia verificada correctamente.',license});
     }
