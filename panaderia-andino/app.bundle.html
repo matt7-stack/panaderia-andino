@@ -30,8 +30,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="MATTSYSTEM">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icons/icon.svg">
+  <link rel="icon" href="/icons/icon.svg?v=3" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon.svg?v=3">
   <title>MATTSYSTEM</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1070,6 +1070,34 @@ body.auth-locked{overflow:hidden!important}
 @media(max-width:380px){.auth-card{padding:24px 19px}.auth-brand{margin-bottom:30px}.auth-heading h1{font-size:27px}}
 @media(max-height:650px) and (min-width:761px){.auth-layout{min-height:0}.auth-showcase{padding:30px 38px}.auth-showcase-copy{padding:24px 0}.auth-benefits{gap:9px;margin-top:20px}.auth-brand{margin-bottom:25px}}
 
+
+/* Login MATTSYSTEM: diseño clásico centrado, conservando el flujo de autenticación */
+.auth-gate{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:22px;background:radial-gradient(circle at 12% 10%,rgba(41,182,164,.12),transparent 34%),linear-gradient(135deg,#f3f7fa,#e6eef4);overflow-y:auto;overflow-x:hidden}
+.auth-layout{display:block!important;width:min(100%,430px)!important;max-width:430px!important;min-height:0!important;height:auto!important;margin:auto!important;overflow:hidden!important;border:0!important;border-radius:20px!important;background:transparent!important;box-shadow:none!important}
+.auth-showcase{display:none!important}
+.auth-card{display:block!important;align-self:center!important;width:min(100%,430px)!important;max-width:100%!important;min-width:0!important;margin:auto!important;padding:34px!important;border:1px solid #dce6ed!important;border-radius:20px!important;background:#fff!important;box-shadow:0 24px 75px rgba(20,43,69,.14)!important;backdrop-filter:none!important;box-sizing:border-box!important}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:32px!important}
+.auth-brand-icon{display:grid;place-items:center;flex:0 0 52px;width:52px;height:52px;overflow:hidden;border-radius:15px;background:#e6eef4!important;box-shadow:none!important}
+.auth-brand-icon img{width:44px;height:44px;object-fit:contain}
+.auth-brand strong{display:block;color:#142b45!important;font-family:'DM Sans',sans-serif!important;font-size:19px;font-weight:850;letter-spacing:.2px}
+.auth-brand small{display:block;margin-top:3px;color:#39708f!important;font-size:9px;font-weight:800;letter-spacing:1.35px}
+.auth-heading>span{display:inline-flex;align-items:center;gap:7px;color:#278d83!important;font-size:10px;font-weight:850;letter-spacing:1.6px}
+.auth-heading>span:before{content:"";width:18px;height:2px;border-radius:2px;background:#29b6a4}
+.auth-heading h1{margin:8px 0;color:#142b45!important;font-family:'DM Sans',sans-serif!important;font-size:29px;font-weight:800;letter-spacing:-.7px;line-height:1.16}
+.auth-heading p{margin:0 0 22px;color:#718396!important;font-size:12px;line-height:1.6}
+.auth-form{display:grid;gap:8px}
+.auth-form label{margin-top:7px;color:#285274!important;font-size:11px;font-weight:800}
+.auth-form input{width:100%;min-height:46px;padding:11px 13px;border:1px solid #dce6ed;border-radius:9px;outline:none;color:#172b3d;background:#fff;font-family:'DM Sans',sans-serif;font-size:14px}
+.auth-form input:focus{border-color:#29b6a4;box-shadow:0 0 0 3px rgba(41,182,164,.13)}
+.auth-form input[readonly]{color:#718396;background:#f3f7fa}
+.auth-submit{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;margin-top:14px;padding:13px 16px;border:0;border-radius:9px;color:#fff;background:#142b45;box-shadow:none;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:800}
+.auth-submit:hover{background:#1d3b5b;transform:none;box-shadow:none}
+.auth-submit:disabled{opacity:.65;cursor:wait}
+.auth-submit span{font-size:18px}
+.auth-error{padding:10px 12px;border:1px solid #efc7c1;border-radius:8px;color:#9c3c32;background:#fff1ef;font-size:11px;line-height:1.5}
+.auth-footnote{margin:22px 0 0;color:#718396!important;font-size:9px;text-align:center}
+.auth-card *{box-sizing:border-box}
+@media(max-width:480px){.auth-gate{padding:16px}.auth-card{width:min(100%,430px)!important;padding:25px 20px!important;border-radius:18px!important}.auth-heading h1{font-size:26px}}
 </style>
 <style>
 /* Alineación consistente de los encabezados en la cuenta de cada negocio. */
@@ -1274,7 +1302,7 @@ body.auth-locked{overflow:hidden!important}
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <a class="brand brand-icon-only" href="#dashboard" data-page-link="dashboard" aria-label="Inicio">
-        <span class="brand-mark"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="54" height="54" style="display:block;width:54px;height:54px;border-radius:14px;object-fit:contain"><span aria-hidden="true">✦</span></span>
+        <span class="brand-mark"><img src="/icons/icon.svg?v=3" alt="MATTSYSTEM" width="54" height="54" style="display:block;width:54px;height:54px;border-radius:14px;object-fit:contain"><span aria-hidden="true">✦</span></span>
       </a>
 
       <div class="sidebar-label">MENÚ PRINCIPAL</div>
@@ -1845,7 +1873,7 @@ body.auth-locked{overflow:hidden!important}
   gate.setAttribute('role', 'dialog');
   gate.setAttribute('aria-modal', 'true');
   gate.setAttribute('aria-labelledby', 'authTitle');
-  gate.innerHTML = '<div class="auth-layout"><section class="auth-showcase" aria-label="MATTSYSTEM"><div class="auth-showcase-brand"><span class="auth-showcase-mark">M</span><span>MATTSYSTEM</span></div><div class="auth-showcase-copy"><span class="auth-kicker">GESTIÓN INTELIGENTE</span><h2>Tu negocio,<br>en <em>control.</em></h2><p>Administrá tus operaciones desde un solo lugar, con claridad, seguridad y eficiencia.</p><div class="auth-benefits"><div><b>01</b><span>Información organizada</span></div><div><b>02</b><span>Control de cada operación</span></div><div><b>03</b><span>Acceso seguro y centralizado</span></div></div></div><div class="auth-showcase-bottom">GESTIÓN EMPRESARIAL · MATTSYSTEM</div></section><section class="auth-card"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg" alt="MATTSYSTEM" width="44" height="44"></span><div><strong>MATTSYSTEM</strong><small>ADMINISTRACIÓN SIMPLE Y SEGURA</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></section></div>';
+  gate.innerHTML = '<section class="auth-card" aria-label="Acceso a MATTSYSTEM"><div class="auth-brand"><span class="auth-brand-icon"><img src="/icons/icon.svg?v=3" alt="Logo MATTSYSTEM" width="48" height="48"></span><div><strong>MATTSYSTEM</strong><small>GESTIÓN EMPRESARIAL</small></div></div><div id="authContent"></div><p class="auth-footnote">Acceso privado · Datos protegidos</p></section>';
   document.body.appendChild(gate);
 
   const content = document.getElementById('authContent');
