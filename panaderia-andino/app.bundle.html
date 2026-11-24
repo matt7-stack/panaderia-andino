@@ -2142,7 +2142,7 @@ html body .auth-gate.auth-gate-hidden {
         (page === 'erp' && Object.values(p).some(value => value === true));
       if (!allowed) return;
     }
-    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
