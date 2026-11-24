@@ -3259,9 +3259,11 @@ html body .auth-gate.auth-gate-hidden {
     if (!window.confirm('ATENCIÓN: se eliminarán TODOS los negocios, usuarios secundarios, clientes, licencias y registros de MATTSYSTEM. Solo se conservará tu cuenta de administrador principal. Esta acción no se puede deshacer. ¿Ya descargaste un respaldo?')) return;
     const confirmation = window.prompt('Para confirmar el reinicio total, escribí exactamente: REINICIAR');
     if (confirmation !== 'REINICIAR') { notify('Reinicio cancelado. No se modificó ningún dato.'); return; }
+    const password = window.prompt('Por seguridad, ingresá la contraseña actual de tu cuenta de administrador:');
+    if (!password) { notify('Reinicio cancelado. No se modificó ningún dato.'); return; }
     button.disabled = true;
     try {
-      const result = await window.PanaderiaAuth.api('/api/admin/reset-system', { method: 'POST', body: JSON.stringify({ confirmation: 'REINICIAR' }) });
+      const result = await window.PanaderiaAuth.api('/api/admin/reset-system', { method: 'POST', body: JSON.stringify({ confirmation: 'REINICIAR', password }) });
       if (!result?.ok) throw new Error(result?.error || 'El servidor no confirmó el reinicio.');
       notify('Sistema restablecido. Tu cuenta de administrador principal se conservó.');
       setTimeout(() => window.location.reload(), 900);
