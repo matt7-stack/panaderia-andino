@@ -203,7 +203,7 @@ module.exports = async function handler(req, res) {
       const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
       const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
-        l.sold_at,l.created_at,l.expires_at,l.setup_amount,l.monthly_amount,l.billing_day,
+        l.sold_at::text AS sold_at,l.created_at,l.expires_at::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.monthly_amount,l.billing_day,
         l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,l.modules,
         EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
@@ -212,7 +212,7 @@ module.exports = async function handler(req, res) {
         LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'No encontramos una licencia asociada a este negocio. Contactá al administrador.'});
       const license=rows[0];
-      return send(res,200,{license:{...license,is_trial:license.is_trial===true||license.is_trial==='true',days_remaining:license.expires_at?Math.max(0,Math.ceil((new Date(license.expires_at+'T00:00:00Z')-new Date(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
+      return send(res,200,{license:{...license,is_trial:license.is_trial===true||license.is_trial==='true',days_remaining:license.expires_at?Math.max(0,Math.ceil((Date.parse(String(license.expires_at).slice(0,10)+'T00:00:00Z')-Date.parse(new Date().toISOString().slice(0,10)+'T00:00:00Z'))/86400000)):null}});
     }
     if(path==='/api/license/verify-code'){
       const user=await authenticated(req,res,false,true);if(!user)return;
