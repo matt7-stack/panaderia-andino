@@ -1578,7 +1578,6 @@ html body .auth-gate.auth-gate-hidden {
           <article class="panel settings-card mb-3" id="licenseActivationPanel" hidden><div class="d-flex flex-wrap align-items-center justify-content-between gap-3"><div><h3 class="mb-1"><i class="bi bi-key"></i> ¿Querés activar tu licencia?</h3><p class="text-muted mb-0">Solicitá la activación directamente desde aquí. El administrador recibirá una notificación.</p></div><button class="btn btn-bakery" type="button" id="requestLicenseActivation"><i class="bi bi-key"></i> Solicitar activación</button></div></article>
           <article class="panel settings-card mb-3" id="licenseCodePanel"><div class="panel-heading"><div><h3><i class="bi bi-patch-check"></i> Verificar código de licencia</h3><p>Ingresá el código que te entregó el administrador para consultar y actualizar los datos de tu licencia.</p></div></div><form id="licenseVerifyForm" class="d-flex flex-column flex-sm-row gap-2"><input class="form-control" id="licenseCodeInput" maxlength="40" autocomplete="off" placeholder="Ej.: MTS-XXXX-ABC123" aria-label="Código de licencia" required><button class="btn btn-bakery flex-shrink-0" type="submit" id="verifyLicenseCodeButton"><i class="bi bi-shield-check"></i> Verificar código</button></form><p id="licenseVerifyMessage" class="small mt-2 mb-0" aria-live="polite"></p></article>
           <div id="licenseInfoContent" aria-live="polite" class="d-grid gap-3"><article class="panel settings-card"><p class="text-muted mb-0">Cargando información de la licencia…</p></article></div>
-        </section>
           <article class="panel settings-card mt-3" id="customModuleRequestPanel">
             <div class="panel-heading"><div><h3><i class="bi bi-lightbulb"></i> Proponer un nuevo módulo</h3><p>Contanos qué herramienta necesitás. El equipo de MATTSYSTEM evaluará la viabilidad y, si es posible, preparará una cotización.</p></div></div>
             <form id="customModuleRequestForm" class="settings-form">
@@ -1587,6 +1586,8 @@ html body .auth-gate.auth-gate-hidden {
               <div class="form-actions"><button class="btn btn-bakery" type="submit">Enviar propuesta al administrador</button></div>
             </form><p class="small text-muted mb-0" id="customModuleRequestMessage" aria-live="polite"></p>
           </article>
+        </section>
+
         <section class="page-view" id="page-configuracion" data-page="configuracion">
           <div class="page-heading"><div><p class="eyebrow">PERSONALIZACIÓN</p><h1><i class="bi bi-gear heading-page-icon"></i> Configuración</h1><p class="page-subtitle">Personalizá el sistema de tu negocio.</p></div></div>
           <div class="settings-tabs" role="tablist" aria-label="Opciones de configuración">
@@ -1841,6 +1842,8 @@ html body .auth-gate.auth-gate-hidden {
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de un negocio.
     const platformAdmin = user.isPlatformAdmin === true;
+    const customModuleRequestPanel = document.getElementById('customModuleRequestPanel');
+    if (customModuleRequestPanel) customModuleRequestPanel.hidden = platformAdmin;
     // Una sesión principal nunca debe heredar el negocio seleccionado en una sesión anterior.
     if (platformAdmin) window.PanaderiaAuth.selectBusiness('');
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
