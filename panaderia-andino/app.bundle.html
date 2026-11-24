@@ -4188,8 +4188,17 @@ html body .auth-gate.auth-gate-hidden {
  const quoteEsc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
  async function initCommercialQuoteBuilder(force=false){
    const root=document.querySelector('#page-admin-cotizador');if(!root||!window.PanaderiaAuth?.user?.isPlatformAdmin)return;
+   if(root.dataset.loadingCatalog==='yes')return;
    if(root.dataset.initialized==='yes'&&!force)return;
-   root.dataset.initialized='yes';
+   const reloadButton=root.querySelector('#quoteReloadCatalog');
+   if(reloadButton){
+     reloadButton.onclick=async()=>{
+       if(root.dataset.loadingCatalog==='yes')return;
+       await initCommercialQuoteBuilder(true);
+     };
+   }
+   root.dataset.loadingCatalog='yes';
+   if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='Actualizando…';}
    const api=window.PanaderiaAuth.api;
    const planSelect=root.querySelector('#quoteLicensePlan'),moduleBox=root.querySelector('#quoteModulesList'),serviceBox=root.querySelector('#quoteServicesList');
    const serviceDefs=[['hosting','Hosting / alojamiento'],['maintenance','Mantenimiento técnico'],['support','Soporte técnico'],['updates','Actualizaciones del sistema']];
@@ -4230,7 +4239,6 @@ html body .auth-gate.auth-gate-hidden {
      planSelect.innerHTML=commercialQuoteCatalog.plans.map(p=>'<option value="'+quoteEsc(p.plan_key)+'">'+quoteEsc(p.display_name||p.plan_key)+'</option>').join('');
      if(commercialQuoteCatalog.plans.some(p=>p.plan_key==='professional'))planSelect.value='professional';
      renderServices();renderModules();
-     root.querySelector('#quoteReloadCatalog').onclick=()=>initCommercialQuoteBuilder(true);
      planSelect.onchange=()=>{renderModules();};
      root.querySelector('#quotePaymentType').onchange=updateQuoteSummary;
      root.addEventListener('input',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
@@ -4263,7 +4271,13 @@ html body .auth-gate.auth-gate-hidden {
      root.querySelector('#quoteShareWhatsapp').onclick=()=>{
        if(!commercialQuoteLast)return;const d=commercialQuoteLast,t=d.totals;const msg=['MATTSYSTEM · COTIZACIÓN #'+d.quotation.id,'Cliente: '+d.customer,'Plan: '+d.planName,'Modalidad: '+d.summary.kind,'Rubro: '+d.industry,'Módulos: '+d.modules.map(x=>x.title).join(', '),'Servicios: '+(d.services.map(x=>x.title+' (alta '+quoteMoney(x.setup)+', mensual '+quoteMoney(x.monthly)+')').join('; ')||'No agregados'),'Licencia base: alta '+quoteMoney(d.summary.licSetup)+', mensual '+quoteMoney(d.summary.licMonthly),'Configuración/alta total: '+quoteMoney(t.setup),'Mensualidad total: '+quoteMoney(d.summary.monthly),'Proyección 12 meses: '+quoteMoney(t.annual||d.summary.annual),'Total estimado del primer año: '+quoteMoney(d.summary.firstYearTotal),'Total modalidad: '+quoteMoney(d.summary.total),'Condiciones: '+d.terms,'El PDF detallado se debe adjuntar por separado.'].join('\n');window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank','noopener');
      };
-   }catch(error){root.querySelector('#quoteCreateFeedback').innerHTML='<div class="alert alert-danger">'+quoteEsc(error.message||'No se pudo cargar el catálogo comercial.')+'</div>';}
+   }catch(error){
+     root.dataset.initialized='';
+     root.querySelector('#quoteCreateFeedback').innerHTML='<div class="alert alert-danger">No se pudo actualizar el catálogo: '+quoteEsc(error.message||'Error desconocido. Intentá nuevamente.')+'</div>';
+   }finally{
+     root.dataset.loadingCatalog='';
+     if(reloadButton){reloadButton.disabled=false;reloadButton.textContent='Actualizar catálogo';}
+   }
  }
 
 })();
