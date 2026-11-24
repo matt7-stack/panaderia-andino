@@ -2868,7 +2868,7 @@ html body .auth-gate.auth-gate-hidden {
         licenseInputs.forEach(input=>input.disabled=!include.checked);
         include.addEventListener('change',()=>licenseInputs.forEach(input=>input.disabled=!include.checked));
       };
-      manualToggle.addEventListener('change',()=>{renderManualPricing();invalidateBusinessQuote();});
+      manualToggle.addEventListener('change',()=>{if(manualToggle.checked&&modeSelect.value==='template'){modeSelect.value='custom';applyTemplate();}renderManualPricing();invalidateBusinessQuote();});
       const invalidateQuoteInputs=()=>{invalidateBusinessQuote();const actions=fields.querySelector('#businessQuoteActions');if(actions)actions.remove();};
       [quotePlanSelect,fields.querySelector('#businessReuseConsent'),fields.querySelector('#businessReuseDiscount'),fields.querySelector('#businessReuseNotes')].forEach(control=>control.addEventListener('change',invalidateQuoteInputs));
       fields.querySelector('#businessReuseConsent').addEventListener('change',event=>{
