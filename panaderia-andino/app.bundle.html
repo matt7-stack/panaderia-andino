@@ -2124,7 +2124,7 @@ html body .auth-gate.auth-gate-hidden {
     }
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-cotizador', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     syncBusinessModuleNavigation();
     const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
@@ -2157,7 +2157,7 @@ html body .auth-gate.auth-gate-hidden {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-cotizador': 'Cotizador comercial', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
