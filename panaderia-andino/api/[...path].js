@@ -170,6 +170,7 @@ module.exports = async function handler(req, res) {
         const input=body(req),subject=String(input.subject||'').trim().slice(0,120),message=String(input.message||'').trim().slice(0,3000);
         if(!subject||!message)return send(res,400,{error:'Completá el asunto y el mensaje.'});
         const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING *`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'system_activity','Nueva solicitud de soporte',${'El negocio '+String(user.business_name||'')+' envió una solicitud: '+subject} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
         return send(res,201,{ticket:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -203,7 +204,7 @@ module.exports = async function handler(req, res) {
       const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
       const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
-        l.sold_at::text AS sold_at,l.created_at,l.expires_at::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.monthly_amount,l.billing_day,
+        l.sold_at::text AS sold_at,l.created_at,COALESCE(l.expires_at,CASE WHEN l.is_trial=TRUE AND l.trial_started_at IS NOT NULL THEN (l.trial_started_at::date+GREATEST(COALESCE(l.trial_days,0),1))::date WHEN l.monthly_amount>0 THEN (COALESCE(l.sold_at::date,l.created_at::date)+INTERVAL '1 month')::date ELSE NULL END)::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.monthly_amount,l.billing_day,
         l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,l.modules,
         EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
@@ -1114,6 +1115,13 @@ module.exports = async function handler(req, res) {
         const rows=await sql`SELECT l.id,l.action,l.entity_type,l.entity_id,l.details,l.created_at,u.name AS actor_name,u.email AS actor_email,b.name AS business_name FROM app_audit_logs l LEFT JOIN app_users u ON u.id=l.actor_user_id LEFT JOIN businesses b ON b.id=l.business_id ORDER BY l.created_at DESC LIMIT 250`;
         const notifications=await sql`SELECT n.id,n.title,n.message,n.type,n.read_at,n.created_at FROM app_notifications n WHERE n.user_id=${admin.id} AND n.type='system_activity' ORDER BY n.created_at DESC LIMIT 100`;
         return send(res,200,{activities:rows,notifications});
+      }
+      if(req.method==='PATCH'){
+        const id=String(body(req).id||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Alerta no válida.'});
+        const updated=await sql`UPDATE app_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=${id} AND user_id=${admin.id} AND type='system_activity' RETURNING id,read_at`;
+        if(!updated.length)return send(res,404,{error:'No se encontró la alerta.'});
+        return send(res,200,{ok:true,notification:updated[0]});
       }
       if(req.method==='DELETE'){
         const target=String(body(req).target||'');
