@@ -1319,7 +1319,7 @@ module.exports = async function handler(req, res) {
         sql`DELETE FROM app_support_tickets`,
         sql`DELETE FROM app_trash`,
         sql`DELETE FROM app_state`,
-        sql`DELETE FROM app_users WHERE id <> ${admin.id} AND is_platform_admin = FALSE`,
+        sql`DELETE FROM app_users WHERE id <> ${admin.id}`,
         sql`DELETE FROM businesses`
       ];
       try {
