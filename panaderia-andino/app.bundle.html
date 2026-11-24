@@ -4097,6 +4097,7 @@ html body .auth-gate.auth-gate-hidden {
  async function copyLicenseCode(code){const value=String(code||'').trim();if(!value)throw new Error('El código de licencia no está disponible.');if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return;}const field=document.createElement('textarea');field.value=value;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();const copied=document.execCommand('copy');field.remove();if(!copied)throw new Error('No se pudo copiar automáticamente. Seleccioná el código y copialo manualmente.');}
  const licenseTermMonths=term=>({monthly:1,year_1:12,year_2:24,year_3:36,year_4:48,year_5:60,permanent:null}[term]??undefined);
  const licenseTermLabel=term=>({monthly:'mensual',year_1:'1 año',year_2:'2 años',year_3:'3 años',year_4:'4 años',year_5:'5 años',permanent:'permanente'}[term]||'duración no definida');
+ const chooseLicenseTerm=title=>new Promise(resolve=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:30000;background:rgba(10,20,35,.58);display:grid;place-items:center;padding:18px';const panel=document.createElement('div');panel.style.cssText='width:min(100%,420px);padding:22px;border-radius:14px;background:#fff;box-shadow:0 18px 55px #0004';const heading=document.createElement('h3');heading.textContent=title;heading.style.cssText='margin:0 0 14px;font-size:17px;color:#142b45';const label=document.createElement('label');label.textContent='Duración de la licencia';label.style.cssText='display:block;margin-bottom:6px;font-size:12px;font-weight:700';const select=document.createElement('select');select.className='form-select';[['monthly','Mensual'],['year_1','1 año'],['year_2','2 años'],['year_3','3 años'],['year_4','4 años'],['year_5','5 años'],['permanent','Permanente']].forEach(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.appendChild(option);});select.value='year_1';const actions=document.createElement('div');actions.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:18px';const cancel=document.createElement('button');cancel.type='button';cancel.className='btn btn-outline-secondary';cancel.textContent='Cancelar';const confirm=document.createElement('button');confirm.type='button';confirm.className='btn btn-bakery';confirm.textContent='Continuar';const close=value=>{overlay.remove();resolve(value);};cancel.onclick=()=>close(null);confirm.onclick=()=>close(select.value);overlay.addEventListener('click',e=>{if(e.target===overlay)close(null);});actions.append(cancel,confirm);panel.append(heading,label,select,actions);overlay.appendChild(panel);document.body.appendChild(overlay);select.focus();});
  $('#licenseDurationType')?.addEventListener('change',e=>{const preview=$('#licenseExpiryPreview');if(preview)preview.value=e.target.value==='permanent'?'Sin vencimiento':e.target.value==='monthly'?'1 mes desde la activación':licenseTermMonths(e.target.value)+' meses desde la activación';});
  $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{const durationType=$('#licenseDurationType').value;if(licenseTermMonths(durationType)===undefined)throw new Error('Seleccioná una duración válida.');const result=await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,durationType,billingDay:Number($('#licenseBillingDay').value),contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseBillingDay').value=1;$('#licenseDurationType').value='year_1';$('#licenseExpiryPreview').value='12 meses desde la activación';await loadLicenses();updateLicensePlanPreview();const code=result.license?.license_code||'';const termLabel=licenseTermLabel(durationType);if(code){try{await copyLicenseCode(code);alert('Licencia creada con duración '+termLabel+'. El código '+code+' se copió al portapapeles para compartirlo con el cliente.');}catch(_){alert('Licencia creada con duración '+termLabel+'. Código para compartir con el cliente: '+code);}}else alert('Licencia creada con duración '+termLabel+'.');}catch(x){alert(x.message);}});
  $('#refreshLicenses')?.addEventListener('click',loadLicenses);
@@ -4109,10 +4110,8 @@ html body .auth-gate.auth-gate-hidden {
    const id=e.target.dataset.id,status=e.target.value;
    try{
      if(status==='active'){
-       const raw=prompt('Elegí la duración: mensual, 1 año, 2 años, 3 años, 4 años, 5 años o permanente. Escribí: monthly, year_1, year_2, year_3, year_4, year_5 o permanent.','year_1');
-       if(raw===null){await loadLicenses();return;}
-       const durationType=String(raw).trim().toLowerCase();
-       if(licenseTermMonths(durationType)===undefined){alert('Elegí una opción válida: monthly, year_1, year_2, year_3, year_4, year_5 o permanent.');await loadLicenses();return;}
+       const durationType=await chooseLicenseTerm('Activar licencia');
+       if(durationType===null){await loadLicenses();return;}
        await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'activate',id,durationType})});
        await loadLicenses();alert('Licencia activada con duración '+licenseTermLabel(durationType)+'. '+(durationType==='permanent'?'No tendrá vencimiento.':'La fecha de vencimiento fue actualizada automáticamente.'));
      }else{
@@ -4124,10 +4123,8 @@ html body .auth-gate.auth-gate-hidden {
    const copy=e.target.closest('.license-copy-code');if(copy){try{await copyLicenseCode(copy.dataset.code);notify('Código de licencia copiado.');}catch(error){alert(error.message);}return;}
    const renew=e.target.closest('.license-renew');
    if(renew){
-     const raw=prompt('Elegí la duración de la renovación: mensual, 1 año, 2 años, 3 años, 4 años, 5 años o permanente. Escribí: monthly, year_1, year_2, year_3, year_4, year_5 o permanent.','year_1');
-     if(raw===null)return;
-     const durationType=String(raw).trim().toLowerCase();
-     if(licenseTermMonths(durationType)===undefined){alert('Elegí una opción válida: monthly, year_1, year_2, year_3, year_4, year_5 o permanent.');return;}
+     const durationType=await chooseLicenseTerm('Renovar licencia');
+     if(durationType===null)return;
      const amount=prompt('Importe recibido en guaraníes (0 si no vas a registrar el pago ahora):','0');
      if(amount===null)return;
      if(!Number.isFinite(Number(amount))||Number(amount)<0){alert('Ingresá un importe igual o mayor que cero.');return;}
