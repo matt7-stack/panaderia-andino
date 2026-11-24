@@ -1294,39 +1294,49 @@ module.exports = async function handler(req, res) {
       }
       // Se eliminan primero las tablas dependientes para respetar las claves foráneas.
       // La cuenta del administrador principal es la única fila de app_users que se conserva.
-      const statements = [
-        sql`DELETE FROM admin_password_resets`,
-        sql`DELETE FROM app_admin_setup_tokens`,
-        sql`DELETE FROM app_audit_logs`,
-        sql`DELETE FROM app_backup_log`,
-        sql`DELETE FROM app_cash_movements`,
-        sql`DELETE FROM app_cash_sessions`,
-        sql`DELETE FROM app_sale_items`,
-        sql`DELETE FROM app_sales`,
-        sql`DELETE FROM app_purchase_items`,
-        sql`DELETE FROM app_purchases`,
-        sql`DELETE FROM app_recipe_ingredients`,
-        sql`DELETE FROM app_production_batches`,
-        sql`DELETE FROM app_inventory_movements`,
-        sql`DELETE FROM app_recipes`,
-        sql`DELETE FROM app_products`,
-        sql`DELETE FROM app_customers`,
-        sql`DELETE FROM app_suppliers`,
-        sql`DELETE FROM app_financial_entries`,
-        sql`DELETE FROM app_license_payments`,
-        sql`DELETE FROM app_licenses`,
-        sql`DELETE FROM app_notification_preferences`,
-        sql`DELETE FROM app_notifications`,
-        sql`DELETE FROM app_platform_settings`,
-        sql`DELETE FROM app_license_settings`,
-        sql`DELETE FROM app_login_attempts`,
-        sql`DELETE FROM app_support_replies`,
-        sql`DELETE FROM app_support_tickets`,
-        sql`DELETE FROM app_trash`,
-        sql`DELETE FROM app_state`,
-        sql`DELETE FROM app_users WHERE id <> ${admin.id}`,
-        sql`DELETE FROM businesses`
+      const deletions = [
+        ['admin_password_resets', sql`DELETE FROM admin_password_resets`],
+        ['app_admin_setup_tokens', sql`DELETE FROM app_admin_setup_tokens`],
+        ['app_audit_logs', sql`DELETE FROM app_audit_logs`],
+        ['app_backup_log', sql`DELETE FROM app_backup_log`],
+        ['app_cash_movements', sql`DELETE FROM app_cash_movements`],
+        ['app_cash_sessions', sql`DELETE FROM app_cash_sessions`],
+        ['app_sale_items', sql`DELETE FROM app_sale_items`],
+        ['app_sales', sql`DELETE FROM app_sales`],
+        ['app_purchase_items', sql`DELETE FROM app_purchase_items`],
+        ['app_purchases', sql`DELETE FROM app_purchases`],
+        ['app_recipe_ingredients', sql`DELETE FROM app_recipe_ingredients`],
+        ['app_production_batches', sql`DELETE FROM app_production_batches`],
+        ['app_inventory_movements', sql`DELETE FROM app_inventory_movements`],
+        ['app_recipes', sql`DELETE FROM app_recipes`],
+        ['app_products', sql`DELETE FROM app_products`],
+        ['app_customers', sql`DELETE FROM app_customers`],
+        ['app_suppliers', sql`DELETE FROM app_suppliers`],
+        ['app_financial_entries', sql`DELETE FROM app_financial_entries`],
+        ['app_license_payments', sql`DELETE FROM app_license_payments`],
+        ['app_trial_claims', sql`DELETE FROM app_trial_claims`],
+        ['app_licenses', sql`DELETE FROM app_licenses`],
+        ['app_notification_preferences', sql`DELETE FROM app_notification_preferences`],
+        ['app_notifications', sql`DELETE FROM app_notifications`],
+        ['app_platform_settings', sql`DELETE FROM app_platform_settings`],
+        ['app_license_settings', sql`DELETE FROM app_license_settings`],
+        ['app_login_attempts', sql`DELETE FROM app_login_attempts`],
+        ['app_support_replies', sql`DELETE FROM app_support_replies`],
+        ['app_support_tickets', sql`DELETE FROM app_support_tickets`],
+        ['app_trash', sql`DELETE FROM app_trash`],
+        ['app_state', sql`DELETE FROM app_state`]
       ];
+      // Algunas instalaciones pueden tener migraciones opcionales distintas.
+      // Solo se ejecutan DELETE sobre tablas realmente presentes en esta base.
+      const tableNames = deletions.map(([name]) => name).concat(['app_users','businesses']);
+      const existingRows = await sql`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name = ANY(${tableNames})`;
+      const existingTables = new Set(existingRows.map(row => row.table_name));
+      if (!existingTables.has('app_users') || !existingTables.has('businesses')) {
+        return send(res,500,{error:'La base de datos no tiene las tablas esenciales para el reinicio. No se modificó ningún dato.'});
+      }
+      const statements = deletions.filter(([name]) => existingTables.has(name)).map(([,statement]) => statement);
+      statements.push(sql`DELETE FROM app_users WHERE id <> ${admin.id}`);
+      statements.push(sql`DELETE FROM businesses`);
       try {
         await sql.transaction(statements);
         return send(res,200,{ok:true,message:'Sistema restablecido. Se conservó la cuenta del administrador principal.'});
