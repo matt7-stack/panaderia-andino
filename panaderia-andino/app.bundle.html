@@ -3004,6 +3004,29 @@ html body .auth-gate.auth-gate-hidden {
         commercialPlansCache=['basic','professional','enterprise'].map(key=>{const p=(result.plans||[]).find(x=>x.plan_key===key)||{};return {planKey:key,setupAmount:Number(p.setup_amount??defaults[key].setupAmount),monthlyAmount:Number(p.monthly_amount??defaults[key].monthlyAmount),annualDiscountPercent:Number(p.annual_discount_percent??15),permanentPrice:Number(p.permanent_price??defaults[key].permanentPrice),fullSalePrice:Number(p.full_sale_price??defaults[key].fullSalePrice),userLimit:p.user_limit??null,modules:Array.isArray(p.modules)?p.modules:[],modulePrices:p.module_prices&&Object.keys(p.module_prices).length?p.module_prices:Object.fromEntries(commercialModuleCatalog.map(m=>[m.module_key,{monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}]))};});
         const plansByKey={basic:['dashboard','movements','invoices','products','sales','inventory','customers','cash'],professional:['dashboard','movements','invoices','products','sales','inventory','customers','cash','suppliers','purchases','reports'],enterprise:['dashboard','movements','invoices','products','sales','inventory','customers','cash','suppliers','purchases','reports','employees','users','recipes','production']};
         commercialPlansCache.forEach(p=>{if(!p.modules.length)p.modules=plansByKey[p.planKey].filter(k=>commercialModuleCatalog.some(m=>m.module_key===k&&m.implemented));});
+        // Repair legacy seed data in the editor when all three plans were accidentally stored
+        // with the same basic monthly/permanent/full-sale prices and identical module sets.
+        // This is an in-memory correction only; persistence occurs only after the admin saves.
+        const basicPlan=commercialPlansCache.find(p=>p.planKey==='basic');
+        const professionalPlan=commercialPlansCache.find(p=>p.planKey==='professional');
+        const enterprisePlan=commercialPlansCache.find(p=>p.planKey==='enterprise');
+        const sameKeys=(a,b)=>JSON.stringify([...(a||[])].sort())===JSON.stringify([...(b||[])].sort());
+        const emptyModulePrices=p=>Object.values(p.modulePrices||{}).every(v=>Number(v?.monthly||0)===0&&Number(v?.setup||0)===0);
+        const legacyDuplicatedPlans=basicPlan&&professionalPlan&&enterprisePlan&&
+          sameKeys(basicPlan.modules,professionalPlan.modules)&&sameKeys(basicPlan.modules,enterprisePlan.modules)&&
+          professionalPlan.monthlyAmount===basicPlan.monthlyAmount&&enterprisePlan.monthlyAmount===basicPlan.monthlyAmount&&
+          professionalPlan.permanentPrice===basicPlan.permanentPrice&&enterprisePlan.permanentPrice===basicPlan.permanentPrice&&
+          professionalPlan.fullSalePrice===basicPlan.fullSalePrice&&enterprisePlan.fullSalePrice===basicPlan.fullSalePrice&&
+          emptyModulePrices(basicPlan)&&emptyModulePrices(professionalPlan)&&emptyModulePrices(enterprisePlan);
+        if(legacyDuplicatedPlans){
+          const recommended={professional:{setupAmount:1500000,monthlyAmount:179000,permanentPrice:5500000,fullSalePrice:12000000},enterprise:{setupAmount:2000000,monthlyAmount:299000,permanentPrice:8500000,fullSalePrice:18000000}};
+          for(const [key,values] of Object.entries(recommended)){
+            const plan=key==='professional'?professionalPlan:enterprisePlan;
+            Object.assign(plan,values);
+            plan.modules=plansByKey[key].filter(k=>commercialModuleCatalog.some(m=>m.module_key===k&&m.implemented));
+          }
+          notify('Se detectaron planes duplicados en la configuración guardada. Se muestran valores diferenciados sugeridos; revisalos y guardá para aplicarlos.');
+        }
         window.commercialPlansCache=commercialPlansCache;window.commercialModuleCatalog=commercialModuleCatalog;
         $('#commercialPlanSelector').addEventListener('change',()=>{captureCommercialPlan();renderCommercialPlan();});
         renderCommercialPlan();
