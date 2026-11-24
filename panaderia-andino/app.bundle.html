@@ -2692,10 +2692,81 @@ html body .auth-gate.auth-gate-hidden {
           actions.innerHTML='<button type="button" class="btn btn-outline-bakery btn-sm" id="downloadBusinessQuotePdf">Descargar / guardar PDF</button><button type="button" class="btn btn-primary btn-sm" id="sendBusinessQuote">Enviar cotización</button>';
           const quoteData=JSON.parse(fields.dataset.quotationData);
           const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-          const quoteMessage=()=>{const t=quoteData.totals,q=quoteData.quotation;return 'Hola'+(prospectName?' '+prospectName:'')+', te compartimos la cotización MATTSYSTEM #'+q.id+'. Licencia: '+quoteData.licenseType+'. Modalidad: '+quoteData.plan+'. Módulos: '+quoteData.modules.map(m=>m.title).join(', ')+'. Alta: '+fmt(t.setup)+'. Mensual: '+fmt(t.monthly)+'. Anual: '+fmt(t.annual)+'. Válida por '+quoteData.validDays+' días. Para ver el documento PDF, adjuntá el archivo descargado.';};
+          const quoteDetails=()=>{
+            const q=quoteData.quotation,t=quoteData.totals,b=q.price_breakdown||{},items=Array.isArray(b.modules)?b.modules:[];
+            const planKey=b.licensePlanKey||'professional',planType=q.plan_type||'monthly';
+            const monthly=Number(t.monthly||0),annualDiscount=Number(b.annualDiscountPercent||0);
+            const annualProjection=Number(t.annual||0)>0?Number(t.annual):Math.round(monthly*12*(1-annualDiscount/100));
+            const firstYear=Number(t.setup||0)+(planType==='annual'?Number(t.annual||0):planType==='monthly'?monthly*12:0);
+            const dateValue=value=>{if(!value)return 'No especificada';const d=new Date(value);return Number.isNaN(d.getTime())?String(value):d.toLocaleDateString('es-PY');};
+            const industryNames={panaderias:'Panaderías',minimercados:'Minimercados',despensas:'Despensas',ferreterias:'Ferreterías',farmacias:'Farmacias',tiendas:'Tiendas',restaurantes:'Restaurantes',comercios_generales:'Comercios generales',distribuidoras:'Distribuidoras'};
+            const moduleNames=items.map(m=>m.title).join(', ')||quoteData.modules.map(m=>m.title).join(', ')||'No especificados';
+            const priceRows=items.map(m=>({label:m.title,setup:Number(m.setup||0),monthly:Number(m.monthly||0)}));
+            const clauses=[
+              'La licencia permanente, cuando corresponda, concede uso indefinido de la versión contratada; no entrega el código fuente ni transfiere la propiedad intelectual.',
+              'Hosting, mantenimiento, soporte y actualizaciones no se consideran incluidos ni se suman al total de esta cotización: si se requieren, deberán presupuestarse y acordarse por separado.',
+              'La contratación queda sujeta a aceptación expresa y a las condiciones del contrato de licencia correspondiente.'
+            ];
+            return {q,t,b,planKey,planType,monthly,annualProjection,firstYear,industryNames,moduleNames,priceRows,clauses,dateValue};
+          };
+          const quoteMessage=()=>{
+            const d=quoteDetails(),{q,t,b,monthly,annualProjection,firstYear,industryNames,moduleNames,dateValue}=d;
+            const lines=[
+              'MATTSYSTEM — PROPUESTA COMERCIAL',
+              'Cotización #'+q.id,
+              'Cliente: '+(q.prospect_name||prospectName),
+              'Responsable/contacto: '+(q.prospect_name||prospectName),
+              'Correo: '+(q.prospect_email||'No informado'),
+              'Fecha de emisión: '+dateValue(q.created_at),
+              'Válida hasta: '+dateValue(q.valid_until),
+              'Rubro: '+(industryNames[q.industry_key]||q.industry_key||'No especificado'),
+              'Licencia/plan: '+quoteData.licenseType,
+              'Modalidad: '+quoteData.plan,
+              'Módulos incluidos: '+moduleNames,
+              '',
+              'DETALLE DE IMPORTES (Gs.)',
+              'Configuración/alta: '+fmt(t.setup),
+              'Pago mensual: '+fmt(monthly),
+              'Proyección de 12 meses: '+fmt(annualProjection),
+              planType==='annual'?'Pago anual contratado: '+fmt(t.annual):'',
+              planType==='monthly'?'Total estimado del primer año (alta + 12 mensualidades): '+fmt(firstYear):'',
+              ['permanent','full_sale'].includes(planType)?'Pago único de esta modalidad: '+fmt(t.setup):'',
+              '',
+              'Hosting, mantenimiento, soporte y actualizaciones: no incluidos ni cotizados en este total; se presupuestan por separado si se solicitan.',
+              'La licencia permanente no incluye entrega del código fuente ni derechos de propiedad intelectual.',
+              'La contratación requiere aceptación de la propuesta y firma/aceptación de las condiciones correspondientes.',
+              '',
+              'Para compartir el documento completo, descargá el PDF y adjuntalo a este mensaje.'
+            ].filter(Boolean);
+            if(b.modules?.length){
+              lines.splice(lines.indexOf(''),0,'Detalle por módulo: '+b.modules.map(m=>m.title+' (alta '+fmt(m.setup)+', mensual '+fmt(m.monthly)+')').join('; '));
+            }
+            return lines.join('\n');
+          };
           actions.querySelector('#downloadBusinessQuotePdf').addEventListener('click',()=>{
-            const q=quoteData.quotation,t=quoteData.totals,rows=(q.price_breakdown?.modules||[]).map(m=>'<tr><td>'+esc(m.title)+'</td><td>'+fmt(m.setup)+'</td><td>'+fmt(m.monthly)+'</td></tr>').join('');
-            const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Cotización MATTSYSTEM #'+esc(q.id)+'</title><style>body{font:14px Arial,sans-serif;color:#202b36;margin:42px}h1{color:#173d35;margin-bottom:4px}.muted{color:#687780}table{width:100%;border-collapse:collapse;margin:24px 0}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}th{background:#f1f5f3}.total{font-size:17px;font-weight:bold;margin-top:18px}.foot{margin-top:50px;border-top:1px solid #ddd;padding-top:12px;color:#687780}@media print{button{display:none}body{margin:20mm}}</style></head><body><h1>MATTSYSTEM</h1><div class="muted">Propuesta comercial · Cotización #'+esc(q.id)+'</div><h2>'+esc(q.prospect_name||prospectName)+'</h2><p>Correo: '+esc(q.prospect_email||'No informado')+'<br>Licencia: '+esc(quoteData.licenseType)+'<br>Modalidad: '+esc(quoteData.plan)+'<br>Válida hasta: '+esc(q.valid_until||'Según fecha de emisión')+'</p><h3>Módulos incluidos</h3><table><thead><tr><th>Módulo</th><th>Instalación</th><th>Mensual</th></tr></thead><tbody>'+rows+'</tbody></table><p class="total">Costo de alta: '+fmt(t.setup)+'</p><p class="total">Suscripción mensual: '+fmt(t.monthly)+'</p><p class="total">Suscripción anual: '+fmt(t.annual)+'</p><p class="muted">Los importes se expresan en guaraníes (Gs.). La contratación queda sujeta a la aceptación de esta propuesta.</p><div class="foot">MATTSYSTEM · Sistema de gestión empresarial</div></body></html>';
+            const d=quoteDetails(),{q,t,b,planType,monthly,annualProjection,firstYear,industryNames,moduleNames,priceRows,clauses,dateValue}=d;
+            const rows=priceRows.map(m=>'<tr><td>'+esc(m.label)+'</td><td>'+fmt(m.setup)+'</td><td>'+fmt(m.monthly)+'</td></tr>').join('');
+            const baseRows='<tr><td>Licencia / plan base</td><td>'+fmt(Number(b.setupFee||0))+'</td><td>'+fmt(Number(b.monthlyBase||0))+'</td></tr>';
+            const oneTimeLabel=planType==='permanent'?'Licencia permanente y configuración':'Importe único de la modalidad';
+            const totalsHtml='<p class="total">Configuración / alta total: '+fmt(t.setup)+'</p>'+
+              '<p class="total">Pago mensual: '+fmt(monthly)+'</p>'+
+              '<p class="total">Proyección de 12 meses: '+fmt(annualProjection)+'</p>'+
+              (planType==='annual'?'<p class="total">Pago anual contratado: '+fmt(t.annual)+'</p>':'')+
+              (planType==='monthly'?'<p class="total">Total estimado del primer año (alta + 12 mensualidades): '+fmt(firstYear)+'</p>':'')+
+              (['permanent','full_sale'].includes(planType)?'<p class="total">'+oneTimeLabel+': '+fmt(t.setup)+'</p>':'');
+            const html='<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cotización MATTSYSTEM #'+esc(q.id)+'</title><style>body{font:14px Arial,sans-serif;color:#202b36;margin:38px;line-height:1.5}h1{color:#173d35;margin-bottom:4px}.muted{color:#687780}.meta{display:grid;grid-template-columns:1fr 1fr;gap:5px 22px;padding:14px;background:#f6f8f7;border-radius:8px}table{width:100%;border-collapse:collapse;margin:18px 0}th,td{padding:10px;border:1px solid #dce3df;text-align:left}th{background:#edf3f0}.total{font-size:15px;font-weight:bold;margin:9px 0}.section{margin-top:25px;color:#173d35}.foot{margin-top:35px;border-top:1px solid #ddd;padding-top:12px;color:#687780}.conditions li{margin:8px 0}@media print{body{margin:15mm}}</style></head><body>'+
+              '<h1>MATTSYSTEM</h1><div class="muted">Propuesta comercial · Cotización #'+esc(q.id)+'</div>'+
+              '<h2>'+esc(q.prospect_name||prospectName)+'</h2><div class="meta">'+
+              '<div><strong>Responsable/contacto:</strong> '+esc(q.prospect_name||prospectName)+'</div><div><strong>Correo:</strong> '+esc(q.prospect_email||'No informado')+'</div>'+
+              '<div><strong>Fecha de emisión:</strong> '+esc(dateValue(q.created_at))+'</div><div><strong>Válida hasta:</strong> '+esc(dateValue(q.valid_until))+'</div>'+
+              '<div><strong>Rubro:</strong> '+esc(industryNames[q.industry_key]||q.industry_key||'No especificado')+'</div><div><strong>Modalidad:</strong> '+esc(quoteData.plan)+'</div></div>'+
+              '<h3 class="section">Licencia y alcance contratado</h3><p><strong>Plan:</strong> '+esc(quoteData.licenseType)+'</p><p><strong>Módulos:</strong> '+esc(moduleNames)+'</p>'+
+              '<table><thead><tr><th>Concepto</th><th>Alta / pago único</th><th>Mensual</th></tr></thead><tbody>'+baseRows+rows+'</tbody></table>'+
+              '<h3 class="section">Resumen de pagos</h3>'+totalsHtml+
+              '<h3 class="section">Hosting, mantenimiento y soporte</h3><p>No aparecen como conceptos incluidos ni cotizados en el total de esta propuesta. Si el cliente los requiere, se detallarán en una cotización o acuerdo separado, con sus importes y periodicidad.</p>'+
+              '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
+              '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
+              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div></body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
           actions.querySelector('#sendBusinessQuote').addEventListener('click',()=>{
