@@ -3263,10 +3263,6 @@ html body .auth-gate.auth-gate-hidden {
     try {
       const result = await window.PanaderiaAuth.api('/api/admin/reset-system', { method: 'POST', body: JSON.stringify({ confirmation: 'REINICIAR' }) });
       if (!result?.ok) throw new Error(result?.error || 'El servidor no confirmó el reinicio.');
-      cloudUsers = cloudUsers.filter(user => user.isPlatformAdmin === true);
-      state = createEmptyState();
-      saveState(false);
-      renderAdminPanel();
       notify('Sistema restablecido. Tu cuenta de administrador principal se conservó.');
       setTimeout(() => window.location.reload(), 900);
     } catch (error) {
