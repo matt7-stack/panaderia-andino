@@ -2852,21 +2852,49 @@ html body .auth-gate.auth-gate-hidden {
         boxes().forEach(box=>{const key=box.dataset.businessModule;if(unavailableModules.has(key)){box.checked=false;box.disabled=true;}else if(key!=='dashboard')box.disabled=modeSelect.value==='template';});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
       }).catch(()=>{});
+      const quotePlanSelect=fields.querySelector('#businessQuoteLicenseType');
+      const invalidateQuoteInputs=()=>{invalidateBusinessQuote();const actions=fields.querySelector('#businessQuoteActions');if(actions)actions.remove();};
+      [quotePlanSelect,fields.querySelector('#businessReuseConsent'),fields.querySelector('#businessReuseDiscount'),fields.querySelector('#businessReuseNotes')].forEach(control=>control.addEventListener('change',invalidateQuoteInputs));
+      fields.querySelector('#businessReuseConsent').addEventListener('change',event=>{
+        fields.querySelector('#businessReuseDiscount').disabled=!event.target.checked;
+        fields.querySelector('#businessReuseNotes').disabled=!event.target.checked;
+      });
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
         const prospectName=fields.querySelector('#simpleName').value.trim();
-        if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');return;}
+        if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');fields.querySelector('#simpleName').focus();return;}
         const selected=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
         if(!selected.length){notify('Seleccioná al menos un módulo.');return;}
-        const validDays=Math.max(1,Math.min(90,Number(fields.querySelector('#businessQuoteValid').value)||15));
+        const validDays=Number(fields.querySelector('#businessQuoteValid').value);
+        if(!Number.isInteger(validDays)||validDays<1||validDays>90){notify('La validez debe estar entre 1 y 90 días.');return;}
         const validUntil=new Date(Date.now()+validDays*86400000).toISOString().slice(0,10);
         const preview=fields.querySelector('#businessQuotePreview');
-        const button=fields.querySelector('#generateBusinessQuote');button.disabled=true;preview.textContent='Calculando cotización…';
+        const button=fields.querySelector('#generateBusinessQuote');
+        const previousLabel=button.textContent;
+        button.disabled=true;button.textContent='Generando…';preview.textContent='Verificando módulos y precios…';
+        delete fields.dataset.quotationId;delete fields.dataset.quotationData;
+        const oldActions=fields.querySelector('#businessQuoteActions');if(oldActions)oldActions.remove();
         try{
-          const result=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName,prospectEmail:fields.querySelector('#simpleEmail').value.trim(),industry:industrySelect.value,configMode:modeSelect.value,modules:selected,licensePlanKey:fields.querySelector('#businessQuoteLicenseType').value,planType:fields.querySelector('#businessQuotePlan').value,validUntil,reusableInMattsystem:fields.querySelector('#businessReuseConsent').checked,reuseDiscountPercent:Number(fields.querySelector('#businessReuseDiscount').value||20),reuseConsentNotes:fields.querySelector('#businessReuseNotes').value.trim()})});
+          const plansResult=await window.PanaderiaAuth.api('/api/admin/license-plan-settings');
+          const plans=Array.isArray(plansResult.plans)?plansResult.plans:[];
+          const selectedPlan=plans.find(plan=>plan.plan_key===quotePlanSelect.value);
+          const containsModules=plan=>Array.isArray(plan.modules)&&selected.every(key=>plan.modules.includes(key));
+          let chosenPlan=selectedPlan;
+          if(!chosenPlan||!containsModules(chosenPlan)){
+            chosenPlan=plans.find(containsModules);
+            if(!chosenPlan){
+              const moduleNames=selected.map(key=>(moduleDefs.find(item=>item[0]===key)||[key,key])[1]);
+              const planNames=plans.map(plan=>(plan.display_name||plan.plan_key)+': '+(Array.isArray(plan.modules)?plan.modules.length:0)+' módulos').join(' · ');
+              throw new Error('Los módulos seleccionados no están incluidos juntos en ningún tipo de licencia configurado. Revisá “Condiciones de los tipos de licencia” o ajustá la selección. Seleccionados: '+moduleNames.join(', ')+'. Planes: '+(planNames||'sin planes configurados')+'.');
+            }
+            quotePlanSelect.value=chosenPlan.plan_key;
+            notify('Se seleccionó automáticamente el plan '+(chosenPlan.display_name||chosenPlan.plan_key)+' porque incluye todos los módulos elegidos.');
+          }
+          const result=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName,prospectEmail:fields.querySelector('#simpleEmail').value.trim(),industry:industrySelect.value,configMode:modeSelect.value,modules:selected,licensePlanKey:chosenPlan.plan_key,planType:fields.querySelector('#businessQuotePlan').value,validUntil,reusableInMattsystem:fields.querySelector('#businessReuseConsent').checked,reuseDiscountPercent:Number(fields.querySelector('#businessReuseDiscount').value||20),reuseConsentNotes:fields.querySelector('#businessReuseNotes').value.trim()})});
+          if(!result||!result.quotation||!result.quotation.id)throw new Error('El servidor no devolvió el número de cotización. Volvé a intentarlo.');
           fields.dataset.quotationId=result.quotation.id;
-          fields.dataset.quotationData=JSON.stringify({quotation:result.quotation,totals:result.totals||{},modules:selected.map(key=>({key,title:(moduleDefs.find(item=>item[0]===key)||[key,key])[1]})),licenseType:fields.querySelector('#businessQuoteLicenseType').selectedOptions[0]?.textContent||'',plan:fields.querySelector('#businessQuotePlan').selectedOptions[0]?.textContent||'',validDays});
+          fields.dataset.quotationData=JSON.stringify({quotation:result.quotation,totals:result.totals||{},modules:selected.map(key=>({key,title:(moduleDefs.find(item=>item[0]===key)||[key,key])[1]})),licenseType:quotePlanSelect.selectedOptions[0]?.textContent||'',plan:fields.querySelector('#businessQuotePlan').selectedOptions[0]?.textContent||'',validDays});
           const totals=result.totals||{},fmt=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
-          preview.textContent='Cotización #'+result.quotation.id+' · Alta: '+fmt(totals.setup)+' · Mensual: '+fmt(totals.monthly)+' · Anual: '+fmt(totals.annual)+(result.pricingConfigured?'':' · Atención: configurá los precios de los módulos antes de enviar.');
+          preview.textContent='Cotización #'+result.quotation.id+' · Alta: '+fmt(totals.setup)+' · Mensual: '+fmt(totals.monthly)+' · Anual: '+fmt(totals.annual)+(result.pricingConfigured?'':' · Atención: configurá los precios comerciales antes de enviar.');
           let actions=fields.querySelector('#businessQuoteActions');
           if(!actions){actions=document.createElement('div');actions.id='businessQuoteActions';actions.className='d-flex flex-wrap gap-2 mt-2';preview.insertAdjacentElement('afterend',actions);}
           actions.innerHTML='<button type="button" class="btn btn-outline-bakery btn-sm" id="downloadBusinessQuotePdf">Descargar / guardar PDF</button><button type="button" class="btn btn-primary btn-sm" id="sendBusinessQuote">Enviar cotización</button>';
@@ -2883,8 +2911,12 @@ html body .auth-gate.auth-gate-hidden {
             if(quoteData.quotation.prospect_email){const subject=encodeURIComponent('Cotización MATTSYSTEM #'+quoteData.quotation.id);window.location.href='mailto:'+encodeURIComponent(quoteData.quotation.prospect_email)+'?subject='+subject+'&body='+encodeURIComponent(message);return;}
             window.open('https://wa.me/?text='+encodeURIComponent(message),'_blank','noopener');
           });
-        }catch(error){preview.textContent=error.message||'No se pudo generar la cotización.';}
-        finally{button.disabled=false;}
+          notify('Cotización generada correctamente.');
+        }catch(error){
+          preview.textContent=error.message||'No se pudo generar la cotización.';
+          notify('No se pudo generar la cotización: '+(error.message||'Error inesperado.'));
+          console.error('Error al generar cotización MATTSYSTEM:',error);
+        }finally{button.disabled=false;button.textContent=previousLabel;}
       });
     } else if (mode === 'business-config') {
       setText('#simpleModalTitle','Configurar módulos del negocio');
