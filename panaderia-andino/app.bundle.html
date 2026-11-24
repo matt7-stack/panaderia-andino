@@ -3253,24 +3253,57 @@ html body .auth-gate.auth-gate-hidden {
       notify(error.message || 'No se pudo completar la limpieza. Verificá la conexión.');
     } finally { button.disabled = false; }
   });
-  $('#adminResetSystemButton')?.addEventListener('click', async () => {
-    const button = $('#adminResetSystemButton');
+  $('#adminResetSystemButton')?.addEventListener('click', () => {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { notify('Solo el administrador principal puede realizar esta acción.'); return; }
-    if (!window.confirm('ATENCIÓN: se eliminarán TODOS los negocios, usuarios secundarios, clientes, licencias y registros de MATTSYSTEM. Solo se conservará tu cuenta de administrador principal. Esta acción no se puede deshacer. ¿Ya descargaste un respaldo?')) return;
-    const confirmation = window.prompt('Para confirmar el reinicio total, escribí exactamente: REINICIAR');
-    if (confirmation !== 'REINICIAR') { notify('Reinicio cancelado. No se modificó ningún dato.'); return; }
-    const password = window.prompt('Por seguridad, ingresá la contraseña actual de tu cuenta de administrador:');
-    if (!password) { notify('Reinicio cancelado. No se modificó ningún dato.'); return; }
-    button.disabled = true;
-    try {
-      const result = await window.PanaderiaAuth.api('/api/admin/reset-system', { method: 'POST', body: JSON.stringify({ confirmation: 'REINICIAR', password }) });
-      if (!result?.ok) throw new Error(result?.error || 'El servidor no confirmó el reinicio.');
-      notify('Sistema restablecido. Tu cuenta de administrador principal se conservó.');
-      setTimeout(() => window.location.reload(), 900);
-    } catch (error) {
-      console.error('No se pudo restablecer MATTSYSTEM.', error);
-      notify(error.message || 'No se pudo completar el reinicio. Verificá la conexión.');
-    } finally { button.disabled = false; }
+    if ($('#adminResetSystemDialog')) return;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'adminResetSystemDialog';
+    dialog.className = 'bakery-modal';
+    dialog.style.cssText = 'width:min(520px,calc(100% - 28px));max-width:520px;padding:0;border:0;border-radius:14px;box-shadow:0 18px 55px rgba(42,25,15,.3)';
+    dialog.innerHTML = `
+      <form id="adminResetSystemForm" method="dialog">
+        <div class="modal-header">
+          <div><div class="modal-kicker">VERIFICACIÓN DE SEGURIDAD</div><h2 class="modal-title text-danger">Restablecer MATTSYSTEM</h2></div>
+          <button type="button" class="btn-close" id="adminResetDialogClose" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="info-note mb-3" style="border-color:#e7b6b6;background:#fff2f1;color:#8a2424"><i class="bi bi-exclamation-octagon"></i> Se eliminarán todos los negocios y sus datos, usuarios secundarios, clientes, licencias y registros. Solo se conservará tu cuenta de administrador. Esta acción no se puede deshacer.</div>
+          <div class="simple-modal-field"><label for="adminResetTyped">Escribí exactamente REINICIAR</label><input id="adminResetTyped" name="typed" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" required placeholder="REINICIAR"></div>
+          <div class="simple-modal-field"><label for="adminResetPassword">Contraseña actual del administrador</label><input id="adminResetPassword" name="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña actual"></div>
+          <p id="adminResetDialogError" class="text-danger small mb-0" role="alert"></p>
+        </div>
+        <div class="modal-footer d-flex justify-content-end gap-2">
+          <button type="button" class="btn btn-outline-secondary" id="adminResetDialogCancel">Cancelar</button>
+          <button type="submit" class="btn btn-danger" id="adminResetDialogSubmit"><i class="bi bi-trash3-fill"></i> Confirmar reinicio</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    const close = () => { if (dialog.open) dialog.close(); dialog.remove(); };
+    dialog.querySelector('#adminResetDialogClose').addEventListener('click',close);
+    dialog.querySelector('#adminResetDialogCancel').addEventListener('click',close);
+    dialog.addEventListener('click',event=>{if(event.target===dialog)close();});
+    dialog.querySelector('#adminResetSystemForm').addEventListener('submit',async event=>{
+      event.preventDefault();
+      const typed=dialog.querySelector('#adminResetTyped').value.trim();
+      const password=dialog.querySelector('#adminResetPassword').value;
+      const errorNode=dialog.querySelector('#adminResetDialogError');
+      const submit=dialog.querySelector('#adminResetDialogSubmit');
+      if(typed!=='REINICIAR'){errorNode.textContent='El texto debe ser exactamente REINICIAR. No se realizó ningún cambio.';return;}
+      if(!password){errorNode.textContent='Ingresá la contraseña actual del administrador.';return;}
+      submit.disabled=true;submit.innerHTML='<i class="bi bi-arrow-repeat"></i> Verificando…';errorNode.textContent='';
+      try{
+        const result=await window.PanaderiaAuth.api('/api/admin/reset-system',{method:'POST',body:JSON.stringify({confirmation:'REINICIAR',password})});
+        if(!result?.ok)throw new Error(result?.error||'El servidor no confirmó el reinicio.');
+        close();
+        notify('Sistema restablecido. Tu cuenta de administrador principal se conservó.');
+        setTimeout(()=>window.location.reload(),900);
+      }catch(error){
+        errorNode.textContent=error.message||'No se pudo completar el reinicio. No se aplicaron cambios.';
+        submit.disabled=false;submit.innerHTML='<i class="bi bi-trash3-fill"></i> Confirmar reinicio';
+      }
+    });
+    dialog.showModal();
+    dialog.querySelector('#adminResetTyped').focus();
   });
   $('#adminManageUsers')?.addEventListener('click', () => {
     const panel=$('#platformUsersPanel'); if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
