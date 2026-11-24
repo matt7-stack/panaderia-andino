@@ -1889,8 +1889,7 @@ body.auth-locked{overflow:hidden!important}
     history.replaceState(null, '', currentUrl.pathname + currentUrl.search);
   }
 
-  let selectedBusinessId = '';
-  try { selectedBusinessId = localStorage.getItem('pa_selected_business_id') || ''; } catch (storageError) { console.warn('El almacenamiento local no está disponible; se continuará sin negocio seleccionado.', storageError); }
+  let selectedBusinessId = localStorage.getItem('pa_selected_business_id') || '';
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (selectedBusinessId && !headers['x-business-id']) headers['x-business-id'] = selectedBusinessId;
@@ -1909,12 +1908,10 @@ body.auth-locked{overflow:hidden!important}
     // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
     if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
       if (result.code === 'LICENSE_INACTIVE') {
-        const inactiveUser = window.PanaderiaAuth?.user || {};
-        inactiveUser.license = { ...(inactiveUser.license || {}), ...(result.license || {}), valid: false };
         if (window.PanaderiaAuth) window.PanaderiaAuth.user = null;
         document.body.classList.add('auth-locked');
         document.documentElement.classList.add('auth-locked');
-        showLicenseRequired(inactiveUser, result.error || '');
+        showLogin(result.error || 'La licencia de este negocio no está habilitada.');
       }
       if (response.status === 401 && window.PanaderiaAuth?.user) {
         window.PanaderiaAuth.user = null;
@@ -1932,8 +1929,6 @@ body.auth-locked{overflow:hidden!important}
     box.textContent = message || '';
     box.hidden = !message;
   }
-
-  let authInitializationComplete = false;
 
   function showLogin(message = '') {
     gate.classList.remove('auth-gate-hidden');
@@ -1953,10 +1948,6 @@ body.auth-locked{overflow:hidden!important}
     const loginButton = document.getElementById('authLoginButton');
     const emailInput = document.getElementById('authEmail');
     const submitLogin = async () => {
-      if (!authInitializationComplete) {
-        showMessage('Verificando la sesión. Esperá un momento y volvé a ingresar.');
-        return;
-      }
       if (!loginButton || loginForm.dataset.submitting === 'true') return;
       loginForm.dataset.submitting = 'true';
       showMessage('');
@@ -1976,25 +1967,10 @@ body.auth-locked{overflow:hidden!important}
       loginButton.setAttribute('aria-busy', 'true');
       loginButton.querySelector('.auth-submit-label').textContent = 'Verificando acceso...';
       showMessage('Conectando con MATTSYSTEM...');
-      let loginResult = null;
       try {
-        loginResult = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: emailInput.value.trim(), password: passwordInput.value }) });
-        if (!loginResult || !loginResult.user) throw new Error('El servidor no devolvió los datos de acceso. Volvé a intentarlo.');
-        try { establish(loginResult.user); }
-        catch (activationError) {
-          // La API ya confirmó las credenciales y creó la sesión: un fallo secundario de UI no debe devolver al usuario al login.
-          console.error('La sesión fue creada, pero falló la preparación completa del panel:', activationError);
-          const user = loginResult.user;
-          user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
-          window.PanaderiaAuth.user = user;
-          document.body.classList.remove('auth-locked');
-          document.documentElement.classList.remove('auth-locked');
-          document.body.classList.toggle('platform-admin', user.isPlatformAdmin === true);
-          gate.classList.add('auth-gate-hidden');
-          const topName = document.getElementById('topUserName'); if (topName) topName.textContent = user.name || 'Usuario';
-          window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: user }));
-          window.location.hash = user.isPlatformAdmin ? '#administracion' : '#dashboard';
-        }
+        const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: emailInput.value.trim(), password: passwordInput.value }) });
+        if (!result || !result.user) throw new Error('El servidor no devolvió los datos de acceso. Volvé a intentarlo.');
+        establish(result.user);
       } catch (error) {
         showMessage(error && error.message ? error.message : 'No se pudo iniciar sesión. Volvé a intentarlo.');
       } finally {
@@ -2040,59 +2016,21 @@ body.auth-locked{overflow:hidden!important}
     document.getElementById('authName').focus();
   }
 
-  function showLicenseRequired(user = {}, serverMessage = '') {
-    gate.classList.remove('auth-gate-hidden');
-    document.body.classList.add('auth-locked');
-    document.documentElement.classList.add('auth-locked');
-    const status = user.license?.status || 'missing';
-    const expired = status === 'expired';
-    const expiresAt = user.license?.expiresAt || user.license?.expires_at || '';
-    const expiryLabel = expiresAt ? new Date(expiresAt + 'T00:00:00').toLocaleDateString('es-PY') : '';
-    const heading = expired ? 'Tu prueba gratuita finalizó' : 'Activá tu licencia';
-    const description = expired
-      ? 'El período de prueba terminó. Para continuar utilizando MATTSYSTEM, ingresá el código de licencia que te proporcionó el administrador.'
-      : 'Este negocio no tiene una licencia activa. Ingresá el código de licencia para habilitar el sistema.';
-    content.innerHTML = `<div class="license-required-mark" aria-hidden="true">✓</div><div class="auth-heading"><span>LICENCIA MATTSYSTEM</span><h1 id="authTitle">${heading}</h1><p>${description}</p></div>${expiryLabel ? `<p class="license-expiry-note">Vencimiento del período de prueba: <strong>${expiryLabel}</strong></p>` : ''}<form id="licenseRequiredForm" class="auth-form" novalidate><label for="requiredLicenseCode">Código de licencia</label><input id="requiredLicenseCode" name="licenseCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="80" placeholder="MTS-XXXXXX-000000" required><div id="authError" class="auth-error" role="alert" hidden></div><button class="auth-submit" type="submit" id="verifyRequiredLicense"><span class="auth-submit-label">Activar licencia</span><span aria-hidden="true">→</span></button><button class="license-request-button" type="button" id="requestRequiredLicense">Solicitar una licencia al administrador</button></form><p class="auth-footnote">El acceso al sistema se habilitará después de verificar una licencia activa.</p>`;
-    const form = document.getElementById('licenseRequiredForm');
-    const codeInput = document.getElementById('requiredLicenseCode');
-    const button = document.getElementById('verifyRequiredLicense');
-    const showError = message => { const box=document.getElementById('authError'); if(box){box.textContent=message||'';box.hidden=!message;} };
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      const code = codeInput.value.trim().toUpperCase();
-      if (!code) { showError('Ingresá el código de licencia.'); codeInput.focus(); return; }
-      button.disabled = true;
-      button.querySelector('.auth-submit-label').textContent = 'Verificando licencia...';
-      showError('');
-      try {
-        await api('/api/license/verify-code', { method: 'POST', body: JSON.stringify({ licenseCode: code }) });
-        const current = await api('/api/auth/me');
-        if (!current.authenticated || !current.user) throw new Error('No se pudo actualizar la sesión. Iniciá sesión nuevamente.');
-        establish(current.user);
-      } catch (error) { showError(error.message || 'No se pudo verificar la licencia.'); }
-      finally { if(button.isConnected){button.disabled=false;button.querySelector('.auth-submit-label').textContent='Activar licencia';} }
-    });
-    document.getElementById('requestRequiredLicense').addEventListener('click', async event => {
-      const requestButton = event.currentTarget;
-      requestButton.disabled = true;
-      requestButton.textContent = 'Enviando solicitud...';
-      showError('');
-      try {
-        const result = await api('/api/license/activation-request', { method: 'POST', body: '{}' });
-        showError(result.alreadyRequested ? 'Ya existe una solicitud pendiente. El administrador se comunicará contigo.' : 'Solicitud enviada. El administrador podrá gestionar tu licencia.');
-      } catch (error) { showError(error.message || 'No se pudo enviar la solicitud.'); }
-      finally { requestButton.disabled=false; requestButton.textContent='Solicitar una licencia al administrador'; }
-    });
-    if (serverMessage) showError(serverMessage);
-    codeInput.focus();
-  }
-
   function establish(user) {
     // Normalizar el indicador de administrador de plataforma; nunca inferirlo solo por role='admin'.
     user.isPlatformAdmin = user.isPlatformAdmin === true || user.is_platform_admin === true;
     if (user.isPlatformAdmin !== true && user.license && user.license.valid !== true) {
       window.PanaderiaAuth.user = null;
-      showLicenseRequired(user);
+      document.body.classList.add('auth-locked');
+      const status = user.license.status || 'missing';
+      const messages = {
+        missing: 'Este negocio todavía no tiene una licencia activa para Gestión de Negocio. Contactá al administrador para activar el servicio.',
+        pending: 'La licencia de este negocio está pendiente de activación.',
+        suspended: 'La licencia de este negocio está suspendida. Contactá al administrador.',
+        cancelled: 'La licencia de este negocio fue cancelada. Contactá al administrador.',
+        expired: 'La licencia de este negocio venció. Renovala para recuperar el acceso.'
+      };
+      showLogin(messages[status] || 'La licencia de este negocio no está habilitada.');
       return;
     }
     window.PanaderiaAuth.user = user;
@@ -2145,7 +2083,7 @@ body.auth-locked{overflow:hidden!important}
     user: null,
     api,
     get selectedBusinessId() { return selectedBusinessId; },
-    selectBusiness(id) { selectedBusinessId = String(id || ''); try { if (selectedBusinessId) localStorage.setItem('pa_selected_business_id', selectedBusinessId); else localStorage.removeItem('pa_selected_business_id'); } catch (storageError) { console.warn('No se pudo guardar la selección de negocio; la sesión seguirá activa.', storageError); } },
+    selectBusiness(id) { selectedBusinessId = String(id || ''); if (selectedBusinessId) localStorage.setItem('pa_selected_business_id', selectedBusinessId); else localStorage.removeItem('pa_selected_business_id'); },
     async logout() {
       const button = document.getElementById('logoutTopButton');
       if (button) { button.disabled = true; button.setAttribute('aria-busy','true'); }
@@ -2186,17 +2124,8 @@ body.auth-locked{overflow:hidden!important}
     }
   };
 
-  // Mostrar el formulario de inmediato, pero no aceptar el envío hasta terminar
-  // la comprobación inicial. Así evitamos que /auth/status reconstruya el login
-  // mientras el usuario está autenticándose.
+  // Mostrar el formulario de inmediato; la validación de sesión puede ocultarlo si ya existe una sesión activa.
   showLogin();
-  const initialLoginButton = document.getElementById('authLoginButton');
-  if (initialLoginButton) {
-    initialLoginButton.disabled = true;
-    initialLoginButton.setAttribute('aria-busy', 'true');
-    const initialLabel = initialLoginButton.querySelector('.auth-submit-label');
-    if (initialLabel) initialLabel.textContent = 'Comprobando sesión...';
-  }
 
   window.PanaderiaAuthReady = (async () => {
     try {
@@ -2219,22 +2148,12 @@ body.auth-locked{overflow:hidden!important}
       }
       const status = await api('/api/auth/status');
       if (!status.adminExists && activationToken) showSetup();
-      else if (!status.adminExists) showMessage('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
-      // Si ya existe administrador, conservar el formulario actual: no destruir
-      // campos ni listeners mientras el usuario puede estar interactuando.
+      else if (!status.adminExists) showLogin('La cuenta administradora todavía no fue activada. Necesitás el enlace de activación inicial.');
+      else showLogin();
       return null;
     } catch (error) {
-      showMessage('No se pudo conectar con el servidor. Verificá la conexión e intentá ingresar nuevamente.');
+      showLogin('No se pudo conectar con el servidor. Verificá la conexión y volvé a cargar la página.');
       return null;
-    } finally {
-      authInitializationComplete = true;
-      const button = document.getElementById('authLoginButton');
-      if (button) {
-        button.disabled = false;
-        button.removeAttribute('aria-busy');
-        const label = button.querySelector('.auth-submit-label');
-        if (label) label.textContent = 'Ingresar al sistema';
-      }
     }
   })();
 })();
