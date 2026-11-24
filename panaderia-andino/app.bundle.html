@@ -1324,6 +1324,7 @@ html body .auth-gate.auth-gate-hidden {
         <a class="nav-link" href="#empleados" data-page-link="empleados"><i class="bi bi-people-fill"></i><span>Empleados</span></a>
         <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administrador</span></a>
         <a class="nav-link admin-only-menu" href="#admin-licencias" data-page-link="admin-licencias" id="adminLicensesNav" hidden><i class="bi bi-file-earmark-lock"></i><span>Licencias y ventas</span></a>
+        <a class="nav-link admin-only-menu" href="#admin-cotizador" data-page-link="admin-cotizador" id="adminQuoteNav" hidden><i class="bi bi-calculator"></i><span>Cotizador comercial</span></a>
         <a class="nav-link admin-only-menu" href="#admin-panaderias" data-page-link="admin-panaderias" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Negocios</span></a>
         <a class="nav-link admin-only-menu" href="#admin-usuarios" data-page-link="admin-usuarios" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
@@ -1488,6 +1489,26 @@ html body .auth-gate.auth-gate-hidden {
         <section class="page-view" id="page-admin-panaderias" data-page="admin-panaderias">
           <div class="page-heading"><div><p class="eyebrow">GESTIÓN DE NEGOCIOS</p><h1><i class="bi bi-shop-window heading-page-icon"></i> Negocios</h1><p class="page-subtitle">Registrá, editá y supervisá los negocios de la plataforma.</p></div></div>
           <div class="summary-grid admin-business-overview" id="adminBusinessOverview"><article class="summary-card"><p class="summary-label">Negocios activos</p><h2 id="overviewActive">—</h2></article><article class="summary-card"><p class="summary-label">Desactivados</p><h2 id="overviewInactive">—</h2></article><article class="summary-card"><p class="summary-label">Requieren atención</p><h2 id="overviewAttention">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="overviewOpenTickets">—</h2></article></div><article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Negocios registrados</h3><p>Administrá los negocios, usuarios y actividad comercial.</p><small id="businessSummary" class="text-muted">Cargando resumen…</small></div><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshBusinessesButton"><i class="bi bi-arrow-clockwise"></i> Actualizar</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModulePricingButton"><i class="bi bi-tags"></i> Precios y módulos</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageModuleRequestsButton"><i class="bi bi-inbox"></i> Solicitudes de módulos</button><button class="btn btn-outline-bakery btn-sm" type="button" id="manageQuotationsButton"><i class="bi bi-file-earmark-text"></i> Cotizaciones</button><button class="btn btn-bakery btn-sm" type="button" id="addBusinessButton"><i class="bi bi-plus-lg"></i> Agregar negocio</button></div></div><div class="filter-bar px-0"><label class="search-field mb-0"><i class="bi bi-search"></i><input id="businessSearch" type="search" placeholder="Buscar por nombre, RUC o correo"></label><select id="businessStatusFilter" class="form-select filter-select" aria-label="Filtrar estado"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Desactivadas</option></select></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>NEGOCIO</th><th>USUARIOS</th><th>INGRESOS</th><th>GASTOS</th><th>VENTAS</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody id="businessesTableBody"><tr><td colspan="7" class="text-muted text-center py-3">Cargando negocios…</td></tr></tbody></table></div><div class="info-note"><i class="bi bi-shield-lock"></i> Cada negocio trabaja con sus propios datos. Elegí “Abrir” para administrar su información.</div></article>
+        </section>
+
+        <section class="page-view" id="page-admin-cotizador" data-page="admin-cotizador">
+          <div class="page-heading"><div><p class="eyebrow">VENTAS Y PROPUESTAS</p><h1><i class="bi bi-calculator heading-page-icon"></i> Cotizador comercial</h1><p class="page-subtitle">Creá propuestas completas con planes, módulos, servicios, precios y condiciones a medida.</p></div></div>
+          <div class="row g-3">
+            <div class="col-xl-8">
+              <article class="panel settings-card"><div class="panel-heading"><div><h3>1. Datos del cliente</h3><p>Identificá a quién se enviará la propuesta.</p></div></div>
+                <div class="row g-3"><div class="col-md-6"><label class="form-label" for="quoteCustomer">Nombre del negocio / cliente *</label><input class="form-control" id="quoteCustomer" maxlength="120" required></div><div class="col-md-6"><label class="form-label" for="quoteEmail">Correo electrónico</label><input class="form-control" id="quoteEmail" type="email" maxlength="254"></div><div class="col-md-6"><label class="form-label" for="quoteIndustry">Rubro *</label><select class="form-select" id="quoteIndustry"><option value="comercios_generales">Comercios generales</option><option value="panaderias">Panaderías</option><option value="minimercados">Minimercados</option><option value="despensas">Despensas</option><option value="ferreterias">Ferreterías</option><option value="farmacias">Farmacias</option><option value="tiendas">Tiendas</option><option value="restaurantes">Restaurantes</option><option value="distribuidoras">Distribuidoras</option></select></div><div class="col-md-6"><label class="form-label" for="quoteMode">Configuración</label><select class="form-select" id="quoteMode"><option value="template">Plantilla</option><option value="hybrid" selected>Combinada</option><option value="custom">Personalizada</option></select></div></div>
+              </article>
+              <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>2. Elegí la licencia</h3><p>Los planes y sus precios se cargan desde las condiciones comerciales guardadas.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="quoteReloadCatalog">Actualizar catálogo</button></div>
+                <div class="row g-3"><div class="col-md-6"><label class="form-label" for="quoteLicensePlan">Tipo de licencia</label><select class="form-select" id="quoteLicensePlan"><option value="basic">Básico</option><option value="professional">Profesional</option><option value="enterprise">Empresarial</option></select></div><div class="col-md-6"><label class="form-label" for="quotePaymentType">Modalidad de pago</label><select class="form-select" id="quotePaymentType"><option value="monthly">Mensual</option><option value="annual">Anual</option><option value="permanent">Permanente</option><option value="full_sale">Venta completa</option></select></div></div>
+                <div id="quotePlanPricing" class="row g-3 mt-1"></div><div class="mt-3"><h4 class="h6">Módulos disponibles en este plan</h4><p class="small text-muted">Solo se mostrarán los módulos incluidos o habilitados para el tipo de licencia elegido. Podés ajustar el costo de cada uno en esta propuesta.</p><div id="quoteModulesList" class="row g-2"><div class="text-muted small">Cargando catálogo…</div></div></div>
+              </article>
+              <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>3. Servicios adicionales</h3><p>Configurá hosting, mantenimiento, soporte, actualizaciones y otros conceptos.</p></div></div><div id="quoteServicesList" class="row g-3"></div><div class="mt-3"><label class="form-label" for="quoteOtherServiceName">Otro servicio (opcional)</label><input class="form-control mb-2" id="quoteOtherServiceName" maxlength="120" placeholder="Ej.: migración de datos, capacitación adicional"><div class="row g-2"><div class="col-md-6"><label class="form-label">Costo único (Gs.)</label><input class="form-control" id="quoteOtherServiceSetup" type="number" min="0" value="0"></div><div class="col-md-6"><label class="form-label">Costo mensual (Gs.)</label><input class="form-control" id="quoteOtherServiceMonthly" type="number" min="0" value="0"></div></div></div></article>
+              <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>4. Condiciones de la propuesta</h3><p>Definí vigencia, pagos y aclaraciones que verá el cliente.</p></div></div><div class="row g-3"><div class="col-md-4"><label class="form-label" for="quoteValidity">Validez (días)</label><input class="form-control" id="quoteValidity" type="number" min="1" max="90" value="15"></div><div class="col-md-4"><label class="form-label" for="quotePaymentTerms">Forma de pago</label><input class="form-control" id="quotePaymentTerms" maxlength="180" value="Según acuerdo entre las partes"></div><div class="col-md-4"><label class="form-label" for="quoteRenewalTerms">Renovación</label><input class="form-control" id="quoteRenewalTerms" maxlength="180" value="Renovación según modalidad contratada"></div><div class="col-12"><label class="form-label" for="quoteConditions">Observaciones y condiciones particulares</label><textarea class="form-control" id="quoteConditions" rows="3" maxlength="2000" placeholder="Alcance, exclusiones, tiempos de implementación, condiciones especiales…"></textarea></div><div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" id="quotePermanentSourceNotice" checked><label class="form-check-label" for="quotePermanentSourceNotice">Incluir aclaración: la licencia permanente no entrega código fuente ni transfiere propiedad intelectual.</label></div></div></article>
+              <div class="d-flex flex-wrap gap-2 mt-3"><button class="btn btn-bakery" type="button" id="quoteCreateButton"><i class="bi bi-file-earmark-plus"></i> Crear cotización</button><button class="btn btn-outline-bakery" type="button" id="quoteResetButton">Limpiar formulario</button></div>
+              <div id="quoteCreateFeedback" class="mt-3" aria-live="polite"></div><div id="quoteShareActions" class="d-flex flex-wrap gap-2 mt-2" hidden><button class="btn btn-outline-bakery" type="button" id="quoteDownloadPdf">Descargar / imprimir PDF</button><button class="btn btn-outline-bakery" type="button" id="quoteShareWhatsapp">Compartir por WhatsApp</button></div>
+            </div>
+            <div class="col-xl-4"><article class="panel settings-card" style="position:sticky;top:18px"><div class="panel-heading"><div><h3>Resumen en tiempo real</h3><p>Vista previa de los importes de esta propuesta.</p></div></div><div id="quoteLiveSummary"><p class="text-muted small">Elegí una licencia y módulos para calcular.</p></div></article></div>
+          </div>
         </section>
 
         <section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
@@ -4113,6 +4134,7 @@ html body .auth-gate.auth-gate-hidden {
  };
  window.addEventListener('panaderia:authenticated', event => {
    if (event.detail?.isPlatformAdmin === true) loadPlatformAdminData(true);
+   if (event.detail?.isPlatformAdmin === true && location.hash==='#admin-cotizador') initCommercialQuoteBuilder();
    else { loadClientTickets(); loadPrefs(); }
  });
  window.addEventListener('panaderia:pagenavigate', event => {
@@ -4123,6 +4145,7 @@ html body .auth-gate.auth-gate-hidden {
      return;
    }
    if (event.detail?.page === 'admin-licencias') loadLicenses();
+   if (event.detail?.page === 'admin-cotizador') initCommercialQuoteBuilder();
    if (['administracion','admin-panaderias','admin-usuarios','admin-licencias'].includes(event.detail?.page)) {
      loadPlatformAdminData(true).catch(error => console.error('No se pudieron actualizar los módulos administrativos:', error));
    }
@@ -4138,6 +4161,91 @@ html body .auth-gate.auth-gate-hidden {
  Promise.resolve(window.PanaderiaAuthReady)
    .then(user => { if (user?.isPlatformAdmin === true) return loadPlatformAdminData(true); if(user){loadClientTickets();loadPrefs();window.refreshNotifications();} })
    .catch(error => console.error('No se pudo inicializar la administración:', error));
+
+ // Cotizador comercial independiente: usa los planes y módulos del catálogo administrativo.
+ let commercialQuoteCatalog=null, commercialQuoteLast=null;
+ const quoteMoney=value=>'Gs. '+Math.round(Number(value||0)).toLocaleString('es-PY');
+ const quoteEsc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+ async function initCommercialQuoteBuilder(force=false){
+   const root=document.querySelector('#page-admin-cotizador');if(!root||!window.PanaderiaAuth?.user?.isPlatformAdmin)return;
+   if(root.dataset.initialized==='yes'&&!force)return;
+   root.dataset.initialized='yes';
+   const api=window.PanaderiaAuth.api;
+   const planSelect=root.querySelector('#quoteLicensePlan'),moduleBox=root.querySelector('#quoteModulesList'),serviceBox=root.querySelector('#quoteServicesList');
+   const serviceDefs=[['hosting','Hosting / alojamiento'],['maintenance','Mantenimiento técnico'],['support','Soporte técnico'],['updates','Actualizaciones del sistema']];
+   const readNum=selector=>Math.max(0,Number(root.querySelector(selector)?.value||0));
+   const selectedPlan=()=>commercialQuoteCatalog?.plans?.find(p=>p.plan_key===planSelect.value);
+   const chosenModules=()=>[...moduleBox.querySelectorAll('[data-quote-module]:checked')].map(x=>x.dataset.quoteModule);
+   const serviceRows=()=>{const rows=[];serviceDefs.forEach(([key,title])=>{const on=root.querySelector('[data-quote-service="'+key+'"]')?.checked;if(on)rows.push({key,title,setup:readNum('[data-quote-service-setup="'+key+'"]'),monthly:readNum('[data-quote-service-monthly="'+key+'"]')});});const other=root.querySelector('#quoteOtherServiceName').value.trim();if(other)rows.push({key:'other',title:other,setup:readNum('#quoteOtherServiceSetup'),monthly:readNum('#quoteOtherServiceMonthly')});return rows;};
+   const renderModules=()=>{
+     const plan=selectedPlan();if(!plan){moduleBox.innerHTML='<p class="text-danger">No existe el plan seleccionado.</p>';return;}
+     const allowed=new Set(Array.isArray(plan.modules)?plan.modules:[]);
+     const catalog=commercialQuoteCatalog.modules.filter(m=>m.implemented&&allowed.has(m.module_key));
+     moduleBox.innerHTML=catalog.map(m=>{const p=plan.module_prices?.[m.module_key]||{},checked=true;return '<div class="col-md-6"><label class="border rounded p-2 d-flex gap-2 align-items-start h-100"><input class="form-check-input mt-1" type="checkbox" data-quote-module="'+quoteEsc(m.module_key)+'" '+(checked?'checked':'')+'><span class="flex-grow-1"><strong class="small">'+quoteEsc(m.title)+'</strong><small class="d-block text-muted">'+quoteEsc(m.description||'Módulo incluido en el catálogo')+'</small><span class="row g-1 mt-1"><span class="col-6"><small>Alta Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-setup="'+quoteEsc(m.module_key)+'" value="'+Number(p.setup??m.setup_price??0)+'"></span><span class="col-6"><small>Mensual Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-monthly="'+quoteEsc(m.module_key)+'" value="'+Number(p.monthly??m.monthly_price??0)+'"></span></span></span></label></div>';}).join('')||'<p class="text-muted small">Este plan no tiene módulos activos asociados. Revisá las condiciones de licencia.</p>';
+     renderPlanPricing();updateQuoteSummary();
+   };
+   const renderPlanPricing=()=>{
+     const p=selectedPlan()||{},el=root.querySelector('#quotePlanPricing');
+     el.innerHTML=[['setup','Configuración / alta',p.setup_amount],['monthly','Licencia mensual',p.monthly_amount],['permanent','Licencia permanente',p.permanent_price],['fullSale','Venta completa',p.full_sale_price]].map(([key,label,value])=>'<div class="col-md-6"><label class="form-label">'+label+' (Gs.)</label><input class="form-control" type="number" min="0" data-quote-license="'+key+'" value="'+Number(value||0)+'"></div>').join('')+'<div class="col-md-6"><label class="form-label">Descuento anual (%)</label><input class="form-control" type="number" min="0" max="100" data-quote-license="annual" value="'+Number(p.annual_discount_percent||0)+'"></div><div class="col-md-6"><label class="form-label">Límite de usuarios</label><input class="form-control" value="'+(p.user_limit??'Sin límite definido')+'" readonly></div>';
+   };
+   const renderServices=()=>{
+     serviceBox.innerHTML=serviceDefs.map(([key,title])=>'<div class="col-md-6"><div class="border rounded p-2 h-100"><label class="form-check"><input class="form-check-input" type="checkbox" data-quote-service="'+key+'"><span class="form-check-label fw-semibold">'+title+'</span></label><div class="row g-2 mt-1"><div class="col-6"><label class="small">Único Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="0" data-quote-service-setup="'+key+'"></div><div class="col-6"><label class="small">Mensual Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="0" data-quote-service-monthly="'+key+'"></div></div></div></div>').join('');
+   };
+   const updateQuoteSummary=()=>{
+     if(!commercialQuoteCatalog)return;
+     const p=selectedPlan()||{},kind=root.querySelector('#quotePaymentType').value;
+     const num=s=>Math.max(0,Number(root.querySelector(s)?.value||0));
+     const licSetup=num('[data-quote-license="setup"]'),licMonthly=num('[data-quote-license="monthly"]'),licPermanent=num('[data-quote-license="permanent"]'),licFull=num('[data-quote-license="fullSale"]');
+     const modules=chosenModules(),modSetup=modules.reduce((sum,key)=>sum+num('[data-quote-module-setup="'+key+'"]'),0),modMonthly=modules.reduce((sum,key)=>sum+num('[data-quote-module-monthly="'+key+'"]'),0);
+     const services=serviceRows(),svcSetup=services.reduce((sum,x)=>sum+x.setup,0),svcMonthly=services.reduce((sum,x)=>sum+x.monthly,0);
+     const monthly=licMonthly+modMonthly+svcMonthly,annual=Math.round(monthly*12*(1-num('[data-quote-license="annual"]')/100));
+     const setup=licSetup+modSetup+svcSetup,one=kind==='permanent'?licPermanent+modSetup+svcSetup:licFull+modSetup+svcSetup;
+     const total=kind==='monthly'?setup+monthly:kind==='annual'?setup+annual:one;
+     root.querySelector('#quoteLiveSummary').innerHTML='<div class="d-flex justify-content-between py-2 border-bottom"><span>Configuración y altas</span><strong>'+quoteMoney(setup)+'</strong></div><div class="d-flex justify-content-between py-2 border-bottom"><span>Mensualidad estimada</span><strong>'+quoteMoney(monthly)+'</strong></div><div class="d-flex justify-content-between py-2 border-bottom"><span>Proyección 12 meses</span><strong>'+quoteMoney(annual)+'</strong></div><div class="d-flex justify-content-between py-2 border-bottom"><span>'+(kind==='permanent'?'Licencia permanente':kind==='full_sale'?'Venta completa':kind==='annual'?'Pago anual':'Primer pago')+'</span><strong>'+quoteMoney(kind==='annual'?annual:kind==='monthly'?setup+monthly:one)+'</strong></div><div class="d-flex justify-content-between pt-3"><strong>Total inicial estimado</strong><strong class="fs-5">'+quoteMoney(total)+'</strong></div><p class="small text-muted mt-3 mb-0">'+modules.length+' módulos · '+services.length+' servicios adicionales · '+(p.display_name||planSelect.selectedOptions[0]?.textContent||'Plan')+'</p>';
+     return {setup,monthly,annual,modules,services,licSetup,licMonthly,licPermanent,licFull,modSetup,modMonthly,kind,total};
+   };
+   try{
+     const data=await api('/api/admin/license-plan-settings');commercialQuoteCatalog={plans:data.plans||[],modules:data.modules||[]};
+     if(!commercialQuoteCatalog.plans.length)throw new Error('No hay planes comerciales configurados.');
+     planSelect.innerHTML=commercialQuoteCatalog.plans.map(p=>'<option value="'+quoteEsc(p.plan_key)+'">'+quoteEsc(p.display_name||p.plan_key)+'</option>').join('');
+     if(commercialQuoteCatalog.plans.some(p=>p.plan_key==='professional'))planSelect.value='professional';
+     renderServices();renderModules();
+     root.querySelector('#quoteReloadCatalog').onclick=()=>initCommercialQuoteBuilder(true);
+     planSelect.onchange=()=>{renderModules();};
+     root.querySelector('#quotePaymentType').onchange=updateQuoteSummary;
+     root.addEventListener('input',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
+     root.addEventListener('change',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
+     root.querySelector('#quoteResetButton').onclick=()=>{root.querySelector('#quoteCustomer').value='';root.querySelector('#quoteEmail').value='';root.querySelector('#quoteConditions').value='';root.querySelectorAll('[data-quote-service]').forEach(x=>x.checked=false);root.querySelector('#quoteOtherServiceName').value='';root.querySelector('#quoteOtherServiceSetup').value='0';root.querySelector('#quoteOtherServiceMonthly').value='0';root.querySelector('#quoteCreateFeedback').innerHTML='';root.querySelector('#quoteShareActions').hidden=true;renderModules();updateQuoteSummary();};
+     root.querySelector('#quoteCreateButton').onclick=async()=>{
+       const customer=root.querySelector('#quoteCustomer').value.trim(),email=root.querySelector('#quoteEmail').value.trim(),modules=chosenModules(),summary=updateQuoteSummary(),p=selectedPlan();
+       if(!customer){root.querySelector('#quoteCustomer').focus();throw new Error('Ingresá el nombre del cliente o negocio.');}
+       if(!modules.length)throw new Error('Seleccioná al menos un módulo compatible con el plan.');
+       const days=Number(root.querySelector('#quoteValidity').value);if(!Number.isInteger(days)||days<1||days>90)throw new Error('La validez debe estar entre 1 y 90 días.');
+       const num=s=>Math.max(0,Number(root.querySelector(s)?.value||0));
+       const manualModulePrices={};modules.forEach(key=>manualModulePrices[key]={setup:num('[data-quote-module-setup="'+key+'"]'),monthly:num('[data-quote-module-monthly="'+key+'"]')});
+       const manualLicense={enabled:true,setup:num('[data-quote-license="setup"]'),monthly:num('[data-quote-license="monthly"]'),permanent:num('[data-quote-license="permanent"]'),fullSale:num('[data-quote-license="fullSale"]')};
+       const validUntil=new Date(Date.now()+days*86400000).toISOString().slice(0,10),conditions=root.querySelector('#quoteConditions').value.trim(),terms='Forma de pago: '+root.querySelector('#quotePaymentTerms').value+'. Renovación: '+root.querySelector('#quoteRenewalTerms').value+'. '+conditions+(root.querySelector('#quotePermanentSourceNotice').checked?' La licencia permanente no incluye código fuente ni transfiere propiedad intelectual.':'');
+       const button=root.querySelector('#quoteCreateButton');button.disabled=true;button.textContent='Creando cotización…';
+       try{
+         const result=await api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName:customer,prospectEmail:email,industry:root.querySelector('#quoteIndustry').value,configMode:root.querySelector('#quoteMode').value,modules,licensePlanKey:planSelect.value,planType:summary.kind,manualPricing:true,manualLicense,manualModulePrices,serviceItems:summary.services,validUntil,notes:terms})});
+         if(!result?.quotation?.id)throw new Error('El servidor no devolvió el número de cotización.');
+         commercialQuoteLast={quotation:result.quotation,totals:result.totals,summary,planName:p.display_name||planSelect.selectedOptions[0].textContent,customer,email,modules:commercialQuoteCatalog.modules.filter(m=>modules.includes(m.module_key)),terms,industry:root.querySelector('#quoteIndustry').selectedOptions[0].textContent,services:summary.services};
+         root.querySelector('#quoteCreateFeedback').innerHTML='<div class="alert alert-success">Cotización #'+quoteEsc(result.quotation.id)+' creada correctamente. Revisá el PDF antes de enviarlo.</div>';
+         root.querySelector('#quoteShareActions').hidden=false;updateQuoteSummary();
+       }catch(error){root.querySelector('#quoteCreateFeedback').innerHTML='<div class="alert alert-danger">'+quoteEsc(error.message||'No se pudo crear la cotización.')+'</div>';}
+       finally{button.disabled=false;button.innerHTML='<i class="bi bi-file-earmark-plus"></i> Crear cotización';}
+     };
+     root.querySelector('#quoteDownloadPdf').onclick=()=>{
+       if(!commercialQuoteLast)return;const d=commercialQuoteLast,q=d.quotation,t=d.totals,rows=[...d.modules.map(m=>'<tr><td>'+quoteEsc(m.title)+'</td><td>'+quoteMoney(d.summary.modSetup)+'</td><td>'+quoteMoney(d.summary.modMonthly)+'</td></tr>'),...d.services.map(x=>'<tr><td>'+quoteEsc(x.title)+'</td><td>'+quoteMoney(x.setup)+'</td><td>'+quoteMoney(x.monthly)+'</td></tr>')].join('');
+       const body='<h1>MATTSYSTEM</h1><h2>Cotización #'+quoteEsc(q.id)+'</h2><h3>'+quoteEsc(d.customer)+'</h3><p>Correo: '+quoteEsc(d.email||'No informado')+'<br>Plan: '+quoteEsc(d.planName)+'<br>Modalidad: '+quoteEsc(d.summary.kind)+'<br>Rubro: '+quoteEsc(d.industry)+'<br>Válida hasta: '+quoteEsc(q.valid_until||'No especificada')+'</p><table><tr><th>Concepto</th><th>Único</th><th>Mensual</th></tr>'+rows+'</table><p>Configuración/alta: '+quoteMoney(t.setup)+'</p><p>Mensualidad: '+quoteMoney(d.summary.monthly)+'</p><p>Proyección 12 meses: '+quoteMoney(t.annual||d.summary.annual)+'</p><p>Total de primer pago / modalidad: '+quoteMoney(d.summary.total)+'</p><h3>Condiciones</h3><p>'+quoteEsc(d.terms)+'</p><p>Hosting, mantenimiento, soporte y actualizaciones solo se consideran incluidos si figuran como conceptos expresos en esta cotización.</p>';
+       const w=window.open('','_blank');if(!w){alert('Permití ventanas emergentes para imprimir el PDF.');return;}w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Cotización MATTSYSTEM</title><style>body{font:14px Arial;margin:35px;color:#24332e}h1{color:#1b5142}table{border-collapse:collapse;width:100%;margin:20px 0}td,th{border:1px solid #ddd;padding:9px;text-align:left}th{background:#eef4f0}@media print{body{margin:15mm}}</style></head><body>'+body+'</body></html>');w.document.close();setTimeout(()=>w.print(),400);
+     };
+     root.querySelector('#quoteShareWhatsapp').onclick=()=>{
+       if(!commercialQuoteLast)return;const d=commercialQuoteLast,t=d.totals;const msg=['MATTSYSTEM · COTIZACIÓN #'+d.quotation.id,'Cliente: '+d.customer,'Plan: '+d.planName,'Modalidad: '+d.summary.kind,'Rubro: '+d.industry,'Módulos: '+d.modules.map(x=>x.title).join(', '),'Servicios: '+(d.services.map(x=>x.title+' (alta '+quoteMoney(x.setup)+', mensual '+quoteMoney(x.monthly)+')').join('; ')||'No agregados'),'Configuración/alta: '+quoteMoney(t.setup),'Mensualidad: '+quoteMoney(d.summary.monthly),'Proyección 12 meses: '+quoteMoney(t.annual||d.summary.annual),'Total modalidad: '+quoteMoney(d.summary.total),'Condiciones: '+d.terms,'El PDF detallado se debe adjuntar por separado.'].join('\n');window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank','noopener');
+     };
+   }catch(error){root.querySelector('#quoteCreateFeedback').innerHTML='<div class="alert alert-danger">'+quoteEsc(error.message||'No se pudo cargar el catálogo comercial.')+'</div>';}
+ }
+
 })();
 </script>
 <style id="auth-viewport-edge-fix">
