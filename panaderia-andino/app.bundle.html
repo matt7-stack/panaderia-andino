@@ -4100,15 +4100,34 @@ html body .auth-gate.auth-gate-hidden {
   document.addEventListener('click',event=>{if(event.target.closest('#retryLicenseInfo'))loadLicenseInfo();});
  $('#refreshClientSupportTickets')?.addEventListener('click',loadClientTickets);
 
- $('#licensesTableBody')?.addEventListener('change',async e=>{if(e.target.matches('.license-status'))try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({id:e.target.dataset.id,status:e.target.value})});await loadLicenses();}catch(x){alert(x.message);}});
+ $('#licensesTableBody')?.addEventListener('change',async e=>{
+   if(!e.target.matches('.license-status'))return;
+   const id=e.target.dataset.id,status=e.target.value;
+   try{
+     if(status==='active'){
+       const raw=prompt('Duración de la licencia en MESES. Ejemplos: 12 = 1 año, 24 = 2 años, 36 = 3 años.','12');
+       if(raw===null){await loadLicenses();return;}
+       const durationMonths=Number(raw);
+       if(!Number.isInteger(durationMonths)||durationMonths<1||durationMonths>120){alert('Ingresá una duración entera entre 1 y 120 meses.');await loadLicenses();return;}
+       await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'activate',id,durationMonths})});
+       await loadLicenses();alert('Licencia activada por '+durationMonths+' meses. La fecha de vencimiento fue actualizada automáticamente.');
+     }else{
+       await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({id,status})});await loadLicenses();
+     }
+   }catch(x){alert(x.message);await loadLicenses();}
+ });
  $('#licensesTableBody')?.addEventListener('click',async e=>{
    const copy=e.target.closest('.license-copy-code');if(copy){try{await copyLicenseCode(copy.dataset.code);notify('Código de licencia copiado.');}catch(error){alert(error.message);}return;}
    const renew=e.target.closest('.license-renew');
    if(renew){
-     const amount=prompt('Importe recibido en guaraníes (0 si no vas a registrar el pago ahora):','120000');
+     const raw=prompt('Duración de la renovación en MESES. Ejemplos: 12 = 1 año, 24 = 2 años, 36 = 3 años.','12');
+     if(raw===null)return;
+     const durationMonths=Number(raw);
+     if(!Number.isInteger(durationMonths)||durationMonths<1||durationMonths>120){alert('Ingresá una duración entera entre 1 y 120 meses.');return;}
+     const amount=prompt('Importe recibido en guaraníes (0 si no vas a registrar el pago ahora):','0');
      if(amount===null)return;
      if(!Number.isFinite(Number(amount))||Number(amount)<0){alert('Ingresá un importe igual o mayor que cero.');return;}
-     try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'renew',id:renew.dataset.id,amount:Number(amount)})});await loadLicenses();alert('Licencia renovada por un mes y acceso reactivado.');}
+     try{await api('/api/admin/licenses',{method:'PATCH',body:JSON.stringify({action:'renew',id:renew.dataset.id,amount:Number(amount),durationMonths})});await loadLicenses();alert('Licencia renovada por '+durationMonths+' meses. El vencimiento fue actualizado.');}
      catch(x){alert(x.message);}
      return;
    }
