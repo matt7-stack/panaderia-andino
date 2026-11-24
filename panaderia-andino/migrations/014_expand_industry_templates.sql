@@ -5,6 +5,14 @@ ALTER TABLE app_business_config ADD CONSTRAINT app_business_config_industry_key_
     'panaderias','minimercados','despensas','ferreterias','farmacias',
     'tiendas','restaurantes','comercios_generales','distribuidoras'
   ]));
+
+ALTER TABLE app_quotations DROP CONSTRAINT IF EXISTS app_quotations_industry_key_check;
+ALTER TABLE app_quotations ADD CONSTRAINT app_quotations_industry_key_check
+  CHECK (industry_key = ANY (ARRAY[
+    'panaderias','minimercados','despensas','ferreterias','farmacias',
+    'tiendas','restaurantes','comercios_generales','distribuidoras'
+  ]));
+
 ALTER TABLE app_industry_templates DROP CONSTRAINT IF EXISTS app_industry_templates_industry_key_check;
 ALTER TABLE app_industry_templates ADD CONSTRAINT app_industry_templates_industry_key_check
   CHECK (industry_key = ANY (ARRAY[
