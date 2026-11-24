@@ -1280,6 +1280,57 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/reset-system') {
+      const admin = await authenticated(req,res,true); if (!admin) return;
+      if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
+      const input = body(req);
+      if (input.confirmation !== 'REINICIAR') return send(res,400,{error:'Confirmación inválida. No se eliminó ningún dato.'});
+      const sql = db();
+      // Se eliminan primero las tablas dependientes para respetar las claves foráneas.
+      // La cuenta del administrador principal es la única fila de app_users que se conserva.
+      const statements = [
+        sql`DELETE FROM admin_password_resets`,
+        sql`DELETE FROM app_admin_setup_tokens`,
+        sql`DELETE FROM app_audit_logs`,
+        sql`DELETE FROM app_backup_log`,
+        sql`DELETE FROM app_cash_movements`,
+        sql`DELETE FROM app_cash_sessions`,
+        sql`DELETE FROM app_sale_items`,
+        sql`DELETE FROM app_sales`,
+        sql`DELETE FROM app_purchase_items`,
+        sql`DELETE FROM app_purchases`,
+        sql`DELETE FROM app_recipe_ingredients`,
+        sql`DELETE FROM app_production_batches`,
+        sql`DELETE FROM app_inventory_movements`,
+        sql`DELETE FROM app_recipes`,
+        sql`DELETE FROM app_products`,
+        sql`DELETE FROM app_customers`,
+        sql`DELETE FROM app_suppliers`,
+        sql`DELETE FROM app_financial_entries`,
+        sql`DELETE FROM app_license_payments`,
+        sql`DELETE FROM app_trial_claims`,
+        sql`DELETE FROM app_licenses`,
+        sql`DELETE FROM app_notification_preferences`,
+        sql`DELETE FROM app_notifications`,
+        sql`DELETE FROM app_platform_settings`,
+        sql`DELETE FROM app_license_settings`,
+        sql`DELETE FROM app_login_attempts`,
+        sql`DELETE FROM app_support_replies`,
+        sql`DELETE FROM app_support_tickets`,
+        sql`DELETE FROM app_trash`,
+        sql`DELETE FROM app_state`,
+        sql`DELETE FROM app_users WHERE id <> ${admin.id} AND is_platform_admin = FALSE`,
+        sql`DELETE FROM businesses`
+      ];
+      try {
+        await sql.transaction(statements);
+        return send(res,200,{ok:true,message:'Sistema restablecido. Se conservó la cuenta del administrador principal.'});
+      } catch (error) {
+        console.error('Error en el reinicio total del sistema:', error);
+        return send(res,500,{error:'No se pudo completar el reinicio. La operación fue revertida y no se aplicaron cambios parciales.'});
+      }
+    }
+
     if (path === '/api/admin/reset-data') {
       const admin = await authenticated(req,res,true); if (!admin) return;
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
