@@ -1098,6 +1098,14 @@ body.auth-locked{overflow:hidden!important}
 .auth-footnote{margin:22px 0 0;color:#718396!important;font-size:9px;text-align:center}
 .auth-card *{box-sizing:border-box}
 @media(max-width:480px){.auth-gate{padding:16px}.auth-card{width:min(100%,430px)!important;padding:25px 20px!important;border-radius:18px!important}.auth-heading h1{font-size:26px}}
+
+/* FIX CRÍTICO LOGIN: ocultar el acceso cuando el servidor ya autenticó la sesión. */
+.auth-gate.auth-gate-hidden,
+html body .auth-gate.auth-gate-hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
 </style>
 <style>
 /* Alineación consistente de los encabezados en la cuenta de cada negocio. */
