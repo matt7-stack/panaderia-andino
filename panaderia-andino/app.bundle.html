@@ -1599,254 +1599,14 @@ html body .auth-gate.auth-gate-hidden {
           <section class="settings-panel" id="settings-preferences" data-settings-panel="preferences"><article class="panel settings-card narrow-settings"><div class="panel-heading"><div><h3>Preferencias generales</h3><p>Ajustá cómo se muestra la información.</p></div></div><form id="preferencesForm" class="settings-form"><div class="preference-row"><div><strong>Moneda</strong><p>Moneda utilizada para mostrar importes.</p></div><span class="preference-select preference-static">Guaraníes (Gs.)</span></div><div class="preference-row"><div><strong>Alertas de notas pendientes</strong><p>Mostrar avisos cuando existan saldos pendientes.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefInvoiceAlerts"></div></div><div class="preference-row"><div><strong>Confirmar antes de eliminar</strong><p>Solicitar confirmación antes de borrar registros.</p></div><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="prefConfirmDelete"></div></div><div class="preference-row"><div><strong>Formato de fecha</strong><p>Formato utilizado en las tablas.</p></div><select class="form-select preference-select" id="prefDateFormat"><option value="es-PY">DD/MM/AAAA</option><option value="en-GB">DD/MM/AAAA (alternativo)</option><option value="en-US">MM/DD/AAAA</option></select></div><div class="form-actions"><button class="btn btn-bakery" type="submit"><i class="bi bi-check2"></i> Guardar preferencias</button><button class="btn btn-outline-bakery" type="button" id="resetDemoData"><i class="bi bi-arrow-counterclockwise"></i> Restaurar datos de ejemplo</button></div></form></article><article class="panel settings-card mt-3" id="notificationPreferencesCard"><div class="panel-heading"><div><h3>Preferencias de notificaciones</h3><p>Elegí qué avisos querés recibir en esta cuenta.</p></div></div><form id="notificationPreferencesForm" class="settings-form"><label class="d-flex gap-2 align-items-center"><input type="checkbox" id="prefSystem" checked> Avisos generales del sistema</label><label class="d-flex gap-2 align-items-center"><input type="checkbox" id="prefFinancial" checked> Avisos financieros</label><label class="d-flex gap-2 align-items-center"><input type="checkbox" id="prefSupport" checked> Respuestas de soporte</label><button class="btn btn-bakery" type="submit">Guardar preferencias</button></form></article></section>
         </section>
 
-        <!-- GUÍA DE USO -->
+        <!-- GUÍA DE USO: SOLO CLIENTES -->
         <section class="page-view" id="page-guia-uso" data-page="guia-uso">
-          <div class="page-heading"><div><p class="eyebrow">CENTRO DE AYUDA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Manual de uso de los módulos, controles, botones y procedimientos del sistema.</p></div></div>
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>Antes de comenzar</h3><p>Acceso, navegación y funcionamiento general.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Iniciar sesión:</strong> ingresá tu correo y contraseña. En el primer acceso, si la plataforma todavía no tiene administrador, completá el formulario de activación con el token autorizado y creá la cuenta principal.</li>
-              <li><strong>Administrador principal:</strong> al iniciar sesión entra al centro de Administración. Desde allí administra negocios, usuarios, comunicados, actividad, seguridad y reportes globales.</li>
-              <li><strong>Usuarios de un negocio:</strong> acceden a los módulos operativos habilitados para su negocio. Los datos de cada negocio se mantienen separados.</li>
-              <li><strong>Menú lateral:</strong> seleccioná el nombre de una sección para abrirla. En teléfonos y pantallas pequeñas, ☰ abre o cierra el menú; tocá el fondo oscuro para cerrarlo.</li>
-              <li><strong>Barra superior:</strong> muestra la sección y el usuario conectado. En la vista Dashboard, el selector de mes cambia el período del resumen.</li>
-              <li><strong>Actualizar:</strong> vuelve a solicitar los datos del apartado al servidor. Si una tabla muestra información desactualizada o un error temporal, utilizá este botón antes de repetir una operación.</li>
-              <li><strong>Guardar / Cancelar / X:</strong> Guardar confirma el formulario; Cancelar o X lo cierra sin aplicar los cambios que no se hayan guardado.</li>
-              <li><strong>Editar / Eliminar:</strong> el lápiz abre un registro para modificarlo; la papelera inicia su eliminación. Leé el mensaje de confirmación antes de aceptar.</li>
-              <li><strong>Sincronización:</strong> los cambios guardados se envían al servidor. Esperá el aviso de confirmación y mantené conexión a Internet.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>1. Dashboard</h3><p>Resumen del negocio seleccionado. No requiere cargar datos desde las tarjetas.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Selector de mes:</strong> elegí el período que querés consultar; los indicadores mensuales se recalculan.</li>
-              <li><strong>Ingresos del mes:</strong> suma de movimientos clasificados como ingresos dentro del período.</li>
-              <li><strong>Gastos del mes:</strong> suma de movimientos clasificados como gastos dentro del período.</li>
-              <li><strong>Resultado del mes:</strong> ingresos menos gastos. Un resultado negativo significa que los gastos superaron a los ingresos.</li>
-              <li><strong>Notas pendientes:</strong> saldo todavía no cobrado de las notas emitidas.</li>
-              <li><strong>Gráfico Ingresos vs. gastos:</strong> compara los movimientos de los últimos seis meses.</li>
-              <li><strong>Últimos movimientos:</strong> muestra operaciones recientes. Ver todos abre Movimientos.</li>
-              <li><strong>Registrar ingreso / Registrar gasto:</strong> abre el formulario de movimiento con el tipo correspondiente seleccionado.</li>
-              <li><strong>Nueva nota:</strong> abre la sección Notas para registrar una venta.</li>
-              <li><strong>Nuevo movimiento:</strong> abre el formulario para cargar un ingreso; verificá el tipo antes de guardar.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>2. Movimientos</h3><p>Control de entradas y salidas de dinero.</p></div></div>
-            <ul>
-              <li><strong>Nuevo ingreso:</strong> registrá dinero efectivamente recibido.</li>
-              <li><strong>Nuevo gasto:</strong> registrá dinero efectivamente pagado.</li>
-              <li><strong>Selector Ingreso / Gasto:</strong> define el tipo y cómo se contabiliza en los totales.</li>
-              <li><strong>Descripción:</strong> identificá la operación con un texto claro, por ejemplo, Compra de harina.</li>
-              <li><strong>Categoría:</strong> elegí el grupo que corresponda al movimiento.</li>
-              <li><strong>Importe:</strong> escribí el monto en guaraníes, mayor que cero.</li>
-              <li><strong>Fecha:</strong> seleccioná el día en que ocurrió la operación.</li>
-              <li><strong>Método de pago:</strong> indicá efectivo, transferencia u otro método habilitado.</li>
-              <li><strong>Observación:</strong> agregá un detalle opcional para identificar mejor la operación.</li>
-              <li><strong>Buscar:</strong> filtra por palabras de la descripción.</li>
-              <li><strong>Todos los tipos:</strong> elegí todos, ingresos o gastos.</li>
-              <li><strong>Todas las categorías:</strong> muestra todos los grupos o solamente la categoría elegida.</li>
-              <li><strong>Desde / Hasta:</strong> limita los resultados a un intervalo de fechas. Podés completar solo uno de los extremos.</li>
-              <li><strong>Limpiar:</strong> restablece la búsqueda y los filtros.</li>
-              <li><strong>Totales:</strong> Ingresos, Gastos y Diferencia resumen los registros que coinciden con los filtros.</li>
-              <li><strong>Editar / Eliminar:</strong> corregí o quitá una operación desde las acciones de su fila. Verificá si está relacionada con un pago de nota o empleado antes de eliminarla.</li>
-              <li><strong>Exportar CSV:</strong> descarga la tabla visible para abrirla en Excel u otra hoja de cálculo; aplicá primero los filtros si necesitás un período específico.</li>
-            </ul>
-            <div class="info-note"><i class="bi bi-lightbulb"></i> Registrá únicamente dinero realmente cobrado o pagado. Una nota emitida no equivale por sí sola a un cobro.</div>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>3. Notas y registro de pagos</h3><p>Seguimiento de ventas emitidas, cobros y saldos pendientes.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Nueva nota:</strong> abre el formulario para registrar una nota emitida.</li>
-              <li><strong>N.º de nota:</strong> ingresá un número de cinco dígitos. Conservá una numeración ordenada y evitá repetir números.</li>
-              <li><strong>Cliente:</strong> escribí el nombre o razón social del destinatario.</li>
-              <li><strong>Fecha:</strong> indicá la fecha de emisión.</li>
-              <li><strong>Total:</strong> ingresá el importe completo de la venta en guaraníes.</li>
-              <li><strong>Concepto:</strong> descripción opcional de lo vendido.</li>
-              <li><strong>Buscar:</strong> localizá una nota por número o nombre del cliente.</li>
-              <li><strong>Total emitido:</strong> suma de los importes completos de las notas emitidas.</li>
-              <li><strong>Total cobrado:</strong> suma de los pagos que ya fueron registrados.</li>
-              <li><strong>Saldo pendiente:</strong> importe todavía por cobrar, calculado como total menos pagos recibidos.</li>
-              <li><strong>Estado Pendiente:</strong> todavía no se registró ningún pago.</li>
-              <li><strong>Estado Parcialmente pagada:</strong> se recibió una parte del total y queda saldo.</li>
-              <li><strong>Estado Pagada:</strong> el importe cobrado alcanzó el total de la nota.</li>
-              <li><strong>Registrar pago:</strong> abrí la acción de pago de la nota, ingresá el importe recibido, fecha y método de pago, y presioná Confirmar pago.</li>
-              <li><strong>Abonos parciales:</strong> podés registrar varios pagos en distintas fechas. El sistema calcula el saldo restante y no permite registrar un importe superior al saldo pendiente.</li>
-              <li><strong>Historial de pagos:</strong> consultá los abonos asociados a cada nota para revisar cuánto se recibió y cuándo.</li>
-              <li><strong>Movimiento automático:</strong> cada pago confirmado genera un ingreso en Movimientos, con categoría Ventas y el método y fecha indicados. No vuelvas a cargar ese mismo cobro manualmente, porque duplicarías el ingreso.</li>
-              <li><strong>Editar nota:</strong> corregí los datos de la nota. El total no puede quedar por debajo de lo que ya se cobró.</li>
-              <li><strong>Eliminar nota:</strong> utilizá la acción correspondiente y revisá la confirmación. No elimines registros si necesitás conservar su historial.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>4. Empleados</h3><p>Personal, datos de referencia y pagos.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Agregar empleado:</strong> completá los datos solicitados, cargo, monto base, frecuencia y estado, según corresponda, y guardá.</li>
-              <li><strong>Tabla Personal:</strong> muestra empleado, cargo, monto base, frecuencia, estado y acciones.</li>
-              <li><strong>Editar:</strong> utilizá el lápiz para actualizar los datos del empleado.</li>
-              <li><strong>Eliminar:</strong> utilizá la papelera y confirmá. Los pagos históricos se conservan aunque se quite al empleado del listado.</li>
-              <li><strong>Registrar pago:</strong> seleccioná al empleado, completá fecha, concepto, método e importe y confirmá.</li>
-              <li><strong>Empleados activos:</strong> cantidad de personas habilitadas.</li>
-              <li><strong>Pagos registrados este mes:</strong> total de pagos correspondientes al mes actual.</li>
-              <li><strong>Pagos históricos:</strong> cantidad de pagos guardados.</li>
-              <li><strong>Historial de pagos:</strong> muestra fecha, empleado, concepto, método e importe. El pago crea también su gasto financiero asociado; no registres nuevamente ese mismo pago en Movimientos.</li>
-              <li><strong>Eliminar pago:</strong> la acción está restringida al administrador. Al confirmarla se elimina el pago y su gasto asociado; el empleado permanece.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>5. Notificaciones del negocio</h3><p>Mensajes enviados por el administrador de la plataforma.</p></div><button class="panel-heading-icon" type="button" aria-label="Notificaciones"><i class="bi bi-bell"></i></button></div>
-            <ul class="mb-0">
-              <li><strong>Notificaciones:</strong> abrí esta sección desde el menú para consultar comunicados dirigidos a tu negocio.</li>
-              <li><strong>Actualizar:</strong> vuelve a consultar los avisos disponibles en el servidor.</li>
-              <li><strong>Lectura:</strong> revisá el título y el contenido de cada comunicado. Los avisos se distribuyen a los usuarios del negocio seleccionado por el administrador o a todos los negocios si el comunicado fue general.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>6. Configuración del negocio</h3><p>Esta sección corresponde a las cuentas operativas, no al administrador principal de plataforma.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Datos del negocio:</strong> modificá nombre, dirección, teléfono, correo, RUC y responsable. Cambiar logo permite seleccionar una imagen del dispositivo. La vista previa muestra el resultado; Guardar cambios aplica la información.</li>
-              <li><strong>Categorías de ingresos:</strong> Agregar crea una categoría para clasificar ingresos. Utilizá las acciones de cada elemento para editarla o eliminarla.</li>
-              <li><strong>Categorías de gastos:</strong> administrá las categorías utilizadas para clasificar egresos.</li>
-              <li><strong>Métodos de pago:</strong> Agregar método incorpora una forma de cobro o pago disponible en los formularios. Usá las acciones de la lista para mantenerla actualizada.</li>
-              <li><strong>Moneda:</strong> el sistema utiliza Guaraníes (Gs.).</li>
-              <li><strong>Alertas de notas pendientes:</strong> activá o desactivá los avisos relacionados con saldos pendientes.</li>
-              <li><strong>Confirmar antes de eliminar:</strong> activa o desactiva la confirmación previa a borrar registros.</li>
-              <li><strong>Formato de fecha:</strong> seleccioná la presentación de fechas en las tablas.</li>
-              <li><strong>Guardar preferencias:</strong> guarda los cambios de las opciones.</li>
-              <li><strong>Restaurar datos de ejemplo:</strong> repone datos demostrativos. No uses esta acción si querés conservar tus registros reales; leé cuidadosamente la confirmación.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>7. Administración principal</h3><p>Área exclusiva del administrador principal de la plataforma.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Entrada a Administración:</strong> el administrador principal llega directamente al centro de control al iniciar sesión. Los módulos administrativos se encuentran separados en opciones del menú.</li>
-              <li><strong>Resumen administrativo:</strong> muestra indicadores generales de usuarios, empleados activos, movimientos registrados y última sincronización.</li>
-              <li><strong>Accesos rápidos:</strong> abre las tarjetas de Negocios, Usuarios y permisos, Enviar comunicado, Auditoría y actividad, Centro de seguridad, Reportes globales y Resumen administrativo. Cada tarjeta abre su módulo correspondiente.</li>
-              <li><strong>Descargar respaldo:</strong> genera un archivo JSON con los datos compartidos. Guardalo en un lugar seguro. Descargarlo no modifica los registros.</li>
-              <li><strong>Limpiar datos operativos:</strong> elimina movimientos, notas, empleados y pagos históricos de los datos operativos. Es una acción irreversible y requiere confirmaciones; descargá un respaldo y verificá el alcance antes de continuar.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>8. Negocios</h3><p>Alta, edición, estado y acceso a cada negocio.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Agregar negocio:</strong> solo el administrador principal puede crear negocios. Presioná el botón, completá los datos solicitados y guardá. No se crea un negocio automáticamente.</li>
-              <li><strong>Buscar:</strong> escribí nombre, RUC o correo para localizar un negocio.</li>
-              <li><strong>Filtro de estado:</strong> elegí Todos los estados, Activas o Desactivadas.</li>
-              <li><strong>Actualizar:</strong> vuelve a cargar la lista y sus indicadores.</li>
-              <li><strong>Editar:</strong> permite actualizar la información identificatoria del negocio.</li>
-              <li><strong>Abrir:</strong> seleccional negocio para ingresar a sus módulos operativos. Revisá el nombre del negocio antes de registrar o modificar información.</li>
-              <li><strong>Desactivar:</strong> suspende el acceso de los usuarios de esa negocio sin eliminar su historial.</li>
-              <li><strong>Reactivar:</strong> vuelve a habilitar el negocio y sus accesos.</li>
-              <li><strong>Eliminar definitivamente:</strong> es distinto de desactivar. La eliminación requiere que el negocio esté desactivada y que no tenga registros operativos que deban conservarse. Confirmá cuidadosamente cualquier eliminación.</li>
-              <li><strong>Resumen:</strong> la tabla muestra usuarios, ingresos, gastos, ventas y estado para ayudar a supervisar los negocios.</li>
-            </ul>
-            <div class="info-note"><i class="bi bi-shield-lock"></i> Desactivar es la opción recomendada cuando un negocio deja de operar temporalmente. Conserva su historial para una posible reactivación.</div>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>9. Usuarios y permisos</h3><p>Creación y control de cuentas de acceso.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Agregar usuario:</strong> solo el administrador principal puede crear cuentas. Completá nombre, correo, contraseña o credenciales solicitadas, rol y negocio a la que pertenecerá.</li>
-              <li><strong>Asignar negocio:</strong> elegí el negocio al que se vinculará la cuenta. Si todavía no existe un negocio activa, primero registrá una desde el apartado Negocios.</li>
-              <li><strong>Rol:</strong> seleccioná el nivel de acceso que corresponda a las tareas de la persona. Asigná únicamente los permisos necesarios.</li>
-              <li><strong>Actualizar:</strong> vuelve a cargar la lista de usuarios.</li>
-              <li><strong>Tabla de usuarios:</strong> permite revisar nombre, correo, rol, negocio/estado y acciones disponibles.</li>
-              <li><strong>Editar / Desactivar / Reactivar:</strong> usá las acciones de la fila para mantener los datos y el acceso actualizados.</li>
-              <li><strong>Eliminar:</strong> utilizá esta acción solo cuando sea necesario y después de revisar sus consecuencias. No compartas credenciales entre personas.</li>
-              <li><strong>Separación de datos:</strong> cada usuario operativo trabaja con los datos de su negocio asignado; no asignes una cuenta al negocio equivocado.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>10. Notificaciones administrativas</h3><p>Envío y mantenimiento de comunicados.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Destinatarios:</strong> seleccioná Todas los negocios y sus usuarios o elegí un negocio específica.</li>
-              <li><strong>Título:</strong> escribí un encabezado breve y reconocible, de hasta 100 caracteres.</li>
-              <li><strong>Mensaje:</strong> redactá el contenido del comunicado, hasta 2.000 caracteres.</li>
-              <li><strong>Enviar notificación:</strong> presioná el botón una vez y esperá la confirmación. El aviso aparece en la sección Notificaciones de las cuentas destinatarias.</li>
-              <li><strong>Comunicados enviados:</strong> consultá los avisos que ya fueron difundidos.</li>
-              <li><strong>Actualizar:</strong> vuelve a cargar el historial de comunicados.</li>
-              <li><strong>Modificar:</strong> permite corregir el título o mensaje de una difusión; los cambios se aplican a las copias de ese comunicado.</li>
-              <li><strong>Eliminar:</strong> elimina la difusión para sus destinatarios. Confirmá antes de continuar.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>11. Actividad y alertas</h3><p>Auditoría de acciones realizadas en la plataforma.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Eventos recientes:</strong> cantidad de acciones que aparecen en el historial.</li>
-              <li><strong>Alertas sin leer:</strong> número de alertas pendientes de revisión.</li>
-              <li><strong>Alertas para el administrador:</strong> revisá el título, mensaje, fecha y estado de cada aviso.</li>
-              <li><strong>Actualizar:</strong> vuelve a consultar la actividad y las alertas.</li>
-              <li><strong>Historial de actividad:</strong> muestra fecha, usuario, negocio, acción y detalles registrados.</li>
-              <li><strong>Exportar CSV:</strong> descarga la tabla de actividad para archivarla o analizarla en una hoja de cálculo.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>12. Centro de seguridad</h3><p>Supervisión de accesos y sesiones de las cuentas.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Usuarios activos:</strong> cantidad de cuentas habilitadas.</li>
-              <li><strong>Accesos correctos · 24 h:</strong> inicios de sesión registrados correctamente durante las últimas 24 horas.</li>
-              <li><strong>Intentos fallidos · 24 h:</strong> intentos de autenticación que no se completaron correctamente durante ese período.</li>
-              <li><strong>Cuentas bloqueadas ahora:</strong> cuentas que tienen un bloqueo temporal activo.</li>
-              <li><strong>Actualizar:</strong> vuelve a cargar los indicadores y las tablas.</li>
-              <li><strong>Control de sesiones:</strong> localizá la cuenta y presioná Revocar sesiones para cerrar sus sesiones activas. El usuario tendrá que iniciar sesión nuevamente. No revoques tu propia sesión administrativa.</li>
-              <li><strong>Intentos fallidos y bloqueos:</strong> muestra correo, cantidad de intentos, estado del bloqueo y último intento.</li>
-              <li><strong>Historial de accesos:</strong> muestra fecha, cuenta, tipo de evento, IP disponible y detalle.</li>
-              <li><strong>Antigüedad del historial:</strong> el registro de eventos de acceso comienza desde la publicación de esta función; no reconstruye eventos anteriores.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>13. Reportes globales</h3><p>Indicadores consolidados de los negocios registrados.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Ingresos registrados:</strong> suma de ingresos guardados en los negocios.</li>
-              <li><strong>Gastos registrados:</strong> suma de gastos guardados.</li>
-              <li><strong>Resultado registrado:</strong> diferencia entre los ingresos y gastos disponibles.</li>
-              <li><strong>Negocios activas:</strong> cantidad de negocios habilitados.</li>
-              <li><strong>Rendimiento por negocio:</strong> permite comparar estado, ingresos, gastos, resultado, clientes identificados en notas, cantidad de notas, productos, compras y usuarios.</li>
-              <li><strong>Clientes registrados en notas:</strong> agrupa los nombres de clientes encontrados en las notas e indica negocio, cantidad de notas, total registrado y fecha de la última nota. No reemplaza un módulo de fichas independientes de clientes.</li>
-              <li><strong>Actualizar:</strong> vuelve a consultar los datos globales.</li>
-              <li><strong>Exportar negocios:</strong> descarga la tabla de rendimiento por negocio en CSV.</li>
-              <li><strong>Exportar clientes:</strong> descarga el resumen de clientes identificados en las notas.</li>
-              <li><strong>Interpretación:</strong> los indicadores dependen de los datos registrados; un valor cero no significa necesariamente que el negocio no haya tenido actividad fuera del sistema.</li>
-            </ul>
-          </div>
-
-          <div class="panel settings-card">
-            <div class="panel-heading"><div><h3>14. Uso desde el teléfono, respaldo y buenas prácticas</h3><p>Recomendaciones para proteger los registros y trabajar con seguridad.</p></div></div>
-            <ul class="mb-0">
-              <li>En el teléfono, abrí el menú con ☰. Si una tabla es ancha, desplazala horizontalmente para ver todas sus columnas y acciones.</li>
-              <li>Completá los campos obligatorios y verificá nombre, negocio, fecha, método e importe antes de guardar.</li>
-              <li>Esperá el aviso de confirmación antes de cerrar un formulario o cambiar de sección.</li>
-              <li>Descargá respaldos periódicos y guardalos en una ubicación segura, separada del dispositivo de trabajo.</li>
-              <li>No uses las opciones de limpieza o eliminación para corregir errores menores. Primero verificá si basta con editar el registro.</li>
-              <li>No registres dos veces un mismo cobro de nota ni un mismo pago de empleado: el sistema crea automáticamente su movimiento financiero asociado.</li>
-              <li>No compartas contraseñas. Asigná a cada persona su propia cuenta y el rol mínimo necesario.</li>
-              <li>Cerrá sesión cuando termines de utilizar un equipo compartido.</li>
-              <li>Si un módulo no carga, comprobá la conexión y utilizá Actualizar. Si el problema continúa, anotá el mensaje exacto y comunicáselo al administrador.</li>
-            </ul>
-          </div>
-        
-          <div class="panel settings-card mb-3">
-            <div class="panel-heading"><div><h3>Disponibilidad del catálogo</h3><p>Cómo publicar productos y cambiar su estado de disponibilidad.</p></div></div>
-            <ul class="mb-0">
-              <li><strong>Disponibilidad:</strong> agregá productos con nombre y, opcionalmente, categoría, precio y descripción. No se registran cantidades, compras, entradas ni salidas de stock.</li>
-              <li><strong>En stock / Sin stock:</strong> usá el interruptor de cada producto. En stock se muestra normalmente en el catálogo público; Sin stock permanece visible en gris con una etiqueta pequeña.</li>
-              <li><strong>Catálogo para clientes:</strong> presioná «Copiar enlace del catálogo» para compartir la página pública de tu negocio. Los cambios de disponibilidad se reflejan automáticamente en el catálogo, que se actualiza periódicamente.</li>
-              <li><strong>Editar o eliminar:</strong> usá las acciones de cada fila para actualizar la información o retirar un producto del catálogo.</li>
-            </ul>
-          </div>
-</section>
+          <div class="page-heading"><div><p class="eyebrow">CENTRO DE AYUDA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Instrucciones para utilizar las herramientas habilitadas en tu negocio.</p></div></div>
+          <article class="panel settings-card mb-3"><h3>Acceso y navegación</h3><ul class="mb-0"><li>Ingresá con el correo y contraseña que te proporcionó el administrador de MATTSYSTEM.</li><li>Usá el menú lateral para abrir los módulos habilitados para tu negocio.</li><li>Los datos se guardan en línea. Esperá el mensaje de confirmación antes de cerrar un formulario.</li><li>Si un apartado no carga, usá Actualizar y comprobá tu conexión a Internet.</li></ul></article>
+          <article class="panel settings-card mb-3"><h3>Operación diaria</h3><ul class="mb-0"><li><strong>Dashboard:</strong> consultá el resumen de ingresos, gastos, resultados y pendientes.</li><li><strong>Movimientos:</strong> registrá ingresos y gastos con fecha, importe, categoría y descripción.</li><li><strong>Notas y ventas:</strong> registrá operaciones, cobros y saldos pendientes.</li><li><strong>Productos e inventario:</strong> administrá artículos, costos y existencias si estos módulos están habilitados.</li><li><strong>Compras, producción, caja y reportes:</strong> utilizá únicamente las opciones disponibles en tu plan.</li><li><strong>Clientes y proveedores:</strong> mantené actualizados sus datos para facilitar el seguimiento de las operaciones.</li></ul></article>
+          <article class="panel settings-card mb-3"><h3>Usuarios y configuración del negocio</h3><p>El administrador o supervisor de tu negocio puede gestionar los accesos internos y los datos de configuración que tenga autorizados. Si no encontrás una opción, consultá con el responsable de tu negocio.</p></article>
+          <article class="panel settings-card"><h3>Licencia, módulos y ayuda</h3><ul class="mb-0"><li>En Información de licencia podés consultar el plan, fechas, módulos y condiciones contratadas.</li><li>En Gestión operativa podés solicitar un módulo adicional o proponer una función nueva.</li><li>En Notificaciones consultá avisos y respuestas del sistema.</li><li>En Contactar a soporte enviá una solicitud y revisá las respuestas del equipo.</li></ul></article>
+        </section>
 
 <section class="page-view" id="page-contacto-soporte" data-page-title="Contactar a soporte"><div class="page-heading"><div><h1><i class="bi bi-headset"></i> Contactar a soporte</h1><p class="page-subtitle">Enviá una solicitud al equipo de soporte y consultá el seguimiento de tus consultas.</p></div></div><article class="panel settings-card mt-3" id="clientSupportCenter"><div class="panel-heading"><div><h3>Enviar una solicitud</h3><p>Enviá una consulta identificada con el nombre de tu negocio y seguí las respuestas.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshClientSupportTickets">Actualizar</button></div><form id="clientSupportTicketForm" class="settings-form"><label class="form-label" for="supportTicketSubject">Asunto</label><input class="form-control" id="supportTicketSubject" maxlength="120" required><label class="form-label" for="supportTicketMessage">¿En qué podemos ayudarte?</label><textarea class="form-control" id="supportTicketMessage" rows="4" maxlength="3000" required></textarea><button class="btn btn-bakery" type="submit">Enviar solicitud</button></form><div id="clientSupportTickets" class="mt-3"></div></article><div class="panel settings-card mt-3"><div class="panel-heading"><div><h3>¿Preferís comunicarte por WhatsApp?</h3><p>También podés contactar directamente al equipo de soporte.</p></div></div><a class="btn btn-outline-bakery" id="supportWhatsappContactButton" href="#" target="_blank" rel="noopener noreferrer" hidden><i class="bi bi-whatsapp"></i> Contactar por WhatsApp</a></div></section>
 
@@ -3501,7 +3261,7 @@ html body .auth-gate.auth-gate-hidden {
       setText('#adminActivityUnread', alerts.filter(x=>!x.read_at).length);
       setText('#adminActivityCount', alerts.filter(x=>!x.read_at).length);
       $('#adminActivityCount').classList.toggle('d-none',!alerts.some(x=>!x.read_at));
-      $('#adminActivityAlerts').innerHTML=alerts.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between gap-2"><div><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div><div class="text-end"><span class="status-pill '+(n.read_at?'status-cancelled':'status-paid')+'">'+(n.read_at?'Leída':'Nueva')+'</span></div></div></article>').join('')||'<p class="text-muted">No hay alertas nuevas.</p>';
+      $('#adminActivityAlerts').innerHTML=alerts.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between gap-2"><div><strong>'+escapeHTML(n.title)+'</strong><p class="mb-1">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div><div class="text-end">'+(!n.read_at?'<button type="button" class="btn btn-sm btn-outline-bakery" data-admin-alert-read="'+escapeHTML(n.id)+'">Confirmar lectura</button>':'<span class="text-success small">Leída</span>')+'</div></div></article>').join('')||'<p class="text-muted">No hay alertas nuevas.</p>';
       $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
     }catch(error){const target=$('#adminActivityAlerts');if(target)target.innerHTML='<p class="text-danger">No se pudo cargar la actividad. Usá Actualizar para volver a intentar.</p>';if(!quiet)notify('No se pudo cargar la actividad: '+error.message);console.error('Error al cargar actividad administrativa:',error);}
   }
@@ -3615,7 +3375,7 @@ html body .auth-gate.auth-gate-hidden {
       const unread=items.filter(n=>!n.read_at).length;
       const badge=$('#notificationNavCount');if(badge){badge.textContent=unread;badge.classList.toggle('d-none',unread===0);}
       const list=$('#notificationsList');if(!list)return;
-      list.innerHTML=items.map(n=>'<article class="panel settings-card"><div><h3 class="mt-0">'+escapeHTML(n.title)+'</h3><p class="mb-2" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div></article>').join('')||'<article class="panel settings-card"><p class="text-muted mb-0">Todavía no tenés notificaciones.</p></article>';
+      list.innerHTML=items.map(n=>'<article class="panel settings-card"><div class="d-flex justify-content-between align-items-start gap-3"><div><h3 class="mt-0">'+escapeHTML(n.title)+'</h3><p class="mb-2" style="white-space:pre-wrap">'+escapeHTML(n.message)+'</p><small class="text-muted">'+escapeHTML(new Date(n.created_at).toLocaleString('es-PY'))+'</small></div>'+(!n.read_at?'<button class="btn btn-outline-bakery btn-sm" type="button" data-read-notification="'+escapeHTML(n.id)+'">Marcar leída</button>':'<span class="text-success small">Leída</span>')+'</div></article>').join('')||'<article class="panel settings-card"><p class="text-muted mb-0">Todavía no tenés notificaciones.</p></article>';
     }catch(error){console.warn('No se pudieron cargar notificaciones:',error.message);const list=$('#notificationsList');if(list)list.innerHTML='<article class="panel settings-card"><p class="text-danger mb-0">No se pudieron cargar las notificaciones. Usá Actualizar para volver a intentar.</p></article>';}
   }
 
@@ -4140,7 +3900,7 @@ html body .auth-gate.auth-gate-hidden {
       return;
     }
     if(e.target.id==='clientSupportTicketForm'){e.preventDefault();try{await api('/api/support/tickets',{method:'POST',body:JSON.stringify({subject:$('#supportTicketSubject').value,message:$('#supportTicketMessage').value})});e.target.reset();await loadClientTickets();alert('Solicitud enviada correctamente.');}catch(x){alert(x.message);}}if(e.target.id==='notificationPreferencesForm'){e.preventDefault();try{await api('/api/notification-preferences',{method:'PUT',body:JSON.stringify({preferences:{system:$('#prefSystem').checked,financial:$('#prefFinancial').checked,support:$('#prefSupport').checked}})});alert('Preferencias guardadas.');}catch(x){alert(x.message);}}});
- document.addEventListener('click',async e=>{const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton,#refreshClientSupportTickets');if(!t)return;try{if(t.id==='refreshClientSupportTickets'){await loadClientTickets();return;}if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
+ document.addEventListener('click',async e=>{const readAlert=e.target.closest('[data-admin-alert-read]');if(readAlert){try{await api('/api/admin/activity',{method:'PATCH',body:JSON.stringify({id:readAlert.dataset.adminAlertRead})});await refreshAdminActivity(true);}catch(error){notify(error.message||'No se pudo confirmar la lectura.');}return;}const t=e.target.closest('.ticket-status-save,.ticket-reply-send,.trash-restore,#refreshSupportTickets,#refreshTrash,#refreshBusinessesButton,#refreshClientSupportTickets');if(!t)return;try{if(t.id==='refreshClientSupportTickets'){await loadClientTickets();return;}if(t.id==='refreshSupportTickets'){await loadTickets();return;}if(t.id==='refreshTrash'){await loadTrash();return;}if(t.id==='refreshBusinessesButton'){await loadOverview();return;}const card=t.closest('[data-ticket]'),id=card?.dataset.ticket;if(t.classList.contains('ticket-status-save'))await api('/api/support/tickets',{method:'PATCH',body:JSON.stringify({id,status:card.querySelector('.ticket-status').value})});if(t.classList.contains('ticket-reply-send')){const message=card.querySelector('.ticket-reply').value.trim();if(!message)throw new Error('Escribí una respuesta.');await api('/api/support/tickets/reply',{method:'POST',body:JSON.stringify({ticketId:id,message})});card.querySelector('.ticket-reply').value='';}if(t.classList.contains('trash-restore')){await api('/api/admin/trash',{method:'POST',body:JSON.stringify({action:'restore',id:t.dataset.id})});await loadTrash();}await loadTickets();await loadOverview();}catch(x){alert(x.message);}});
  document.addEventListener('click',async event=>{
    const button=event.target.closest('#requestLicenseActivation');
    if(!button||button.hidden||button.disabled)return;
