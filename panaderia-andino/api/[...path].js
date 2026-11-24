@@ -1285,7 +1285,13 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
       const input = body(req);
       if (input.confirmation !== 'REINICIAR') return send(res,400,{error:'Confirmación inválida. No se eliminó ningún dato.'});
+      const password = typeof input.password === 'string' ? input.password : '';
+      if (!password || password.length > 200) return send(res,400,{error:'Ingresá la contraseña actual del administrador.'});
       const sql = db();
+      const adminCredentials = await sql`SELECT password_hash FROM app_users WHERE id=${admin.id} AND is_platform_admin=TRUE AND active=TRUE LIMIT 1`;
+      if (!adminCredentials.length || !(await verifyPassword(password, adminCredentials[0].password_hash))) {
+        return send(res,403,{error:'La contraseña del administrador es incorrecta. No se eliminó ningún dato.'});
+      }
       // Se eliminan primero las tablas dependientes para respetar las claves foráneas.
       // La cuenta del administrador principal es la única fila de app_users que se conserva.
       const statements = [
@@ -1308,7 +1314,6 @@ module.exports = async function handler(req, res) {
         sql`DELETE FROM app_suppliers`,
         sql`DELETE FROM app_financial_entries`,
         sql`DELETE FROM app_license_payments`,
-        sql`DELETE FROM app_trial_claims`,
         sql`DELETE FROM app_licenses`,
         sql`DELETE FROM app_notification_preferences`,
         sql`DELETE FROM app_notifications`,
@@ -1327,7 +1332,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{ok:true,message:'Sistema restablecido. Se conservó la cuenta del administrador principal.'});
       } catch (error) {
         console.error('Error en el reinicio total del sistema:', error);
-        return send(res,500,{error:'No se pudo completar el reinicio. La operación fue revertida y no se aplicaron cambios parciales.'});
+        return send(res,500,{error:'No se pudo completar el reinicio. La operación fue revertida y no se aplicaron cambios parciales.', code:error?.code||'RESET_FAILED'});
       }
     }
 
