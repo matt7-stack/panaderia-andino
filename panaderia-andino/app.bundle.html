@@ -2899,7 +2899,7 @@ html body .auth-gate.auth-gate-hidden {
           const selectedPlan=plans.find(plan=>plan.plan_key===quotePlanSelect.value);
           const containsModules=plan=>Array.isArray(plan.modules)&&selected.every(key=>plan.modules.includes(key));
           let chosenPlan=selectedPlan;
-          if(!manualPricing&&(!chosenPlan||!containsModules(chosenPlan)){
+          if(!manualPricing&&(!chosenPlan||!containsModules(chosenPlan))){
             chosenPlan=plans.find(containsModules);
             if(!chosenPlan){
               const moduleNames=selected.map(key=>(moduleDefs.find(item=>item[0]===key)||[key,key])[1]);
