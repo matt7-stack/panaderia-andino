@@ -1331,6 +1331,7 @@ module.exports = async function handler(req, res) {
         ['app_login_attempts', sql`DELETE FROM app_login_attempts`],
         ['app_support_replies', sql`DELETE FROM app_support_replies`],
         ['app_support_tickets', sql`DELETE FROM app_support_tickets`],
+        ['app_module_requests', sql`DELETE FROM app_module_requests`],
         ['app_trash', sql`DELETE FROM app_trash`],
         ['app_state', sql`DELETE FROM app_state`]
       ];
