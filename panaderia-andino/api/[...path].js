@@ -388,27 +388,36 @@ module.exports = async function handler(req, res) {
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${license[0].business_id},${admin.id},'license.modules_updated','license',${id},${JSON.stringify({modules})}::jsonb)`;
           return send(res,200,{license:rows[0]});
         }
-        if(input.action==='renew'){
+        if(input.action==='activate'||input.action==='renew'){
+          const durationMonths=Number(input.durationMonths);
           const amount=Number(input.amount??0);
-          if(!id||!Number.isFinite(amount)||amount<0)
+          if(!id||!Number.isInteger(durationMonths)||durationMonths<1||durationMonths>120)
+            return send(res,400,{error:'La duración debe ser un número entero entre 1 y 120 meses.'});
+          if(input.action==='renew'&&(!Number.isFinite(amount)||amount<0))
             return send(res,400,{error:'Ingresá un importe igual o mayor que cero.'});
           const rows=await sql`
             WITH renewed AS (
               UPDATE app_licenses
               SET status='active',
-                  expires_at=((CASE WHEN expires_at IS NULL OR expires_at<CURRENT_DATE THEN CURRENT_DATE ELSE expires_at END)+INTERVAL '1 month')::date,
+                  sold_at=CASE WHEN ${input.action==='activate'} THEN COALESCE(sold_at,CURRENT_DATE) ELSE sold_at END,
+                  expires_at=(CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date,
                   updated_at=NOW()
               WHERE id=${id} RETURNING *
             ),
             payment AS (
               INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by)
-              SELECT id,${amount},'monthly',CURRENT_DATE,expires_at,'Renovación de licencia','Pago registrado al renovar la licencia.',${admin.id}
-              FROM renewed WHERE ${amount}>0 RETURNING id
+              SELECT id,${amount},'monthly',CURRENT_DATE,expires_at,
+                CASE WHEN ${input.action==='activate'} THEN 'Activación de licencia' ELSE 'Renovación de licencia' END,
+                CASE WHEN ${input.action==='activate'} THEN 'Pago registrado al activar la licencia.' ELSE 'Pago registrado al renovar la licencia.' END,${admin.id}
+              FROM renewed WHERE ${input.action==='renew'} AND ${amount}>0 RETURNING id
             )
             SELECT renewed.*,(SELECT COUNT(*)::int FROM payment) AS payment_recorded FROM renewed
           `;
           if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
-          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT business_id,${admin.id},${input.action==='activate'?'license.activated':'license.renewed'},'license',id,
+              ${JSON.stringify({durationMonths,expiresAt:rows[0].expires_at})}::jsonb FROM app_licenses WHERE id=${id}`;
+          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0,durationMonths});
         }
         const status=String(input.status||'');
         if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
