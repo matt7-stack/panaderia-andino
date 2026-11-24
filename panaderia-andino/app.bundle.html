@@ -1970,7 +1970,25 @@ body.auth-locked{overflow:hidden!important}
       try {
         const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: emailInput.value.trim(), password: passwordInput.value }) });
         if (!result || !result.user) throw new Error('El servidor no devolvió los datos de acceso. Volvé a intentarlo.');
-        establish(result.user);
+        try {
+          establish(result.user);
+        } catch (activationError) {
+          // El servidor ya aceptó las credenciales y creó la sesión. Un fallo
+          // secundario de la interfaz no debe devolver al usuario al login.
+          console.error('Falló la preparación completa del panel; aplicando activación segura:', activationError);
+          const authenticatedUser = result.user;
+          const isPlatformAdmin = authenticatedUser.isPlatformAdmin === true || authenticatedUser.is_platform_admin === true;
+          const inactiveBusinessLicense = !isPlatformAdmin && authenticatedUser.license && authenticatedUser.license.valid !== true;
+          if (inactiveBusinessLicense) throw activationError;
+          authenticatedUser.isPlatformAdmin = isPlatformAdmin;
+          window.PanaderiaAuth.user = authenticatedUser;
+          document.body.classList.remove('auth-locked');
+          document.documentElement.classList.remove('auth-locked');
+          document.body.classList.toggle('platform-admin', isPlatformAdmin);
+          gate.classList.add('auth-gate-hidden');
+          window.location.hash = isPlatformAdmin ? '#administracion' : '#dashboard';
+          window.dispatchEvent(new CustomEvent('panaderia:authenticated', { detail: authenticatedUser }));
+        }
       } catch (error) {
         showMessage(error && error.message ? error.message : 'No se pudo iniciar sesión. Volvé a intentarlo.');
       } finally {
