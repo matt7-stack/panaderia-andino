@@ -771,15 +771,15 @@ module.exports = async function handler(req, res) {
         const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!prospectName||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!['monthly','annual','permanent','full_sale'].includes(plan)||!['basic','professional','enterprise'].includes(licensePlanKey)||!modules.length||modules.length>50)return send(res,400,{error:'Completá el prospecto, tipo de licencia, rubro, modalidad y módulos.'});
         if(prospectEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prospectEmail))return send(res,400,{error:'Correo electrónico no válido.'});
-        const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
-        if(catalog.length!==modules.length)return send(res,400,{error:'La cotización contiene módulos no disponibles.'});
+        const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+        if(catalog.length!==modules.length)return send(res,400,{error:'La cotización contiene módulos no disponibles o todavía no implementados.'});
         const settingsRows=await sql`SELECT monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency FROM app_commercial_settings WHERE setting_key='default' LIMIT 1`;
         const settings=settingsRows[0]||{monthly_base:0,annual_discount_percent:0,permanent_price:0,full_sale_price:0,setup_fee:0,currency:'PYG'};
         const planSettingsRows=await sql`SELECT setup_amount,monthly_amount,annual_discount_percent,permanent_price,full_sale_price,modules,module_prices FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
         if(!planSettingsRows.length)return send(res,409,{error:'Configurá primero el tipo de licencia seleccionado.'});
         const planSettings=planSettingsRows[0],planModules=Array.isArray(planSettings.modules)?planSettings.modules:[];
-        const moduleExpansion=input.moduleExpansion===true;
-        if(!moduleExpansion&&modules.some(key=>!planModules.includes(key)))return send(res,400,{error:'La cotización contiene módulos que no están incluidos en el tipo de licencia seleccionado.'});
+        const moduleExpansion=input.moduleExpansion===true,manualPricing=input.manualPricing===true;
+        if(!manualPricing&&!moduleExpansion&&modules.some(key=>!planModules.includes(key)))return send(res,400,{error:'La cotización contiene módulos que no están incluidos en el tipo de licencia seleccionado.'});
         if(moduleExpansion&&(!input.businessId||!['monthly','annual'].includes(plan)))return send(res,400,{error:'La ampliación de módulos requiere un negocio y una modalidad mensual o anual.'});
         const reusableInMattsystem=input.reusableInMattsystem===true;
         const reuseConsentNotes=String(input.reuseConsentNotes||'').trim().slice(0,1000);
@@ -788,20 +788,36 @@ module.exports = async function handler(req, res) {
         if(!Number.isFinite(requestedReuseDiscount)||requestedReuseDiscount<0||requestedReuseDiscount>30)return send(res,400,{error:'El descuento por reutilización debe estar entre 0 y 30 por ciento.'});
         const reuseDiscountPercent=reusableInMattsystem?requestedReuseDiscount:0;
         const modulePrices=planSettings.module_prices&&typeof planSettings.module_prices==='object'?planSettings.module_prices:{};
-        const pricedCatalog=catalog.map(m=>{const p=modulePrices[m.module_key]||{};return {...m,monthly_price:Number(p.monthly??m.monthly_price??0),setup_price:Number(p.setup??m.setup_price??0)};});
+        let pricedCatalog=catalog.map(m=>{const p=modulePrices[m.module_key]||{};return {...m,monthly_price:Number(p.monthly??m.monthly_price??0),setup_price:Number(p.setup??m.setup_price??0)};});
+        let licenseSetup=Number(planSettings.setup_amount||0),licenseMonthly=Number(planSettings.monthly_amount||0);
+        let licensePermanent=Number(planSettings.permanent_price||0),licenseFullSale=Number(planSettings.full_sale_price||0);
+        if(manualPricing){
+          const manualLicense=input.manualLicense&&typeof input.manualLicense==='object'?input.manualLicense:{};
+          const manualModules=input.manualModulePrices&&typeof input.manualModulePrices==='object'?input.manualModulePrices:{};
+          const includeLicense=manualLicense.enabled!==false;
+          const amount=(value,label)=>{const n=Number(value??0);if(!Number.isFinite(n)||n<0||n>1000000000)throw new Error('Importe manual no válido: '+label+'.');return Math.round(n);};
+          try{
+            licenseSetup=includeLicense?amount(manualLicense.setup,'configuración de licencia'):0;
+            licenseMonthly=includeLicense?amount(manualLicense.monthly,'licencia mensual'):0;
+            licensePermanent=includeLicense?amount(manualLicense.permanent,'licencia permanente'):0;
+            licenseFullSale=includeLicense?amount(manualLicense.fullSale,'venta completa'):0;
+            pricedCatalog=catalog.map(m=>{const p=manualModules[m.module_key]||{};return {...m,setup_price:amount(p.setup,'configuración de '+m.title),monthly_price:amount(p.monthly,'valor mensual de '+m.title)};});
+          }catch(error){return send(res,400,{error:error.message||'Revisá los importes manuales.'});}
+        }
         const moduleMonthly=pricedCatalog.reduce((n,m)=>n+Number(m.monthly_price||0),0),moduleSetup=pricedCatalog.reduce((n,m)=>n+Number(m.setup_price||0),0);
-        const grossMonthly=(moduleExpansion?0:Number(planSettings.monthly_amount||0))+moduleMonthly,grossSetup=(moduleExpansion?0:Number(planSettings.setup_amount||0))+moduleSetup;
+        const grossMonthly=(moduleExpansion?0:licenseMonthly)+moduleMonthly,grossSetup=(moduleExpansion?0:licenseSetup)+moduleSetup;
         const monthly=grossMonthly,setup=Math.round(grossSetup*(1-reuseDiscountPercent/100));
         const annual=monthly*12*(1-Number(planSettings.annual_discount_percent??settings.annual_discount_percent??0)/100);
         if(moduleExpansion&&moduleMonthly<=0&&moduleSetup<=0)return send(res,409,{error:'Configurá un precio mensual o de instalación para este módulo en el plan seleccionado.'});
-        const oneTime=plan==='permanent'?Number(planSettings.permanent_price||0)+setup:plan==='full_sale'?Number(planSettings.full_sale_price||0)+setup:setup;
-        if((plan==='permanent'&&!Number(planSettings.permanent_price||0))||(plan==='full_sale'&&!Number(planSettings.full_sale_price||0)))return send(res,409,{error:'Configurá primero el precio permanente o de venta completa para el plan seleccionado.'});
+        const oneTime=plan==='permanent'?licensePermanent+moduleSetup:plan==='full_sale'?licenseFullSale+moduleSetup:setup;
+        if(!manualPricing&&((plan==='permanent'&&!licensePermanent)||(plan==='full_sale'&&!licenseFullSale)))return send(res,409,{error:'Configurá primero el precio permanente o de venta completa para el plan seleccionado.'});
+        if(manualPricing&&['permanent','full_sale'].includes(plan)&&!((plan==='permanent'&&licensePermanent>0)||(plan==='full_sale'&&licenseFullSale>0))&&moduleSetup<=0)return send(res,400,{error:'Ingresá el precio manual de la licencia permanente o venta completa, o elegí otra modalidad.'});
         const businessId=input.businessId?String(input.businessId):null;
         if(businessId&&!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio asociado a la cotización no válido.'});
         if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
         const validUntil=input.validUntil?String(input.validUntil):null;
         if(validUntil){const parsed=new Date(validUntil+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==validUntil)return send(res,400,{error:'Fecha de validez de cotización no válida.'});}
-        const breakdown={currency:settings.currency||'PYG',licensePlanKey,monthlyBase:moduleExpansion?0:Number(planSettings.monthly_amount||0),annualDiscountPercent:Number(planSettings.annual_discount_percent??settings.annual_discount_percent??0),setupFee:moduleExpansion?0:Number(planSettings.setup_amount||0),grossSetup,reuseDiscountPercent,modules:pricedCatalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
+        const breakdown={currency:settings.currency||'PYG',licensePlanKey,manualPricing,licenseIncluded:!manualPricing||input.manualLicense?.enabled!==false,monthlyBase:moduleExpansion?0:licenseMonthly,annualDiscountPercent:Number(planSettings.annual_discount_percent??settings.annual_discount_percent??0),setupFee:moduleExpansion?0:licenseSetup,licensePermanent:manualPricing?licensePermanent:Number(planSettings.permanent_price||0),licenseFullSale:manualPricing?licenseFullSale:Number(planSettings.full_sale_price||0),grossSetup,reuseDiscountPercent,modules:pricedCatalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)}))};
         const rows=await sql`INSERT INTO app_quotations(business_id,prospect_name,prospect_email,industry_key,config_mode,modules,plan_type,setup_amount,monthly_amount,annual_amount,currency,valid_until,notes,price_breakdown,is_module_expansion,created_by,reusable_in_mattsystem,reuse_discount_percent,reuse_consent_recorded_at,reuse_consent_notes)
           VALUES(${businessId},${prospectName},${prospectEmail},${industry},${mode},${JSON.stringify(modules)}::jsonb,${plan},${plan==='monthly'||plan==='annual'?setup:Math.round(oneTime*(1-reuseDiscountPercent/100))},${plan==='monthly'?monthly:0},${plan==='annual'?annual:0},${settings.currency||'PYG'},${validUntil},${String(input.notes||'').slice(0,2000)},${JSON.stringify(breakdown)}::jsonb,${moduleExpansion},${admin.id},${reusableInMattsystem},${reuseDiscountPercent},${reusableInMattsystem?new Date().toISOString():null},${reuseConsentNotes}) RETURNING *`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'commercial.quotation_created','quotation',${rows[0].id},${JSON.stringify({prospectName,industry,licensePlanKey,plan,modules,moduleExpansion})}::jsonb)`;
