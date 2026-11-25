@@ -2835,27 +2835,7 @@ html body .auth-gate.auth-gate-hidden {
               '<h3 class="section">Hosting, mantenimiento y soporte</h3><p>No aparecen como conceptos incluidos ni cotizados en el total de esta propuesta. Si el cliente los requiere, se detallarán en una cotización o acuerdo separado, con sus importes y periodicidad.</p>'+
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
-              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div><style id="platform-maintenance-screen-style">
-#platformMaintenanceScreen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 10%,rgba(180,135,86,.13),transparent 40%),linear-gradient(145deg,#f8f6f2,#eee8df);font-family:inherit;color:#34271e}
-#platformMaintenanceScreen .maintenance-card{width:min(560px,100%);padding:clamp(24px,5vw,42px);border:1px solid #e6dbce;border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(48,34,22,.10);text-align:center}
-#platformMaintenanceScreen .maintenance-symbol{width:68px;height:68px;display:grid;place-items:center;margin:0 auto 20px;border-radius:20px;background:#fff3df;color:#9b642d;font-size:30px}
-#platformMaintenanceScreen h1{font-size:clamp(24px,5vw,32px);font-weight:800;margin:0 0 12px}
-#platformMaintenanceScreen p{color:#70645a;line-height:1.7;margin:0 0 20px;white-space:pre-wrap}
-</style>
-<script id="platform-maintenance-screen">
-(async()=>{
-  try{
-    await Promise.resolve(window.PanaderiaAuthReady).catch(()=>null);
-    const response=await fetch('/api/maintenance/status',{cache:'no-store',credentials:'same-origin'});
-    if(!response.ok)return;
-    const state=await response.json();
-    if(state.active!==true||window.PanaderiaAuth?.user?.isPlatformAdmin===true)return;
-    const reason={maintenance:'Mantenimiento programado',security:'Mejoras de seguridad',improvements:'Mejoras del sistema',upgrade:'Actualización de versión',other:'Tareas técnicas'}[state.reason]||'Mantenimiento';
-    const end=state.endsAt?new Date(state.endsAt).toLocaleString('es-PY',{dateStyle:'medium',timeStyle:'short'}):'hasta nuevo aviso';
-    document.body.innerHTML='<main id="platformMaintenanceScreen"><section class="maintenance-card"><div class="maintenance-symbol"><i class="bi bi-cone-striped" aria-hidden="true"></i></div><p style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#9b642d;margin-bottom:9px">MATTSYSTEM · '+reason.toUpperCase()+'</p><h1>Estamos realizando mejoras</h1><p>'+String(state.message||'El sistema está temporalmente fuera de servicio.').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</p><p style="font-size:13px">Disponibilidad estimada: '+end+'</p><button type="button" onclick="location.reload()" style="min-height:44px;padding:10px 20px;border:0;border-radius:10px;background:#80542f;color:#fff;font-weight:700">Volver a comprobar</button></section></main>';
-  }catch(error){console.warn('No se pudo consultar el modo de mantenimiento:',error);}
-})();
-</script>
+              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>
 </body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
@@ -4529,5 +4509,26 @@ html.auth-locked body::-webkit-scrollbar-track {
 .license-request-button{min-height:42px;padding:9px 12px;border:1px solid #e1e5f2;border-radius:10px;color:#62698a;background:#fff;font-size:11px;font-weight:750}
 .license-request-button:hover{border-color:#b9c0df;background:#f8f9ff}.license-request-button:disabled{opacity:.6;cursor:wait}
 </style>
+<style id="platform-maintenance-screen-style">
+#platformMaintenanceScreen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 15% 10%,rgba(180,135,86,.13),transparent 40%),linear-gradient(145deg,#f8f6f2,#eee8df);font-family:inherit;color:#34271e}
+#platformMaintenanceScreen .maintenance-card{width:min(560px,100%);padding:clamp(24px,5vw,42px);border:1px solid #e6dbce;border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(48,34,22,.10);text-align:center}
+#platformMaintenanceScreen .maintenance-symbol{width:68px;height:68px;display:grid;place-items:center;margin:0 auto 20px;border-radius:20px;background:#fff3df;color:#9b642d;font-size:30px}
+#platformMaintenanceScreen h1{font-size:clamp(24px,5vw,32px);font-weight:800;margin:0 0 12px}
+#platformMaintenanceScreen p{color:#70645a;line-height:1.7;margin:0 0 20px;white-space:pre-wrap}
+</style>
+<script id="platform-maintenance-screen">
+(async()=>{
+  try{
+    await Promise.resolve(window.PanaderiaAuthReady).catch(()=>null);
+    const response=await fetch('/api/maintenance/status',{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)return;
+    const state=await response.json();
+    if(state.active!==true||window.PanaderiaAuth?.user?.isPlatformAdmin===true)return;
+    const reason={maintenance:'Mantenimiento programado',security:'Mejoras de seguridad',improvements:'Mejoras del sistema',upgrade:'Actualización de versión',other:'Tareas técnicas'}[state.reason]||'Mantenimiento';
+    const end=state.endsAt?new Date(state.endsAt).toLocaleString('es-PY',{dateStyle:'medium',timeStyle:'short'}):'hasta nuevo aviso';
+    document.body.innerHTML='<main id="platformMaintenanceScreen"><section class="maintenance-card"><div class="maintenance-symbol"><i class="bi bi-cone-striped" aria-hidden="true"></i></div><p style="font-size:11px;font-weight:800;letter-spacing:1.5px;color:#9b642d;margin-bottom:9px">MATTSYSTEM · '+reason.toUpperCase()+'</p><h1>Estamos realizando mejoras</h1><p>'+String(state.message||'El sistema está temporalmente fuera de servicio.').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+'</p><p style="font-size:13px">Disponibilidad estimada: '+end+'</p><button type="button" onclick="location.reload()" style="min-height:44px;padding:10px 20px;border:0;border-radius:10px;background:#80542f;color:#fff;font-weight:700">Volver a comprobar</button></section></main>';
+  }catch(error){console.warn('No se pudo consultar el modo de mantenimiento:',error);}
+})();
+</script>
 </body>
 </html>
