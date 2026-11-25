@@ -3042,7 +3042,7 @@ html body .auth-gate.auth-gate-hidden {
       const localDate=value=>{if(!value)return '';const d=new Date(value);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);};
       set('maintenanceStartsAt',localDate(s.startsAt));set('maintenanceEndsAt',localDate(s.endsAt));
       if(title)title.textContent=s.active?'Mantenimiento activo':'Acceso general habilitado';
-      if(desc)desc.textContent=s.active?'Los negocios y empleados están bloqueados. El administrador principal conserva el acceso.':(s.enabled?'Mantenimiento programado. El sistema seguirá disponible hasta la hora de inicio.':'No hay una suspensión general activa.');
+      const ended=s.enabled&&s.endsAt&&new Date(s.endsAt).getTime()<=Date.now();const scheduled=s.enabled&&s.startsAt&&new Date(s.startsAt).getTime()>Date.now();if(desc)desc.textContent=s.active?'Los negocios y empleados están bloqueados. El administrador principal conserva el acceso.':(ended?'El período de mantenimiento terminó y el acceso general está restablecido.':(scheduled?'Mantenimiento programado. El sistema seguirá disponible hasta la hora de inicio.':'No hay una suspensión general activa.'));
       const card=document.getElementById('maintenanceCurrentStatus');if(card)card.style.borderColor=s.active?'#d99b45':'#b8d8c2';
     }catch(error){if(title)title.textContent='No se pudo cargar el estado';if(desc)desc.textContent=error.message||'Verificá la conexión e intentá nuevamente.';}
   }
