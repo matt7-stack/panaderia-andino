@@ -198,7 +198,7 @@ if (!html.includes('id="adminPrivateBalanceTotal"')) throw new Error('Falta el r
 const securityApi = fs.readFileSync(apiPath, 'utf8');
 const securityHtml = fs.readFileSync(path.join(root, 'app.bundle.html'), 'utf8');
 const securityEmployeeAccess = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
-const securityMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
+const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
 const erpPostStart = securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')"));
 const salesStart = securityApi.indexOf("if (module === 'sales')", erpPostStart);
 const salesEnd = securityApi.indexOf("if (module === 'purchases')", salesStart);
@@ -213,7 +213,7 @@ if (!salesBlock.includes('sale_price') || !salesBlock.includes('canOverrideSaleP
 if (!securityApi.includes("set_config('role', 'mattsystem_app', true)") || !securityApi.includes('usesRuntimeRole')) throw new Error('La conexión de producción debe forzar el rol SQL de mínimos privilegios cuando no se usa DATABASE_URL_RUNTIME.');
 if (!deliveryBlock.includes('sale_price') || !deliveryBlock.includes('canOverrideDeliveryPrice') || !deliveryBlock.includes('canDiscountDelivery')) throw new Error('Los pedidos deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
 if (!inventoryBlock.includes('FOR UPDATE') || !inventoryBlock.includes('c.new_stock>=0')) throw new Error('Los movimientos de inventario deben bloquear la fila y evitar stock negativo de forma atómica.');
-if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') || !securityMigration.includes('app_login_ip_attempts_scope') || !securityMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
+if (!hardeningMigration.includes('ENABLE ROW LEVEL SECURITY') || !hardeningMigration.includes('app_login_ip_attempts_scope') || !hardeningMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
 if (!securityHtml.includes('logoPreview.replaceChildren()') || !securityHtml.includes('safeLogoSource') || securityHtml.includes('logoPreview.innerHTML = state.business.logo')) throw new Error('La vista previa del logo debe usar DOM seguro y validar el origen de la imagen.');
 if (!securityEmployeeAccess.includes('sales.price_override') || !securityEmployeeAccess.includes('sales.discount') || !securityEmployeeAccess.includes('delivery.price_override') || !securityApi.includes("'sales.price_override'") || !securityApi.includes("'delivery.price_override'")) throw new Error('Faltan los permisos explícitos para modificar precios y aplicar descuentos en la interfaz y en el servidor.');
 const appFullHtml = fs.readFileSync(path.join(root, 'app.full.html'), 'utf8');
