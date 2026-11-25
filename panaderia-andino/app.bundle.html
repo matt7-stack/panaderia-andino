@@ -3150,6 +3150,7 @@ html body .auth-gate.auth-gate-hidden {
       return;
     }
     if (!cloudReady) { reject(new Error('Los datos del negocio todavía no terminaron de cargar. Esperá y volvé a intentar.')); return; }
+    if (cloudSaving) { reject(new Error('Hay otra sincronización en curso. Esperá unos segundos antes de registrar estos gastos.')); return; }
     if (!Array.isArray(items) || !items.length || items.length > 250) { reject(new Error('La carga debe contener entre 1 y 250 gastos.')); return; }
     const normalized = [];
     for (const item of items) {
