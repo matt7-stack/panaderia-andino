@@ -5,10 +5,10 @@
   if (!nav || nav.dataset.adminGrouped === 'true') return;
   const groups = [
     { title: 'Principal', icon: 'bi-house-door', pages: ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp'], open: true },
-    { title: 'Administración', icon: 'bi-shield-lock', pages: ['administracion','admin-panaderias','admin-usuarios'], open: true },
+    { title: 'Administración', icon: 'bi-shield-lock', pages: ['administracion','admin-panaderias','admin-usuarios','admin-centro','admin-maintenance'], open: true },
     { title: 'Comercial', icon: 'bi-briefcase', pages: ['admin-licencias','admin-cotizador'], open: false },
-    { title: 'Operaciones', icon: 'bi-diagram-3', pages: ['admin-centro','reportes-globales'], open: false },
-    { title: 'Control y seguridad', icon: 'bi-shield-check', pages: ['actividad','seguridad','admin-maintenance'], open: false },
+    { title: 'Operaciones', icon: 'bi-diagram-3', pages: ['reportes-globales'], open: false },
+    { title: 'Control y seguridad', icon: 'bi-shield-check', pages: ['actividad','seguridad'], open: false },
     { title: 'Soporte y comunicación', icon: 'bi-headset', pages: ['admin-notificaciones','admin-support'], open: false },
     { title: 'Preferencias y ayuda', icon: 'bi-sliders', pages: ['configuracion','guia-uso','contacto-soporte','novedades'], open: false }
   ];
@@ -17,6 +17,9 @@
   const style = document.createElement('style');
   style.textContent = `
     .nav-menu{gap:10px!important}
+    #adminQuickActionsMount .quick-actions-section{margin:0 0 18px}
+    #adminQuickActionsMount .quick-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media(max-width:680px){#adminQuickActionsMount .quick-actions-grid{grid-template-columns:1fr}}
     .admin-nav-group{display:grid;gap:5px;min-width:0}
     .admin-nav-group[hidden]{display:none!important}
     .admin-nav-group__toggle{width:100%;display:flex;align-items:center;gap:9px;padding:8px 12px;border:0;border-radius:8px;color:#cdb59f;background:transparent;text-align:left;font:700 9px/1.2 'DM Sans',sans-serif;letter-spacing:1.1px;text-transform:uppercase}
@@ -29,6 +32,9 @@
     .admin-nav-group .nav-link{min-height:41px;font-size:11px}
   `;
   document.head.appendChild(style);
+  const shortcutSection = document.querySelector('.quick-actions-section');
+  const shortcutMount = document.getElementById('adminQuickActionsMount');
+  if (shortcutSection && shortcutMount) { shortcutSection.querySelector('.section-title h3').textContent = 'Accesos rápidos'; shortcutSection.querySelector('.section-title .eyebrow').textContent = 'HERRAMIENTAS'; shortcutMount.appendChild(shortcutSection); }
   const fragments = [];
   const groupNodes = [];
   for (const definition of groups) {
@@ -69,6 +75,12 @@
   nav.addEventListener('click', event => {
     const link = event.target.closest('[data-page-link]');
     if (!link) return;
+    if (link.dataset.pageLink === 'admin-maintenance') {
+      event.preventDefault();
+      const target = '#admin-maintenance';
+      if (window.location.hash !== target) window.location.hash = target;
+      else window.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
     const group = link.closest('.admin-nav-group');
     if (group) {
       const content = group.querySelector('.admin-nav-group__items');
