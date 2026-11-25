@@ -195,4 +195,24 @@ if (!html.includes('id="adminPrivateNoteForm"') || !html.includes('id="adminPriv
 if (html.includes('id="adminCenterCards"')) throw new Error('El Centro de gestión todavía contiene accesos rápidos que fueron solicitados eliminar.');
 if (!html.includes('id="adminPrivateBalanceTotal"')) throw new Error('Falta el resumen mensual privado en la pantalla principal del administrador.');
 
+const securityApi = fs.readFileSync(apiPath, 'utf8');
+const securityHtml = fs.readFileSync(path.join(root, 'app.bundle.html'), 'utf8');
+const securityEmployeeAccess = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
+const securityMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
+const salesStart = securityApi.indexOf("if (module === 'sales')", securityApi.indexOf("if (path === '/api/business/erp')"));
+const salesEnd = securityApi.indexOf("if (module === 'purchases')", salesStart);
+const salesBlock = salesStart >= 0 && salesEnd > salesStart ? securityApi.slice(salesStart, salesEnd) : '';
+const inventoryStart = securityApi.indexOf("if (module === 'inventory')", securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')")));
+const inventoryEnd = securityApi.indexOf("if (module === 'sales')", inventoryStart);
+const inventoryBlock = inventoryStart >= 0 && inventoryEnd > inventoryStart ? securityApi.slice(inventoryStart, inventoryEnd) : '';
+const deliveryStart = securityApi.indexOf("if (module === 'delivery')", securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')")));
+const deliveryEnd = securityApi.indexOf("if (module === 'products')", deliveryStart);
+const deliveryBlock = deliveryStart >= 0 && deliveryEnd > deliveryStart ? securityApi.slice(deliveryStart, deliveryEnd) : '';
+if (!salesBlock.includes('sale_price') || !salesBlock.includes('canOverrideSalePrice') || !salesBlock.includes('canDiscountSale')) throw new Error('Las ventas deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
+if (!deliveryBlock.includes('sale_price') || !deliveryBlock.includes('canOverrideDeliveryPrice') || !deliveryBlock.includes('canDiscountDelivery')) throw new Error('Los pedidos deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
+if (!inventoryBlock.includes('FOR UPDATE') || !inventoryBlock.includes('c.new_stock>=0')) throw new Error('Los movimientos de inventario deben bloquear la fila y evitar stock negativo de forma atómica.');
+if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') || !securityMigration.includes('app_login_ip_attempts_scope') || !securityMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
+if (!securityHtml.includes('logoPreview.replaceChildren()') || !securityHtml.includes('safeLogoSource') || securityHtml.includes('logoPreview.innerHTML = state.business.logo')) throw new Error('La vista previa del logo debe usar DOM seguro y validar el origen de la imagen.');
+if (!securityEmployeeAccess.includes('sales.price_override') || !securityEmployeeAccess.includes('sales.discount') || !securityEmployeeAccess.includes('delivery.price_override')) throw new Error('Faltan los permisos explícitos para modificar precios y aplicar descuentos.');
+
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
