@@ -40,6 +40,18 @@ CREATE POLICY app_expiry_alert_events_admin ON public.app_expiry_alert_events
   USING (public.app_is_platform_admin())
   WITH CHECK (public.app_is_platform_admin());
 
+DO $
+DECLARE role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['mattsystem_runtime','mattsystem_app'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_platform_notification_settings TO %I', role_name);
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_expiry_alert_events TO %I', role_name);
+    END IF;
+  END LOOP;
+END
+$;
+
 INSERT INTO public.schema_migrations(version)
 VALUES ('035_platform_service_and_license_expiry_alerts')
 ON CONFLICT (version) DO NOTHING;
