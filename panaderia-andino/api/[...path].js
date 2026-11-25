@@ -2129,7 +2129,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const requestedMonth=String(req.query?.month||new Date().toISOString().slice(0,7));
-        if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth))return send(res,400,{error:'El mes solicitado no es válido.'});
+        if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth))return send(res,400,{error:'El mes solicitado no es válido.'});
         const monthStart=requestedMonth+'-01';
         const [notes,entries,totals]=await Promise.all([
           sql`SELECT id,title,content,created_at,updated_at FROM app_admin_private_notes ORDER BY updated_at DESC,created_at DESC LIMIT 200`,
@@ -2149,7 +2149,7 @@ module.exports = async function handler(req, res) {
         if(kind==='entry'){
           const type=String(input.type||''),concept=String(input.concept||'').trim().slice(0,240),amount=Number(input.amount),date=String(input.date||''),method=String(input.paymentMethod||'').trim().slice(0,60);
           if(!['income','expense'].includes(type)||!concept||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Completá tipo, concepto e importe mayor que cero.'});
-          if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
           const rows=await sql`INSERT INTO app_admin_finance_entries(entry_date,entry_type,concept,amount,payment_method,created_by) VALUES(${date}::date,${type},${concept},${amount},${method},${admin.id}) RETURNING id,entry_date,entry_type,concept,amount,payment_method,created_at`;
           return send(res,201,{ok:true,entry:rows[0]});
         }
