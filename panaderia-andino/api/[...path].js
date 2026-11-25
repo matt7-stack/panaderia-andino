@@ -1335,6 +1335,12 @@ module.exports = async function handler(req, res) {
         ['app_customers', sql`DELETE FROM app_customers`],
         ['app_suppliers', sql`DELETE FROM app_suppliers`],
         ['app_financial_entries', sql`DELETE FROM app_financial_entries`],
+        // Complementos y cuentas por cobrar tienen FKs RESTRICT hacia negocios/deudas.
+        ['app_receivable_audit', sql`DELETE FROM app_receivable_audit`],
+        ['app_receivable_payments', sql`DELETE FROM app_receivable_payments`],
+        ['app_receivable_debts', sql`DELETE FROM app_receivable_debts`],
+        ['app_business_addons', sql`DELETE FROM app_business_addons`],
+        ['app_business_config', sql`DELETE FROM app_business_config`],
         ['app_license_payments', sql`DELETE FROM app_license_payments`],
         ['app_trial_claims', sql`DELETE FROM app_trial_claims`],
         ['app_licenses', sql`DELETE FROM app_licenses`],
