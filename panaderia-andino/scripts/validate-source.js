@@ -19,6 +19,7 @@ const requiredFiles = [
   'migrations/015_receivables_payment_idempotency_guard.sql',
   'migrations/016_receivables_direct_debt_link.sql',
   'migrations/024_branches_delivery.sql',
+  'migrations/025_default_branch_on_business_create.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -80,6 +81,7 @@ if (!fs.readFileSync(erpPath, 'utf8').includes("branches:{title:'Sucursales'")) 
 if (!fs.readFileSync(erpPath, 'utf8').includes("delivery:{title:'Pedidos y entregas'")) throw new Error('La interfaz ERP no incluye pedidos y entregas.');
 if (!fs.readFileSync(apiPath, 'utf8').includes('app_delivery_orders') || !fs.readFileSync(apiPath, 'utf8').includes('app_branches')) throw new Error('La API no está conectada a sucursales y pedidos.');
 if (!fs.readFileSync(path.join(root, 'migrations/024_branches_delivery.sql'), 'utf8').includes('app_delivery_events')) throw new Error('Falta el historial de eventos de entrega.');
+if (!fs.readFileSync(path.join(root, 'migrations/025_default_branch_on_business_create.sql'), 'utf8').includes('app_business_default_branch_trigger')) throw new Error('Falta la creación automática de la sucursal principal.');
 if (!html.includes("const link = event.target.closest('[data-page-link]')")) throw new Error('La navegación no admite enlaces dinámicos agregados después de la carga inicial.');
 if (!html.includes('id="licenseActivationPanel" hidden') || !html.includes('id="requestLicenseActivation"')) throw new Error('Falta el acceso visible a la solicitud de activación de licencia en Info.');
 if (!html.includes('id="licenseVerifyForm"') || !html.includes('id="licenseCodeInput"')) throw new Error('Falta el formulario para verificar el código de licencia en Info.');
