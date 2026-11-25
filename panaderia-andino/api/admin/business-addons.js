@@ -5,6 +5,7 @@ const { db, authenticated, send, body } = core._internal || {};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 module.exports = async function businessAddonsHandler(req,res) {
+  return core._internal.runWithRequestContext(async () => {
   try {
     if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const admin = await authenticated(req,res,true);
@@ -82,4 +83,5 @@ module.exports = async function businessAddonsHandler(req,res) {
     console.error('Business addons API error:',error);
     return send(res,500,{error:'No se pudo actualizar el complemento del negocio.'});
   }
+  });
 };
