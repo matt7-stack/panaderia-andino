@@ -410,7 +410,7 @@ module.exports = async function handler(req, res) {
         const planRows=await sql`SELECT setup_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
         const setup=Number(planRows[0].setup_amount),monthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
-        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;
+        const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         const linkedQuote=await sql`SELECT status,modules,industry_key,config_mode FROM app_quotations WHERE business_id=${businessId} AND is_module_expansion=FALSE ORDER BY created_at DESC LIMIT 1`;
         if(linkedQuote.length){
@@ -882,7 +882,7 @@ module.exports = async function handler(req, res) {
         if(plan==='full_sale'&&licenseFullSale<=0)return send(res,409,{error:'Definí un precio mayor que cero para la venta completa antes de crear la cotización.'});
         const businessId=input.businessId?String(input.businessId):null;
         if(businessId&&!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio asociado a la cotización no válido.'});
-        if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
+        if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
         const validUntil=input.validUntil?String(input.validUntil):null;
         if(validUntil){const parsed=new Date(validUntil+'T00:00:00Z');if(!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)||Number.isNaN(parsed.getTime())||parsed.toISOString().slice(0,10)!==validUntil)return send(res,400,{error:'Fecha de validez de cotización no válida.'});}
         const breakdown={currency:settings.currency||'PYG',licensePlanKey,manualPricing,licenseIncluded:!manualPricing||input.manualLicense?.enabled!==false,monthlyBase:moduleExpansion?0:licenseMonthly,annualDiscountPercent:Number(planSettings.annual_discount_percent??settings.annual_discount_percent??0),setupFee:moduleExpansion?0:licenseSetup,licensePermanent:manualPricing?licensePermanent:Number(planSettings.permanent_price||0),licenseFullSale:manualPricing?licenseFullSale:Number(planSettings.full_sale_price||0),grossSetup,reuseDiscountPercent,modules:pricedCatalog.map(m=>({key:m.module_key,title:m.title,monthly:Number(m.monthly_price||0),setup:Number(m.setup_price||0)})),services:serviceItems};
