@@ -97,14 +97,16 @@ if (!html.includes('id="adminBackupList"') ||
     !html.includes('data-restore-backup')) {
   throw new Error('Falta la interfaz de historial y restauración de copias de seguridad.');
 }
-const backupSchedules = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).schedules || {};
-const securityHeaders = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).headers.find(item => item.source === '/(.*)')?.headers || [];
+const deploymentConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+const backupSchedules = deploymentConfig.schedules || {};
+const backupCron = (deploymentConfig.crons || []).some(item => item.path === '/api/internal/backup' && item.schedule === '0 5 * * *');
+const securityHeaders = deploymentConfig.headers.find(item => item.source === '/(.*)')?.headers || [];
 const cspValue = securityHeaders.find(item => item.key === 'Content-Security-Policy')?.value || '';
 if (!cspValue.includes("form-action 'self'") || !cspValue.includes('upgrade-insecure-requests')) {
   throw new Error('La política CSP debe limitar el envío de formularios y forzar recursos HTTPS.');
 }
-if (!backupSchedules['mattsystem-daily-backup'] || backupSchedules['mattsystem-daily-backup'].path !== '/api/internal/backup' || backupSchedules['mattsystem-daily-backup'].schedule !== '0 2 * * *' || backupSchedules['mattsystem-daily-backup'].timezone !== 'America/Asuncion' || backupSchedules['mattsystem-daily-backup'].requestMethod !== 'GET') {
-  throw new Error('Falta programar el respaldo automático diario con Vercel Schedules.');
+if (!backupCron && (!backupSchedules['mattsystem-daily-backup'] || backupSchedules['mattsystem-daily-backup'].path !== '/api/internal/backup' || backupSchedules['mattsystem-daily-backup'].schedule !== '0 2 * * *' || backupSchedules['mattsystem-daily-backup'].timezone !== 'America/Asuncion' || backupSchedules['mattsystem-daily-backup'].requestMethod !== 'GET')) {
+  throw new Error('Falta programar el respaldo automático diario y las alertas de vencimiento.');
 }
 if (!apiSource.includes('function parseMoney(value)') ||
     !apiSource.includes('function validISODate(value)') ||
