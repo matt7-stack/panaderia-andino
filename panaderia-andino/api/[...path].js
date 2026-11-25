@@ -2133,7 +2133,7 @@ module.exports = async function handler(req, res) {
         const monthStart=requestedMonth+'-01';
         const [notes,entries,totals]=await Promise.all([
           sql`SELECT id,title,content,created_at,updated_at FROM app_admin_private_notes ORDER BY updated_at DESC,created_at DESC LIMIT 200`,
-          sql`SELECT id,entry_date,entry_type,concept,amount,payment_method,notes,created_at FROM app_admin_finance_entries WHERE entry_date>=${monthStart}::date AND entry_date<(${monthStart}::date+INTERVAL '1 month') ORDER BY entry_date DESC,created_at DESC LIMIT 500`,
+          sql`SELECT id,entry_date,entry_type,concept,amount,payment_method,notes,created_at FROM app_admin_finance_entries ORDER BY entry_date DESC,created_at DESC LIMIT 500`,
           sql`SELECT COALESCE(SUM(amount) FILTER(WHERE entry_type='income'),0)::numeric AS income,COALESCE(SUM(amount) FILTER(WHERE entry_type='expense'),0)::numeric AS expense FROM app_admin_finance_entries WHERE entry_date>=${monthStart}::date AND entry_date<(${monthStart}::date+INTERVAL '1 month')`
         ]);
         return send(res,200,{notes,entries,totals:totals[0]||{income:0,expense:0},month:requestedMonth},{'Cache-Control':'no-store, max-age=0'});
