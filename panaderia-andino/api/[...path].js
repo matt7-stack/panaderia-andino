@@ -289,37 +289,6 @@ module.exports = async function handler(req, res) {
     ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
-    if (path === '/api/internal/expiry-alerts' && req.method === 'GET') {
-      const expected=process.env.CRON_SECRET||'';
-      const supplied=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
-      if(!expected||!safeEqual(supplied,expected))return send(res,401,{error:'No autorizado.'});
-      setRequestContext({isPlatformAdmin:true});
-      const sql=db();
-      const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
-      const settings=cfg[0]||{enabled:true,days_before:15};
-      if(settings.enabled!==true)return send(res,200,{ok:true,disabled:true,created:0});
-      const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
-      const candidates=await sql`
-        SELECT 'service'::text AS entity_type,id,renewal_date AS due_date,description AS item_name,category AS item_group
-        FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
-        UNION ALL
-        SELECT 'license'::text AS entity_type,l.id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
-        FROM app_licenses l JOIN businesses b ON b.id=l.business_id
-        WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}`;
-      let created=0;
-      for(const item of candidates){
-        const due=String(item.due_date).slice(0,10);
-        const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date) VALUES(${item.entity_type},${item.id},${due}::date) ON CONFLICT(entity_type,entity_id,due_date) DO NOTHING RETURNING id`;
-        if(!logged.length)continue;
-        const daysLeft=Math.max(0,Math.ceil((new Date(due+'T00:00:00Z').getTime()-Date.now())/86400000));
-        const title=item.entity_type==='license'?'Licencia próxima a vencer':'Servicio próximo a vencer';
-        const message=item.entity_type==='license'?'La licencia de '+item.item_name+' vence el '+due+'. Restan aproximadamente '+daysLeft+' día(s).':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan aproximadamente '+daysLeft+' día(s).';
-        const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
-        created+=sent.length;
-      }
-      return send(res,200,{ok:true,created,checked:candidates.length,daysBefore:days});
-    }
-
     if (path === '/api/internal/backup' && req.method === 'GET') {
       const expected = process.env.CRON_SECRET || '';
       const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
@@ -352,7 +321,31 @@ module.exports = async function handler(req, res) {
             WHERE old.business_id=b.business_id
             ORDER BY old.created_at DESC OFFSET 14
           ) RETURNING id`;
-      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,source:'daily_cron'});
+      const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
+      const settings=cfg[0]||{enabled:true,days_before:15};
+      let expiryAlertsCreated=0;
+      if(settings.enabled===true){
+        const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
+        const candidates=await sql`
+          SELECT 'service'::text AS entity_type,id,renewal_date AS due_date,description AS item_name,category AS item_group
+          FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
+          UNION ALL
+          SELECT 'license'::text AS entity_type,l.id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
+          FROM app_licenses l JOIN businesses b ON b.id=l.business_id
+          WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}`;
+        for(const item of candidates){
+          const due=String(item.due_date).slice(0,10);
+          const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date) VALUES(${item.entity_type},${item.id},${due}::date) ON CONFLICT(entity_type,entity_id,due_date) DO NOTHING RETURNING id`;
+          if(!logged.length)continue;
+          const today=new Date().toISOString().slice(0,10);
+          const daysLeft=Math.max(0,Math.round((Date.parse(due+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000));
+          const title=item.entity_type==='license'?'Licencia próxima a vencer':'Servicio próximo a vencer';
+          const message=item.entity_type==='license'?'La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s).':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan '+daysLeft+' día(s).';
+          const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
+          expiryAlertsCreated+=sent.length;
+        }
+      }
+      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,expiryAlertsCreated,source:'daily_cron'});
     }
 
     if (path === '/api/maintenance/status' && req.method === 'GET') {
