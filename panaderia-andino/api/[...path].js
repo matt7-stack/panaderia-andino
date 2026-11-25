@@ -825,8 +825,8 @@ module.exports = async function handler(req, res) {
         const annual=monthly*12*(1-Number(planSettings.annual_discount_percent??settings.annual_discount_percent??0)/100);
         if(moduleExpansion&&moduleMonthly<=0&&moduleSetup<=0)return send(res,409,{error:'Configurá un precio mensual o de instalación para este módulo en el plan seleccionado.'});
         const oneTime=plan==='permanent'?licensePermanent+moduleSetup+serviceSetup:plan==='full_sale'?licenseFullSale+moduleSetup+serviceSetup:setup;
-        if(!manualPricing&&((plan==='permanent'&&!licensePermanent)||(plan==='full_sale'&&!licenseFullSale)))return send(res,409,{error:'Configurá primero el precio permanente o de venta completa para el plan seleccionado.'});
-        if(manualPricing&&['permanent','full_sale'].includes(plan)&&!((plan==='permanent'&&licensePermanent>0)||(plan==='full_sale'&&licenseFullSale>0))&&moduleSetup<=0)return send(res,400,{error:'Ingresá el precio manual de la licencia permanente o venta completa, o elegí otra modalidad.'});
+        if(plan==='permanent'&&licensePermanent<=0)return send(res,409,{error:'Definí un precio mayor que cero para la licencia permanente antes de crear la cotización.'});
+        if(plan==='full_sale'&&licenseFullSale<=0)return send(res,409,{error:'Definí un precio mayor que cero para la venta completa antes de crear la cotización.'});
         const businessId=input.businessId?String(input.businessId):null;
         if(businessId&&!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio asociado a la cotización no válido.'});
         if(moduleExpansion){const exists=await sql`SELECT id FROM businesses WHERE id=${businessId} LIMIT 1`;if(!exists.length)return send(res,404,{error:'No se encontró el negocio para la ampliación.'});}
