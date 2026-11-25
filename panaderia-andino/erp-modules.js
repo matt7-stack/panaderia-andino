@@ -39,7 +39,7 @@
     if(!nav.querySelector('[data-page-link="erp"]')){
       const link=document.createElement('a');
       link.href='#erp';link.className='nav-link';link.dataset.pageLink='erp';
-      link.innerHTML='<i class="bi bi-grid-1x2"></i><span>Gastos</span>';
+      link.innerHTML='<i class="bi bi-grid-1x2"></i><span>Gestión operativa</span>';
       nav.appendChild(link);
     }
     if(!$('#page-erp')){
