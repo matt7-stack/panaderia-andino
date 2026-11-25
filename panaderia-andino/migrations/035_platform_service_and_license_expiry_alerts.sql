@@ -40,7 +40,7 @@ CREATE POLICY app_expiry_alert_events_admin ON public.app_expiry_alert_events
   USING (public.app_is_platform_admin())
   WITH CHECK (public.app_is_platform_admin());
 
-DO $
+DO $$
 DECLARE role_name text;
 BEGIN
   FOREACH role_name IN ARRAY ARRAY['mattsystem_runtime','mattsystem_app'] LOOP
@@ -50,7 +50,7 @@ BEGIN
     END IF;
   END LOOP;
 END
-$;
+$$;
 
 INSERT INTO public.schema_migrations(version)
 VALUES ('035_platform_service_and_license_expiry_alerts')
