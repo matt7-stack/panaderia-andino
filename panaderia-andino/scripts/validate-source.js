@@ -21,6 +21,7 @@ const requiredFiles = [
   'migrations/024_branches_delivery.sql',
   'migrations/025_default_branch_on_business_create.sql',
   'migrations/027_admin_private_finance_notes.sql',
+  'migrations/028_query_performance_indexes.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
