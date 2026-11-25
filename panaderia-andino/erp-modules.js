@@ -13,7 +13,9 @@
     production:{title:'Producción',read:['production.view','production.manage'],write:'production.manage'},
     cash:{title:'Caja',read:['cash.view','cash.manage','cash.open','cash.close'],write:'cash.manage'},
     reports:{title:'Informes',read:['reports.view','reports.export'],write:'reports.export'},
-    receivables:{title:'Cuentas por cobrar',read:['receivables.view','receivables.manage'],write:'receivables.manage'}
+    receivables:{title:'Cuentas por cobrar',read:['receivables.view','receivables.manage'],write:'receivables.manage'},
+    branches:{title:'Sucursales',read:['branches.view','branches.manage'],write:'branches.manage'},
+    delivery:{title:'Pedidos y entregas',read:['delivery.view','delivery.manage'],write:'delivery.manage'}
   };
   let currentModule = 'products';
   let cache = {};
@@ -131,6 +133,11 @@
     const first=cache.products?.products?.find(p=>p.active!==false);
     return '<div class="row g-2 erp-line-item erp-purchase-item align-items-end mb-2"><div class="col-md-5"><label class="form-label">Producto</label><select class="form-select" name="productId" required>'+productOptions()+'</select></div><div class="col-md-3"><label class="form-label">Cantidad</label><input class="form-control" name="quantity" type="number" value="1" min="0.01" step="0.01" required></div><div class="col-md-3"><label class="form-label">Costo unitario (Gs.)</label><input class="form-control" name="unitCost" type="number" value="'+esc(first?.cost_price||0)+'" min="0" step="1" required></div><div class="col-md-1"><button class="btn btn-outline-danger" type="button" data-erp-remove-row aria-label="Quitar artículo">×</button></div></div>';
   }
+  function deliveryItemRow(){
+    const products=cache.delivery?.products||[];
+    const first=products.find(p=>p.active!==false);
+    return '<div class="row g-2 erp-line-item erp-delivery-item align-items-end mb-2"><div class="col-md-5"><label class="form-label">Producto</label><select class="form-select" name="productId"><option value="">Artículo libre / descripción manual</option>'+products.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' · '+money(p.sale_price||0)+'</option>').join('')+'</select></div><div class="col-md-3"><label class="form-label">Descripción</label><input class="form-control" name="description" maxlength="160" value="'+esc(first?.name||'')+'" required></div><div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="quantity" type="number" min="0.01" step="0.01" value="1" required></div><div class="col-md-2"><label class="form-label">Precio (Gs.)</label><input class="form-control" name="unitPrice" type="number" min="0" step="1" value="'+esc(first?.sale_price||0)+'" required></div><div class="col-12 text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-erp-remove-row>Quitar artículo</button></div></div>';
+  }
   function recipeIngredientRow(){
     return '<div class="row g-2 erp-line-item erp-recipe-ingredient align-items-end mb-2"><div class="col-md-6"><label class="form-label">Ingrediente</label><select class="form-select" name="ingredientId" required>'+productOptions()+'</select></div><div class="col-md-3"><label class="form-label">Cantidad</label><input class="form-control" name="ingredientQuantity" type="number" value="1" min="0.01" step="0.01" required></div><div class="col-md-2"><label class="form-label">Unidad</label><input class="form-control" name="ingredientUnit" value="kg" maxlength="24"></div><div class="col-md-1"><button class="btn btn-outline-danger" type="button" data-erp-remove-row aria-label="Quitar ingrediente">×</button></div></div>';
   }
@@ -210,6 +217,26 @@
     const topBalancesHtml='<article class="panel settings-card mt-3"><h3>Mayores saldos pendientes</h3>'+(topBalances.length?'<ol class="mb-0">'+topBalances.map(d=>'<li class="py-1">'+esc(fullName({name:d.customer_name,last_name:d.customer_last_name}))+' — <strong>'+money(d.balance)+'</strong></li>').join('')+'</ol>':'<p class="text-muted mb-0">No hay saldos pendientes.</p>')+'</article>';
     return '<div class="row g-3 mb-3"><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Saldo pendiente</small><h3 class="mb-0">'+money(summary.pendingTotal)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Clientes con deuda</small><h3 class="mb-0">'+Number(summary.indebtedCustomers||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Deudas atrasadas</small><h3 class="mb-0">'+Number(summary.overdueDebts||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card h-100"><small class="text-muted">Pagos recientes</small><h3 class="mb-0">'+Number((summary.recentPayments||[]).length)+'</h3></article></div></div>'+customerForm+debtForm+'<article class="panel settings-card mt-3"><div class="d-flex justify-content-between flex-wrap gap-2"><h3>Historial de deudas</h3><input id="receivablesSearch" class="form-control form-control-sm" style="max-width:240px" type="search" placeholder="Buscar cliente o concepto"></div>'+table(['CLIENTE / CONCEPTO','FECHA','DEUDA','PAGADO','SALDO','VENCIMIENTO / ESTADO','ACCIONES'],debtRows,'Todavía no hay deudas registradas.')+'</article><article class="panel settings-card mt-3"><h3>Historial de pagos</h3>'+table(['FECHA','CLIENTE','CONCEPTO','MÉTODO','IMPORTE','ESTADO','ACCIÓN'],paymentRows,'Todavía no hay pagos registrados.')+'</article>'+topBalancesHtml+'<article class="panel settings-card mt-3"><h3>Auditoría de cuentas por cobrar</h3>'+table(['FECHA','CLIENTE','EVENTO','USUARIO','DETALLE'],auditRows,'Todavía no hay eventos registrados.')+'</article>';
   }
+  function renderBranches(data){
+    const branches=data.branches||[],canManage=allowed('branches.manage');
+    const rows=branches.map(branch=>'<tr><td><strong>'+esc(branch.name)+'</strong>'+(branch.is_main?'<span class="badge bg-primary ms-2">Principal</span>':'')+'<small class="d-block text-muted">'+esc(branch.code)+'</small></td><td>'+esc(branch.address||'—')+'</td><td>'+esc(branch.phone||'—')+'</td><td>'+esc(branch.manager_name||'—')+'</td><td><span class="badge '+(branch.active?'bg-success':'bg-secondary')+'">'+(branch.active?'Activa':'Inactiva')+'</span></td><td>'+(canManage?'<div class="d-flex gap-1"><button class="btn btn-sm btn-outline-primary" type="button" data-branch-edit="'+esc(branch.id)+'" data-name="'+esc(branch.name)+'" data-address="'+esc(branch.address||'')+'" data-phone="'+esc(branch.phone||'')+'" data-manager="'+esc(branch.manager_name||'')+'">Editar</button>'+(branch.is_main?'':'<button class="btn btn-sm btn-outline-'+(branch.active?'danger':'success')+'" type="button" data-branch-toggle="'+esc(branch.id)+'" data-active="'+String(branch.active)+'">'+(branch.active?'Desactivar':'Activar')+'</button>')+'</div>':'—')+'</td></tr>').join('');
+    const form=canManage?'<article class="panel settings-card mb-3"><h3>Registrar sucursal</h3><p class="text-muted small">Creá una sede adicional para organizar puntos de atención y asignar pedidos.</p><form data-erp-form="branches" class="row g-3"><div class="col-md-3"><label class="form-label">Código *</label><input class="form-control" name="code" maxlength="20" pattern="[A-Za-z0-9-]+" placeholder="SUC-02" required></div><div class="col-md-5"><label class="form-label">Nombre de la sucursal *</label><input class="form-control" name="name" maxlength="120" placeholder="Sucursal San Lorenzo" required></div><div class="col-md-4"><label class="form-label">Responsable</label><input class="form-control" name="managerName" maxlength="120" placeholder="Nombre del encargado"></div><div class="col-md-6"><label class="form-label">Dirección</label><input class="form-control" name="address" maxlength="250" placeholder="Dirección de la sucursal"></div><div class="col-md-3"><label class="form-label">Teléfono</label><input class="form-control" name="phone" maxlength="60" placeholder="Contacto"></div><div class="col-12"><button class="btn btn-bakery" type="submit">Guardar sucursal</button></div></form></article>':'';
+    return '<div class="row g-3 mb-3"><div class="col-md-4"><article class="panel settings-card"><small class="text-muted">Sucursales registradas</small><h3 class="mb-0">'+branches.length+'</h3></article></div><div class="col-md-4"><article class="panel settings-card"><small class="text-muted">Activas</small><h3 class="mb-0">'+branches.filter(x=>x.active).length+'</h3></article></div><div class="col-md-4"><article class="panel settings-card"><small class="text-muted">Principal</small><h3 class="mb-0">'+esc(branches.find(x=>x.is_main)?.name||'Sin configurar')+'</h3></article></div></div>'+form+'<article class="panel settings-card"><div class="panel-heading"><div><h3>Directorio de sucursales</h3><p>La sucursal principal no se puede desactivar.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>SUCURSAL</th><th>DIRECCIÓN</th><th>TELÉFONO</th><th>RESPONSABLE</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>'+(rows||'')+'</tbody></table></div>'+(branches.length?'':'<p class="text-muted small mb-0">No hay sucursales registradas.</p>')+'</article>';
+  }
+  function renderDelivery(data){
+    const orders=data.orders||[],customers=data.customers||[],products=data.products||[],branches=data.branches||[],summary=data.summary||{},canManage=allowed('delivery.manage');
+    const customerOptions='<option value="">Cliente ocasional</option>'+customers.map(c=>'<option value="'+esc(c.id)+'">'+esc([c.name,c.last_name].filter(Boolean).join(' '))+'</option>').join('');
+    const branchOptions=branches.map(b=>'<option value="'+esc(b.id)+'" '+(b.is_main?'selected':'')+'>'+esc(b.name)+'</option>').join('');
+    const statusLabels={pending:'Pendiente',confirmed:'Confirmado',preparing:'En preparación',ready:'Listo para despacho',out_for_delivery:'En camino',delivered:'Entregado',cancelled:'Cancelado'};
+    const statusOptions=status=>Object.keys(statusLabels).map(key=>'<option value="'+key+'" '+(status===key?'selected':'')+'>'+statusLabels[key]+'</option>').join('');
+    const itemRows=orders.map(order=>{
+      const items=Array.isArray(order.items)?order.items:[];
+      const summaryItems=items.map(item=>esc(item.description)+' × '+Number(item.quantity)).join(', ');
+      return '<tr><td><strong>'+esc(order.order_number)+'</strong><small class="d-block text-muted">'+new Date(order.created_at).toLocaleString('es-PY')+'</small></td><td>'+esc(order.recipient_name)+'<small class="d-block text-muted">'+esc(order.phone||'')+'</small></td><td>'+esc(order.address)+'<small class="d-block text-muted">'+esc(order.branch_name||'')+'</small></td><td>'+esc(summaryItems)+'</td><td><strong>'+money(order.total)+'</strong></td><td>'+(canManage?'<select class="form-select form-select-sm mb-1" data-delivery-status="'+esc(order.id)+'">'+statusOptions(order.status)+'</select><button class="btn btn-sm btn-outline-primary" type="button" data-delivery-update="'+esc(order.id)+'">Actualizar estado</button>':'<span class="badge bg-secondary">'+esc(statusLabels[order.status]||order.status)+'</span>')+'</td></tr>';
+    }).join('');
+    const form=canManage?'<article class="panel settings-card mb-3"><h3>Crear pedido de entrega</h3><p class="text-muted small">Registrá el destinatario, la sucursal que prepara el pedido y los artículos. El pedido comienza en estado Pendiente; todavía no descuenta existencias ni registra una venta.</p><form data-erp-form="delivery" class="row g-3"><input type="hidden" name="idempotencyKey" value="'+newIdempotencyKey()+'"><div class="col-md-4"><label class="form-label">Cliente</label><select class="form-select" name="customerId">'+customerOptions+'</select></div><div class="col-md-4"><label class="form-label">Destinatario *</label><input class="form-control" name="recipientName" maxlength="120" required></div><div class="col-md-4"><label class="form-label">Teléfono</label><input class="form-control" name="phone" maxlength="60"></div><div class="col-md-6"><label class="form-label">Dirección de entrega *</label><input class="form-control" name="address" maxlength="250" required></div><div class="col-md-3"><label class="form-label">Sucursal que prepara</label><select class="form-select" name="branchId" required>'+branchOptions+'</select></div><div class="col-md-3"><label class="form-label">Fecha programada</label><input class="form-control" name="scheduledFor" type="datetime-local"></div><div class="col-12"><div class="d-flex justify-content-between align-items-center mb-2"><strong>Artículos del pedido</strong><button type="button" class="btn btn-sm btn-outline-bakery" data-erp-add-row="delivery">Agregar artículo</button></div><div id="erpDeliveryItems">'+deliveryItemRow()+'</div></div><div class="col-md-3"><label class="form-label">Costo de envío (Gs.)</label><input class="form-control" name="deliveryFee" type="number" min="0" step="1" value="0"></div><div class="col-md-3"><label class="form-label">Descuento (Gs.)</label><input class="form-control" name="discount" type="number" min="0" step="1" value="0"></div><div class="col-md-3"><label class="form-label">Método de pago</label><select class="form-select" name="paymentMethod"><option value="">A definir</option><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>QR</option></select></div><div class="col-md-3"><label class="form-label">Observaciones</label><input class="form-control" name="notes" maxlength="1000"></div><div class="col-12"><button class="btn btn-bakery" type="submit">Registrar pedido</button></div></form></article>':'';
+    return '<div class="row g-3 mb-3"><div class="col-6 col-xl-3"><article class="panel settings-card"><small class="text-muted">Pendientes</small><h3 class="mb-0">'+Number(summary.pending||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card"><small class="text-muted">En preparación</small><h3 class="mb-0">'+Number(summary.inPreparation||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card"><small class="text-muted">En camino</small><h3 class="mb-0">'+Number(summary.inRoute||0)+'</h3></article></div><div class="col-6 col-xl-3"><article class="panel settings-card"><small class="text-muted">Entregados</small><h3 class="mb-0">'+Number(summary.delivered||0)+'</h3></article></div></div>'+form+'<article class="panel settings-card"><div class="panel-heading"><div><h3>Seguimiento de pedidos</h3><p>Actualizá cada pedido siguiendo el flujo operativo.</p></div></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>PEDIDO</th><th>DESTINATARIO</th><th>DIRECCIÓN / SUCURSAL</th><th>ARTÍCULOS</th><th>TOTAL</th><th>ESTADO / ACCIÓN</th></tr></thead><tbody>'+itemRows+'</tbody></table></div>'+(orders.length?'':'<p class="text-muted small mb-0">Todavía no hay pedidos registrados.</p>')+'</article>';
+  }
   function renderModule(module,data){
     if(module==='products')return renderProducts(data);
     if(module==='sales')return renderSales(data);
@@ -221,6 +248,8 @@
     if(module==='cash')return renderCash(data);
     if(module==='reports')return renderReports(data);
     if(module==='receivables')return renderReceivables(data);
+    if(module==='branches')return renderBranches(data);
+    if(module==='delivery')return renderDelivery(data);
     return '<p class="text-muted">Módulo no disponible.</p>';
   }
   async function loadModule(module){
@@ -271,6 +300,19 @@
       if(module==='production')payload={recipeId:value('recipeId'),productId:value('productId'),plannedQuantity:Number(value('plannedQuantity')),notes:value('notes')};
       if(module==='cash-open')payload={module:'cash',action:'open',openingAmount:Number(value('openingAmount'))};
       if(module==='cash')payload={module:'cash',action:'movement',movementType:value('movementType'),category:value('category'),description:value('description'),amount:Number(value('amount')),paymentMethod:value('paymentMethod')};
+      if(module==='branches')payload={code:value('code'),name:value('name'),address:value('address'),phone:value('phone'),managerName:value('managerName')};
+      if(module==='delivery')payload={
+        customerId:value('customerId')||null,recipientName:value('recipientName'),phone:value('phone'),address:value('address'),
+        branchId:value('branchId'),scheduledFor:value('scheduledFor')?new Date(value('scheduledFor')).toISOString():null,
+        deliveryFee:Number(value('deliveryFee')||0),discount:Number(value('discount')||0),paymentMethod:value('paymentMethod'),
+        notes:value('notes'),idempotencyKey:value('idempotencyKey'),
+        items:[...form.querySelectorAll('.erp-delivery-item')].map(row=>({
+          productId:row.querySelector('[name="productId"]')?.value||null,
+          description:row.querySelector('[name="description"]')?.value||'',
+          quantity:Number(row.querySelector('[name="quantity"]')?.value),
+          unitPrice:Number(row.querySelector('[name="unitPrice"]')?.value)
+        }))
+      };
       if(module==='receivables-customer')payload={action:'customer',name:value('name'),lastName:value('lastName'),phone:value('phone'),address:value('address'),notes:value('notes')};
       if(module==='receivables-debt')payload={action:'debt',customerId:value('customerId'),description:value('description'),amount:Number(value('amount')),dueDate:value('dueDate')||null,idempotencyKey:value('idempotencyKey')};
       if(module==='receivables-payment')payload={action:'payment',debtId:form.dataset.debtId,amount:Number(value('amount')),paymentMethod:value('paymentMethod'),idempotencyKey:value('idempotencyKey')};
@@ -292,6 +334,35 @@
     if(cost)cost.value=product.cost_price||0;
   });
   async function clickAction(event){
+    const branchEdit=event.target.closest('[data-branch-edit]');
+    if(branchEdit){
+      const id=branchEdit.dataset.branchEdit;
+      const name=window.prompt('Nombre de la sucursal:',branchEdit.dataset.name||'');if(name===null)return;
+      const address=window.prompt('Dirección:',branchEdit.dataset.address||'');if(address===null)return;
+      const phone=window.prompt('Teléfono:',branchEdit.dataset.phone||'');if(phone===null)return;
+      const managerName=window.prompt('Responsable:',branchEdit.dataset.manager||'');if(managerName===null)return;
+      try{await api('branches','PATCH',{id,name,address,phone,managerName});cache={};await loadModule('branches');}
+      catch(error){window.alert(error.message||'No se pudo actualizar la sucursal.');}
+      return;
+    }
+    const branchToggle=event.target.closest('[data-branch-toggle]');
+    if(branchToggle){
+      const active=branchToggle.dataset.active==='true';
+      if(active&&!window.confirm('¿Desactivar esta sucursal? Los pedidos históricos se conservarán.'))return;
+      try{await api('branches','PATCH',{id:branchToggle.dataset.branchToggle,active:!active});cache={};await loadModule('branches');}
+      catch(error){window.alert(error.message||'No se pudo cambiar el estado de la sucursal.');}
+      return;
+    }
+    const deliveryUpdate=event.target.closest('[data-delivery-update]');
+    if(deliveryUpdate){
+      const row=deliveryUpdate.closest('tr'),status=row?.querySelector('[data-delivery-status]')?.value;
+      if(!status)return;
+      deliveryUpdate.disabled=true;
+      try{await api('delivery','PATCH',{id:deliveryUpdate.dataset.deliveryUpdate,action:'status',status});cache={};await loadModule('delivery');}
+      catch(error){window.alert(error.message||'No se pudo actualizar el estado del pedido.');}
+      finally{deliveryUpdate.disabled=false;}
+      return;
+    }
     if(event.target.closest('#erpRequestModuleButton')){
       const panel=$('#erpRequestPanel');if(!panel)return;
       const opening=panel.hidden;
@@ -324,7 +395,7 @@
       return;
     }
     const add=event.target.closest('[data-erp-add-row]');
-    if(add){const kind=add.dataset.erpAddRow,container=$(kind==='sale'?'#erpSaleItems':kind==='purchase'?'#erpPurchaseItems':'#erpRecipeIngredients');if(container)container.insertAdjacentHTML('beforeend',kind==='sale'?saleItemRow():kind==='purchase'?purchaseItemRow():recipeIngredientRow());return;}
+    if(add){const kind=add.dataset.erpAddRow,container=$(kind==='sale'?'#erpSaleItems':kind==='purchase'?'#erpPurchaseItems':kind==='delivery'?'#erpDeliveryItems':'#erpRecipeIngredients');if(container)container.insertAdjacentHTML('beforeend',kind==='sale'?saleItemRow():kind==='purchase'?purchaseItemRow():kind==='delivery'?deliveryItemRow():recipeIngredientRow());return;}
     const removeRow=event.target.closest('[data-erp-remove-row]');
     if(removeRow){const row=removeRow.closest('.erp-line-item'),parent=row?.parentElement;if(parent?.querySelectorAll('.erp-line-item').length>1)row.remove();return;}
     const tab=event.target.closest('[data-erp-tab]');
