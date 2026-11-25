@@ -22,6 +22,7 @@ const requiredFiles = [
   'migrations/025_default_branch_on_business_create.sql',
   'migrations/027_admin_private_finance_notes.sql',
   'migrations/028_query_performance_indexes.sql',
+  'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -58,6 +59,39 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
+if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
+    !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
+    !apiSource.includes('runWithRequestContext: callback => requestContext.run({}, callback)')) {
+  throw new Error('La API debe usar el rol de ejecución y aplicar contexto de negocio dentro de transacciones aisladas.');
+}
+if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') ||
+    !securityMigration.includes('FORCE ROW LEVEL SECURITY') ||
+    !securityMigration.includes('app_current_business_id') ||
+    !securityMigration.includes('mattsystem_users_select') ||
+    !securityMigration.includes('mattsystem_support_replies_select')) {
+  throw new Error('Falta la migración de aislamiento RLS por negocio.');
+}
+if (!apiSource.includes("path === '/api/business/backups'") ||
+    !apiSource.includes("path === '/api/internal/backup'") ||
+    !apiSource.includes('app_login_ip_attempts') ||
+    !apiSource.includes("encode(digest(convert_to(payload::text,'UTF8'),'sha256'),'hex')")) {
+  throw new Error('Faltan los endpoints de copia/restauración, respaldo automático o control de intentos por IP.');
+}
+for (const relative of ['api/business/receivables.js','api/admin/business-addons.js']) {
+  if (!fs.readFileSync(path.join(root, relative), 'utf8').includes('runWithRequestContext')) {
+    throw new Error('La ruta especializada debe ejecutar consultas dentro del contexto de seguridad: ' + relative);
+  }
+}
+if (!html.includes('id="adminBackupList"') ||
+    !html.includes('id="refreshAdminBackups"') ||
+    !html.includes('data-restore-backup')) {
+  throw new Error('Falta la interfaz de historial y restauración de copias de seguridad.');
+}
+const backupCron = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).crons || [];
+if (!backupCron.some(job => job.path === '/api/internal/backup' && job.schedule === '0 5 * * *')) {
+  throw new Error('Falta programar el respaldo automático diario.');
+}
 if (!apiSource.includes('function parseMoney(value)') ||
     !apiSource.includes('function validISODate(value)') ||
     !apiSource.includes('amount=parseMoney(input.amount)')) {
