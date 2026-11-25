@@ -102,6 +102,15 @@ async function authenticated(req, res, adminOnly = false, allowInactiveLicense =
   await ensureSchema();
   const user = await currentUser(req);
   if (!user) { send(res, 401, { error: 'Iniciá sesión para continuar.' }); return null; }
+  if (user.is_platform_admin !== true) {
+    const maintenance = await db()`SELECT enabled,reason,message,starts_at,ends_at,
+      (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active
+      FROM app_platform_maintenance WHERE id=1 LIMIT 1`;
+    if (maintenance[0]?.active === true) {
+      send(res,503,{code:'PLATFORM_MAINTENANCE',error:maintenance[0].message||'MATTSYSTEM está temporalmente en mantenimiento.',maintenance:{reason:maintenance[0].reason,startsAt:maintenance[0].starts_at,endsAt:maintenance[0].ends_at}});
+      return null;
+    }
+  }
   try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
   if (!allowInactiveLicense && user.is_platform_admin !== true && user.license_is_valid !== true) {
     const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
@@ -156,6 +165,46 @@ module.exports = async function handler(req, res) {
     ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if (path === '/api/maintenance/status' && req.method === 'GET') {
+      const rows = await db()`SELECT enabled,reason,message,starts_at,ends_at,updated_at,
+        (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active
+        FROM app_platform_maintenance WHERE id=1 LIMIT 1`;
+      const row=rows[0]||{};
+      return send(res,200,{active:row.active===true,message:row.active?row.message:null,reason:row.active?row.reason:null,startsAt:row.starts_at||null,endsAt:row.ends_at||null});
+    }
+    if (path === '/api/admin/maintenance' && req.method === 'GET') {
+      const user=await authenticated(req,res,true);if(!user)return;
+      const rows=await db()`SELECT enabled,reason,message,starts_at,ends_at,updated_at,updated_by,
+        (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active
+        FROM app_platform_maintenance WHERE id=1 LIMIT 1`;
+      const row=rows[0]||{};
+      return send(res,200,{settings:{enabled:row.enabled===true,active:row.active===true,reason:row.reason||'maintenance',message:row.message||'',startsAt:row.starts_at||null,endsAt:row.ends_at||null,updatedAt:row.updated_at||null}});
+    }
+    if (path === '/api/admin/maintenance' && req.method === 'PUT') {
+      const user=await authenticated(req,res,true);if(!user)return;
+      if(!sameOrigin(req))return send(res,403,{error:'Solicitud no permitida.'});
+      const input=body(req);
+      const enabled=input.enabled===true;
+      const reasons=['maintenance','security','improvements','upgrade','other'];
+      const reason=reasons.includes(input.reason)?input.reason:'maintenance';
+      const message=String(input.message||'').trim().slice(0,1000);
+      const parseDate=value=>{if(value===null||value===undefined||value==='')return null;const date=new Date(value);return Number.isNaN(date.getTime())?undefined:date.toISOString();};
+      const startsAt=parseDate(input.startsAt),endsAt=parseDate(input.endsAt);
+      if(!message)return send(res,400,{error:'Ingresá el mensaje que verán los usuarios.'});
+      if(startsAt===undefined||endsAt===undefined)return send(res,400,{error:'La fecha de mantenimiento no es válida.'});
+      if(startsAt&&endsAt&&new Date(endsAt)<=new Date(startsAt))return send(res,400,{error:'La fecha de finalización debe ser posterior al inicio.'});
+      const rows=await db()`INSERT INTO app_platform_maintenance(id,enabled,reason,message,starts_at,ends_at,updated_by,updated_at)
+        VALUES(1,${enabled},${reason},${message},${startsAt},${endsAt},${user.id},NOW())
+        ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,reason=EXCLUDED.reason,message=EXCLUDED.message,
+          starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+        RETURNING enabled,reason,message,starts_at,ends_at,updated_at,
+          (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active`;
+      try{await db()`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+        VALUES(NULL,${user.id},${enabled?'platform.maintenance_enabled':'platform.maintenance_disabled'},'platform_maintenance','1',
+        ${JSON.stringify({enabled,reason,startsAt,endsAt,message})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar el cambio de mantenimiento:',logError);}
+      const row=rows[0];
+      return send(res,200,{ok:true,settings:{enabled:row.enabled,active:row.active,reason:row.reason,message:row.message,startsAt:row.starts_at,endsAt:row.ends_at,updatedAt:row.updated_at}});
+    }
     if(path==='/api/support/tickets'){
       const user=await authenticated(req,res,false);if(!user)return;
       const sql=db();
@@ -588,6 +637,10 @@ module.exports = async function handler(req, res) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
+      }
+      if(u.is_platform_admin!==true){
+        const maintenance=await sql`SELECT message,(enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active FROM app_platform_maintenance WHERE id=1 LIMIT 1`;
+        if(maintenance[0]?.active===true)return send(res,503,{code:'PLATFORM_MAINTENANCE',error:maintenance[0].message||'MATTSYSTEM está temporalmente en mantenimiento.'});
       }
       // Generar la cookie antes de registrar el acceso como exitoso. Si falta
       // SESSION_SECRET, el error queda visible como fallo y no como login exitoso.
