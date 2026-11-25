@@ -1605,6 +1605,8 @@ module.exports = async function handler(req, res) {
           if(!rows.length){
             const existing=await sql`SELECT * FROM app_delivery_orders WHERE business_id=${businessId} AND idempotency_key=${idempotencyKey} LIMIT 1`;
             if(!existing.length)return send(res,409,{error:'No se pudo registrar el pedido. Intentá nuevamente.'});
+            if(Number(existing[0].total)!==total||existing[0].recipient_name!==recipientName||existing[0].address!==address)
+              return send(res,409,{error:'La clave de envío ya fue utilizada para otro pedido. Actualizá el formulario e intentá nuevamente.'});
             return send(res,200,{order:existing[0],duplicate:true});
           }
           return send(res,201,{order:rows[0]});
