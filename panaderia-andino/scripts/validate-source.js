@@ -23,6 +23,7 @@ const requiredFiles = [
   'migrations/027_admin_private_finance_notes.sql',
   'migrations/028_query_performance_indexes.sql',
   'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql',
+  'migrations/030_supervisor_employee_rls.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -69,8 +70,9 @@ if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') ||
     !securityMigration.includes('FORCE ROW LEVEL SECURITY') ||
     !securityMigration.includes('app_current_business_id') ||
     !securityMigration.includes('mattsystem_users_select') ||
-    !securityMigration.includes('mattsystem_support_replies_select')) {
-  throw new Error('Falta la migración de aislamiento RLS por negocio.');
+    !securityMigration.includes('mattsystem_support_replies_select') ||
+    !fs.readFileSync(path.join(root, 'migrations/030_supervisor_employee_rls.sql'), 'utf8').includes('app_can_manage_employees')) {
+  throw new Error('Falta la migración de aislamiento RLS por negocio y permisos del supervisor.');
 }
 if (!apiSource.includes("path === '/api/business/backups'") ||
     !apiSource.includes("path === '/api/internal/backup'") ||
