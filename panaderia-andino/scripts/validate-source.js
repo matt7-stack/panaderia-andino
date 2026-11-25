@@ -57,6 +57,18 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+if (!apiSource.includes('function parseMoney(value)') ||
+    !apiSource.includes('function validISODate(value)') ||
+    !apiSource.includes('amount=parseMoney(input.amount)')) {
+  throw new Error('Los importes deben normalizar separadores de miles y las fechas financieras deben validarse estrictamente.');
+}
+if (!html.includes('id="adminFinanceAmount" inputmode="decimal"') ||
+    !html.includes("amount:document.getElementById('adminFinanceAmount').value")) {
+  throw new Error('El formulario financiero del administrador debe enviar el importe sin convertirlo a número decimal antes de normalizarlo.');
+}
+if (!fs.readFileSync(erpPath, 'utf8').includes('Gestión operativa')) {
+  throw new Error('La navegación debe identificar claramente el módulo Gestión operativa.');
+}
 if (!apiSource.includes("const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])") ||
     !apiSource.includes('if (!origin) return safeMethods.has(method)') ||
     !apiSource.includes("fetchSite === 'cross-site'")) {
