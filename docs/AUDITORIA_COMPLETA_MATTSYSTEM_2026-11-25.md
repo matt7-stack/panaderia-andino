@@ -106,3 +106,52 @@ Se registró un timeout de inicialización en `/api/auth/me` en el deployment an
 ## Conclusión
 
 El Preview compila y contiene las correcciones listadas, pero MATTSYSTEM **todavía no debe declararse listo para clientes reales**. Los bloqueos principales son RLS/rol de mínimo privilegio, desfase de producción y pruebas end-to-end por negocio y rol. La versión de producción se dejó intacta.
+
+
+---
+
+## Actualización de correcciones críticas — 25/11/2026
+
+**Versión de QA:** commit `09c23390203ce2d2463b57200cd65e36304ba22d`  
+**Preview:** `https://mattsystem-83ij7sspw-mattaye2831-7602.vercel.app`  
+**Neon QA:** rama `qa-admin-finance-dev-2026-11` (`br-cool-term-b6qc4t20`)
+
+### Correcciones críticas implementadas
+
+1. **RLS activado y forzado:** las 34 tablas `app_*` con `business_id` tienen RLS y FORCE ROW LEVEL SECURITY. También se protegieron `businesses`, `app_users`, soporte, pagos de licencia, preferencias de notificación, restablecimientos de contraseña y tablas administrativas.
+2. **Rol de ejecución de mínimo privilegio:** el Preview usa `mattsystem_runtime`, que no es superusuario, no tiene `BYPASSRLS`, no puede crear bases/roles ni truncar tablas. La conexión usa el endpoint pooler de Neon. El rol propietario anterior queda separado para migraciones.
+3. **Contexto por transacción:** cada consulta autenticada aplica `app.user_id`, `app.business_id` y el rol de plataforma mediante `set_config(..., true)` dentro de una transacción Neon. Las rutas especializadas de complementos y cuentas por cobrar también se ejecutan dentro del contexto.
+4. **Políticas por rol:** el administrador de plataforma puede administrar negocios; el usuario del negocio solo ve su negocio; el supervisor puede crear/editar empleados de su negocio sin elevar permisos. Se preservó el límite de empleados de la licencia.
+5. **Catálogo público:** el acceso público queda limitado al ID de negocio explícitamente validado por la ruta de catálogo; no concede escritura.
+6. **CSRF global:** todas las operaciones que modifican datos exigen Origin válido y rechazan `Sec-Fetch-Site: cross-site`. Esto también se aplica a las dos rutas API especializadas.
+7. **Límite de intentos por IP:** se añadió contador por IP con HMAC, sin guardar la dirección IP en claro en la tabla de intentos; se conserva el límite por correo.
+8. **Copias remotas y restauración:** se agregó almacenamiento por negocio, checksum SHA-256, historial, descarga JSON y restauración con confirmación. Se conservan hasta 14 copias por negocio.
+9. **Respaldo diario:** se configuró un Vercel Schedule a las 02:00 de Paraguay (`America/Asuncion`) que llama el endpoint protegido por `CRON_SECRET`.
+10. **CSP adicional:** se añadieron `form-action 'self'` y `upgrade-insecure-requests`, manteniendo bloqueo de frames y objetos.
+11. **Finanzas y licencias:** siguen vigentes las correcciones anteriores de importes y precios mensuales oficiales en QA.
+12. **Validaciones automáticas:** el build verifica que existan las migraciones, el contexto RLS, el control CSRF, las rutas de respaldo/restauración y la programación diaria.
+
+### Pruebas realizadas
+
+- Migraciones 029 y 030 registradas en Neon QA.
+- 34/34 tablas con `business_id` tienen RLS habilitado y forzado; no quedó ninguna tabla de ese conjunto sin ambas propiedades.
+- El rol runtime confirmó `rolsuper=false`, `rolbypassrls=false`, `rolcreatedb=false`, `rolcreaterole=false` y no tiene permiso TRUNCATE.
+- Prueba SQL transaccional de aislamiento con dos negocios ficticios: lectura cruzada bloqueada, escritura cruzada sin filas afectadas, catálogo público limitado, supervisor limitado a empleados y administrador con acceso global. La prueba se ejecutó dentro de una subtransacción revertida; no quedaron negocios ni usuarios ficticios.
+- El endpoint `/api/auth/status` respondió HTTP 200 y confirmó que existe el administrador.
+- `/api/auth/me` sin cookie respondió HTTP 401, que es el resultado esperado para una sesión no autenticada.
+- `POST /api/auth/logout` sin Origin respondió HTTP 403; con Origin del mismo Preview respondió HTTP 200.
+- La página principal respondió HTTP 200.
+- Se comprobaron cabeceras HTTP de seguridad, incluido CSP, HSTS, X-Frame-Options, Referrer-Policy y Permissions-Policy.
+- Build Vercel Preview: **READY**; validación estática correcta; 3/12 funciones serverless.
+- Se revocaron los enlaces temporales de bypass usados para las pruebas y se detuvieron los sandboxes temporales.
+
+### Pendientes que requieren una acción externa o una prueba con credenciales reales
+
+1. **Inicio de sesión completo:** no se probó con la contraseña real del administrador ni se consultó ningún secreto de sesión. El endpoint de estado y el control de sesión no autenticada sí se probaron. Falta que el propietario pruebe su inicio de sesión en el Preview.
+2. **Restauración con datos reales:** la ruta y el flujo están implementados, pero QA no contiene negocios con datos operativos; falta ejecutar una creación/restauración real con un negocio de prueba.
+3. **MFA:** sigue siendo una mejora recomendada. No se activó automáticamente para evitar bloquear la cuenta administradora sin registrar primero una aplicación autenticadora y códigos de recuperación.
+4. **Schedule en Preview:** la programación está declarada en `vercel.json` y tiene `CRON_SECRET` de Preview, pero no se pudo invocar desde las herramientas disponibles. Vercel Schedules admite ejecuciones en Preview y puede invocarse/activarse desde el panel o CLI.
+5. **Producción:** no se modificó la rama, la base ni las variables de producción. Producción continúa en la versión anterior. Para obtener estas protecciones en clientes reales se requiere aplicar las migraciones 029/030 en la rama de producción, configurar allí `DATABASE_URL_RUNTIME` con su propio rol sin BYPASSRLS y `CRON_SECRET`, ejecutar las pruebas de aceptación y recién entonces promover el código.
+6. **Pruebas funcionales de cada módulo:** ventas, compras, inventario, caja, producción, exportaciones, WhatsApp y permisos necesitan un negocio y usuarios de prueba; QA estaba vacío y no se usaron datos de producción.
+
+**Conclusión actualizada:** el bloqueo de aislamiento de datos quedó corregido y probado en QA a nivel SQL. La API ya se ejecuta con un rol sin BYPASSRLS y las mutaciones tienen defensa CSRF global. El Preview está READY. MATTSYSTEM todavía no debe promoverse a producción hasta completar la prueba de login del propietario, restauración con un negocio de prueba y el despliegue coordinado de las migraciones y credenciales de runtime en producción.
