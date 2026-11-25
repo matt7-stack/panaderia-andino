@@ -20,6 +20,7 @@ const requiredFiles = [
   'migrations/016_receivables_direct_debt_link.sql',
   'migrations/024_branches_delivery.sql',
   'migrations/025_default_branch_on_business_create.sql',
+  'migrations/027_admin_private_finance_notes.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -113,5 +114,13 @@ for (const requiredRoute of ['/api/auth/login', '/api/auth/me', '/api/admin/busi
     throw new Error('La ruta API consolidada no contiene el endpoint requerido: ' + requiredRoute);
   }
 }
+
+const privateFinanceApi = fs.readFileSync(apiPath, 'utf8');
+const privateFinanceMigration = fs.readFileSync(path.join(root, 'migrations/027_admin_private_finance_notes.sql'), 'utf8');
+if (!privateFinanceApi.includes("if(path==='/api/admin/private-finance')") || !privateFinanceApi.includes("authenticated(req,res,true)")) throw new Error('Las finanzas privadas deben estar protegidas por autenticación exclusiva del administrador.');
+if (!privateFinanceMigration.includes('app_admin_private_notes') || !privateFinanceMigration.includes('app_admin_finance_entries')) throw new Error('Falta la migración de notas y finanzas privadas del administrador.');
+if (!html.includes('id="adminPrivateNoteForm"') || !html.includes('id="adminPrivateFinanceForm"')) throw new Error('Faltan los formularios privados del administrador.');
+if (html.includes('id="adminCenterCards"')) throw new Error('El Centro de gestión todavía contiene accesos rápidos que fueron solicitados eliminar.');
+if (!html.includes('id="adminPrivateBalanceTotal"')) throw new Error('Falta el resumen mensual privado en la pantalla principal del administrador.');
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
