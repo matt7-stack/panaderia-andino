@@ -63,8 +63,10 @@ const apiSource = fs.readFileSync(apiPath, 'utf8');
 const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
 if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
-    !apiSource.includes('runWithRequestContext: callback => requestContext.run({}, callback)')) {
-  throw new Error('La API debe usar el rol de ejecución y aplicar contexto de negocio dentro de transacciones aisladas.');
+    !apiSource.includes('runWithRequestContext: callback => requestContext.run({}, callback)') ||
+    !apiSource.includes("!['GET','HEAD','OPTIONS'].includes(requestMethod) && !sameOrigin(req)") ||
+    !apiSource.includes('net.isIP(forwarded)')) {
+  throw new Error('La API debe usar el rol de ejecución, contexto de negocio, CSRF global y límites de intentos por IP.');
 }
 if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') ||
     !securityMigration.includes('FORCE ROW LEVEL SECURITY') ||
@@ -81,7 +83,8 @@ if (!apiSource.includes("path === '/api/business/backups'") ||
   throw new Error('Faltan los endpoints de copia/restauración, respaldo automático o control de intentos por IP.');
 }
 for (const relative of ['api/business/receivables.js','api/admin/business-addons.js']) {
-  if (!fs.readFileSync(path.join(root, relative), 'utf8').includes('runWithRequestContext')) {
+  const specializedSource = fs.readFileSync(path.join(root, relative), 'utf8');
+  if (!specializedSource.includes('runWithRequestContext') || !specializedSource.includes('core._internal.sameOrigin(req)')) {
     throw new Error('La ruta especializada debe ejecutar consultas dentro del contexto de seguridad: ' + relative);
   }
 }
@@ -91,6 +94,11 @@ if (!html.includes('id="adminBackupList"') ||
   throw new Error('Falta la interfaz de historial y restauración de copias de seguridad.');
 }
 const backupSchedules = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).schedules || {};
+const securityHeaders = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).headers.find(item => item.source === '/(.*)')?.headers || [];
+const cspValue = securityHeaders.find(item => item.key === 'Content-Security-Policy')?.value || '';
+if (!cspValue.includes("form-action 'self'") || !cspValue.includes('upgrade-insecure-requests')) {
+  throw new Error('La política CSP debe limitar el envío de formularios y forzar recursos HTTPS.');
+}
 if (!backupSchedules['mattsystem-daily-backup'] || backupSchedules['mattsystem-daily-backup'].path !== '/api/internal/backup' || backupSchedules['mattsystem-daily-backup'].schedule !== '0 2 * * *' || backupSchedules['mattsystem-daily-backup'].timezone !== 'America/Asuncion' || backupSchedules['mattsystem-daily-backup'].requestMethod !== 'GET') {
   throw new Error('Falta programar el respaldo automático diario con Vercel Schedules.');
 }
