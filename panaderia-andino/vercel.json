@@ -113,5 +113,11 @@
       "source": "/api/:path*",
       "destination": "/api/[...path]"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/internal/backup",
+      "schedule": "0 5 * * *"
+    }
   ]
 }
