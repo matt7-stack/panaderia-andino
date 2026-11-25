@@ -5,7 +5,7 @@
   if (!nav || nav.dataset.adminGrouped === 'true') return;
   const groups = [
     { title: 'Principal', icon: 'bi-house-door', pages: ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp'], open: true },
-    { title: 'Administración', icon: 'bi-shield-lock', pages: ['administracion','admin-panaderias','admin-usuarios','admin-centro','admin-maintenance'], open: true },
+    { title: 'Administración', icon: 'bi-shield-lock', pages: ['administracion','admin-panaderias','admin-usuarios','admin-centro','admin-maintenance'], open: false },
     { title: 'Comercial', icon: 'bi-briefcase', pages: ['admin-licencias','admin-cotizador'], open: false },
     { title: 'Operaciones', icon: 'bi-diagram-3', pages: ['reportes-globales'], open: false },
     { title: 'Control y seguridad', icon: 'bi-shield-check', pages: ['actividad','seguridad'], open: false },
