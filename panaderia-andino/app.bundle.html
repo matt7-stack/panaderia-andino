@@ -2179,7 +2179,7 @@ html body .auth-gate.auth-gate-hidden {
     selectedPage = page;
     updateAdminSupportBanner();
     if (page === 'admin-support') loadAdminSupportSettings();
-    $$('.page-view').forEach((view) => view.classList.toggle('active', view.dataset.page === page));
+    $$$( '.page-view' ).forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
@@ -3068,8 +3068,8 @@ html body .auth-gate.auth-gate-hidden {
   }
 
   // Formularios de movimientos
-  $('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
-  $('[data-open-quick-note]').forEach((button) => button.addEventListener('click', () => openInvoiceModal('', 'issued')));
+  $$( '[data-open-movement]' ).forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
+  $$( '[data-open-quick-note]' ).forEach((button) => button.addEventListener('click', () => openInvoiceModal('', 'issued')));
   $$('.type-option').forEach((button) => button.addEventListener('click', () => setMovementType(button.dataset.type)));
   $('#movementForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -4034,7 +4034,7 @@ html body .auth-gate.auth-gate-hidden {
       // vista operativa que el CSS oculta para el administrador de plataforma.
       const adminPage = $('[data-page="administracion"]');
       if (adminPage) {
-        $('.page-view').forEach(view => view.classList.toggle('active', view === adminPage));
+        $$( '.page-view' ).forEach(view => view.classList.toggle('active', view === adminPage));
         $('.nav-menu [data-page-link]').forEach(link => {
           const active = link.dataset.pageLink === 'administracion';
           link.classList.toggle('active', active);
