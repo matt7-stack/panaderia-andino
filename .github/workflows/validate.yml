@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - integration/gestion-negocio-2026-11
+      - feat/admin-private-finance-notes-qa
 jobs:
   static-validation:
     runs-on: ubuntu-latest
