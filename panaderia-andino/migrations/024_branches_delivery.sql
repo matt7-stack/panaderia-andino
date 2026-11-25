@@ -82,7 +82,9 @@ CREATE TABLE IF NOT EXISTS app_delivery_order_items (
   line_total NUMERIC(14,2) NOT NULL CHECK(line_total>=0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT app_delivery_order_items_business_order_fk
-    FOREIGN KEY(business_id,order_id) REFERENCES app_delivery_orders(business_id,id) ON DELETE RESTRICT
+    FOREIGN KEY(business_id,order_id) REFERENCES app_delivery_orders(business_id,id) ON DELETE RESTRICT,
+  CONSTRAINT app_delivery_order_items_business_product_fk
+    FOREIGN KEY(business_id,product_id) REFERENCES app_products(business_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS app_delivery_order_items_business_order_idx
   ON app_delivery_order_items(business_id,order_id);
