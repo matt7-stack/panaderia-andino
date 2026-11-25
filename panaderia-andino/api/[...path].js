@@ -30,6 +30,30 @@ function body(req) {
   if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch (_) { return {}; } }
   return {};
 }
+function parseMoney(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+  let raw = String(value ?? '').trim().replace(/[^0-9,.-]/g, '');
+  if (!raw || !/[0-9]/.test(raw)) return NaN;
+  const comma = raw.lastIndexOf(',');
+  const dot = raw.lastIndexOf('.');
+  if (comma >= 0 && dot >= 0) {
+    raw = comma > dot ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '');
+  } else if (comma >= 0) {
+    if ((raw.match(/,/g) || []).length > 1) return NaN;
+    raw = raw.replace(',', '.');
+  } else if (dot >= 0) {
+    const parts = raw.split('.');
+    if (parts.length > 2 || parts.slice(1).every(part => part.length === 3)) raw = parts.join('');
+  }
+  const amount = Number(raw);
+  return Number.isFinite(amount) && amount <= 999999999999.99 ? amount : NaN;
+}
+function validISODate(value) {
+  const dateText = String(value || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return false;
+  const date = new Date(dateText + 'T00:00:00Z');
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === dateText;
+}
 function sameOrigin(req) {
   const method = String(req.method || 'GET').toUpperCase();
   const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -498,7 +522,7 @@ module.exports = async function handler(req, res) {
     if(path==='/api/admin/license-payments'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
-      const input=body(req),licenseId=String(input.licenseId||''),amount=Number(input.amount),type=String(input.paymentType||'monthly');
+      const input=body(req),licenseId=String(input.licenseId||''),amount=parseMoney(input.amount),type=String(input.paymentType||'monthly');
       if(!licenseId||!Number.isFinite(amount)||amount<=0||!['setup','monthly','extra'].includes(type))return send(res,400,{error:'Datos de pago no válidos.'});
       const sql=db(),exists=await sql`SELECT id FROM app_licenses WHERE id=${licenseId}`;
       if(!exists.length)return send(res,404,{error:'Licencia no encontrada.'});
@@ -1831,7 +1855,7 @@ module.exports = async function handler(req, res) {
           }
           if(action==='movement'){
             if(!can('cash.manage'))return send(res,403,{error:'No tenés permiso para registrar movimientos de caja.'});
-            const type=String(input.movementType||''),amount=Number(input.amount);
+            const type=String(input.movementType||''),amount=parseMoney(input.amount);
             if(!['income','expense'].includes(type)||!Number.isFinite(amount)||amount<=0||!String(input.category||'').trim()||!String(input.description||'').trim())return send(res,400,{error:'Completá tipo, categoría, descripción e importe válido.'});
             const session=await sql`SELECT id FROM app_cash_sessions WHERE business_id=${businessId} AND status='open' ORDER BY opened_at DESC LIMIT 1`;
             if(!session.length)return send(res,409,{error:'No hay una caja abierta.'});
@@ -2127,7 +2151,7 @@ module.exports = async function handler(req, res) {
         return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0}});
       }
       if(req.method==='POST'){
-        const input=body(req),category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=Number(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||'');
+        const input=body(req),category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||'');
         if(!category||!description||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Ingresá categoría, descripción e importe mayor que cero.'});
         if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
         const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,notes,created_at`;
@@ -2163,9 +2187,9 @@ module.exports = async function handler(req, res) {
           return send(res,201,{ok:true,note:rows[0]});
         }
         if(kind==='entry'){
-          const type=String(input.type||''),concept=String(input.concept||'').trim().slice(0,240),amount=Number(input.amount),date=String(input.date||''),method=String(input.paymentMethod||'').trim().slice(0,60);
+          const type=String(input.type||''),concept=String(input.concept||'').trim().slice(0,240),amount=parseMoney(input.amount),date=String(input.date||''),method=String(input.paymentMethod||'').trim().slice(0,60);
           if(!['income','expense'].includes(type)||!concept||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Completá tipo, concepto e importe mayor que cero.'});
-          if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
+          if(!validISODate(date))return send(res,400,{error:'La fecha no es válida.'});
           const rows=await sql`INSERT INTO app_admin_finance_entries(entry_date,entry_type,concept,amount,payment_method,created_by) VALUES(${date}::date,${type},${concept},${amount},${method},${admin.id}) RETURNING id,entry_date,entry_type,concept,amount,payment_method,created_at`;
           return send(res,201,{ok:true,entry:rows[0]});
         }
