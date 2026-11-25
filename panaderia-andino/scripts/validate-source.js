@@ -210,6 +210,7 @@ const deliveryStart = securityApi.indexOf("if (module === 'delivery')", security
 const deliveryEnd = securityApi.indexOf("if (module === 'products')", deliveryStart);
 const deliveryBlock = deliveryStart >= 0 && deliveryEnd > deliveryStart ? securityApi.slice(deliveryStart, deliveryEnd) : '';
 if (!salesBlock.includes('sale_price') || !salesBlock.includes('canOverrideSalePrice') || !salesBlock.includes('canDiscountSale')) throw new Error('Las ventas deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
+if (!securityApi.includes("set_config('role', 'mattsystem_app', true)") || !securityApi.includes('usesRuntimeRole')) throw new Error('La conexión de producción debe forzar el rol SQL de mínimos privilegios cuando no se usa DATABASE_URL_RUNTIME.');
 if (!deliveryBlock.includes('sale_price') || !deliveryBlock.includes('canOverrideDeliveryPrice') || !deliveryBlock.includes('canDiscountDelivery')) throw new Error('Los pedidos deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
 if (!inventoryBlock.includes('FOR UPDATE') || !inventoryBlock.includes('c.new_stock>=0')) throw new Error('Los movimientos de inventario deben bloquear la fila y evitar stock negativo de forma atómica.');
 if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') || !securityMigration.includes('app_login_ip_attempts_scope') || !securityMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
