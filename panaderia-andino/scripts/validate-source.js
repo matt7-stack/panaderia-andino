@@ -10,6 +10,7 @@ const requiredFiles = [
   'api/business/receivables.js',
   'api/admin/business-addons.js',
   'app.bundle.html',
+  'admin-nav.js',
   'employee-access.js',
   'erp-modules.js',
   'migrations/009_optional_receivables_addon.sql',
@@ -17,6 +18,7 @@ const requiredFiles = [
   'migrations/014_expand_industry_templates.sql',
   'migrations/015_receivables_payment_idempotency_guard.sql',
   'migrations/016_receivables_direct_debt_link.sql',
+  'migrations/024_branches_delivery.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -27,7 +29,7 @@ for (const relative of requiredFiles) {
   if (!fs.existsSync(absolute)) throw new Error('Falta el archivo requerido: ' + relative);
 }
 
-for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','employee-access.js','erp-modules.js']) {
+for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','admin-nav.js','employee-access.js','erp-modules.js']) {
   const absolute = path.join(root, relative);
   new vm.Script(fs.readFileSync(absolute, 'utf8'), { filename: absolute });
 }
@@ -55,9 +57,11 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
 
 if (!html.includes('/employee-access.js')) throw new Error('La interfaz no carga el módulo de cuentas de empleados.');
 if (!html.includes('/erp-modules.js')) throw new Error('La interfaz no carga los módulos ERP.');
+if (!html.includes('/admin-nav.js')) throw new Error('La interfaz no carga la navegación administrativa agrupada.');
+if (!html.includes('data-open-quick-note')) throw new Error('El atajo de nueva nota no abre su ventana emergente.');
 const serviceWorker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 new vm.Script(serviceWorker, { filename: path.join(root, 'sw.js') });
-if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes("'/erp-modules.js'")) throw new Error('La caché PWA no incluye todos los módulos JavaScript.');
+if (!serviceWorker.includes("'/employee-access.js'") || !serviceWorker.includes("'/erp-modules.js'") || !serviceWorker.includes("'/admin-nav.js'")) throw new Error('La caché PWA no incluye todos los módulos JavaScript.');
 if (!fs.readFileSync(apiPath, 'utf8').includes('/api/business/employee-data')) {
   throw new Error('No está implementado el endpoint de datos con permisos para empleados.');
 }
@@ -72,6 +76,10 @@ if (!fs.readFileSync(path.join(root, 'migrations/016_receivables_direct_debt_lin
 if (!fs.readFileSync(erpPath, 'utf8').includes('receivablesSearch')) throw new Error('Falta la búsqueda del historial de cuentas por cobrar.');
 if (!fs.readFileSync(addonsApiPath, 'utf8').includes('app_business_addons')) throw new Error('La API de complementos no está conectada a la base de datos.');
 if (!fs.readFileSync(erpPath, 'utf8').includes("receivables:{title:'Cuentas por cobrar'")) throw new Error('La interfaz ERP no incluye cuentas por cobrar.');
+if (!fs.readFileSync(erpPath, 'utf8').includes("branches:{title:'Sucursales'")) throw new Error('La interfaz ERP no incluye sucursales.');
+if (!fs.readFileSync(erpPath, 'utf8').includes("delivery:{title:'Pedidos y entregas'")) throw new Error('La interfaz ERP no incluye pedidos y entregas.');
+if (!fs.readFileSync(apiPath, 'utf8').includes('app_delivery_orders') || !fs.readFileSync(apiPath, 'utf8').includes('app_branches')) throw new Error('La API no está conectada a sucursales y pedidos.');
+if (!fs.readFileSync(path.join(root, 'migrations/024_branches_delivery.sql'), 'utf8').includes('app_delivery_events')) throw new Error('Falta el historial de eventos de entrega.');
 if (!html.includes("const link = event.target.closest('[data-page-link]')")) throw new Error('La navegación no admite enlaces dinámicos agregados después de la carga inicial.');
 if (!html.includes('id="licenseActivationPanel" hidden') || !html.includes('id="requestLicenseActivation"')) throw new Error('Falta el acceso visible a la solicitud de activación de licencia en Info.');
 if (!html.includes('id="licenseVerifyForm"') || !html.includes('id="licenseCodeInput"')) throw new Error('Falta el formulario para verificar el código de licencia en Info.');
