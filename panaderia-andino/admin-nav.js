@@ -80,5 +80,5 @@
   new MutationObserver(syncVisibility).observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
   syncVisibility();
  }
- Promise.resolve(window.PanaderiaAuthReady).then(init).catch(init);
+ Promise.resolve(window.PanaderiaAuthReady).then(init,init);
 })();
