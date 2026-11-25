@@ -90,9 +90,9 @@ if (!html.includes('id="adminBackupList"') ||
     !html.includes('data-restore-backup')) {
   throw new Error('Falta la interfaz de historial y restauración de copias de seguridad.');
 }
-const backupCron = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).crons || [];
-if (!backupCron.some(job => job.path === '/api/internal/backup' && job.schedule === '0 5 * * *')) {
-  throw new Error('Falta programar el respaldo automático diario.');
+const backupSchedules = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8')).schedules || {};
+if (!backupSchedules['mattsystem-daily-backup'] || backupSchedules['mattsystem-daily-backup'].path !== '/api/internal/backup' || backupSchedules['mattsystem-daily-backup'].schedule !== '0 2 * * *' || backupSchedules['mattsystem-daily-backup'].timezone !== 'America/Asuncion' || backupSchedules['mattsystem-daily-backup'].requestMethod !== 'GET') {
+  throw new Error('Falta programar el respaldo automático diario con Vercel Schedules.');
 }
 if (!apiSource.includes('function parseMoney(value)') ||
     !apiSource.includes('function validISODate(value)') ||
