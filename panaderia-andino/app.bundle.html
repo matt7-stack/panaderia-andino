@@ -1491,13 +1491,14 @@ html body .auth-gate.auth-gate-hidden {
         <section class="page-view" id="page-admin-centro" data-page="admin-centro">
           <div class="page-heading"><div><p class="eyebrow">CONTROL DE PLATAFORMA</p><h1><i class="bi bi-grid-1x2 heading-page-icon"></i> Centro de gestión</h1><p class="page-subtitle">Herramientas administrativas, comerciales, operativas y de seguimiento de MATTSYSTEM.</p></div><button class="btn btn-outline-bakery" id="adminCenterRefresh" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
           <div class="summary-grid" id="adminCenterKpis"><article class="summary-card"><p class="summary-label">Negocios</p><h2 id="centerBusinesses">—</h2></article><article class="summary-card"><p class="summary-label">Licencias</p><h2 id="centerLicenses">—</h2></article><article class="summary-card"><p class="summary-label">Solicitudes abiertas</p><h2 id="centerRequests">—</h2></article><article class="summary-card"><p class="summary-label">Cotizaciones</p><h2 id="centerQuotes">—</h2></article></div>
+          <article class="panel settings-card mt-3" id="adminExpensesPanel"><div class="panel-heading"><div><h3>Gastos comerciales</h3><p>Registrá hosting, dominios, infraestructura, publicidad y otros costos de MATTSYSTEM.</p></div><div class="text-end"><small class="text-muted d-block">Total del mes</small><strong id="platformExpenseMonth">Gs. 0</strong></div></div><form id="platformExpenseForm" class="row g-2 align-items-end mb-3"><div class="col-md-2"><label class="form-label" for="platformExpenseDate">Fecha</label><input class="form-control" type="date" id="platformExpenseDate"></div><div class="col-md-2"><label class="form-label" for="platformExpenseCategory">Categoría</label><select class="form-select" id="platformExpenseCategory"><option>Hosting</option><option>Dominio</option><option>Infraestructura</option><option>Publicidad</option><option>Servicios</option><option>Otros</option></select></div><div class="col-md-3"><label class="form-label" for="platformExpenseDescription">Descripción</label><input class="form-control" id="platformExpenseDescription" maxlength="240" required></div><div class="col-md-2"><label class="form-label" for="platformExpenseAmount">Importe (Gs.)</label><input class="form-control" type="number" id="platformExpenseAmount" min="1" step="1" required></div><div class="col-md-2"><label class="form-label" for="platformExpenseRecurrence">Frecuencia</label><select class="form-select" id="platformExpenseRecurrence"><option value="one_time">Único</option><option value="monthly">Mensual</option><option value="annual">Anual</option></select></div><div class="col-md-1"><button class="btn btn-bakery w-100" type="submit" aria-label="Guardar gasto"><i class="bi bi-plus-lg"></i></button></div></form><div id="platformExpensesList" class="table-responsive"><p class="text-muted small mb-0">Cargando gastos…</p></div></article>
           <div class="admin-quick-grid mt-3" id="adminCenterCards">
             <button class="admin-quick-card" data-center-go="reportes-globales"><span class="quick-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="quick-copy"><strong>Rentabilidad y resumen comercial</strong><small>Revisá ventas, ingresos, licencias y evolución comercial.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-licencias"><span class="quick-icon"><i class="bi bi-calendar2-check"></i></span><span class="quick-copy"><strong>Renovaciones inteligentes</strong><small>Controlá vencimientos y administrá renovaciones desde licencias.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-panaderias"><span class="quick-icon"><i class="bi bi-cloud-check"></i></span><span class="quick-copy"><strong>Instalaciones y versiones</strong><small>Supervisá instalaciones y negocios registrados.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="actividad"><span class="quick-icon"><i class="bi bi-kanban"></i></span><span class="quick-copy"><strong>Centro de operaciones</strong><small>Actividad, alertas y seguimiento de operaciones.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-notificaciones"><span class="quick-icon"><i class="bi bi-arrow-repeat"></i></span><span class="quick-copy"><strong>Actualizaciones y mantenimiento</strong><small>Comunicá novedades y cambios a los clientes.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
-            <button class="admin-quick-card" data-center-go="seguridad"><span class="quick-icon"><i class="bi bi-receipt"></i></span><span class="quick-copy"><strong>Gastos comerciales</strong><small>Accedé al control y reportes administrativos disponibles.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
+            <button class="admin-quick-card" data-center-go="admin-centro" data-center-scroll="adminExpensesPanel"><span class="quick-icon"><i class="bi bi-receipt"></i></span><span class="quick-copy"><strong>Gastos comerciales</strong><small>Registrá y consultá los costos operativos de la plataforma.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-support"><span class="quick-icon"><i class="bi bi-headset"></i></span><span class="quick-copy"><strong>Soporte temporal</strong><small>Configurá la asistencia y atención de clientes.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-cotizador"><span class="quick-icon"><i class="bi bi-ui-checks-grid"></i></span><span class="quick-copy"><strong>Comparador de planes</strong><small>Consultá planes, módulos y precios en el cotizador.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
             <button class="admin-quick-card" data-center-go="admin-panaderias"><span class="quick-icon"><i class="bi bi-inboxes"></i></span><span class="quick-copy"><strong>Propuestas y solicitudes</strong><small>Gestioná solicitudes de módulos y cotizaciones.</small></span><i class="bi bi-arrow-right quick-arrow"></i></button>
@@ -2984,16 +2985,22 @@ html body .auth-gate.auth-gate-hidden {
   async function loadAdminCenter(){
     if(!window.PanaderiaAuth?.user?.isPlatformAdmin)return;
     try{
-      const [overview,licenses,quotes]=await Promise.all([
+      const [overview,licenses,quotes,expenses]=await Promise.all([
         window.PanaderiaAuth.api('/api/admin/overview'),
         window.PanaderiaAuth.api('/api/admin/licenses').catch(()=>({licenses:[]})),
-        window.PanaderiaAuth.api('/api/admin/quotations').catch(()=>({quotations:[]}))
+        window.PanaderiaAuth.api('/api/admin/quotations').catch(()=>({quotations:[]})),
+        window.PanaderiaAuth.api('/api/admin/platform-expenses').catch(()=>({expenses:[],totals:{}}))
       ]);
       const businesses=overview.businesses||[],lic=licenses.licenses||licenses.items||[],tickets=overview.ticketCounts||[],quot=quotes.quotations||[];
       const put=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=String(value)};
       put('centerBusinesses',businesses.length);put('centerLicenses',lic.length);
       put('centerRequests',tickets.filter(x=>['open','in_progress','pending'].includes(x.status)).reduce((n,x)=>n+Number(x.total||0),0));
       put('centerQuotes',quot.length);
+      const monthTotal=Number(expenses.totals?.month_total||0);
+      const monthNode=document.getElementById('platformExpenseMonth');if(monthNode)monthNode.textContent='Gs. '+Math.round(monthTotal).toLocaleString('es-PY');
+      const expenseRoot=document.getElementById('platformExpensesList');
+      if(expenseRoot){const items=expenses.expenses||[];expenseRoot.innerHTML=items.length?'<table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Frecuencia</th><th class="text-end">Importe</th><th></th></tr></thead><tbody>'+items.map(x=>'<tr><td>'+releaseEsc(new Date(x.expense_date+'T12:00:00').toLocaleDateString('es-PY'))+'</td><td>'+releaseEsc(x.category)+'</td><td>'+releaseEsc(x.description)+'</td><td>'+({one_time:'Único',monthly:'Mensual',annual:'Anual'}[x.recurrence]||'Único')+'</td><td class="text-end">Gs. '+Math.round(Number(x.amount)).toLocaleString('es-PY')+'</td><td class="text-end"><button class="btn btn-sm btn-outline-danger" data-expense-delete="'+releaseEsc(x.id)+'" aria-label="Eliminar gasto"><i class="bi bi-trash"></i></button></td></tr>').join('')+'</tbody></table>':'<p class="text-muted small mb-0">Todavía no hay gastos registrados.</p>';}
+
     }catch(error){console.error('No se pudo cargar el centro de gestión:',error);['centerBusinesses','centerLicenses','centerRequests','centerQuotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});}
   }
   async function loadReleaseNotes(){
@@ -3007,8 +3014,19 @@ html body .auth-gate.auth-gate-hidden {
     }catch(error){root.innerHTML='<div class="panel p-3 text-danger">'+releaseEsc(error.message||'No se pudieron cargar las novedades.')+'</div>';}
   }
   document.getElementById('adminCenterRefresh')?.addEventListener('click',loadAdminCenter);
+  document.getElementById('platformExpenseForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]');button.disabled=true;
+    try{await window.PanaderiaAuth.api('/api/admin/platform-expenses',{method:'POST',body:JSON.stringify({date:document.getElementById('platformExpenseDate').value,category:document.getElementById('platformExpenseCategory').value,description:document.getElementById('platformExpenseDescription').value,amount:Number(document.getElementById('platformExpenseAmount').value),recurrence:document.getElementById('platformExpenseRecurrence').value})});form.reset();await loadAdminCenter();}
+    catch(error){alert(error.message||'No se pudo registrar el gasto.');}finally{button.disabled=false;}
+  });
+  document.getElementById('platformExpensesList')?.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-expense-delete]');if(!button||!confirm('¿Eliminar este gasto?'))return;
+    try{await window.PanaderiaAuth.api('/api/admin/platform-expenses',{method:'DELETE',body:JSON.stringify({id:button.dataset.expenseDelete})});await loadAdminCenter();}
+    catch(error){alert(error.message||'No se pudo eliminar el gasto.');}
+  });
+
   document.getElementById('releaseRefresh')?.addEventListener('click',loadReleaseNotes);
-  document.getElementById('adminCenterCards')?.addEventListener('click',event=>{const button=event.target.closest('[data-center-go]');if(button)pageNavigate(button.dataset.centerGo);});
+  document.getElementById('adminCenterCards')?.addEventListener('click',event=>{const button=event.target.closest('[data-center-go]');if(button){pageNavigate(button.dataset.centerGo);if(button.dataset.centerScroll)setTimeout(()=>document.getElementById(button.dataset.centerScroll)?.scrollIntoView({behavior:'smooth',block:'start'}),100);}});
   document.getElementById('releaseNoteForm')?.addEventListener('submit',async event=>{
     event.preventDefault();const button=event.currentTarget.querySelector('[type="submit"]');button.disabled=true;
     try{await window.PanaderiaAuth.api('/api/release-notes',{method:'POST',body:JSON.stringify({title:document.getElementById('releaseTitle').value,version:document.getElementById('releaseVersion').value,category:document.getElementById('releaseCategory').value,summary:document.getElementById('releaseSummary').value,content:document.getElementById('releaseContent').value,published:document.getElementById('releasePublish').checked})});event.currentTarget.reset();document.getElementById('releasePublish').checked=true;await loadReleaseNotes();}
