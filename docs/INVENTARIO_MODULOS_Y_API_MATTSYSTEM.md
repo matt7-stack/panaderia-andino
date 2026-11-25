@@ -170,3 +170,5 @@ Para cada módulo implementado:
 - La creación de pedidos no descuenta stock ni registra una venta automáticamente; esa integración debe desarrollarse y probarse antes de ofrecer el flujo como ciclo comercial completo.
 - La migración todavía no se aplicó a ninguna base de datos. No se modificó Neon `main` ni producción.
 - El administrador agrupa la navegación por áreas y el atajo de nueva nota abre el formulario modal existente.
+
+- La migración `025_default_branch_on_business_create.sql` crea automáticamente la sucursal principal cuando se registra un negocio nuevo.
