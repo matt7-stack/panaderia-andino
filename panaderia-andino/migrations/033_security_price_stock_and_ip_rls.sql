@@ -1,7 +1,7 @@
 -- 033: endurecer inventario, precios e intentos de acceso por IP.
 BEGIN;
 
--- La API ya firma el contexto de ip_hash dentro de cada transacción de login.
+-- La API establece el hash de IP dentro del contexto transaccional del login.
 ALTER TABLE public.app_login_ip_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_login_ip_attempts FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS app_login_ip_attempts_scope ON public.app_login_ip_attempts;
