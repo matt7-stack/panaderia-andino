@@ -19,6 +19,9 @@ function send(res, status, data, headers = {}) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   for (const [key, value] of Object.entries(headers)) res.setHeader(key, value);
   res.end(JSON.stringify(data));
 }
@@ -28,10 +31,23 @@ function body(req) {
   return {};
 }
 function sameOrigin(req) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+  const fetchSite = String(req.headers['sec-fetch-site'] || '').toLowerCase();
+  if (fetchSite === 'cross-site') return false;
   const origin = req.headers.origin;
-  if (!origin) return true;
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  try { return new URL(origin).host === host; } catch (_) { return false; }
+  // Browser mutations must carry a verifiable Origin. Safe reads may omit it
+  // for health checks and non-browser clients.
+  if (!origin) return safeMethods.has(method);
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+    .split(',')[0].trim().toLowerCase();
+  try {
+    const parsed = new URL(origin);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') &&
+      parsed.host.toLowerCase() === host;
+  } catch (_) {
+    return false;
+  }
 }
 function cookie(req) {
   for (const part of String(req.headers.cookie || '').split(';')) {
