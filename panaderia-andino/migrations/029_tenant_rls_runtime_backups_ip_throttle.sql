@@ -69,57 +69,57 @@ $$;
 DO $$
 DECLARE
   item record;
-  table_name text;
+  v_table_name text;
 BEGIN
   FOR item IN
-    SELECT table_name
-    FROM information_schema.columns
-    WHERE table_schema='public' AND column_name='business_id'
-      AND table_name <> 'app_users'
+    SELECT c.table_name
+    FROM information_schema.columns c
+    WHERE c.table_schema='public' AND c.column_name='business_id'
+      AND c.table_name <> 'app_users'
   LOOP
-    table_name := item.table_name;
-    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
-    EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', table_name);
-    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_select ON public.%I', table_name);
-    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_insert ON public.%I', table_name);
-    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_update ON public.%I', table_name);
-    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_delete ON public.%I', table_name);
+    v_table_name := item.table_name;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_table_name);
+    EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', v_table_name);
+    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_select ON public.%I', v_table_name);
+    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_insert ON public.%I', v_table_name);
+    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_update ON public.%I', v_table_name);
+    EXECUTE format('DROP POLICY IF EXISTS mattsystem_tenant_delete ON public.%I', v_table_name);
 
-    IF table_name IN ('app_state','app_business_config','app_licenses') THEN
+    IF v_table_name IN ('app_state','app_business_config','app_licenses') THEN
       EXECUTE format(
         'CREATE POLICY mattsystem_tenant_select ON public.%I FOR SELECT USING (
           public.app_is_platform_admin()
           OR business_id = public.app_current_business_id()
           OR business_id = NULLIF(current_setting(''app.public_catalog_business_id'', true), '''')::uuid
-        )', table_name);
+        )', v_table_name);
     ELSE
       EXECUTE format(
         'CREATE POLICY mattsystem_tenant_select ON public.%I FOR SELECT USING (
           public.app_is_platform_admin() OR business_id = public.app_current_business_id()
-        )', table_name);
+        )', v_table_name);
     END IF;
 
-    IF table_name = 'app_audit_logs' THEN
+    IF v_table_name = 'app_audit_logs' THEN
       EXECUTE format(
         'CREATE POLICY mattsystem_tenant_insert ON public.%I FOR INSERT WITH CHECK (
           business_id IS NULL OR public.app_is_platform_admin() OR business_id = public.app_current_business_id()
-        )', table_name);
+        )', v_table_name);
     ELSE
       EXECUTE format(
         'CREATE POLICY mattsystem_tenant_insert ON public.%I FOR INSERT WITH CHECK (
           public.app_is_platform_admin() OR business_id = public.app_current_business_id()
-        )', table_name);
+        )', v_table_name);
     END IF;
     EXECUTE format(
       'CREATE POLICY mattsystem_tenant_update ON public.%I FOR UPDATE USING (
         public.app_is_platform_admin() OR business_id = public.app_current_business_id()
       ) WITH CHECK (
         public.app_is_platform_admin() OR business_id = public.app_current_business_id()
-      )', table_name);
+      )', v_table_name);
     EXECUTE format(
       'CREATE POLICY mattsystem_tenant_delete ON public.%I FOR DELETE USING (
         public.app_is_platform_admin() OR business_id = public.app_current_business_id()
-      )', table_name);
+      )', v_table_name);
   END LOOP;
 END $$;
 
