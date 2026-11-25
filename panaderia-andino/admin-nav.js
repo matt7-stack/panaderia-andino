@@ -19,7 +19,7 @@
     .nav-menu{gap:10px!important}
     #adminQuickActionsMount .quick-actions-section{margin:0 0 18px}
     #adminQuickActionsMount .quick-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    @media(max-width:680px){#adminQuickActionsMount .quick-actions-grid{grid-template-columns:1fr}}
+    @media(max-width:680px){#adminQuickActionsMount .quick-actions-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#adminQuickActionsMount .quick-action{padding:9px 8px;gap:7px}#adminQuickActionsMount .quick-action-icon{width:30px;height:30px;flex:0 0 30px}#adminQuickActionsMount .quick-action>i{display:none}}
     .admin-nav-group{display:grid;gap:5px;min-width:0}
     .admin-nav-group[hidden]{display:none!important}
     .admin-nav-group__toggle{width:100%;display:flex;align-items:center;gap:9px;padding:8px 12px;border:0;border-radius:8px;color:#cdb59f;background:transparent;text-align:left;font:700 9px/1.2 'DM Sans',sans-serif;letter-spacing:1.1px;text-transform:uppercase}
