@@ -1538,7 +1538,7 @@ html body .auth-gate.auth-gate-hidden {
               <form id="adminPrivateFinanceForm" class="row g-2 align-items-end mb-3">
                 <div class="col-sm-4"><label class="form-label" for="adminFinanceDate">Fecha</label><input class="form-control" type="date" id="adminFinanceDate" required></div>
                 <div class="col-sm-4"><label class="form-label" for="adminFinanceType">Tipo</label><select class="form-select" id="adminFinanceType"><option value="income">Ingreso recibido</option><option value="expense">Pago realizado</option></select></div>
-                <div class="col-sm-4"><label class="form-label" for="adminFinanceAmount">Monto (Gs.)</label><input class="form-control" type="number" id="adminFinanceAmount" min="1" step="1" required></div>
+                <div class="col-sm-4"><label class="form-label" for="adminFinanceAmount">Monto (Gs.)</label><input class="form-control" type="text" id="adminFinanceAmount" inputmode="decimal" autocomplete="off" placeholder="Ej. 100.000" required></div>
                 <div class="col-sm-7"><label class="form-label" for="adminFinanceConcept">Concepto</label><input class="form-control" id="adminFinanceConcept" maxlength="240" required placeholder="Ej.: Cobro de licencia"></div>
                 <div class="col-sm-5"><label class="form-label" for="adminFinanceMethod">Medio de pago</label><select class="form-select" id="adminFinanceMethod"><option value="">No especificado</option><option>Efectivo</option><option>Transferencia</option><option>Giro</option><option>Tarjeta</option><option>Otro</option></select></div>
                 <div class="col-12"><button class="btn btn-bakery" type="submit"><i class="bi bi-plus-lg me-1"></i> Registrar movimiento</button></div>
@@ -3144,7 +3144,7 @@ html body .auth-gate.auth-gate-hidden {
   });
   document.getElementById('adminPrivateFinanceForm')?.addEventListener('submit',async event=>{
     event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type="submit"]');button.disabled=true;
-    try{await window.PanaderiaAuth.api('/api/admin/private-finance',{method:'POST',body:JSON.stringify({kind:'entry',date:document.getElementById('adminFinanceDate').value,type:document.getElementById('adminFinanceType').value,concept:document.getElementById('adminFinanceConcept').value,amount:Number(document.getElementById('adminFinanceAmount').value),paymentMethod:document.getElementById('adminFinanceMethod').value})});form.reset();const date=document.getElementById('adminFinanceDate');if(date)date.value=todayISO();await loadAdminPrivateFinance();}
+    try{await window.PanaderiaAuth.api('/api/admin/private-finance',{method:'POST',body:JSON.stringify({kind:'entry',date:document.getElementById('adminFinanceDate').value,type:document.getElementById('adminFinanceType').value,concept:document.getElementById('adminFinanceConcept').value,amount:document.getElementById('adminFinanceAmount').value,paymentMethod:document.getElementById('adminFinanceMethod').value})});form.reset();const date=document.getElementById('adminFinanceDate');if(date)date.value=todayISO();await loadAdminPrivateFinance();}
     catch(error){alert(error.message||'No se pudo registrar el movimiento.');}finally{button.disabled=false;}
   });
   document.getElementById('adminPrivateNotesList')?.addEventListener('click',async event=>{
