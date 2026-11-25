@@ -2124,6 +2124,47 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if(path==='/api/admin/private-finance'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const requestedMonth=String(req.query?.month||new Date().toISOString().slice(0,7));
+        if(!/^\\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth))return send(res,400,{error:'El mes solicitado no es válido.'});
+        const monthStart=requestedMonth+'-01';
+        const [notes,entries,totals]=await Promise.all([
+          sql`SELECT id,title,content,created_at,updated_at FROM app_admin_private_notes ORDER BY updated_at DESC,created_at DESC LIMIT 200`,
+          sql`SELECT id,entry_date,entry_type,concept,amount,payment_method,notes,created_at FROM app_admin_finance_entries WHERE entry_date>=${monthStart}::date AND entry_date<(${monthStart}::date+INTERVAL '1 month') ORDER BY entry_date DESC,created_at DESC LIMIT 500`,
+          sql`SELECT COALESCE(SUM(amount) FILTER(WHERE entry_type='income'),0)::numeric AS income,COALESCE(SUM(amount) FILTER(WHERE entry_type='expense'),0)::numeric AS expense FROM app_admin_finance_entries WHERE entry_date>=${monthStart}::date AND entry_date<(${monthStart}::date+INTERVAL '1 month')`
+        ]);
+        return send(res,200,{notes,entries,totals:totals[0]||{income:0,expense:0},month:requestedMonth},{'Cache-Control':'no-store, max-age=0'});
+      }
+      if(req.method==='POST'){
+        const input=body(req),kind=String(input.kind||'');
+        if(kind==='note'){
+          const title=String(input.title||'').trim().slice(0,160)||'Nota',content=String(input.content||'').trim().slice(0,4000);
+          if(!content)return send(res,400,{error:'Escribí el contenido de la nota.'});
+          const rows=await sql`INSERT INTO app_admin_private_notes(title,content,created_by) VALUES(${title},${content},${admin.id}) RETURNING id,title,content,created_at,updated_at`;
+          return send(res,201,{ok:true,note:rows[0]});
+        }
+        if(kind==='entry'){
+          const type=String(input.type||''),concept=String(input.concept||'').trim().slice(0,240),amount=Number(input.amount),date=String(input.date||''),method=String(input.paymentMethod||'').trim().slice(0,60);
+          if(!['income','expense'].includes(type)||!concept||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Completá tipo, concepto e importe mayor que cero.'});
+          if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
+          const rows=await sql`INSERT INTO app_admin_finance_entries(entry_date,entry_type,concept,amount,payment_method,created_by) VALUES(${date}::date,${type},${concept},${amount},${method},${admin.id}) RETURNING id,entry_date,entry_type,concept,amount,payment_method,created_at`;
+          return send(res,201,{ok:true,entry:rows[0]});
+        }
+        return send(res,400,{error:'Tipo de registro no válido.'});
+      }
+      if(req.method==='DELETE'){
+        const input=body(req),id=String(input.id||''),kind=String(input.kind||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id)||!['note','entry'].includes(kind))return send(res,400,{error:'Registro no válido.'});
+        const rows=kind==='note'
+          ? await sql`DELETE FROM app_admin_private_notes WHERE id=${id} RETURNING id`
+          : await sql`DELETE FROM app_admin_finance_entries WHERE id=${id} RETURNING id`;
+        return send(res,200,{ok:true,deleted:rows.length});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/release-notes') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
