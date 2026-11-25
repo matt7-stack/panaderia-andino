@@ -24,8 +24,8 @@ Base de catálogo consultada: Neon, rama de desarrollo `erp-multimodules-develop
 | reports | Informes avanzados | Implementado / activo | Base | Reportes y exportaciones |
 | employees | Empleados y pagos | Implementado / activo | Base | Personal, pagos y permisos |
 | users | Usuarios y permisos | Implementado / activo | Base | Usuarios del negocio |
-| branches | Sucursales | Implementación en rama de trabajo; migración 024 pendiente de aplicar | Base | Directorio de sucursales y estado principal; falta completar el aislamiento de stock/caja/ventas por sede |
-| delivery | Pedidos y entregas | Implementación en rama de trabajo; migración 024 pendiente de aplicar | Base | Alta de pedidos, asignación a sucursal, estados y bitácora; no descuenta stock ni genera venta automáticamente |
+| branches | Sucursales | Implementación en rama de trabajo; migraciones 024/025 aplicadas en `erp-multimodules-development` | Base | Directorio de sucursales y estado principal; falta completar el aislamiento de stock/caja/ventas por sede |
+| delivery | Pedidos y entregas | Implementación en rama de trabajo; migraciones 024/025 aplicadas en `erp-multimodules-development` | Base | Alta de pedidos, asignación a sucursal, estados y bitácora; no descuenta stock ni genera venta automáticamente |
 | receivables | Cuentas por cobrar | UI, API independiente y tablas implementadas en rama Neon de desarrollo | Complemento | No duplicar. Validar addon contratado/activo y sincronizar migraciones con el entorno correcto; `main` aún no contiene las tablas |
 
 ## 2. Pantallas detectadas
@@ -168,7 +168,7 @@ Para cada módulo implementado:
 - Se añadieron endpoints ERP para sucursales y pedidos/entregas, controles de permisos de empleados y una migración aditiva `024_branches_delivery.sql`.
 - La gestión de pedidos incluye estados controlados (pendiente, confirmado, preparación, listo, en camino, entregado y cancelado), asignación a sucursal, artículos y bitácora.
 - La creación de pedidos no descuenta stock ni registra una venta automáticamente; esa integración debe desarrollarse y probarse antes de ofrecer el flujo como ciclo comercial completo.
-- La migración todavía no se aplicó a ninguna base de datos. No se modificó Neon `main` ni producción.
+- Las migraciones 024/025 se aplicaron únicamente en Neon `erp-multimodules-development`; Neon `main` y producción permanecen sin cambios.
 - El administrador agrupa la navegación por áreas y el atajo de nueva nota abre el formulario modal existente.
 
 - La migración `025_default_branch_on_business_create.sql` crea automáticamente la sucursal principal cuando se registra un negocio nuevo.
