@@ -25,6 +25,7 @@ const requiredFiles = [
   'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql',
   'migrations/030_supervisor_employee_rls.sql',
   'migrations/031_login_rate_limit_rls.sql',
+  'migrations/032_login_ip_rls_compatibility.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
