@@ -1223,7 +1223,7 @@ module.exports = async function handler(req, res) {
       const configured=moduleRows[0]?.configured_modules,licensed=moduleRows[0]?.licensed_modules;
       const enabledModules=Array.isArray(configured)?(Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured):null;
       if(Array.isArray(enabledModules)&&(!enabledModules.includes('users')||!enabledModules.includes('employees')))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'La gestión de usuarios y empleados no está incluida en la configuración contratada.'});
-      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export','receivables.view','receivables.manage'];
+      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export','receivables.view','receivables.manage','branches.view','branches.manage','delivery.view','delivery.manage'];
       if (req.method === 'GET') {
         const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
         const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
@@ -1419,16 +1419,44 @@ module.exports = async function handler(req, res) {
         customers:['customers.view','customers.manage'], suppliers:['suppliers.view','suppliers.manage'],
         purchases:['purchases.view','purchases.create'], recipes:['recipes.view','recipes.manage'],
         production:['production.view','production.manage'], cash:['cash.view','cash.manage','cash.open','cash.close'],
-        reports:['reports.view','reports.export']
+        reports:['reports.view','reports.export'], branches:['branches.view','branches.manage'], delivery:['delivery.view','delivery.manage']
       };
       const writePermissions = {
         products:['products.manage'], sales:['sales.create'], inventory:['inventory.manage'],
         customers:['customers.manage'], suppliers:['suppliers.manage'], purchases:['purchases.create'],
-        recipes:['recipes.manage'], production:['production.manage'], cash:['cash.manage','cash.open','cash.close'], reports:['reports.export']
+        recipes:['recipes.manage'], production:['production.manage'], cash:['cash.manage','cash.open','cash.close'], reports:['reports.export'], branches:['branches.manage'], delivery:['delivery.manage']
       };
       if (!readPermissions[module]) return send(res,400,{error:'Módulo ERP no válido.'});
       if (req.method === 'GET') {
         if (!canAny(readPermissions[module])) return send(res,403,{error:'No tenés permiso para consultar este módulo.'});
+        if (module === 'branches') {
+          const rows=await sql`SELECT id,code,name,address,phone,manager_name,is_main,active,created_at,updated_at
+            FROM app_branches WHERE business_id=${businessId}
+            ORDER BY is_main DESC,name ASC LIMIT 200`;
+          return send(res,200,{branches:rows});
+        }
+        if (module === 'delivery') {
+          const [orders,customers,products,branches]=await Promise.all([
+            sql`SELECT o.*,b.name AS branch_name,concat_ws(' ',c.name,c.last_name) AS customer_name,
+              COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'line_total',i.line_total) ORDER BY i.created_at)
+                FROM app_delivery_order_items i WHERE i.business_id=o.business_id AND i.order_id=o.id),'[]'::json) AS items
+              FROM app_delivery_orders o
+              LEFT JOIN app_branches b ON b.business_id=o.business_id AND b.id=o.branch_id
+              LEFT JOIN app_customers c ON c.business_id=o.business_id AND c.id=o.customer_id
+              WHERE o.business_id=${businessId} ORDER BY o.created_at DESC LIMIT 500`,
+            sql`SELECT id,name,last_name,phone,address FROM app_customers WHERE business_id=${businessId} AND active=TRUE ORDER BY name,last_name LIMIT 1000`,
+            sql`SELECT id,name,sku,sale_price,stock,unit FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name LIMIT 2000`,
+            sql`SELECT id,code,name FROM app_branches WHERE business_id=${businessId} AND active=TRUE ORDER BY is_main DESC,name`
+          ]);
+          const summary={
+            total:orders.length,
+            pending:orders.filter(x=>['pending','confirmed'].includes(x.status)).length,
+            inPreparation:orders.filter(x=>['preparing','ready'].includes(x.status)).length,
+            inRoute:orders.filter(x=>x.status==='out_for_delivery').length,
+            delivered:orders.filter(x=>x.status==='delivered').length
+          };
+          return send(res,200,{orders,customers,products,branches,summary});
+        }
         if (module === 'products') {
           const full=can('products.view')||can('products.manage');
           const rows=full
@@ -1490,6 +1518,91 @@ module.exports = async function handler(req, res) {
       }
       if (req.method === 'POST') {
         if (!canAny(writePermissions[module])) return send(res,403,{error:'No tenés permiso para registrar cambios en este módulo.'});
+        if (module === 'branches') {
+          const name=String(input.name||'').trim().slice(0,120);
+          const code=String(input.code||'').trim().toUpperCase().replace(/[^A-Z0-9-]/g,'').slice(0,20);
+          if(!name||!code)return send(res,400,{error:'Ingresá el nombre y el código de la sucursal.'});
+          const rows=await sql`INSERT INTO app_branches(business_id,code,name,address,phone,manager_name,created_by)
+            VALUES(${businessId},${code},${name},${String(input.address||'').trim().slice(0,250)||null},
+              ${String(input.phone||'').trim().slice(0,60)||null},${String(input.managerName||'').trim().slice(0,120)||null},${user.id})
+            ON CONFLICT(business_id,code) DO NOTHING RETURNING *`;
+          if(!rows.length)return send(res,409,{error:'Ya existe una sucursal con ese código.'});
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            VALUES(${businessId},${user.id},'branch.created','branch',${rows[0].id}::text,jsonb_build_object('code',${code},'name',${name}))`;
+          return send(res,201,{branch:rows[0]});
+        }
+        if (module === 'delivery') {
+          const raw=Array.isArray(input.items)?input.items:[];
+          const recipientName=String(input.recipientName||'').trim().slice(0,120);
+          const address=String(input.address||'').trim().slice(0,250);
+          const phone=String(input.phone||'').trim().slice(0,60)||null;
+          const customerId=String(input.customerId||'')||null;
+          const idempotencyKey=String(input.idempotencyKey||'').trim().slice(0,128);
+          const deliveryFee=Number(input.deliveryFee||0),discount=Number(input.discount||0);
+          if(!recipientName||!address||raw.length<1||raw.length>40||idempotencyKey.length<8||
+             !Number.isFinite(deliveryFee)||deliveryFee<0||!Number.isFinite(discount)||discount<0)
+            return send(res,400,{error:'Completá destinatario, dirección, artículos e importes válidos.'});
+          const items=raw.map(item=>({
+            product_id:String(item.productId||'')||null,
+            description:String(item.description||'').trim().slice(0,160),
+            quantity:Number(item.quantity),
+            unit_price:Number(item.unitPrice)
+          }));
+          if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||
+             !Number.isFinite(item.unit_price)||item.unit_price<0||
+             (item.product_id&&!/^[0-9a-f-]{36}$/i.test(item.product_id))))
+            return send(res,400,{error:'Revisá los productos, cantidades y precios del pedido.'});
+          const productIds=[...new Set(items.filter(x=>x.product_id).map(x=>x.product_id))];
+          if(productIds.length){
+            const found=await sql`SELECT id FROM app_products WHERE business_id=${businessId}
+              AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb)) AND active=TRUE`;
+            if(found.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio o están inactivos.'});
+          }
+          if(customerId){
+            const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;
+            if(!customer.length)return send(res,400,{error:'El cliente seleccionado no pertenece a este negocio o está inactivo.'});
+          }
+          const branchId=String(input.branchId||'');
+          const branch=branchId
+            ? await sql`SELECT id FROM app_branches WHERE id=${branchId} AND business_id=${businessId} AND active=TRUE LIMIT 1`
+            : await sql`SELECT id FROM app_branches WHERE business_id=${businessId} AND is_main=TRUE AND active=TRUE LIMIT 1`;
+          if(!branch.length)return send(res,400,{error:'Seleccioná una sucursal activa para preparar el pedido.'});
+          let scheduledFor=null;
+          if(input.scheduledFor){
+            const parsed=new Date(input.scheduledFor);
+            if(Number.isNaN(parsed.valueOf()))return send(res,400,{error:'La fecha programada no es válida.'});
+            scheduledFor=parsed.toISOString();
+          }
+          const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0);
+          if(discount>subtotal+deliveryFee)return send(res,400,{error:'El descuento no puede superar el subtotal más el envío.'});
+          const total=subtotal+deliveryFee-discount;
+          const orderNumber='PED-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Date.now().toString(36).toUpperCase();
+          const itemJson=JSON.stringify(items);
+          const rows=await sql`WITH created AS (
+              INSERT INTO app_delivery_orders(business_id,branch_id,customer_id,order_number,recipient_name,phone,address,
+                scheduled_for,status,subtotal,delivery_fee,discount,total,payment_method,notes,created_by,idempotency_key)
+              VALUES(${businessId},${branch[0].id},${customerId},${orderNumber},${recipientName},${phone},${address},
+                ${scheduledFor},'pending',${subtotal},${deliveryFee},${discount},${total},
+                ${String(input.paymentMethod||'').trim().slice(0,40)||null},${String(input.notes||'').trim().slice(0,1000)||null},
+                ${user.id},${idempotencyKey})
+              ON CONFLICT(business_id,idempotency_key) DO NOTHING RETURNING *
+            ), item_rows AS (
+              INSERT INTO app_delivery_order_items(business_id,order_id,product_id,description,quantity,unit_price,line_total)
+              SELECT c.business_id,c.id,NULLIF(x.product_id,'')::uuid,x.description,x.quantity,x.unit_price,x.quantity*x.unit_price
+              FROM created c CROSS JOIN jsonb_to_recordset(${itemJson}::jsonb) AS x(product_id text,description text,quantity numeric,unit_price numeric)
+              RETURNING id
+            ), event_row AS (
+              INSERT INTO app_delivery_events(business_id,order_id,actor_user_id,event_type,details)
+              SELECT business_id,id,${user.id},'created',jsonb_build_object('order_number',order_number,'total',total)
+              FROM created RETURNING id
+            ) SELECT * FROM created`;
+          if(!rows.length){
+            const existing=await sql`SELECT * FROM app_delivery_orders WHERE business_id=${businessId} AND idempotency_key=${idempotencyKey} LIMIT 1`;
+            if(!existing.length)return send(res,409,{error:'No se pudo registrar el pedido. Intentá nuevamente.'});
+            return send(res,200,{order:existing[0],duplicate:true});
+          }
+          return send(res,201,{order:rows[0]});
+        }
         if (module === 'products') {
           const name=String(input.name||'').trim().slice(0,120),sku=String(input.sku||'').trim().slice(0,60)||null;
           const salePrice=Number(input.salePrice??0),costPrice=Number(input.costPrice??0),minStock=Number(input.minStock??0);
@@ -1664,6 +1777,51 @@ module.exports = async function handler(req, res) {
         }
       }
       if (req.method === 'PATCH') {
+        if(module==='branches'&&can('branches.manage')){
+          const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta identificar la sucursal.'});
+          const current=await sql`SELECT id,is_main FROM app_branches WHERE id=${id} AND business_id=${businessId} LIMIT 1`;
+          if(!current.length)return send(res,404,{error:'No se encontró la sucursal de este negocio.'});
+          if(input.active===false&&current[0].is_main)return send(res,409,{error:'La sucursal principal no se puede desactivar.'});
+          const rows=await sql`UPDATE app_branches SET
+            name=CASE WHEN ${input.name===undefined} THEN name ELSE COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name) END,
+            address=CASE WHEN ${input.address===undefined} THEN address ELSE NULLIF(${String(input.address||'').trim().slice(0,250)},'') END,
+            phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').trim().slice(0,60)},'') END,
+            manager_name=CASE WHEN ${input.managerName===undefined} THEN manager_name ELSE NULLIF(${String(input.managerName||'').trim().slice(0,120)},'') END,
+            active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,
+            updated_at=NOW()
+            WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            VALUES(${businessId},${user.id},'branch.updated','branch',${id},jsonb_build_object('active',${rows[0].active},'name',${rows[0].name}))`;
+          return send(res,200,{branch:rows[0]});
+        }
+        if(module==='delivery'&&can('delivery.manage')){
+          const id=String(input.id||''),nextStatus=String(input.status||'').trim();
+          if(!id||input.action!=='status')return send(res,400,{error:'Identificá el pedido y la acción solicitada.'});
+          const transitions={
+            pending:['confirmed','cancelled'],
+            confirmed:['preparing','cancelled'],
+            preparing:['ready','cancelled'],
+            ready:['out_for_delivery','cancelled'],
+            out_for_delivery:['delivered'],
+            delivered:[],
+            cancelled:[]
+          };
+          const current=await sql`SELECT status FROM app_delivery_orders WHERE id=${id} AND business_id=${businessId} LIMIT 1`;
+          if(!current.length)return send(res,404,{error:'No se encontró el pedido de este negocio.'});
+          if(!(transitions[current[0].status]||[]).includes(nextStatus))
+            return send(res,409,{error:'Ese cambio de estado no está permitido. Revisá el estado actual del pedido.'});
+          const rows=await sql`WITH changed AS (
+              UPDATE app_delivery_orders SET status=${nextStatus},updated_at=NOW(),
+                delivered_at=CASE WHEN ${nextStatus}='delivered' THEN NOW() ELSE delivered_at END
+              WHERE id=${id} AND business_id=${businessId} AND status=${current[0].status} RETURNING *
+            ), logged AS (
+              INSERT INTO app_delivery_events(business_id,order_id,actor_user_id,event_type,details)
+              SELECT business_id,id,${user.id},${'status_' + nextStatus},jsonb_build_object('from',${current[0].status},'to',${nextStatus})
+              FROM changed RETURNING id
+            ) SELECT * FROM changed`;
+          if(!rows.length)return send(res,409,{error:'El pedido cambió mientras lo actualizabas. Actualizá la lista e intentá nuevamente.'});
+          return send(res,200,{order:rows[0]});
+        }
         const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
         if(module==='products'&&can('products.manage')){
           const rows=await sql`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined} THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined} THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined} THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined} THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined} THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
