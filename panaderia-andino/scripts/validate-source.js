@@ -24,6 +24,7 @@ const requiredFiles = [
   'migrations/028_query_performance_indexes.sql',
   'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql',
   'migrations/030_supervisor_employee_rls.sql',
+  'migrations/031_login_rate_limit_rls.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -65,7 +66,8 @@ if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
     !apiSource.includes('runWithRequestContext: callback => requestContext.run({}, callback)') ||
     !apiSource.includes("!['GET','HEAD','OPTIONS'].includes(requestMethod) && !sameOrigin(req)") ||
-    !apiSource.includes('net.isIP(forwarded)')) {
+    !apiSource.includes('net.isIP(forwarded)') ||
+    !apiSource.includes("set_config('app.ip_hash'")) {
   throw new Error('La API debe usar el rol de ejecución, contexto de negocio, CSRF global y límites de intentos por IP.');
 }
 if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') ||
@@ -73,7 +75,8 @@ if (!securityMigration.includes('ENABLE ROW LEVEL SECURITY') ||
     !securityMigration.includes('app_current_business_id') ||
     !securityMigration.includes('mattsystem_users_select') ||
     !securityMigration.includes('mattsystem_support_replies_select') ||
-    !fs.readFileSync(path.join(root, 'migrations/030_supervisor_employee_rls.sql'), 'utf8').includes('app_can_manage_employees')) {
+    !fs.readFileSync(path.join(root, 'migrations/030_supervisor_employee_rls.sql'), 'utf8').includes('app_can_manage_employees') ||
+    !fs.readFileSync(path.join(root, 'migrations/031_login_rate_limit_rls.sql'), 'utf8').includes('mattsystem_login_ip_attempts_scope')) {
   throw new Error('Falta la migración de aislamiento RLS por negocio y permisos del supervisor.');
 }
 if (!apiSource.includes("path === '/api/business/backups'") ||
