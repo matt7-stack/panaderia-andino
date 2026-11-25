@@ -249,6 +249,41 @@ module.exports = async function handler(req, res) {
     ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if (path === '/api/internal/backup' && req.method === 'GET') {
+      const expected = process.env.CRON_SECRET || '';
+      const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
+      if (!expected || !safeEqual(supplied, expected)) return send(res, 401, { error: 'No autorizado.' });
+      setRequestContext({ isPlatformAdmin: true });
+      const sql = db();
+      const created = await sql`
+        WITH saved AS (
+          INSERT INTO app_business_backups(business_id,payload,checksum,payload_bytes,label)
+          SELECT st.business_id,st.data,
+            encode(digest(convert_to(st.data::text,'UTF8'),'sha256'),'hex'),
+            octet_length(st.data::text),'Respaldo automático diario'
+          FROM app_state st
+          JOIN businesses b ON b.id=st.business_id
+          WHERE b.active=TRUE
+          RETURNING id,business_id,checksum,payload_bytes,created_at
+        ), logged AS (
+          INSERT INTO app_backup_log(business_id,status,storage_reference,details)
+          SELECT business_id,'completed',id::text,
+            jsonb_build_object('source','daily_cron','backupId',id,'checksum',checksum)
+          FROM saved RETURNING id
+        )
+        SELECT saved.id,saved.business_id,saved.checksum,saved.payload_bytes,saved.created_at
+        FROM saved
+      `;
+      const pruned = await sql`DELETE FROM app_business_backups b
+        WHERE b.created_at < NOW()-INTERVAL '30 days'
+          OR b.id IN (
+            SELECT old.id FROM app_business_backups old
+            WHERE old.business_id=b.business_id
+            ORDER BY old.created_at DESC OFFSET 14
+          ) RETURNING id`;
+      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,source:'daily_cron'});
+    }
+
     if (path === '/api/maintenance/status' && req.method === 'GET') {
       const rows = await db()`SELECT enabled,reason,message,starts_at,ends_at,updated_at,
         (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active
@@ -2204,6 +2239,92 @@ module.exports = async function handler(req, res) {
       })).filter(p=>p.name);
       return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
+    if (path === '/api/business/backups') {
+      const user = await authenticated(req,res,false,true);
+      if (!user) return;
+      if (user.is_platform_admin !== true && user.role !== 'admin') {
+        return send(res,403,{error:'Solo el administrador del negocio puede gestionar copias de seguridad.'});
+      }
+      const businessId = String(user.is_platform_admin === true ? req.headers['x-business-id'] || '' : user.business_id || '');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(businessId)) {
+        return send(res,400,{error:'Seleccioná un negocio válido antes de gestionar sus copias.'});
+      }
+      const sql = db();
+      const business = await sql`SELECT id FROM businesses
+        WHERE id=${businessId} AND active=TRUE
+          AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL)
+        LIMIT 1`;
+      if (!business.length) return send(res,404,{error:'El negocio no existe, está inactivo o está en la papelera.'});
+
+      if (req.method === 'GET') {
+        const backups = await sql`SELECT id,label,checksum,payload_bytes,created_at,restored_at
+          FROM app_business_backups WHERE business_id=${businessId}
+          ORDER BY created_at DESC LIMIT 20`;
+        return send(res,200,{backups},{'Cache-Control':'no-store, max-age=0'});
+      }
+      if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
+
+      const input = body(req);
+      if (input.action === 'restore') {
+        const backupId = String(input.backupId || '');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(backupId)) {
+          return send(res,400,{error:'La copia seleccionada no es válida.'});
+        }
+        const rows = await sql`SELECT id,payload,checksum,
+          encode(digest(convert_to(payload::text,'UTF8'),'sha256'),'hex') AS actual_checksum
+          FROM app_business_backups WHERE id=${backupId} AND business_id=${businessId} LIMIT 1`;
+        if (!rows.length) return send(res,404,{error:'No se encontró la copia de seguridad.'});
+        if (!safeEqual(rows[0].checksum, rows[0].actual_checksum)) {
+          return send(res,409,{error:'La copia está dañada o no superó la verificación de integridad. No se restauró ningún dato.'});
+        }
+        const payload = rows[0].payload && typeof rows[0].payload === 'object' && !Array.isArray(rows[0].payload) ? rows[0].payload : {};
+        const serialized = JSON.stringify(payload);
+        const statements = [
+          sql`INSERT INTO app_state(data,updated_by,business_id,updated_at)
+            VALUES(${serialized}::jsonb,${user.id},${businessId},NOW())
+            ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
+          sql`UPDATE app_business_backups SET restored_at=NOW(),restored_by=${user.id}
+            WHERE id=${backupId} AND business_id=${businessId}`,
+          sql`INSERT INTO app_backup_log(business_id,status,storage_reference,details)
+            VALUES(${businessId},'restored',${backupId},jsonb_build_object('source','manual_restore','backupId',${backupId}))`,
+          sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+            VALUES(${businessId},${user.id},'business.backup_restored','business_backup',${backupId},
+              jsonb_build_object('backupId',${backupId}),${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`
+        ];
+        await sql.transaction(statements);
+        return send(res,200,{ok:true,restored:true,message:'La copia se restauró correctamente. Recargá el sistema para ver los datos recuperados.'});
+      }
+
+      const statements = [
+        sql`WITH saved AS (
+          INSERT INTO app_business_backups(business_id,created_by,payload,checksum,payload_bytes,label)
+          SELECT st.business_id,${user.id},st.data,
+            encode(digest(convert_to(st.data::text,'UTF8'),'sha256'),'hex'),
+            octet_length(st.data::text),'Respaldo manual'
+          FROM app_state st WHERE st.business_id=${businessId}
+          RETURNING id,business_id,label,checksum,payload_bytes,created_at,payload
+        ), logged AS (
+          INSERT INTO app_backup_log(business_id,status,storage_reference,details)
+          SELECT business_id,'completed',id::text,
+            jsonb_build_object('source','manual','backupId',id,'checksum',checksum)
+          FROM saved RETURNING id
+        )
+        SELECT * FROM saved`,
+        sql`DELETE FROM app_business_backups b
+          WHERE b.business_id=${businessId}
+            AND b.id IN (SELECT old.id FROM app_business_backups old
+              WHERE old.business_id=${businessId}
+              ORDER BY old.created_at DESC OFFSET 14)`,
+        sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+          VALUES(${businessId},${user.id},'business.backup_created','business_backup',NULL,
+            jsonb_build_object('source','manual'),${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`
+      ];
+      const results = await sql.transaction(statements);
+      const backup = results[0]?.[0];
+      if (!backup) return send(res,404,{error:'Todavía no hay datos sincronizados para respaldar. Guardá los cambios e intentá nuevamente.'});
+      return send(res,201,{ok:true,backup:{id:backup.id,label:backup.label,checksum:backup.checksum,payloadBytes:backup.payload_bytes,createdAt:backup.created_at},data:backup.payload});
+    }
+
     if(path==='/api/admin/platform-expenses'){
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
