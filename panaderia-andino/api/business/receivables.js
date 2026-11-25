@@ -20,6 +20,7 @@ async function requireAddon(sql, businessId) {
 
 module.exports = async function receivablesHandler(req, res) {
   return core._internal.runWithRequestContext(async () => {
+  if (!['GET','HEAD','OPTIONS'].includes(String(req.method || 'GET').toUpperCase()) && !core._internal.sameOrigin(req)) return core._internal.send(res,403,{error:'Solicitud no permitida. El origen no coincide con MATTSYSTEM.'});
   try {
     if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const user = await authenticated(req, res, false);
