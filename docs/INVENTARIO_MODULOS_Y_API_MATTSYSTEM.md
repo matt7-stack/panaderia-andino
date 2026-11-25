@@ -24,9 +24,9 @@ Base de catálogo consultada: Neon, rama de desarrollo `erp-multimodules-develop
 | reports | Informes avanzados | Implementado / activo | Base | Reportes y exportaciones |
 | employees | Empleados y pagos | Implementado / activo | Base | Personal, pagos y permisos |
 | users | Usuarios y permisos | Implementado / activo | Base | Usuarios del negocio |
-| branches | Sucursales | No implementado / inactivo | Base | No ofrecer comercialmente |
-| delivery | Pedidos y entregas | No implementado / inactivo | Base | No ofrecer comercialmente |
-| receivables | Cuentas por cobrar | Marcado implementado / activo | Complemento | Requiere validación: el API no contiene operaciones ni tablas `app_receivable_*`; solo se encontraron permisos `receivables.view/manage`. La UI muestra saldos y pagos parciales en Notas, pero no acredita el módulo independiente |
+| branches | Sucursales | Implementación en rama de trabajo; migración 024 pendiente de aplicar | Base | Directorio de sucursales y estado principal; falta completar el aislamiento de stock/caja/ventas por sede |
+| delivery | Pedidos y entregas | Implementación en rama de trabajo; migración 024 pendiente de aplicar | Base | Alta de pedidos, asignación a sucursal, estados y bitácora; no descuenta stock ni genera venta automáticamente |
+| receivables | Cuentas por cobrar | UI, API independiente y tablas implementadas en rama Neon de desarrollo | Complemento | No duplicar. Validar addon contratado/activo y sincronizar migraciones con el entorno correcto; `main` aún no contiene las tablas |
 
 ## 2. Pantallas detectadas
 
@@ -160,3 +160,13 @@ Para cada módulo implementado:
 - Los módulos Sucursales y Pedidos/entregas están explícitamente desactivados y no implementados.
 - Cuentas por cobrar requiere una decisión: completar la implementación del addon o retirarlo/desactivarlo del catálogo hasta que exista y supere pruebas.
 - La demostración funcional completa y la matriz de pruebas quedan pendientes.
+
+
+## 8. Actualización técnica posterior
+
+- Se creó la rama aislada `feat/mattsystem-branches-delivery-admin` desde el último commit del Preview auditado.
+- Se añadieron endpoints ERP para sucursales y pedidos/entregas, controles de permisos de empleados y una migración aditiva `024_branches_delivery.sql`.
+- La gestión de pedidos incluye estados controlados (pendiente, confirmado, preparación, listo, en camino, entregado y cancelado), asignación a sucursal, artículos y bitácora.
+- La creación de pedidos no descuenta stock ni registra una venta automáticamente; esa integración debe desarrollarse y probarse antes de ofrecer el flujo como ciclo comercial completo.
+- La migración todavía no se aplicó a ninguna base de datos. No se modificó Neon `main` ni producción.
+- El administrador agrupa la navegación por áreas y el atajo de nueva nota abre el formulario modal existente.
