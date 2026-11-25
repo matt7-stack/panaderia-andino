@@ -121,5 +121,11 @@
       "path": "/api/internal/backup",
       "requestMethod": "GET"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/internal/expiry-alerts",
+      "schedule": "0 12 * * *"
+    }
+  ]
 }
