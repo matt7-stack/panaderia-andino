@@ -1370,6 +1370,11 @@ module.exports = async function handler(req, res) {
       // Se eliminan primero las tablas dependientes para respetar las claves foráneas.
       // La cuenta del administrador principal es la única fila de app_users que se conserva.
       const deletions = [
+        // Las entregas dependen de pedidos, sucursales y productos; limpiar de hijo a padre.
+        ['app_delivery_order_items', sql`DELETE FROM app_delivery_order_items`],
+        ['app_delivery_events', sql`DELETE FROM app_delivery_events`],
+        ['app_delivery_orders', sql`DELETE FROM app_delivery_orders`],
+        ['app_branches', sql`DELETE FROM app_branches`],
         ['admin_password_resets', sql`DELETE FROM admin_password_resets`],
         ['app_admin_setup_tokens', sql`DELETE FROM app_admin_setup_tokens`],
         ['app_audit_logs', sql`DELETE FROM app_audit_logs`],
@@ -1433,7 +1438,9 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
       const sql=db();
       let businessId=String(req.headers['x-business-id']||'');
-      if(!businessId) return send(res,400,{error:'Seleccioná explícitamente el negocio que querés limpiar. No se seleccionará un negocio automáticamente.'});
+      if(!/^[0-9a-f-]{36}$/i.test(businessId)) return send(res,400,{error:'Seleccioná explícitamente un negocio válido antes de limpiar sus datos.'});
+      const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
+      if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe, está inactivo o se encuentra en la papelera.'});
       const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
       const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
       const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
@@ -2161,7 +2168,7 @@ module.exports = async function handler(req, res) {
       // se aplica denegación por defecto para evitar escalar permisos manipulando /api/data.
       if(user.is_platform_admin!==true && user.role!=='supervisor')
         return send(res,403,{error:'Tu cuenta de empleado no tiene acceso directo a los datos generales. Solicitá al Supervisor los permisos o una operación habilitada.'});
-      const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE LIMIT 1`;
+      const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
       let enabledBusinessModules=null;
       if(user.is_platform_admin!==true){
