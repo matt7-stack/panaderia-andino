@@ -172,3 +172,16 @@ Para cada módulo implementado:
 - El administrador agrupa la navegación por áreas y el atajo de nueva nota abre el formulario modal existente.
 
 - La migración `025_default_branch_on_business_create.sql` crea automáticamente la sucursal principal cuando se registra un negocio nuevo.
+
+
+## 9. Modo de mantenimiento general de plataforma
+
+- La migración `026_platform_maintenance_mode.sql` crea la configuración singleton `app_platform_maintenance` en la base de desarrollo.
+- El administrador principal puede activar o desactivar la suspensión general, indicar motivo y mensaje, y programar inicio y finalización automática.
+- `GET /api/maintenance/status` publica únicamente el estado necesario para mostrar el aviso de mantenimiento.
+- `GET/PUT /api/admin/maintenance` permite consultar y modificar la configuración exclusivamente al administrador principal.
+- El middleware de autenticación bloquea con HTTP 503 y código `PLATFORM_MAINTENANCE` las operaciones autenticadas de negocios y empleados mientras el período esté activo; el administrador principal conserva el acceso.
+- El inicio y fin se calculan en el servidor con `NOW()`, de modo que la finalización programada restablece el acceso sin depender del navegador.
+- Las sesiones de negocio reciben una pantalla de mantenimiento y el service worker se actualiza a `mattsystem-pwa-v15`.
+- La migración se aplicó únicamente a Neon `erp-multimodules-development`. La rama principal de Neon y producción no fueron modificadas.
+- Pendiente: validar el flujo de activación/desactivación desde una sesión real de administrador y probar bloqueo con una cuenta de negocio/empleado antes de promover a producción.
