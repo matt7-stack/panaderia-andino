@@ -769,7 +769,7 @@ h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-fa
   $('#businessLogo').addEventListener('change', (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { notify('Seleccioná un archivo de imagen válido.'); return; }
+    if (!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)) { notify('El logo debe ser PNG, JPG, WEBP o GIF.'); return; }
     if (file.size > 1024 * 1024) { notify('El logo debe pesar menos de 1 MB.'); return; }
     const reader = new FileReader();
     reader.onload = () => { state.business.logo = String(reader.result); saveState(); renderSettings(); notify('Logo actualizado.'); };
