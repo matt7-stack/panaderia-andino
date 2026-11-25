@@ -1877,6 +1877,28 @@ module.exports = async function handler(req, res) {
       })).filter(p=>p.name);
       return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
+    if(path==='/api/admin/platform-expenses'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT id,expense_date,category,description,amount,recurrence,notes,created_at FROM app_platform_expenses ORDER BY expense_date DESC,created_at DESC LIMIT 500`;
+        const totals=await sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`;
+        return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0}});
+      }
+      if(req.method==='POST'){
+        const input=body(req),category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=Number(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||'');
+        if(!category||!description||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Ingresá categoría, descripción e importe mayor que cero.'});
+        if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
+        const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,notes,created_at`;
+        return send(res,201,{ok:true,expense:rows[0]});
+      }
+      if(req.method==='DELETE'){
+        const id=String(body(req).id||'');if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Registro no válido.'});
+        const rows=await sql`DELETE FROM app_platform_expenses WHERE id=${id} RETURNING id`;
+        return send(res,200,{ok:true,deleted:rows.length});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/release-notes') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
