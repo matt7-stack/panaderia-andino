@@ -165,3 +165,5 @@ El Preview compila y contiene las correcciones listadas, pero MATTSYSTEM **todav
 - No se cambió el plan, la facturación, el límite de Vercel ni se desplegó a producción. Cuando se restablezca la cuota de despliegue, se debe crear un Preview desde el HEAD actual y repetir las pruebas de autenticación.
 - La prueba de la política de supervisor se hizo con un usuario empleado inactivo. La inserción de un empleado activo fue detenida por el trigger de límite de licencia porque QA no tiene una licencia de negocio de prueba; ese control debe mantenerse.
 
+
+- Se intentó la alternativa de despliegue por CLI que Vercel recomendó, pero el sandbox temporal no trae el ejecutable `vercel` ni una sesión CLI autenticada. Se detuvo el sandbox y no se cambió la facturación ni los límites del proyecto. La siguiente publicación debe hacerse cuando se restablezca la cuota o desde un entorno del propietario con Vercel CLI autenticado.
