@@ -1877,6 +1877,39 @@ module.exports = async function handler(req, res) {
       })).filter(p=>p.name);
       return send(res,200,{business:{id:rows[0].id,name:rows[0].name,address:rows[0].address||'',phone:rows[0].phone||''},products,updatedAt:rows[0].updated_at||null},{'Cache-Control':'no-store, max-age=0'});
     }
+    if (path === '/api/release-notes') {
+      const user=await authenticated(req,res,false); if(!user) return;
+      const sql=db();
+      const isAdmin=user.is_platform_admin===true;
+      if(req.method==='GET'){
+        const rows=isAdmin
+          ? await sql`SELECT id,title,version,category,summary,content,published,published_at,created_at,updated_at FROM app_release_notes ORDER BY COALESCE(published_at,created_at) DESC LIMIT 200`
+          : await sql`SELECT id,title,version,category,summary,content,published,published_at,created_at FROM app_release_notes WHERE published=TRUE ORDER BY COALESCE(published_at,created_at) DESC LIMIT 100`;
+        return send(res,200,{items:rows});
+      }
+      if(!isAdmin)return send(res,403,{error:'Solo el administrador puede gestionar novedades.'});
+      if(req.method==='POST'){
+        const input=body(req),title=String(input.title||'').trim().slice(0,140),version=String(input.version||'').trim().slice(0,40),category=['mejora','funcion','seguridad','mantenimiento','correccion'].includes(input.category)?input.category:'mejora',summary=String(input.summary||'').trim().slice(0,500),content=String(input.content||'').trim(),published=input.published===true;
+        if(!title||!content)return send(res,400,{error:'Completá el título y el detalle de la novedad.'});
+        const rows=await sql`INSERT INTO app_release_notes(title,version,category,summary,content,published,published_at,created_by) VALUES(${title},${version},${category},${summary},${content},${published},CASE WHEN ${published} THEN NOW() ELSE NULL END,${user.id}) RETURNING id,title,version,category,summary,content,published,published_at,created_at`;
+        return send(res,201,{ok:true,item:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Novedad no válida.'});
+        const existing=await sql`SELECT * FROM app_release_notes WHERE id=${id} LIMIT 1`;
+        if(!existing.length)return send(res,404,{error:'No se encontró la novedad.'});
+        const old=existing[0],published=typeof input.published==='boolean'?input.published:old.published;
+        const rows=await sql`UPDATE app_release_notes SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,140)},version=${input.version===undefined?old.version:String(input.version).trim().slice(0,40)},category=${input.category===undefined?old.category:(['mejora','funcion','seguridad','mantenimiento','correccion'].includes(input.category)?input.category:'mejora')},summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},content=${input.content===undefined?old.content:String(input.content).trim()},published=${published},published_at=CASE WHEN ${published} THEN COALESCE(published_at,NOW()) ELSE NULL END,updated_at=NOW() WHERE id=${id} RETURNING id,title,version,category,summary,content,published,published_at,created_at,updated_at`;
+        return send(res,200,{ok:true,item:rows[0]});
+      }
+      if(req.method==='DELETE'){
+        const id=String(body(req).id||'');if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Novedad no válida.'});
+        const rows=await sql`DELETE FROM app_release_notes WHERE id=${id} RETURNING id`;
+        return send(res,200,{ok:true,deleted:rows.length});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/data') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
