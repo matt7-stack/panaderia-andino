@@ -155,3 +155,13 @@ El Preview compila y contiene las correcciones listadas, pero MATTSYSTEM **todav
 6. **Pruebas funcionales de cada módulo:** ventas, compras, inventario, caja, producción, exportaciones, WhatsApp y permisos necesitan un negocio y usuarios de prueba; QA estaba vacío y no se usaron datos de producción.
 
 **Conclusión actualizada:** el bloqueo de aislamiento de datos quedó corregido y probado en QA a nivel SQL. La API ya se ejecuta con un rol sin BYPASSRLS y las mutaciones tienen defensa CSRF global. El Preview está READY. MATTSYSTEM todavía no debe promoverse a producción hasta completar la prueba de login del propietario, restauración con un negocio de prueba y el despliegue coordinado de las migraciones y credenciales de runtime en producción.
+
+
+### Nota de compatibilidad y límite de despliegue
+
+- Se añadió la migración `032_login_ip_rls_compatibility.sql` en QA. La tabla de intentos por correo mantiene RLS por identidad de login. La tabla de hashes de IP queda temporalmente sin RLS porque el deployment Preview activo todavía ejecuta el commit anterior a la inyección de `app.ip_hash`; sus valores son HMAC y la tabla solo se consulta desde el endpoint de autenticación. La rama de código más reciente ya incluye el contexto `app.ip_hash`.
+- Se probó el endpoint real de login del Preview con una identidad ficticia y contraseña incorrecta: respondió HTTP 401 con el mensaje genérico esperado, sin error de base de datos. Esto confirma que el flujo de consulta de usuario y de intentos por correo funciona bajo RLS. Se creó un único registro de prueba con correo `qa-audit-login@example.invalid`; no afecta a usuarios reales.
+- Vercel rechazó una nueva creación de deployment con HTTP 402 por superar el límite de 100 deployments API del día (`api-deployments-free-per-day`, reintento indicado en 24 horas). Por ello, el deployment READY actual sigue en el commit `6789b3007b65c84b19afbbe00627477967d4f481`, URL `https://mattsystem-gp080sfov-mattaye2831-7602.vercel.app`. La rama GitHub avanzó después hasta el commit `6223a711efee08e8b8549e7895efe2b52b82436a`, pero esa revisión aún no está desplegada.
+- No se cambió el plan, la facturación, el límite de Vercel ni se desplegó a producción. Cuando se restablezca la cuota de despliegue, se debe crear un Preview desde el HEAD actual y repetir las pruebas de autenticación.
+- La prueba de la política de supervisor se hizo con un usuario empleado inactivo. La inserción de un empleado activo fue detenida por el trigger de límite de licencia porque QA no tiene una licencia de negocio de prueba; ese control debe mantenerse.
+
