@@ -289,6 +289,37 @@ module.exports = async function handler(req, res) {
     ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    if (path === '/api/internal/expiry-alerts' && req.method === 'GET') {
+      const expected=process.env.CRON_SECRET||'';
+      const supplied=String(req.headers.authorization||'').replace(/^Bearer\\s+/i,'').trim();
+      if(!expected||!safeEqual(supplied,expected))return send(res,401,{error:'No autorizado.'});
+      setRequestContext({isPlatformAdmin:true});
+      const sql=db();
+      const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
+      const settings=cfg[0]||{enabled:true,days_before:15};
+      if(settings.enabled!==true)return send(res,200,{ok:true,disabled:true,created:0});
+      const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
+      const candidates=await sql`
+        SELECT 'service'::text AS entity_type,id,renewal_date AS due_date,description AS item_name,category AS item_group
+        FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
+        UNION ALL
+        SELECT 'license'::text AS entity_type,l.id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
+        FROM app_licenses l JOIN businesses b ON b.id=l.business_id
+        WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}`;
+      let created=0;
+      for(const item of candidates){
+        const due=String(item.due_date).slice(0,10);
+        const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date) VALUES(${item.entity_type},${item.id},${due}::date) ON CONFLICT(entity_type,entity_id,due_date) DO NOTHING RETURNING id`;
+        if(!logged.length)continue;
+        const daysLeft=Math.max(0,Math.ceil((new Date(due+'T00:00:00Z').getTime()-Date.now())/86400000));
+        const title=item.entity_type==='license'?'Licencia próxima a vencer':'Servicio próximo a vencer';
+        const message=item.entity_type==='license'?'La licencia de '+item.item_name+' vence el '+due+'. Restan aproximadamente '+daysLeft+' día(s).':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan aproximadamente '+daysLeft+' día(s).';
+        const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
+        created+=sent.length;
+      }
+      return send(res,200,{ok:true,created,checked:candidates.length,daysBefore:days});
+    }
+
     if (path === '/api/internal/backup' && req.method === 'GET') {
       const expected = process.env.CRON_SECRET || '';
       const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
@@ -2419,15 +2450,29 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT id,expense_date,category,description,amount,recurrence,notes,created_at FROM app_platform_expenses ORDER BY expense_date DESC,created_at DESC LIMIT 500`;
-        const totals=await sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`;
-        return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0}});
+        const [rows,totals,settings,upcomingServices,upcomingLicenses,licenseIncome]=await Promise.all([
+          sql`SELECT id,expense_date,category,description,amount,recurrence,renewal_date,notes,created_at FROM app_platform_expenses ORDER BY COALESCE(renewal_date,expense_date) ASC NULLS LAST,created_at DESC LIMIT 500`,
+          sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`,
+          sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`,
+          sql`SELECT id,category,description,renewal_date,amount FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY renewal_date ASC LIMIT 100`,
+          sql`SELECT l.id,l.expires_at,b.name AS business_name,l.plan FROM app_licenses l JOIN businesses b ON b.id=l.business_id WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY l.expires_at ASC LIMIT 200`,
+          sql`SELECT COALESCE(SUM(amount),0)::numeric AS month_license_income FROM app_license_payments WHERE paid_at>=date_trunc('month',CURRENT_DATE) AND paid_at<date_trunc('month',CURRENT_DATE)+INTERVAL '1 month'`
+        ]);
+        return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0},settings:settings[0]||{enabled:true,days_before:15},upcomingServices,upcomingLicenses,licenseIncome:licenseIncome[0]||{month_license_income:0}});
       }
       if(req.method==='POST'){
-        const input=body(req),category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||'');
+        const input=body(req);
+        if(input.kind==='settings'){
+          const enabled=input.enabled===true,daysBefore=Number(input.daysBefore??15);
+          if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>90)return send(res,400,{error:'La anticipación debe estar entre 1 y 90 días.'});
+          const rows=await sql`INSERT INTO app_platform_notification_settings(id,enabled,days_before,updated_by,updated_at) VALUES(1,${enabled},${daysBefore},${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,days_before=EXCLUDED.days_before,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING enabled,days_before`;
+          return send(res,200,{ok:true,settings:rows[0]});
+        }
+        const category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||''),renewalDate=String(input.renewalDate||'');
         if(!category||!description||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Ingresá categoría, descripción e importe mayor que cero.'});
-        if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
-        const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,notes,created_at`;
+        if(date&&!validISODate(date))return send(res,400,{error:'La fecha del gasto no es válida.'});
+        if(renewalDate&&!validISODate(renewalDate))return send(res,400,{error:'La fecha de renovación no es válida.'});
+        const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,renewal_date,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${renewalDate||null}::date,${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,renewal_date,notes,created_at`;
         return send(res,201,{ok:true,expense:rows[0]});
       }
       if(req.method==='DELETE'){
