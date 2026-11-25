@@ -100,6 +100,7 @@ Se registró un timeout de inicialización en `/api/auth/me` en el deployment an
 | Cuentas por cobrar | Complemento separado y con controles de idempotencia | Pendiente |
 | Sucursales y pedidos | Desactivados en catálogo QA hasta completar integración | No habilitar |
 | Licencias/cotizador | Planes y reglas presentes; precios mensuales QA corregidos | Pendiente |
+| Copias de seguridad | Descarga JSON local; sin restauración ni respaldo remoto automático | Pendiente / incompleto |
 | Administración/soporte/alertas | Rutas y pantallas presentes | Pendiente |
 
 ## Conclusión
