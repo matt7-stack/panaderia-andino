@@ -629,7 +629,20 @@ h1,h2,h3,p{margin-top:0}.page-heading h1{margin:0;color:var(--brown-950);font-fa
     $('#businessPreviewPhone').textContent = state.business.phone || 'Teléfono';
     $('#businessPreviewEmail').textContent = state.business.email || 'Correo electrónico';
     const logoPreview = $('#businessLogoPreview');
-    logoPreview.innerHTML = state.business.logo ? `<img src="${state.business.logo}" alt="Logo del negocio">` : '<i class="bi bi-basket2-fill"></i><span>ANDINO</span>';
+    logoPreview.replaceChildren();
+    const logoSource = String(state.business.logo || '').trim();
+    const safeLogoSource = /^(?:data:image\/(?:png|jpeg|webp|gif);base64,[a-z0-9+/=]+|https:\/\/[^\s"'<>]+)$/i.test(logoSource) ? logoSource : '';
+    if (safeLogoSource) {
+      const logoImage = document.createElement('img');
+      logoImage.alt = 'Logo del negocio';
+      logoImage.referrerPolicy = 'no-referrer';
+      logoImage.src = safeLogoSource;
+      logoPreview.appendChild(logoImage);
+    } else {
+      const logoPlaceholder = document.createElement('i');
+      logoPlaceholder.className = 'bi bi-image';
+      logoPreview.appendChild(logoPlaceholder);
+    }
     $('#incomeCategoriesList').innerHTML = renderCategoryItems('income');
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
