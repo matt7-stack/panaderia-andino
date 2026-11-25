@@ -1446,7 +1446,11 @@ module.exports = async function handler(req, res) {
               WHERE o.business_id=${businessId} ORDER BY o.created_at DESC LIMIT 500`,
             sql`SELECT id,name,last_name,phone,address FROM app_customers WHERE business_id=${businessId} AND active=TRUE ORDER BY name,last_name LIMIT 1000`,
             sql`SELECT id,name,sku,sale_price,stock,unit FROM app_products WHERE business_id=${businessId} AND active=TRUE ORDER BY name LIMIT 2000`,
-            sql`SELECT id,code,name FROM app_branches WHERE business_id=${businessId} AND active=TRUE ORDER BY is_main DESC,name`
+            sql`SELECT id,code,name FROM app_branches WHERE business_id=${businessId} AND active=TRUE ORDER BY is_main DESC,name`,
+            sql`SELECT e.id,e.order_id,e.event_type,e.details,e.created_at,e.actor_user_id,u.name AS actor_name,o.order_number
+              FROM app_delivery_events e JOIN app_delivery_orders o ON o.business_id=e.business_id AND o.id=e.order_id
+              LEFT JOIN app_users u ON u.id=e.actor_user_id
+              WHERE e.business_id=${businessId} ORDER BY e.created_at DESC LIMIT 500`
           ]);
           const summary={
             total:orders.length,
@@ -1455,7 +1459,7 @@ module.exports = async function handler(req, res) {
             inRoute:orders.filter(x=>x.status==='out_for_delivery').length,
             delivered:orders.filter(x=>x.status==='delivered').length
           };
-          return send(res,200,{orders,customers,products,branches,summary});
+          return send(res,200,{orders,customers,products,branches,events,summary});
         }
         if (module === 'products') {
           const full=can('products.view')||can('products.manage');
@@ -1559,10 +1563,12 @@ module.exports = async function handler(req, res) {
             if(found.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio o están inactivos.'});
           }
           if(customerId){
+            if(!/^[0-9a-f-]{36}$/i.test(customerId))return send(res,400,{error:'El identificador del cliente no es válido.'});
             const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;
             if(!customer.length)return send(res,400,{error:'El cliente seleccionado no pertenece a este negocio o está inactivo.'});
           }
           const branchId=String(input.branchId||'');
+          if(branchId&&!/^[0-9a-f-]{36}$/i.test(branchId))return send(res,400,{error:'El identificador de la sucursal no es válido.'});
           const branch=branchId
             ? await sql`SELECT id FROM app_branches WHERE id=${branchId} AND business_id=${businessId} AND active=TRUE LIMIT 1`
             : await sql`SELECT id FROM app_branches WHERE business_id=${businessId} AND is_main=TRUE AND active=TRUE LIMIT 1`;
