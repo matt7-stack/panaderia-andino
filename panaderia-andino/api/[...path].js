@@ -2,6 +2,7 @@
 const { neon } = require('@neondatabase/serverless');
 const { AsyncLocalStorage } = require('node:async_hooks');
 const crypto = require('node:crypto');
+const net = require('node:net');
 const requestContext = new AsyncLocalStorage();
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
@@ -94,6 +95,10 @@ function validISODate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return false;
   const date = new Date(dateText + 'T00:00:00Z');
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === dateText;
+}
+function requestIp(req) {
+  const forwarded = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',').pop().trim();
+  return net.isIP(forwarded) ? forwarded : null;
 }
 function sameOrigin(req) {
   const method = String(req.method || 'GET').toUpperCase();
@@ -320,7 +325,7 @@ module.exports = async function handler(req, res) {
           (enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active`;
       try{await db()`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
         VALUES(NULL,${user.id},${enabled?'platform.maintenance_enabled':'platform.maintenance_disabled'},'platform_maintenance','1',
-        ${JSON.stringify({enabled,reason,startsAt,endsAt,message})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;}catch(logError){console.error('No se pudo registrar el cambio de mantenimiento:',logError);}
+        ${JSON.stringify({enabled,reason,startsAt,endsAt,message})}::jsonb,${requestIp(req)})`;}catch(logError){console.error('No se pudo registrar el cambio de mantenimiento:',logError);}
       const row=rows[0];
       return send(res,200,{ok:true,settings:{enabled:row.enabled,active:row.active,reason:row.reason,message:row.message,startsAt:row.starts_at,endsAt:row.ends_at,updatedAt:row.updated_at}});
     }
@@ -736,8 +741,7 @@ module.exports = async function handler(req, res) {
       const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
       setRequestContext({ loginEmail: email });
-      const forwardedIp = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',').pop().trim();
-      const normalizedIp = /^[0-9a-f:.]{3,64}$/i.test(forwardedIp) ? forwardedIp.toLowerCase() : '';
+      const normalizedIp = requestIp(req) || '';
       const ipHash = normalizedIp ? crypto.createHmac('sha256', secret('SESSION_SECRET')).update(normalizedIp).digest('hex') : '';
       if (ipHash) {
         const ipAttempt = await sql`SELECT failures,locked_until FROM app_login_ip_attempts WHERE ip_hash=${ipHash} LIMIT 1`;
