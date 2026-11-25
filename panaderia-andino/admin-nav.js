@@ -1,5 +1,6 @@
 'use strict';
 (() => {
+ function init() {
   const nav = document.querySelector('.nav-menu');
   if (!nav || nav.dataset.adminGrouped === 'true') return;
   const groups = [
@@ -58,8 +59,8 @@
   function syncVisibility() {
     for (const group of groupNodes) {
       const visible = group.items.some(link => !link.hidden);
-      group.section.hidden = !visible;
-      if (group.items.some(link => link.classList.contains('active'))) {
+      if (group.section.hidden !== !visible) group.section.hidden = !visible;
+      if (group.items.some(link => link.classList.contains('active')) && group.content.hidden) {
         group.content.hidden = false;
         group.toggle.setAttribute('aria-expanded','true');
       }
@@ -78,4 +79,6 @@
   window.addEventListener('panaderia:authenticated', syncVisibility);
   new MutationObserver(syncVisibility).observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
   syncVisibility();
+ }
+ Promise.resolve(window.PanaderiaAuthReady).then(init).catch(init);
 })();
