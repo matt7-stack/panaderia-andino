@@ -19,19 +19,30 @@ function db() {
   if (!connectionString) throw new Error('DATABASE_URL_RUNTIME or DATABASE_URL missing');
   if (!sqlClient) {
     const raw = neon(connectionString);
-    const contextQuery = context => raw`SELECT
-      set_config('app.user_id', ${String(context.userId || '')}, true),
-      set_config('app.business_id', ${String(context.businessId || '')}, true),
-      set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
-      set_config('app.login_email', ${String(context.loginEmail || '')}, true),
-      set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
-      set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
-      set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
+    const usesRuntimeRole = Boolean(process.env.DATABASE_URL_RUNTIME);
+    const contextQuery = context => usesRuntimeRole
+      ? raw`SELECT
+          set_config('app.user_id', ${String(context.userId || '')}, true),
+          set_config('app.business_id', ${String(context.businessId || '')}, true),
+          set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
+          set_config('app.login_email', ${String(context.loginEmail || '')}, true),
+          set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
+          set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
+          set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`
+      : raw`SELECT
+          set_config('role', 'mattsystem_app', true),
+          set_config('app.user_id', ${String(context.userId || '')}, true),
+          set_config('app.business_id', ${String(context.businessId || '')}, true),
+          set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
+          set_config('app.login_email', ${String(context.loginEmail || '')}, true),
+          set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
+          set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
+          set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
     const scoped = (strings, ...values) => {
       const query = raw(strings, ...values);
       const execute = () => {
-        const context = requestContext.getStore();
-        return hasDbContext(context)
+        const context = requestContext.getStore() || {};
+        return (!usesRuntimeRole || hasDbContext(context))
           ? raw.transaction([contextQuery(context), query]).then(results => results[1])
           : query;
       };
@@ -44,8 +55,8 @@ function db() {
     };
     scoped.transaction = queries => {
       const rawQueries = (Array.isArray(queries) ? queries : []).map(query => query && query.rawQuery ? query.rawQuery : query);
-      const context = requestContext.getStore();
-      if (!hasDbContext(context)) return raw.transaction(rawQueries);
+      const context = requestContext.getStore() || {};
+      if (usesRuntimeRole && !hasDbContext(context)) return raw.transaction(rawQueries);
       return raw.transaction([contextQuery(context), ...rawQueries]).then(results => results.slice(1));
     };
     sqlClient = scoped;
