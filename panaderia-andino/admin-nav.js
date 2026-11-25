@@ -75,12 +75,6 @@
   nav.addEventListener('click', event => {
     const link = event.target.closest('[data-page-link]');
     if (!link) return;
-    if (link.dataset.pageLink === 'admin-maintenance') {
-      event.preventDefault();
-      const target = '#admin-maintenance';
-      if (window.location.hash !== target) window.location.hash = target;
-      else window.dispatchEvent(new HashChangeEvent('hashchange'));
-    }
     const group = link.closest('.admin-nav-group');
     if (group) {
       const content = group.querySelector('.admin-nav-group__items');
@@ -88,9 +82,25 @@
       if (content && toggle) { content.hidden = false; toggle.setAttribute('aria-expanded','true'); }
     }
   });
-  window.addEventListener('panaderia:authenticated', syncVisibility);
+  function syncQuickActionsVisibility() {
+    const section = document.querySelector('#adminQuickActionsMount .quick-actions-section');
+    if (!section) return;
+    const user = window.PanaderiaAuth?.user;
+    const isPlatformAdmin = user?.isPlatformAdmin === true;
+    const inBusinessSupport = document.body.classList.contains('admin-support-mode') &&
+      Boolean(window.PanaderiaAuth?.selectedBusinessId);
+    section.hidden = isPlatformAdmin && !inBusinessSupport;
+    const heading = section.querySelector('.section-title h3');
+    const eyebrow = section.querySelector('.section-title .eyebrow');
+    if (heading) heading.textContent = inBusinessSupport ? 'Accesos rápidos del negocio' : 'Accesos rápidos';
+    if (eyebrow) eyebrow.textContent = inBusinessSupport ? 'ASISTENCIA AL NEGOCIO' : 'HERRAMIENTAS';
+  }
+  window.addEventListener('panaderia:authenticated', () => { syncVisibility(); syncQuickActionsVisibility(); });
+  new MutationObserver(syncQuickActionsVisibility).observe(document.body,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('panaderia:pagenavigate', syncQuickActionsVisibility);
   new MutationObserver(syncVisibility).observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
   syncVisibility();
+  syncQuickActionsVisibility();
  }
  Promise.resolve(window.PanaderiaAuthReady).then(init,init);
 })();
