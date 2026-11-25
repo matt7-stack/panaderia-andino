@@ -19,6 +19,7 @@ async function requireAddon(sql, businessId) {
 }
 
 module.exports = async function receivablesHandler(req, res) {
+  return core._internal.runWithRequestContext(async () => {
   try {
     if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const user = await authenticated(req, res, false);
@@ -230,4 +231,5 @@ module.exports = async function receivablesHandler(req, res) {
     console.error('Receivables API error:',error);
     return send(res,500,{error:'No se pudo completar la operación de cuentas por cobrar.'});
   }
+  });
 };
