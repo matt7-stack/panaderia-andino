@@ -1433,8 +1433,7 @@ module.exports = async function handler(req, res) {
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
       const sql=db();
       let businessId=String(req.headers['x-business-id']||'');
-      if(!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
-      if(!businessId) return send(res,400,{error:'No hay negocios registrados.'});
+      if(!businessId) return send(res,400,{error:'Seleccioná explícitamente el negocio que querés limpiar. No se seleccionará un negocio automáticamente.'});
       const rows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
       const current=rows[0]?.data&&typeof rows[0].data==='object'&&!Array.isArray(rows[0].data)?rows[0].data:{};
       const data={...current,movements:[],invoices:[],employees:[],employeePayments:[]}; delete data.users;
@@ -2155,7 +2154,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
       let businessId=user.is_platform_admin===true?String(req.headers['x-business-id']||''):String(user.business_id||'');
-      if(user.is_platform_admin===true&&!businessId){const first=await sql`SELECT id FROM businesses WHERE active=TRUE ORDER BY created_at ASC LIMIT 1`;businessId=first[0]?.id||'';}
+      if(user.is_platform_admin===true&&!businessId) return send(res,400,{error:'Seleccioná un negocio desde Administración antes de acceder a sus datos. La cuenta principal no pertenece a ningún negocio.'});
       if(!businessId) return send(res,400,{error:'No hay un negocio asignado a esta cuenta.'});
       // [deploy] Los empleados no pueden leer ni reemplazar el estado operativo completo.
       // Hasta que exista un modelo de operaciones individuales con autorización por módulo,
