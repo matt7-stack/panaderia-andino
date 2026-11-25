@@ -1383,7 +1383,7 @@ html body .auth-gate.auth-gate-hidden {
           <section class="quick-actions-section"><div class="section-title"><div><p class="eyebrow">ATAJOS</p><h3>Accesos rápidos</h3></div><span>Operaciones frecuentes</span></div><div class="quick-actions-grid">
             <button class="quick-action quick-income" type="button" data-open-movement="income"><span class="quick-action-icon"><i class="bi bi-plus-lg"></i></span><span><strong>Registrar ingreso</strong><small>Agregar dinero recibido</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
             <button class="quick-action quick-expense" type="button" data-open-movement="expense"><span class="quick-action-icon"><i class="bi bi-dash-lg"></i></span><span><strong>Registrar gasto</strong><small>Agregar un pago realizado</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
-            <button class="quick-action quick-invoice" type="button" data-go-page="notas"><span class="quick-action-icon"><i class="bi bi-receipt"></i></span><span><strong>Nueva nota</strong><small>Registrar venta o compra</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
+            <button class="quick-action quick-invoice" type="button" data-open-quick-note><span class="quick-action-icon"><i class="bi bi-receipt"></i></span><span><strong>Nueva nota</strong><small>Registrar venta o compra</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
           </div></section>
         </section>
 
@@ -2614,7 +2614,7 @@ html body .auth-gate.auth-gate-hidden {
         ['customers','Clientes'],['suppliers','Proveedores'],['purchases','Compras'],
         ['recipes','Recetas'],['production','Producción'],['cash','Caja'],
         ['reports','Informes avanzados'],['employees','Empleados y pagos'],
-        ['users','Usuarios y permisos'],['branches','Sucursales',false],['delivery','Pedidos y entregas',false]
+        ['users','Usuarios y permisos'],['branches','Sucursales',true],['delivery','Pedidos y entregas',true]
       ];
       const templates = {
         panaderias:['dashboard','movements','invoices','products','sales','inventory','customers','suppliers','purchases','recipes','production','cash','reports','employees','users'],
@@ -3068,7 +3068,8 @@ html body .auth-gate.auth-gate-hidden {
   }
 
   // Formularios de movimientos
-  $$('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
+  $('[data-open-movement]').forEach((button) => button.addEventListener('click', () => openMovementModal(button.dataset.openMovement)));
+  $('[data-open-quick-note]').forEach((button) => button.addEventListener('click', () => openInvoiceModal('', 'issued')));
   $$('.type-option').forEach((button) => button.addEventListener('click', () => setMovementType(button.dataset.type)));
   $('#movementForm')?.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -4414,7 +4415,7 @@ html.auth-locked body::-webkit-scrollbar {
   height: 0 !important;
 }
 </style>
-<script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script>
+<script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script><script src="/admin-nav.js" defer></script>
 <style id="auth-root-scrollbar-fix">
 /* Solo el login: iguala el color del canal lateral al degradado del fondo. */
 html.auth-locked,
