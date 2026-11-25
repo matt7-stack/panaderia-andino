@@ -20,24 +20,43 @@ function db() {
   if (!sqlClient) {
     const raw = neon(connectionString);
     const usesRuntimeRole = Boolean(process.env.DATABASE_URL_RUNTIME);
-    const contextQuery = context => usesRuntimeRole
-      ? raw`SELECT
-          set_config('app.user_id', ${String(context.userId || '')}, true),
-          set_config('app.business_id', ${String(context.businessId || '')}, true),
-          set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
-          set_config('app.login_email', ${String(context.loginEmail || '')}, true),
-          set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
-          set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
-          set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`
-      : raw`SELECT
-          set_config('role', 'mattsystem_app', true),
-          set_config('app.user_id', ${String(context.userId || '')}, true),
-          set_config('app.business_id', ${String(context.businessId || '')}, true),
-          set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
-          set_config('app.login_email', ${String(context.loginEmail || '')}, true),
-          set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
-          set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
-          set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
+    const contextQuery = context => {
+      const ctx = context || {};
+      const businessId = String(ctx.businessId || '');
+      const userId = String(ctx.userId || '');
+      const isPlatformAdmin = ctx.isPlatformAdmin === true ? 'true' : 'false';
+      const loginEmail = String(ctx.loginEmail || '');
+      const ipHash = String(ctx.ipHash || '');
+      const bootstrapMode = ctx.bootstrapMode === true ? 'true' : 'false';
+      const publicCatalogBusinessId = String(ctx.publicCatalogBusinessId || '');
+      const contextSecret = secret('TENANT_CONTEXT_SECRET');
+      if (!/^[a-f0-9]{64}$/i.test(contextSecret)) {
+        throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
+      }
+      const contextPayload = [businessId, userId, isPlatformAdmin, loginEmail, ipHash, bootstrapMode, publicCatalogBusinessId].join('|');
+      const contextSignature = crypto.createHmac('sha256', Buffer.from(contextSecret, 'hex'))
+        .update(contextPayload, 'utf8').digest('hex');
+      return usesRuntimeRole
+        ? raw`SELECT
+            set_config('app.user_id', ${userId}, true),
+            set_config('app.business_id', ${businessId}, true),
+            set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
+            set_config('app.login_email', ${loginEmail}, true),
+            set_config('app.ip_hash', ${ipHash}, true),
+            set_config('app.bootstrap_mode', ${bootstrapMode}, true),
+            set_config('app.public_catalog_business_id', ${publicCatalogBusinessId}, true),
+            set_config('app.context_signature', ${contextSignature}, true)`
+        : raw`SELECT
+            set_config('role', 'mattsystem_app', true),
+            set_config('app.user_id', ${userId}, true),
+            set_config('app.business_id', ${businessId}, true),
+            set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
+            set_config('app.login_email', ${loginEmail}, true),
+            set_config('app.ip_hash', ${ipHash}, true),
+            set_config('app.bootstrap_mode', ${bootstrapMode}, true),
+            set_config('app.public_catalog_business_id', ${publicCatalogBusinessId}, true),
+            set_config('app.context_signature', ${contextSignature}, true)`;
+    };
     const scoped = (strings, ...values) => {
       const query = raw(strings, ...values);
       const execute = () => {
