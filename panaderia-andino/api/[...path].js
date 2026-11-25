@@ -291,7 +291,7 @@ module.exports = async function handler(req, res) {
   try {
     if (path === '/api/internal/expiry-alerts' && req.method === 'GET') {
       const expected=process.env.CRON_SECRET||'';
-      const supplied=String(req.headers.authorization||'').replace(/^Bearer\\s+/i,'').trim();
+      const supplied=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'').trim();
       if(!expected||!safeEqual(supplied,expected))return send(res,401,{error:'No autorizado.'});
       setRequestContext({isPlatformAdmin:true});
       const sql=db();
