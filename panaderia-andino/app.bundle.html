@@ -2179,7 +2179,7 @@ html body .auth-gate.auth-gate-hidden {
     selectedPage = page;
     updateAdminSupportBanner();
     if (page === 'admin-support') loadAdminSupportSettings();
-    $$$( '.page-view' ).forEach((view) => view.classList.toggle('active', view.dataset.page === page));
+    $( '.page-view' ).forEach((view) => view.classList.toggle('active', view.dataset.page === page));
     $$('.nav-menu [data-page-link]').forEach((link) => {
       const active = link.dataset.pageLink === page;
       link.classList.toggle('active', active);
