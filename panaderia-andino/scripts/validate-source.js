@@ -199,6 +199,7 @@ const securityApi = fs.readFileSync(apiPath, 'utf8');
 const securityHtml = fs.readFileSync(path.join(root, 'app.bundle.html'), 'utf8');
 const securityEmployeeAccess = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
 const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
+const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/034_signed_tenant_context.sql'), 'utf8');
 const erpPostStart = securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')"));
 const salesStart = securityApi.indexOf("if (module === 'sales')", erpPostStart);
 const salesEnd = securityApi.indexOf("if (module === 'purchases')", salesStart);
@@ -211,6 +212,7 @@ const deliveryEnd = securityApi.indexOf("if (module === 'products')", deliverySt
 const deliveryBlock = deliveryStart >= 0 && deliveryEnd > deliveryStart ? securityApi.slice(deliveryStart, deliveryEnd) : '';
 if (!salesBlock.includes('sale_price') || !salesBlock.includes('canOverrideSalePrice') || !salesBlock.includes('canDiscountSale')) throw new Error('Las ventas deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
 if (!securityApi.includes("set_config('role', 'mattsystem_app', true)") || !securityApi.includes('usesRuntimeRole')) throw new Error('La conexión de producción debe forzar el rol SQL de mínimos privilegios cuando no se usa DATABASE_URL_RUNTIME.');
+if (!securityApi.includes("set_config('app.context_signature'") || !securityApi.includes('TENANT_CONTEXT_SECRET') || !signedContextMigration.includes('tenant_context_is_valid') || !signedContextMigration.includes('app_context_public_catalog_business_id')) throw new Error('El contexto de tenant debe estar firmado y todas las políticas RLS deben validarlo.');
 if (!deliveryBlock.includes('sale_price') || !deliveryBlock.includes('canOverrideDeliveryPrice') || !deliveryBlock.includes('canDiscountDelivery')) throw new Error('Los pedidos deben validar el precio contra el catálogo y exigir permiso para cambiar precios o descuentos.');
 if (!inventoryBlock.includes('FOR UPDATE') || !inventoryBlock.includes('c.new_stock>=0')) throw new Error('Los movimientos de inventario deben bloquear la fila y evitar stock negativo de forma atómica.');
 if (!hardeningMigration.includes('ENABLE ROW LEVEL SECURITY') || !hardeningMigration.includes('app_login_ip_attempts_scope') || !hardeningMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
