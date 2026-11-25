@@ -1898,7 +1898,7 @@ html body .auth-gate.auth-gate-hidden {
     if (platformAdmin) window.PanaderiaAuth.selectBusiness('');
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','novedades','accesos-rapidos','actividad','seguridad','reportes-globales'];
+      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
       const businessPages = ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
       const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
       const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
@@ -2161,6 +2161,7 @@ html body .auth-gate.auth-gate-hidden {
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
+    if (page === 'admin-centro' && currentUser?.isPlatformAdmin !== true) return;
     if (currentUser?.role === 'employee') {
       const p = currentUser.permissions && typeof currentUser.permissions === 'object' ? currentUser.permissions : {};
       const allowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
@@ -2170,7 +2171,7 @@ html body .auth-gate.auth-gate-hidden {
         (page === 'erp' && Object.values(p).some(value => value === true));
       if (!allowed) return;
     }
-    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','novedades','accesos-rapidos','actividad','seguridad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
