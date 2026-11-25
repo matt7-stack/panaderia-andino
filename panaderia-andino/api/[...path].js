@@ -248,6 +248,10 @@ const publicUser = u => ({
 
 module.exports = async function handler(req, res) {
   return requestContext.run({}, async () => {
+  const requestMethod = String(req.method || 'GET').toUpperCase();
+  if (!['GET','HEAD','OPTIONS'].includes(requestMethod) && !sameOrigin(req)) {
+    return send(res,403,{error:'Solicitud no permitida. El origen no coincide con MATTSYSTEM.'});
+  }
   const routeParam = req.query && req.query.path;
   const routeSegments = Array.isArray(routeParam) ? routeParam : (routeParam ? [routeParam] : []);
   const path = routeSegments.length
@@ -2504,5 +2508,5 @@ module.exports = async function handler(req, res) {
 module.exports._internal = {
   db, authenticated, send, body,
   runWithRequestContext: callback => requestContext.run({}, callback),
-  setRequestContext
+  sameOrigin, setRequestContext
 };
