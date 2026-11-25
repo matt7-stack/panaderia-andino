@@ -344,7 +344,7 @@ module.exports = async function handler(req, res) {
           const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
           expiryAlertsCreated+=sent.length;
           if(item.entity_type==='license'&&item.business_id){
-            const customerTitle='Tu mensualidad está próxima a vencer';
+            const customerTitle='Tu licencia está próxima a vencer';
             const customerMessage='La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s). Para mantener el acceso a MATTSYSTEM, contactá al administrador o realizá la renovación antes del vencimiento.';
             const customerNotices=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
               SELECT ${item.business_id},u.id,'license_expiry',${customerTitle},${customerMessage}
@@ -1464,7 +1464,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND (${user.is_platform_admin===true} OR n.type<>'system_activity') AND CASE WHEN n.type='system_activity' OR n.type='admin_message' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
+        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND (${user.is_platform_admin===true} OR n.type<>'system_activity') AND CASE WHEN n.type='system_activity' OR n.type='admin_message' OR n.type='license_expiry' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
         return send(res,200,{notifications:rows});
       }
       if(req.method==='PATCH'){
