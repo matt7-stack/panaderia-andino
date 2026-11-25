@@ -1,12 +1,53 @@
 'use strict';
 const { neon } = require('@neondatabase/serverless');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const crypto = require('node:crypto');
+const requestContext = new AsyncLocalStorage();
 const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
 let sqlClient;
+function hasDbContext(context) {
+  return !!(context && (context.userId || context.businessId || context.loginEmail || context.bootstrapMode || context.publicCatalogBusinessId || context.isPlatformAdmin));
+}
+function setRequestContext(values) {
+  const context = requestContext.getStore();
+  if (context) Object.assign(context, values || {});
+}
 function db() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing');
-  if (!sqlClient) sqlClient = neon(process.env.DATABASE_URL);
+  const connectionString = process.env.DATABASE_URL_RUNTIME || process.env.DATABASE_URL;
+  if (!connectionString) throw new Error('DATABASE_URL_RUNTIME or DATABASE_URL missing');
+  if (!sqlClient) {
+    const raw = neon(connectionString);
+    const contextQuery = context => raw`SELECT
+      set_config('app.user_id', ${String(context.userId || '')}, true),
+      set_config('app.business_id', ${String(context.businessId || '')}, true),
+      set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
+      set_config('app.login_email', ${String(context.loginEmail || '')}, true),
+      set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
+      set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
+    const scoped = (strings, ...values) => {
+      const query = raw(strings, ...values);
+      const execute = () => {
+        const context = requestContext.getStore();
+        return hasDbContext(context)
+          ? raw.transaction([contextQuery(context), query]).then(results => results[1])
+          : query;
+      };
+      return {
+        rawQuery: query,
+        then: (resolve, reject) => execute().then(resolve, reject),
+        catch: reject => execute().catch(reject),
+        finally: callback => execute().finally(callback)
+      };
+    };
+    scoped.transaction = queries => {
+      const rawQueries = (Array.isArray(queries) ? queries : []).map(query => query && query.rawQuery ? query.rawQuery : query);
+      const context = requestContext.getStore();
+      if (!hasDbContext(context)) return raw.transaction(rawQueries);
+      return raw.transaction([contextQuery(context), ...rawQueries]).then(results => results.slice(1));
+    };
+    sqlClient = scoped;
+  }
   return sqlClient;
 }
 async function ensureSchema() {
@@ -117,7 +158,8 @@ async function currentUser(req) {
   const expected = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
   if (!safeEqual(sig, expected)) return null;
   let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch (_) { return null; }
-  if (!data.sub || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
+  if (!data.sub || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(data.sub)) || !Number.isFinite(data.exp) || data.exp < Date.now()) return null;
+  setRequestContext({ userId: String(data.sub) });
   const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
   const rows = await db()`SELECT u.id, u.name, u.email, u.role, u.active, u.business_id, u.is_platform_admin, u.session_version, u.permissions,
       lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
@@ -135,7 +177,9 @@ async function currentUser(req) {
     ) lic ON TRUE
     WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
   const user = rows[0];
-  return user && user.active && Number(user.session_version || 0) === Number(data.sv || 0) ? user : null;
+  if (!user || !user.active || Number(user.session_version || 0) !== Number(data.sv || 0)) return null;
+  setRequestContext({ userId: String(user.id), businessId: user.business_id || '', isPlatformAdmin: user.is_platform_admin === true });
+  return user;
 }
 async function authenticated(req, res, adminOnly = false, allowInactiveLicense = false) {
   if (!sameOrigin(req)) { send(res, 403, { error: 'Solicitud no permitida.' }); return null; }
@@ -151,7 +195,6 @@ async function authenticated(req, res, adminOnly = false, allowInactiveLicense =
       return null;
     }
   }
-  try { await db()`UPDATE app_users SET last_seen_at=NOW() WHERE id=${user.id}`; } catch (_) {}
   if (!allowInactiveLicense && user.is_platform_admin !== true && user.license_is_valid !== true) {
     const status = !user.license_status ? 'missing' : (user.license_status === 'active' ? 'expired' : user.license_status);
     const messages = {
@@ -199,6 +242,7 @@ const publicUser = u => ({
 });
 
 module.exports = async function handler(req, res) {
+  return requestContext.run({}, async () => {
   const routeParam = req.query && req.query.path;
   const routeSegments = Array.isArray(routeParam) ? routeParam : (routeParam ? [routeParam] : []);
   const path = routeSegments.length
@@ -616,6 +660,7 @@ module.exports = async function handler(req, res) {
       return send(res,405,{error:'Método no permitido.'});
     }
     if (path === '/api/auth/status' && req.method === 'GET') {
+      setRequestContext({ bootstrapMode: true });
       const sql = await ensureSchema();
       const rows = await sql`SELECT COUNT(*)::int AS count FROM app_users WHERE is_platform_admin=TRUE`;
       return send(res, 200, { adminExists:Number(rows[0].count)>0 });
@@ -635,6 +680,7 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/auth/bootstrap' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
+      setRequestContext({ bootstrapMode: true });
       const sql = await ensureSchema();
       const existing = await sql`SELECT id FROM app_users WHERE is_platform_admin=TRUE LIMIT 1`;
       if (existing.length) return send(res,409,{error:'La cuenta administradora ya fue activada. Iniciá sesión.'});
@@ -654,6 +700,16 @@ module.exports = async function handler(req, res) {
       const sql = await ensureSchema(); const input = body(req);
       const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
       if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
+      setRequestContext({ loginEmail: email });
+      const forwardedIp = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',').pop().trim();
+      const normalizedIp = /^[0-9a-f:.]{3,64}$/i.test(forwardedIp) ? forwardedIp.toLowerCase() : '';
+      const ipHash = normalizedIp ? crypto.createHmac('sha256', secret('SESSION_SECRET')).update(normalizedIp).digest('hex') : '';
+      if (ipHash) {
+        const ipAttempt = await sql`SELECT failures,locked_until FROM app_login_ip_attempts WHERE ip_hash=${ipHash} LIMIT 1`;
+        if (ipAttempt[0]?.locked_until && new Date(ipAttempt[0].locked_until).getTime()>Date.now()) {
+          return send(res,429,{error:'Se alcanzó el límite de intentos desde esta conexión. Probá nuevamente dentro de unos minutos.'});
+        }
+      }
       const attempts = await sql`SELECT failures,locked_until FROM app_login_attempts WHERE email=${email} LIMIT 1`;
       if (attempts[0]?.locked_until && new Date(attempts[0].locked_until).getTime()>Date.now()) {
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_blocked','authentication',NULL,${JSON.stringify({email,failures:Number(attempts[0].failures||0)})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el bloqueo de acceso:',logError); }
@@ -675,6 +731,7 @@ module.exports = async function handler(req, res) {
         WHERE lower(u.email)=${email} LIMIT 1`; const u = rows[0];
       if (!u || !u.active || !(await verifyPassword(password,u.password_hash))) {
         await sql`INSERT INTO app_login_attempts(email,failures,locked_until,updated_at) VALUES(${email},1,NULL,NOW()) ON CONFLICT(email) DO UPDATE SET failures=CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_attempts.failures+1 END)>=6 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
+        if (ipHash) await sql`INSERT INTO app_login_ip_attempts(ip_hash,failures,locked_until,updated_at) VALUES(${ipHash},1,NULL,NOW()) ON CONFLICT(ip_hash) DO UPDATE SET failures=CASE WHEN app_login_ip_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_ip_attempts.failures+1 END, locked_until=CASE WHEN (CASE WHEN app_login_ip_attempts.updated_at<NOW()-INTERVAL '15 minutes' THEN 1 ELSE app_login_ip_attempts.failures+1 END)>=12 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END, updated_at=NOW()`;
         try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(NULL,NULL,'auth.login_failed','authentication',NULL,${JSON.stringify({email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el intento fallido:',logError); }
         return send(res,401,{error:'Correo o contraseña incorrectos.'});
       }
@@ -684,8 +741,10 @@ module.exports = async function handler(req, res) {
       }
       // Generar la cookie antes de registrar el acceso como exitoso. Si falta
       // SESSION_SECRET, el error queda visible como fallo y no como login exitoso.
+      setRequestContext({ userId: String(u.id), businessId: u.business_id || '', isPlatformAdmin: u.is_platform_admin === true });
       const issuedCookie = sessionCookie(u.id,u.session_version);
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
+      if (ipHash) await sql`DELETE FROM app_login_ip_attempts WHERE ip_hash=${ipHash}`;
       try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
       return send(res,200,{user:publicUser(u)},{'Set-Cookie':issuedCookie});
     }
@@ -704,14 +763,16 @@ module.exports = async function handler(req, res) {
       if (!session.sub || !Number.isFinite(session.exp) || session.exp < Date.now()) {
         return send(res,401,{error:'Iniciá sesión para continuar.'});
       }
+      setRequestContext({ userId: String(session.sub) });
       const sql = db();
       const users = await sql`SELECT id,role,active,is_platform_admin FROM app_users WHERE id = ${session.sub} LIMIT 1`;
       if (!users[0] || !users[0].active || users[0].is_platform_admin !== true) {
         return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
       }
+      setRequestContext({ isPlatformAdmin: true });
       const rows = await sql`SELECT current_database() AS database, current_user AS database_role, inet_server_addr()::text AS server_address, inet_server_port() AS server_port, version() AS server_version`;
       let configuredHost = null;
-      try { configuredHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : (process.env.PGHOST || process.env.POSTGRES_HOST || null); } catch (_) {}
+      try { const activeDatabaseUrl = process.env.DATABASE_URL_RUNTIME || process.env.DATABASE_URL; configuredHost = activeDatabaseUrl ? new URL(activeDatabaseUrl).hostname : (process.env.PGHOST || process.env.POSTGRES_HOST || null); } catch (_) {}
       const info = rows[0] || {};
       return send(res,200,{
         provider: configuredHost && configuredHost.includes('neon.tech') ? 'Neon' : (configuredHost ? 'PostgreSQL compatible' : 'unknown'),
@@ -2125,7 +2186,8 @@ module.exports = async function handler(req, res) {
     }
     if (path === '/api/data' && req.method === 'GET' && new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.has('catalogBusinessId')) {
       const businessId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('catalogBusinessId')||'').trim();
-      if(!businessId) return send(res,400,{error:'Falta identificar el negocio.'});
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(businessId)) return send(res,400,{error:'Falta identificar un negocio válido.'});
+      setRequestContext({ publicCatalogBusinessId: businessId });
       const sql=db();
       const rows=await sql`SELECT b.id,b.name,b.address,b.phone,st.data,st.updated_at FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id WHERE b.id=${businessId} AND b.active=TRUE LIMIT 1`;
       if(!rows.length) return send(res,404,{error:'No se encontró un negocio activa.'});
@@ -2311,6 +2373,11 @@ module.exports = async function handler(req, res) {
     console.error('API error:',err);
     return send(res,500,{error:'No se pudo completar la solicitud. Verificá la conexión de la base de datos.'});
   }
+  });
 };
 
-module.exports._internal = { db, authenticated, send, body };
+module.exports._internal = {
+  db, authenticated, send, body,
+  runWithRequestContext: callback => requestContext.run({}, callback),
+  setRequestContext
+};
