@@ -24,6 +24,7 @@ function db() {
       set_config('app.business_id', ${String(context.businessId || '')}, true),
       set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
       set_config('app.login_email', ${String(context.loginEmail || '')}, true),
+      set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
       set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
       set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
     const scoped = (strings, ...values) => {
@@ -747,6 +748,7 @@ module.exports = async function handler(req, res) {
       setRequestContext({ loginEmail: email });
       const normalizedIp = requestIp(req) || '';
       const ipHash = normalizedIp ? crypto.createHmac('sha256', secret('SESSION_SECRET')).update(normalizedIp).digest('hex') : '';
+      setRequestContext({ ipHash });
       if (ipHash) {
         const ipAttempt = await sql`SELECT failures,locked_until FROM app_login_ip_attempts WHERE ip_hash=${ipHash} LIMIT 1`;
         if (ipAttempt[0]?.locked_until && new Date(ipAttempt[0].locked_until).getTime()>Date.now()) {
