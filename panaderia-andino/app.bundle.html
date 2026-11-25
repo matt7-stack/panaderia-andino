@@ -1381,16 +1381,16 @@ html body .auth-gate.auth-gate-hidden {
             <section class="panel recent-panel"><div class="panel-heading"><div><h3>Últimos movimientos</h3><p>Actividad financiera reciente</p></div><button class="text-link" type="button" data-go-page="movimientos">Ver todos <i class="bi bi-arrow-right"></i></button></div><div class="table-responsive"><table class="table recent-table align-middle mb-0"><thead><tr><th>FECHA</th><th>DESCRIPCIÓN</th><th>TIPO</th><th class="text-end">IMPORTE</th></tr></thead><tbody id="recentMovementsBody"></tbody></table></div><div class="empty-state compact d-none" id="recentEmpty"><i class="bi bi-inbox"></i><span>Todavía no hay movimientos.</span></div></section>
           </div>
 
-          <section class="quick-actions-section"><div class="section-title"><div><p class="eyebrow">ATAJOS</p><h3>Accesos rápidos</h3></div><span>Operaciones frecuentes</span></div><div class="quick-actions-grid">
-            <button class="quick-action quick-income" type="button" data-open-movement="income"><span class="quick-action-icon"><i class="bi bi-plus-lg"></i></span><span><strong>Registrar ingreso</strong><small>Agregar dinero recibido</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
-            <button class="quick-action quick-expense" type="button" data-open-movement="expense"><span class="quick-action-icon"><i class="bi bi-dash-lg"></i></span><span><strong>Registrar gasto</strong><small>Agregar un pago realizado</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
-            <button class="quick-action quick-invoice" type="button" data-open-quick-note><span class="quick-action-icon"><i class="bi bi-receipt"></i></span><span><strong>Nueva nota</strong><small>Registrar venta o compra</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
-          </div></section>
+          
         </section>
 
         <!-- MOVIMIENTOS -->
         <section class="page-view" id="page-movimientos" data-page="movimientos">
           <div class="page-heading"><div><p class="eyebrow">CONTROL FINANCIERO</p><h1><i class="bi bi-arrow-left-right heading-page-icon"></i> Movimientos</h1><p class="page-subtitle">Controlá todos los ingresos y gastos de tu negocio.</p></div><div class="heading-actions"><button class="btn btn-income" type="button" data-open-movement="income"><i class="bi bi-plus-lg"></i> Nuevo ingreso</button><button class="btn btn-expense" type="button" data-open-movement="expense"><i class="bi bi-plus-lg"></i> Nuevo gasto</button></div></div>
+          <section class="panel settings-card mb-3" id="bulkExpensePanel">
+            <div class="panel-heading"><div><h3><i class="bi bi-list-check"></i> Carga de varios gastos</h3><p>Registrá en una sola operación los gastos habituales de la empresa. Podés agregar tantas filas como necesites.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="addBulkExpenseRow"><i class="bi bi-plus-lg"></i> Agregar gasto</button></div>
+            <form id="bulkExpenseForm"><div class="table-responsive"><table class="table align-middle mb-2"><thead><tr><th style="min-width:130px">Fecha</th><th style="min-width:180px">Concepto</th><th style="min-width:180px">Categoría</th><th style="min-width:130px">Importe (Gs.)</th><th style="min-width:140px">Forma de pago</th><th style="min-width:52px"></th></tr></thead><tbody id="bulkExpenseRows"></tbody></table></div><div class="d-flex flex-wrap justify-content-between align-items-center gap-2"><small class="text-muted" id="bulkExpenseCount">0 gastos cargados</small><button class="btn btn-expense" type="submit" id="saveBulkExpenses"><i class="bi bi-save"></i> Registrar todos los gastos</button></div><p class="small text-muted mt-2 mb-0">Los gastos se guardan en Movimientos y se reflejan en los totales y reportes del negocio.</p></form>
+          </section>
           <div class="summary-grid three-cards"><article class="summary-card income-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-graph-up-arrow"></i></span><span class="summary-tag">TOTAL INGRESOS</span></div><p class="summary-label">Ingresos del período</p><h2 id="movementIncomeTotal">Gs. 0</h2></article><article class="summary-card expense-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-graph-down-arrow"></i></span><span class="summary-tag">TOTAL GASTOS</span></div><p class="summary-label">Gastos del período</p><h2 id="movementExpenseTotal">Gs. 0</h2></article><article class="summary-card profit-card"><div class="summary-card-top"><span class="summary-icon"><i class="bi bi-calculator"></i></span><span class="summary-tag">DIFERENCIA</span></div><p class="summary-label">Balance del período</p><h2 id="movementBalanceTotal">Gs. 0</h2></article></div>
           <section class="panel table-panel"><div class="filter-bar"><div class="search-field"><i class="bi bi-search"></i><input type="search" id="movementSearch" placeholder="Buscar por descripción..." aria-label="Buscar movimientos"></div><select id="movementTypeFilter" class="form-select filter-select" aria-label="Filtrar por tipo"><option value="all">Todos los tipos</option><option value="income">Ingresos</option><option value="expense">Gastos</option></select><select id="movementCategoryFilter" class="form-select filter-select" aria-label="Filtrar por categoría"><option value="all">Todas las categorías</option></select><div class="date-range"><i class="bi bi-calendar3"></i><label class="date-field"><span>Desde</span><input type="date" id="movementStartDate" lang="es-PY" aria-label="Fecha desde"></label><label class="date-field"><span>Hasta</span><input type="date" id="movementEndDate" lang="es-PY" aria-label="Fecha hasta"></label></div><button class="btn btn-bakery btn-filter" type="button" id="clearMovementFilters"><i class="bi bi-arrow-counterclockwise"></i><span>Limpiar</span></button></div>
             <div class="table-responsive"><table class="table data-table align-middle mb-0"><thead><tr><th>FECHA</th><th>DESCRIPCIÓN</th><th>CATEGORÍA</th><th>TIPO</th><th>MÉTODO</th><th class="text-end">IMPORTE</th><th class="text-center">ACCIONES</th></tr></thead><tbody id="movementsTableBody"></tbody></table></div><div class="table-bottom"><span id="movementResultCount">Mostrando 0 registros</span><div class="table-bottom-actions"><button class="btn btn-light btn-sm" type="button" id="exportMovements"><i class="bi bi-download"></i> Exportar CSV</button></div></div><div class="empty-state d-none" id="movementsEmpty"><i class="bi bi-inbox"></i><strong>No se encontraron movimientos</strong><span>Probá cambiar los filtros o registrá un movimiento nuevo.</span></div>
@@ -1480,7 +1480,11 @@ html body .auth-gate.auth-gate-hidden {
         </section>
 
         <!-- ADMINISTRACIÓN -->
-        <section class="page-view" id="page-administracion" data-page="administracion">
+        <section class="page-view" id="page-administracion" data-page="administracion"><div id="adminQuickActionsMount"><section class="quick-actions-section"><div class="section-title"><div><p class="eyebrow">HERRAMIENTAS</p><h3>Accesos rápidos</h3></div><span>Operaciones frecuentes</span></div><div class="quick-actions-grid">
+            <button class="quick-action quick-income" type="button" data-open-movement="income"><span class="quick-action-icon"><i class="bi bi-plus-lg"></i></span><span><strong>Registrar ingreso</strong><small>Agregar dinero recibido</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
+            <button class="quick-action quick-expense" type="button" data-open-movement="expense"><span class="quick-action-icon"><i class="bi bi-dash-lg"></i></span><span><strong>Registrar gasto</strong><small>Agregar un pago realizado</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
+            <button class="quick-action quick-invoice" type="button" data-open-quick-note><span class="quick-action-icon"><i class="bi bi-receipt"></i></span><span><strong>Nueva nota</strong><small>Registrar venta o compra</small></span><i class="bi bi-arrow-up-right ms-auto"></i></button>
+          </div></section></div>
           <section class="admin-welcome">
             <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Administrador</h1><p>Gestioná todas los negocios, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
             <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
@@ -1519,7 +1523,7 @@ html body .auth-gate.auth-gate-hidden {
             <div class="row g-3"><div class="col-md-5"><label class="form-label" for="maintenanceReason">Motivo</label><select class="form-select" id="maintenanceReason"><option value="maintenance">Mantenimiento programado</option><option value="security">Seguridad</option><option value="improvements">Mejoras del sistema</option><option value="upgrade">Actualización de versión</option><option value="other">Otro motivo</option></select></div>
             <div class="col-md-6"><label class="form-label" for="maintenanceMessage">Mensaje para los usuarios</label><textarea class="form-control" id="maintenanceMessage" rows="3" maxlength="1000" required>Estamos realizando tareas de mantenimiento. Volveremos pronto.</textarea><small class="text-muted">Este mensaje aparecerá en la pantalla de mantenimiento.</small></div></div>
             <div class="row g-3 mt-1"><div class="col-md-6"><label class="form-label" for="maintenanceStartsAt">Inicio (opcional)</label><input class="form-control" type="datetime-local" id="maintenanceStartsAt"><small class="text-muted">Si lo dejás vacío, comienza al activar.</small></div><div class="col-md-6"><label class="form-label" for="maintenanceEndsAt">Finalización automática (opcional)</label><input class="form-control" type="datetime-local" id="maintenanceEndsAt"><small class="text-muted">Al llegar esta fecha, el acceso se restablece automáticamente.</small></div></div>
-            <div class="info-note mt-3"><i class="bi bi-info-circle"></i> La suspensión se valida también en el servidor. Las sesiones de clientes y empleados no podrán ejecutar operaciones mientras esté vigente. Los datos no se eliminan.</div>
+            <div id="maintenanceActionFeedback" class="small mt-3" role="status" aria-live="polite"></div><div class="info-note mt-3"><i class="bi bi-info-circle"></i> La suspensión se valida también en el servidor. Las sesiones de clientes y empleados no podrán ejecutar operaciones mientras esté vigente. Los datos no se eliminan.</div>
             <div class="d-flex flex-wrap gap-2 justify-content-end mt-3"><button class="btn btn-outline-bakery" type="button" id="maintenanceDisable">Desactivar y restablecer acceso</button><button class="btn btn-bakery" type="submit" id="maintenanceSave"><i class="bi bi-save"></i> Guardar configuración</button></div>
           </form>
         </section>
@@ -1679,7 +1683,7 @@ html body .auth-gate.auth-gate-hidden {
           <article class="panel settings-card mb-3"><h3>Acceso y navegación</h3><ul class="mb-0"><li>Ingresá con el correo y contraseña que te proporcionó el administrador de MATTSYSTEM.</li><li>Usá el menú lateral para abrir los módulos habilitados para tu negocio.</li><li>Los datos se guardan en línea. Esperá el mensaje de confirmación antes de cerrar un formulario.</li><li>Si un apartado no carga, usá Actualizar y comprobá tu conexión a Internet.</li></ul></article>
           <article class="panel settings-card mb-3"><h3>Operación diaria</h3><ul class="mb-0"><li><strong>Dashboard:</strong> consultá el resumen de ingresos, gastos, resultados y pendientes.</li><li><strong>Movimientos:</strong> registrá ingresos y gastos con fecha, importe, categoría y descripción.</li><li><strong>Notas y ventas:</strong> registrá operaciones, cobros y saldos pendientes.</li><li><strong>Productos e inventario:</strong> administrá artículos, costos y existencias si estos módulos están habilitados.</li><li><strong>Compras, producción, caja y reportes:</strong> utilizá únicamente las opciones disponibles en tu plan.</li><li><strong>Clientes y proveedores:</strong> mantené actualizados sus datos para facilitar el seguimiento de las operaciones.</li></ul></article>
           <article class="panel settings-card mb-3"><h3>Usuarios y configuración del negocio</h3><p>El administrador o supervisor de tu negocio puede gestionar los accesos internos y los datos de configuración que tenga autorizados. Si no encontrás una opción, consultá con el responsable de tu negocio.</p></article>
-          <article class="panel settings-card"><h3>Licencia, módulos y ayuda</h3><ul class="mb-0"><li>En Información de licencia podés consultar el plan, fechas, módulos y condiciones contratadas.</li><li>En Gestión operativa podés solicitar un módulo adicional o proponer una función nueva.</li><li>En Notificaciones consultá avisos y respuestas del sistema.</li><li>En Contactar a soporte enviá una solicitud y revisá las respuestas del equipo.</li></ul></article>
+          <article class="panel settings-card"><h3>Licencia, módulos y ayuda</h3><ul class="mb-0"><li>En Información de licencia podés consultar el plan, fechas, módulos y condiciones contratadas.</li><li>En Gastos podés registrar y organizar los gastos de tu empresa.</li><li>En Notificaciones consultá avisos y respuestas del sistema.</li><li>En Contactar a soporte enviá una solicitud y revisá las respuestas del equipo.</li></ul></article>
         </section>
 
 <section class="page-view" id="page-contacto-soporte" data-page-title="Contactar a soporte"><div class="page-heading"><div><h1><i class="bi bi-headset"></i> Contactar a soporte</h1><p class="page-subtitle">Enviá una solicitud al equipo de soporte y consultá el seguimiento de tus consultas.</p></div></div><article class="panel settings-card mt-3" id="clientSupportCenter"><div class="panel-heading"><div><h3>Enviar una solicitud</h3><p>Enviá una consulta identificada con el nombre de tu negocio y seguí las respuestas.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="refreshClientSupportTickets">Actualizar</button></div><form id="clientSupportTicketForm" class="settings-form"><label class="form-label" for="supportTicketSubject">Asunto</label><input class="form-control" id="supportTicketSubject" maxlength="120" required><label class="form-label" for="supportTicketMessage">¿En qué podemos ayudarte?</label><textarea class="form-control" id="supportTicketMessage" rows="4" maxlength="3000" required></textarea><button class="btn btn-bakery" type="submit">Enviar solicitud</button></form><div id="clientSupportTickets" class="mt-3"></div></article><div class="panel settings-card mt-3"><div class="panel-heading"><div><h3>¿Preferís comunicarte por WhatsApp?</h3><p>También podés contactar directamente al equipo de soporte.</p></div></div><a class="btn btn-outline-bakery" id="supportWhatsappContactButton" href="#" target="_blank" rel="noopener noreferrer" hidden><i class="bi bi-whatsapp"></i> Contactar por WhatsApp</a></div></section>
@@ -2066,7 +2070,7 @@ html body .auth-gate.auth-gate-hidden {
 
   const createEmptyState = () => ({
     movements: [], invoices: [], employees: [], employeePayments: [], products: [], productMovements: [],
-    categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Servicios', 'Alquiler', 'Salarios', 'Mantenimiento', 'Otros gastos'] },
+    categories: { income: ['Ventas', 'Pedidos', 'Otros ingresos'], expense: ['Materia prima', 'Insumos y mercadería', 'Envases y embalajes', 'Servicios básicos', 'Agua', 'Electricidad', 'Internet y telefonía', 'Alquiler', 'Salarios', 'Cargas sociales', 'Honorarios profesionales', 'Impuestos y tasas', 'Contabilidad', 'Transporte y flete', 'Combustible', 'Mantenimiento', 'Reparaciones', 'Limpieza', 'Seguridad', 'Seguros', 'Publicidad y marketing', 'Comisiones bancarias', 'Intereses y préstamos', 'Software y suscripciones', 'Equipos y herramientas', 'Capacitación', 'Viáticos', 'Otros gastos'] },
     paymentMethods: ['Efectivo', 'Transferencia', 'Tarjeta', 'QR'], users: [],
     business: { name: 'Mi negocio', address: '', phone: '', email: '', ruc: '', owner: 'Administrador', logo: '' },
     preferences: { dateFormat: 'es-PY', invoiceAlerts: true, confirmDelete: true }
@@ -2174,6 +2178,7 @@ html body .auth-gate.auth-gate-hidden {
     const requestedModule=pageModules[page];
     if(currentUser?.isPlatformAdmin!==true&&requestedModule&&Array.isArray(currentUser?.businessConfig?.modules)&&!currentUser.businessConfig.modules.includes(requestedModule))page='dashboard';
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
+    if (page === 'admin-maintenance' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-centro' && currentUser?.isPlatformAdmin !== true) return;
@@ -2201,7 +2206,7 @@ html body .auth-gate.auth-gate-hidden {
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-cotizador': 'Cotizador comercial', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'admin-centro': 'Centro de gestión', novedades: 'Novedades y versiones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gestión operativa' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-cotizador': 'Cotizador comercial', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'admin-centro': 'Centro de gestión', novedades: 'Novedades y versiones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gastos' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -3052,11 +3057,13 @@ html body .auth-gate.auth-gate-hidden {
     const iso=id=>{const value=document.getElementById(id)?.value;return value?new Date(value).toISOString():null;};
     try{
       const payload={enabled:disable?false:document.getElementById('maintenanceEnabled').checked,reason:document.getElementById('maintenanceReason').value,message:document.getElementById('maintenanceMessage').value.trim(),startsAt:disable?null:iso('maintenanceStartsAt'),endsAt:disable?null:iso('maintenanceEndsAt')};
+      if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)throw new Error('Solo el administrador principal puede cambiar el mantenimiento.');
       await window.PanaderiaAuth.api('/api/admin/maintenance',{method:'PUT',body:JSON.stringify(payload)});
       await loadPlatformMaintenance();
       if(disable){const enabled=document.getElementById('maintenanceEnabled');if(enabled)enabled.checked=false;}
+      const feedback=document.getElementById('maintenanceActionFeedback');if(feedback){feedback.className='small mt-3 text-success';feedback.textContent=disable?'Mantenimiento desactivado. El acceso general fue restablecido.':'Configuración guardada correctamente.';}
       alert(disable?'Mantenimiento desactivado. El acceso general fue restablecido.':'Configuración de mantenimiento guardada correctamente.');
-    }catch(error){alert(error.message||'No se pudo guardar la configuración.');}
+    }catch(error){const feedback=document.getElementById('maintenanceActionFeedback');if(feedback){feedback.className='small mt-3 text-danger';feedback.textContent=error.message||'No se pudo guardar la configuración.';}alert(error.message||'No se pudo guardar la configuración.');}
     finally{if(button)button.disabled=false;}
   }
   document.getElementById('maintenanceForm')?.addEventListener('submit',event=>{event.preventDefault();savePlatformMaintenance(false);});
@@ -3270,7 +3277,7 @@ html body .auth-gate.auth-gate-hidden {
     try {
       const result = await window.PanaderiaAuth.api('/api/admin/reset-data', { method: 'POST', body: JSON.stringify({ confirm: true }) });
       if (!result?.ok || !result.data) throw new Error('El servidor no confirmó la limpieza.');
-      state = { ...createEmptyState(), ...result.data, users: state.users || [] };
+      state = { ...createEmptyState(), ...result.data, users: state.users || [] }; state.categories = { ...createEmptyState().categories, ...(state.categories || {}) }; state.categories.expense = [...new Set([...(createEmptyState().categories.expense || []), ...(state.categories.expense || [])])];
       cloudUpdatedAt = result.updatedAt || cloudUpdatedAt;
       saveState(false);
       renderDashboard(); renderMovements(); renderInvoices(); renderProducts(); renderEmployees(); renderAdminPanel();
@@ -3898,7 +3905,7 @@ html body .auth-gate.auth-gate-hidden {
     if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
     try { const endpoint = window.PanaderiaAuth.user?.role === 'employee' ? '/api/business/employee-data' : '/api/data';
       const result = await window.PanaderiaAuth.api(endpoint);
-      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
+      if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; state.categories = { ...createEmptyState().categories, ...(state.categories || {}) }; state.categories.expense = [...new Set([...(createEmptyState().categories.expense || []), ...(state.categories.expense || [])])]; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
     } catch (error) { console.warn('Sincronización pendiente:', error.message); }
   }
 
@@ -3943,7 +3950,7 @@ html body .auth-gate.auth-gate-hidden {
       }
       const endpoint = user.role === 'employee' ? '/api/business/employee-data' : '/api/data';
       const result = await window.PanaderiaAuth.api(endpoint);
-      if (result.data) { state = { ...createEmptyState(), ...result.data }; cloudUpdatedAt = result.updatedAt || null; }
+      if (result.data) { state = { ...createEmptyState(), ...result.data }; state.categories = { ...createEmptyState().categories, ...(state.categories || {}) }; state.categories.expense = [...new Set([...(createEmptyState().categories.expense || []), ...(state.categories.expense || [])])]; cloudUpdatedAt = result.updatedAt || null; }
       else if (user.role === 'employee') { state = createEmptyState(); cloudUpdatedAt = null; }
       else {
         if (user.isPlatformAdmin === true && loadSelectedBusiness) throw new Error('No se encontraron datos guardados para este negocio. Por seguridad, no se creó información nueva.');
@@ -4463,7 +4470,7 @@ html.auth-locked body::-webkit-scrollbar {
   height: 0 !important;
 }
 </style>
-<script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script><script src="/admin-nav.js" defer></script>
+<script src="/employee-access.js" defer></script><script src="/erp-modules.js" defer></script><script src="/admin-nav.js" defer></script><script src="/business-expenses.js" defer></script>
 <style id="auth-root-scrollbar-fix">
 /* Solo el login: iguala el color del canal lateral al degradado del fondo. */
 html.auth-locked,
