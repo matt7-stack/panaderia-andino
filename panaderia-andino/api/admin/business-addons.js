@@ -6,6 +6,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 
 module.exports = async function businessAddonsHandler(req,res) {
   return core._internal.runWithRequestContext(async () => {
+  if (!['GET','HEAD','OPTIONS'].includes(String(req.method || 'GET').toUpperCase()) && !core._internal.sameOrigin(req)) return core._internal.send(res,403,{error:'Solicitud no permitida. El origen no coincide con MATTSYSTEM.'});
   try {
     if (!db || !authenticated || !send || !body) { res.statusCode=500; return res.end(); }
     const admin = await authenticated(req,res,true);
