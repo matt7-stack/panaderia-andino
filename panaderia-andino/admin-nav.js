@@ -66,10 +66,6 @@
     for (const group of groupNodes) {
       const visible = group.items.some(link => !link.hidden);
       if (group.section.hidden !== !visible) group.section.hidden = !visible;
-      if (group.items.some(link => link.classList.contains('active')) && group.content.hidden) {
-        group.content.hidden = false;
-        group.toggle.setAttribute('aria-expanded','true');
-      }
     }
   }
   nav.addEventListener('click', event => {
@@ -97,7 +93,16 @@
   }
   window.addEventListener('panaderia:authenticated', () => { syncVisibility(); syncQuickActionsVisibility(); });
   new MutationObserver(syncQuickActionsVisibility).observe(document.body,{attributes:true,attributeFilter:['class']});
-  window.addEventListener('panaderia:pagenavigate', syncQuickActionsVisibility);
+  window.addEventListener('panaderia:pagenavigate', () => {
+    syncQuickActionsVisibility();
+    const activeLink = nav.querySelector('.nav-link.active[data-page-link]');
+    const activeGroup = activeLink?.closest('.admin-nav-group');
+    if (activeGroup) {
+      const content = activeGroup.querySelector('.admin-nav-group__items');
+      const toggle = activeGroup.querySelector('.admin-nav-group__toggle');
+      if (content && toggle) { content.hidden = false; toggle.setAttribute('aria-expanded','true'); }
+    }
+  });
   new MutationObserver(syncVisibility).observe(nav,{subtree:true,attributes:true,attributeFilter:['hidden','class']});
   syncVisibility();
   syncQuickActionsVisibility();
