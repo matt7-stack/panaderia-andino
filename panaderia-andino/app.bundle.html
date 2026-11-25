@@ -2191,7 +2191,7 @@ html body .auth-gate.auth-gate-hidden {
         (page === 'erp' && Object.values(p).some(value => value === true));
       if (!allowed) return;
     }
-    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
@@ -3138,6 +3138,59 @@ html body .auth-gate.auth-gate-hidden {
     if (id) state.movements = state.movements.map((item) => item.id === id ? record : item);
     else state.movements.push(record);
     saveState(); movementModal.hide(); renderDashboard(); renderMovements(); notify(id ? 'Movimiento actualizado correctamente.' : 'Movimiento registrado correctamente.');
+  });
+  document.addEventListener('mattsystem:bulk-expenses', async (event) => {
+    const items = event.detail?.items;
+    const resolve = event.detail?.resolve, reject = event.detail?.reject;
+    if (typeof resolve !== 'function' || typeof reject !== 'function') return;
+    const user = window.PanaderiaAuth?.user;
+    const businessId = window.PanaderiaAuth?.selectedBusinessId;
+    if (!user || (user.isPlatformAdmin === true && !businessId)) {
+      reject(new Error('La cuenta principal no tiene un negocio propio. Abrí un negocio para registrar sus gastos.'));
+      return;
+    }
+    if (!cloudReady) { reject(new Error('Los datos del negocio todavía no terminaron de cargar. Esperá y volvé a intentar.')); return; }
+    if (!Array.isArray(items) || !items.length || items.length > 250) { reject(new Error('La carga debe contener entre 1 y 250 gastos.')); return; }
+    const normalized = [];
+    for (const item of items) {
+      const amount = Number(item.amount);
+      if (!item || typeof item.description !== 'string' || !item.description.trim() || item.description.trim().length > 100 ||
+          !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(item.date || '')) || !Number.isSafeInteger(amount) || amount <= 0 ||
+          typeof item.category !== 'string' || !item.category.trim() || item.category.length > 80 ||
+          typeof item.payment !== 'string' || !item.payment.trim() || item.payment.length > 40) {
+        reject(new Error('Uno o más gastos contienen datos no válidos. No se guardó ningún registro.'));
+        return;
+      }
+      normalized.push({id:makeId(),description:item.description.trim(),amount,date:item.date,type:'expense',category:item.category.trim(),payment:item.payment.trim(),note:''});
+    }
+    const permissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
+    if (user.role === 'employee' && permissions['cash.manage'] !== true) {
+      reject(new Error('Tu usuario no tiene permiso para registrar gastos.'));
+      return;
+    }
+    const previous = state.movements;
+    const previousCategories = state.categories?.expense || [];
+    const categories = [...new Set([...(previousCategories || []), ...normalized.map(item => item.category)])];
+    state.movements = [...previous, ...normalized];
+    state.categories = {...(state.categories || {}),expense:categories};
+    clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
+    if (!saveState(false)) {
+      state.movements = previous; state.categories.expense = previousCategories;
+      reject(new Error('No se pudieron guardar los gastos localmente.'));
+      return;
+    }
+    try {
+      const endpoint = user.role === 'employee' ? '/api/business/employee-data' : '/api/data';
+      const saved = await window.PanaderiaAuth.api(endpoint, {method:'PUT',body:JSON.stringify({data:cloudPayload()})});
+      cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
+      renderDashboard(); renderMovements();
+      notify(normalized.length === 1 ? 'Gasto registrado correctamente.' : normalized.length + ' gastos registrados correctamente.');
+      resolve({saved:normalized.length,updatedAt:cloudUpdatedAt});
+    } catch (error) {
+      state.movements = previous; state.categories.expense = previousCategories;
+      saveState(false); renderDashboard(); renderMovements();
+      reject(new Error(error?.message || 'El servidor rechazó la carga. No se confirmó ningún gasto.'));
+    }
   });
   $('#movementSearch')?.addEventListener('input', renderMovements);
   ['movementTypeFilter', 'movementCategoryFilter', 'movementStartDate', 'movementEndDate'].forEach((id) => $(`#${id}`).addEventListener('change', () => { if (id === 'movementTypeFilter') refreshMovementFilters(); renderMovements(); }));
