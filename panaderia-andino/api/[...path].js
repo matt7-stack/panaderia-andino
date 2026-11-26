@@ -380,6 +380,8 @@ module.exports = async function handler(req, res) {
             WHERE old.business_id=b.business_id
             ORDER BY old.created_at DESC OFFSET 14
           ) RETURNING id`;
+      // Retener solo hashes recientes; elimina contadores abandonados diariamente.
+      await sql`DELETE FROM app_api_rate_limits WHERE updated_at < NOW()-INTERVAL '1 day'`;
       const cfg=await sql`SELECT enabled,days_before,alert_days FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
       const settings=cfg[0]||{enabled:true,days_before:15,alert_days:[15]};
       let expiryAlertsCreated=0;
