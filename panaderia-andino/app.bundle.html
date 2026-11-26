@@ -1325,6 +1325,20 @@ html body .auth-gate.auth-gate-hidden {
   .content-grid, .settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .table-responsive { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 }
+
+/* Cuenta cliente: navegación siempre visible, sin cajón plegable en móviles. */
+body:not(.platform-admin) .mobile-menu-button{display:none!important}
+body:not(.platform-admin) #adminMaintenanceNav,
+body:not(.platform-admin) #page-admin-maintenance{display:none!important}
+@media(max-width:767.98px){
+  body:not(.platform-admin) .sidebar{position:relative;top:auto;left:auto;z-index:10;width:100%;height:auto;min-height:0;overflow:visible;transform:none!important;padding:10px 12px 6px;border-right:0;border-bottom:1px solid var(--line);box-shadow:0 3px 12px rgba(20,30,60,.06)}
+  body:not(.platform-admin) .sidebar-label,body:not(.platform-admin) .sidebar-bottom{display:none!important}
+  body:not(.platform-admin) .sidebar .brand{display:none!important}
+  body:not(.platform-admin) .sidebar .nav-menu{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:2px 0 8px;scrollbar-width:thin}
+  body:not(.platform-admin) .sidebar .nav-link{flex:0 0 auto;min-height:38px;padding:9px 11px;border-radius:9px;font-size:11px}
+  body:not(.platform-admin) .main-content{margin-left:0}
+  body:not(.platform-admin) .sidebar-backdrop{display:none!important}
+}
 </style>
 </head>
 <body>
@@ -1604,6 +1618,8 @@ html body .auth-gate.auth-gate-hidden {
 <div class="col-md-3"><label class="form-label">Pago inicial (Gs.)</label><input class="form-control" id="licenseSetup" type="number" min="0" value="1200000" readonly></div>
 <div class="col-md-3"><label class="form-label">Cuota mensual (Gs.)</label><input class="form-control" id="licenseMonthlyInput" type="number" min="0" value="99000" readonly></div>
 <div class="col-md-3"><label class="form-label">Día de cobro</label><input class="form-control" id="licenseBillingDay" type="number" min="1" max="28" value="1"></div>
+<div class="col-md-3"><label class="form-label" for="licenseUserLimit">Límite de usuarios</label><input class="form-control" id="licenseUserLimit" type="number" min="1" max="500" step="1" placeholder="Sin límite"></div>
+<div class="col-md-3"><label class="form-label" for="licenseDeviceLimit">Límite de dispositivos</label><input class="form-control" id="licenseDeviceLimit" type="number" min="1" max="100" step="1" placeholder="Sin límite"></div>
 <div class="col-md-3"><label class="form-label" for="licenseDurationType">Duración de licencia</label><select class="form-select" id="licenseDurationType" required><option value="monthly">Mensual</option><option value="year_1" selected>1 año</option><option value="year_2">2 años</option><option value="year_3">3 años</option><option value="year_4">4 años</option><option value="year_5">5 años</option><option value="permanent">Permanente</option></select><small class="text-muted">La modalidad mensual vence cada mes; la permanente no vence.</small></div>
 <div class="col-md-3"><label class="form-label">Vencimiento estimado</label><input class="form-control" id="licenseExpiryPreview" value="12 meses desde la activación" readonly></div><div class="col-md-3"><label class="form-label" for="licenseCreatedAt">Fecha de creación</label><input class="form-control" id="licenseCreatedAt" type="text" readonly value="Se asigna al registrar"></div><div class="col-12"><div class="info-note" id="licensePlanPreview">Los precios y módulos se completarán según el tipo seleccionado.</div></div>
 <div class="col-md-6"><label class="form-label">Referencia de contrato</label><input class="form-control" id="licenseContract" maxlength="120"></div>
@@ -4445,6 +4461,7 @@ html body .auth-gate.auth-gate-hidden {
  function updateLicensePlanPreview(){
    const key=$('#licensePlan')?.value||'basic',plan=licensePlanSettings.find(x=>x.plan_key===key);if(!plan)return;
    $('#licenseSetup').value=Number(plan.setup_amount||0);$('#licenseMonthlyInput').value=Number(plan.monthly_amount||0);
+   const userLimit=$('#licenseUserLimit');if(userLimit)userLimit.value=plan.user_limit===null||plan.user_limit===undefined?'':String(plan.user_limit);
    const names=(Array.isArray(plan.modules)?plan.modules:[]).map(k=>licensePlanModuleCatalog.find(m=>m.module_key===k)?.title||k);
    const preview=$('#licensePlanPreview'),limit=plan.user_limit?String(plan.user_limit)+' usuarios':'sin límite definido';
    if(preview)preview.textContent='Plan '+(plan.display_name||key)+': inicial Gs. '+Number(plan.setup_amount||0).toLocaleString('es-PY')+', mensual Gs. '+Number(plan.monthly_amount||0).toLocaleString('es-PY')+', '+limit+'. Módulos: '+names.join(', ')+'.';
@@ -4461,6 +4478,7 @@ html body .auth-gate.auth-gate-hidden {
    const table=$('#licensesTableBody'),businessSelect=$('#licenseBusiness');
    if(!table||!businessSelect)return false;
    await loadLicensePlanSettings();
+   try{const settings=await api('/api/admin/license-settings');const deviceLimit=$('#licenseDeviceLimit');if(deviceLimit)deviceLimit.value=settings.settings?.deviceLimit===null||settings.settings?.deviceLimit===undefined?'':String(settings.settings.deviceLimit);}catch(error){console.warn('No se pudo cargar el límite predeterminado de dispositivos:',error.message);}
    table.innerHTML='<tr><td colspan="11" class="text-center">Cargando licencias…</td></tr>';
    businessSelect.disabled=true;
    try{
@@ -4497,7 +4515,7 @@ html body .auth-gate.auth-gate-hidden {
  const licenseTermLabel=term=>({monthly:'mensual',year_1:'1 año',year_2:'2 años',year_3:'3 años',year_4:'4 años',year_5:'5 años',permanent:'permanente'}[term]||'duración no definida');
  const chooseLicenseTerm=title=>new Promise(resolve=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:30000;background:rgba(10,20,35,.58);display:grid;place-items:center;padding:18px';const panel=document.createElement('div');panel.style.cssText='width:min(100%,420px);padding:22px;border-radius:14px;background:#fff;box-shadow:0 18px 55px #0004';const heading=document.createElement('h3');heading.textContent=title;heading.style.cssText='margin:0 0 14px;font-size:17px;color:#142b45';const label=document.createElement('label');label.textContent='Duración de la licencia';label.style.cssText='display:block;margin-bottom:6px;font-size:12px;font-weight:700';const select=document.createElement('select');select.className='form-select';[['monthly','Mensual'],['year_1','1 año'],['year_2','2 años'],['year_3','3 años'],['year_4','4 años'],['year_5','5 años'],['permanent','Permanente']].forEach(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.appendChild(option);});select.value='year_1';const actions=document.createElement('div');actions.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:18px';const cancel=document.createElement('button');cancel.type='button';cancel.className='btn btn-outline-secondary';cancel.textContent='Cancelar';const confirm=document.createElement('button');confirm.type='button';confirm.className='btn btn-bakery';confirm.textContent='Continuar';const close=value=>{overlay.remove();resolve(value);};cancel.onclick=()=>close(null);confirm.onclick=()=>close(select.value);overlay.addEventListener('click',e=>{if(e.target===overlay)close(null);});actions.append(cancel,confirm);panel.append(heading,label,select,actions);overlay.appendChild(panel);document.body.appendChild(overlay);select.focus();});
  $('#licenseDurationType')?.addEventListener('change',e=>{const preview=$('#licenseExpiryPreview');if(preview)preview.value=e.target.value==='permanent'?'Sin vencimiento':e.target.value==='monthly'?'1 mes desde la activación':licenseTermMonths(e.target.value)+' meses desde la activación';});
- $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{const durationType=$('#licenseDurationType').value;if(licenseTermMonths(durationType)===undefined)throw new Error('Seleccioná una duración válida.');const result=await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,durationType,billingDay:Number($('#licenseBillingDay').value),contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseBillingDay').value=1;$('#licenseDurationType').value='year_1';$('#licenseExpiryPreview').value='12 meses desde la activación';await loadLicenses();updateLicensePlanPreview();const code=result.license?.license_code||'';const termLabel=licenseTermLabel(durationType);if(code){try{await copyLicenseCode(code);alert('Licencia creada con duración '+termLabel+'. El código '+code+' se copió al portapapeles para compartirlo con el cliente.');}catch(_){alert('Licencia creada con duración '+termLabel+'. Código para compartir con el cliente: '+code);}}else alert('Licencia creada con duración '+termLabel+'.');}catch(x){alert(x.message);}});
+ $('#licenseCreateForm')?.addEventListener('submit',async e=>{e.preventDefault();try{const durationType=$('#licenseDurationType').value;if(licenseTermMonths(durationType)===undefined)throw new Error('Seleccioná una duración válida.');const optionalLimit=id=>$(id).value===''?null:Number($(id).value);const result=await api('/api/admin/licenses',{method:'POST',body:JSON.stringify({businessId:$('#licenseBusiness').value,systemName:$('#licenseSystem').value,plan:$('#licensePlan').value,status:$('#licenseStatus').value,durationType,billingDay:Number($('#licenseBillingDay').value),userLimit:optionalLimit('#licenseUserLimit'),deviceLimit:optionalLimit('#licenseDeviceLimit'),contractReference:$('#licenseContract').value,notes:$('#licenseNotes').value})});e.target.reset();$('#licenseSystem').value='Mattsystem';$('#licenseBillingDay').value=1;$('#licenseDurationType').value='year_1';$('#licenseExpiryPreview').value='12 meses desde la activación';updateLicensePlanPreview();await loadLicenses();updateLicensePlanPreview();const code=result.license?.license_code||'';const termLabel=licenseTermLabel(durationType);if(code){try{await copyLicenseCode(code);alert('Licencia creada con duración '+termLabel+'. El código '+code+' se copió al portapapeles para compartirlo con el cliente.');}catch(_){alert('Licencia creada con duración '+termLabel+'. Código para compartir con el cliente: '+code);}}else alert('Licencia creada con duración '+termLabel+'.');}catch(x){alert(x.message);}});
  $('#refreshLicenses')?.addEventListener('click',loadLicenses);
   $('#refreshLicenseInfo')?.addEventListener('click',loadLicenseInfo);
   document.addEventListener('click',event=>{if(event.target.closest('#retryLicenseInfo'))loadLicenseInfo();});
