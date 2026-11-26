@@ -25,8 +25,12 @@
   }
   function updateCount() { const count=$$('.bulk-expense-row').length; const el=$('#bulkExpenseCount'); if(el)el.textContent=`${count} ${count===1?'gasto cargado':'gastos cargados'}`; }
   function mountPanel() {
-    // La carga múltiple forma parte de Movimientos; no debe trasladarse a Gestión operativa.
-    return Boolean($('#bulkExpensePanel') && $('#page-movimientos')?.contains($('#bulkExpensePanel')));
+    // La carga múltiple es una herramienta de Gestión operativa, no de Movimientos.
+    const panel=$('#bulkExpensePanel'),page=$('#page-erp');
+    if(!panel||!page)return false;
+    const heading=page.querySelector('.page-heading');
+    if(heading&&panel.parentElement!==page)heading.insertAdjacentElement('afterend',panel);
+    return page.contains(panel);
   }
   function initialize() {
     mountPanel();
