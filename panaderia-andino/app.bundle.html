@@ -3604,10 +3604,25 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     $$('.settings-tab').forEach((item) => item.classList.toggle('active', item === tab));
     $$('[data-settings-panel]').forEach((panel) => panel.classList.toggle('active', panel.dataset.settingsPanel === target));
   }));
-  $('#businessForm')?.addEventListener('submit', (event) => {
+  $('#businessForm')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+    const previous={...state.business};
     state.business = { ...state.business, name: $('#businessName').value.trim(), address: $('#businessAddress').value.trim(), phone: $('#businessPhone').value.trim(), email: $('#businessEmail').value.trim(), ruc: $('#businessRuc').value.trim(), owner: $('#businessOwner').value.trim() };
-    saveState(); renderSettings(); updateCounters(); notify('Datos del negocio guardados.');
+    saveState(false); renderSettings(); updateCounters();
+    if(button){button.disabled=true;button.dataset.originalText=button.innerHTML;button.innerHTML='<i class="bi bi-hourglass-split"></i> Guardando…';}
+    try{
+      if(window.PanaderiaAuth?.user&&cloudReady){
+        const saved=await window.PanaderiaAuth.api('/api/data',{method:'PUT',body:JSON.stringify({data:cloudPayload()})});
+        cloudUpdatedAt=saved.updatedAt||cloudUpdatedAt;
+      }
+      notify('Datos del negocio guardados y sincronizados correctamente.');
+    }catch(error){
+      state.business=previous;saveState(false);renderSettings();updateCounters();
+      notify('No se pudieron guardar los datos del negocio: '+(error.message||'Error de conexión.'));
+    }finally{
+      if(button){button.disabled=false;button.innerHTML=button.dataset.originalText||'<i class="bi bi-check2"></i> Guardar cambios';delete button.dataset.originalText;}
+    }
   });
   $('#businessLogo')?.addEventListener('change', (event) => {
     const file = event.target.files && event.target.files[0];
