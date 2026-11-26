@@ -700,7 +700,7 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='PUT'){
         const p=body(req).preferences||{};
-        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false};
+        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false,desktop:p.desktop===true};
         const rows=await sql`INSERT INTO app_notification_preferences(user_id,preferences,updated_at) VALUES(${user.id},${JSON.stringify(preferences)}::jsonb,NOW()) ON CONFLICT(user_id) DO UPDATE SET preferences=EXCLUDED.preferences,updated_at=NOW() RETURNING preferences`;
         return send(res,200,{preferences:rows[0].preferences});
       }
