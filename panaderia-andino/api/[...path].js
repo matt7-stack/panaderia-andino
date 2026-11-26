@@ -2845,6 +2845,108 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+
+    if (path === '/api/business/tools') {
+      const user = await authenticated(req,res,false);
+      if (!user) return;
+      if (user.is_platform_admin === true || !user.business_id) return send(res,403,{error:'Seleccioná un negocio para usar estas herramientas.'});
+      const role = String(user.role || '').toLowerCase();
+      const manager = role === 'admin' || role === 'supervisor';
+      if (!['admin','supervisor','employee'].includes(role)) return send(res,403,{error:'Tu rol no tiene acceso a estas herramientas.'});
+      const sql = db();
+      const businessRows = await sql`SELECT id FROM businesses WHERE id=${user.business_id} AND active=TRUE LIMIT 1`;
+      if (!businessRows.length) return send(res,404,{error:'El negocio no está disponible.'});
+      const stateRows = await sql`SELECT data FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
+      const source = stateRows[0]?.data && typeof stateRows[0].data === 'object' && !Array.isArray(stateRows[0].data) ? stateRows[0].data : {};
+      const toolsState = source.mattsystemTools && typeof source.mattsystemTools === 'object' ? source.mattsystemTools : {};
+      const tasks = Array.isArray(toolsState.tasks) ? toolsState.tasks : [];
+      const attachments = Array.isArray(toolsState.attachments) ? toolsState.attachments : [];
+      const importLogs = Array.isArray(toolsState.importLogs) ? toolsState.importLogs : [];
+      if (req.method === 'GET') {
+        const team = await sql`SELECT id,name,role,active FROM app_users WHERE business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE ORDER BY name`;
+        const visibleTasks = manager ? tasks : tasks.filter(t => String(t.assignedToUserId || '') === String(user.id));
+        const movementRows = (Array.isArray(source.movements) ? source.movements : []).slice(-500).map(m => ({id:String(m.id||''),description:String(m.description||m.category||'Movimiento'),date:String(m.date||''),amount:Number(m.amount||0),type:String(m.type||'')}));
+        return send(res,200,{tasks:visibleTasks,attachments:attachments.map(({dataUrl,...meta})=>meta),team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
+      }
+      if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
+      const input = body(req);
+      const operationId = String(input.operationId || '').trim();
+      if (!/^[a-zA-Z0-9_-]{8,100}$/.test(operationId)) return send(res,400,{error:'La operación no tiene un identificador válido.'});
+      const appliedOps = Array.isArray(toolsState.appliedOps) ? toolsState.appliedOps : [];
+      if (appliedOps.includes(operationId)) return send(res,200,{ok:true,alreadyApplied:true});
+      const nextTools = {...toolsState,tasks:[...tasks],attachments:[...attachments],importLogs:[...importLogs]};
+      if (input.action === 'task_create') {
+        if (!manager) return send(res,403,{error:'Solo el dueño o Supervisor puede asignar tareas.'});
+        const title=String(input.title||'').trim().slice(0,120),description=String(input.description||'').trim().slice(0,1000);
+        const assignedToUserId=String(input.assignedToUserId||'');
+        const dueDate=input.dueDate?String(input.dueDate):null;
+        if(!title||!assignedToUserId||!(/^[0-9a-f-]{36}$/i.test(assignedToUserId))||(dueDate&&!validISODate(dueDate)))return send(res,400,{error:'Completá el título, responsable y una fecha válida.'});
+        const assigned=await sql`SELECT id,name FROM app_users WHERE id=${assignedToUserId} AND business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE LIMIT 1`;
+        if(!assigned.length)return send(res,400,{error:'El responsable no pertenece a este negocio o está inactivo.'});
+        nextTools.tasks.push({id:crypto.randomUUID(),title,description,assignedToUserId,assignedToName:assigned[0].name,dueDate,status:'pending',createdByUserId:user.id,createdByName:user.name,createdAt:new Date().toISOString()});
+      } else if (input.action === 'task_status') {
+        const taskId=String(input.taskId||''),status=String(input.status||'');
+        if(!['pending','in_progress','completed'].includes(status))return send(res,400,{error:'Estado de tarea no válido.'});
+        const index=nextTools.tasks.findIndex(t=>String(t.id)===taskId);
+        if(index<0)return send(res,404,{error:'No se encontró la tarea.'});
+        if(!manager&&String(nextTools.tasks[index].assignedToUserId||'')!==String(user.id))return send(res,403,{error:'Solo podés actualizar tus propias tareas asignadas.'});
+        nextTools.tasks[index]={...nextTools.tasks[index],status,updatedAt:new Date().toISOString(),updatedByUserId:user.id};
+      } else if (input.action === 'attachment_add') {
+        const movementId=String(input.movementId||''),name=String(input.name||'').trim().slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
+        if(!movementId||!name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||!dataUrl.startsWith('data:'+mime+';base64,'))return send(res,400,{error:'El comprobante debe ser PDF o imagen JPG, PNG o WEBP.'});
+        const movement=(Array.isArray(source.movements)?source.movements:[]).find(m=>String(m?.id||'')===movementId);
+        if(!movement)return send(res,404,{error:'No se encontró el movimiento seleccionado.'});
+        const base64=dataUrl.slice(dataUrl.indexOf(',')+1);
+        if(!/^[A-Za-z0-9+/=]+$/.test(base64)||Buffer.from(base64,'base64').length>1100000)return send(res,413,{error:'El comprobante supera el límite de 1,1 MB.'});
+        const movementAttachments=nextTools.attachments.filter(a=>String(a.movementId)===movementId);
+        if(movementAttachments.length>=5)return send(res,409,{error:'Este movimiento ya tiene el máximo de 5 comprobantes.'});
+        nextTools.attachments.push({id:crypto.randomUUID(),movementId,name,mime,dataUrl,uploadedByUserId:user.id,uploadedByName:user.name,createdAt:new Date().toISOString()});
+      } else if (input.action === 'import_rows') {
+        if (!manager) return send(res,403,{error:'Solo el dueño o Supervisor puede importar datos.'});
+        const target=String(input.target||''),rows=Array.isArray(input.rows)?input.rows:[];
+        if(!['movements','products','invoices','customers','suppliers'].includes(target)||!rows.length||rows.length>1000)return send(res,400,{error:'Tipo de importación o cantidad de filas no válida (máximo 1.000).'});
+        const old=Array.isArray(source[target])?source[target]:[],seen=new Set(old.map(x=>String(x?.id||''))),added=[];
+        for(const row of rows){
+          if(!row||typeof row!=='object'||Array.isArray(row))continue;
+          let item={id:crypto.randomUUID(),createdAt:new Date().toISOString()};
+          if(target==='movements'){
+            const amount=parseMoney(row.amount??row.importe??row.monto);
+            const type=String(row.type||row.tipo||'').toLowerCase();
+            const date=String(row.date||row.fecha||'').slice(0,10);
+            const description=String(row.description||row.descripcion||row.concepto||'').trim().slice(0,160);
+            if(!Number.isFinite(amount)||amount<=0||!['income','expense','ingreso','gasto'].includes(type)||!validISODate(date)||!description)continue;
+            item={...item,type:type==='income'||type==='ingreso'?'income':'expense',date,description,category:String(row.category||row.categoria||'Importado').slice(0,80),amount,note:String(row.note||row.observacion||'').slice(0,500)};
+          }else if(target==='products'){
+            const name=String(row.name||row.nombre||'').trim().slice(0,100);if(!name)continue;
+            const price=parseMoney(row.price??row.precio??0);item={...item,name,category:String(row.category||row.categoria||'').slice(0,60),price:Number.isFinite(price)?Math.max(0,price):0,available:row.available===false||String(row.available||row.disponibilidad||'').toLowerCase()==='sin stock'?false:true,active:true};
+          }else if(target==='invoices'){
+            const customerName=String(row.customerName||row.cliente||row.customer||'').trim().slice(0,120),amount=parseMoney(row.amount??row.importe??row.monto),date=String(row.date||row.fecha||'').slice(0,10);
+            if(!customerName||!Number.isFinite(amount)||amount<=0||!validISODate(date))continue;
+            item={...item,customerName,amount,date,description:String(row.description||row.descripcion||'Venta importada').slice(0,160),status:'pending',paidAmount:0};
+          }else{
+            const name=String(row.name||row.nombre||row.razon_social||'').trim().slice(0,120);if(!name)continue;
+            item={...item,name,phone:String(row.phone||row.telefono||'').slice(0,60),email:String(row.email||'').slice(0,160),address:String(row.address||row.direccion||'').slice(0,200),notes:String(row.notes||row.observaciones||'').slice(0,400)};
+          }
+          if(item.id&&!seen.has(item.id)){seen.add(item.id);added.push(item);}
+        }
+        if(!added.length)return send(res,400,{error:'No se encontraron filas válidas para importar. Revisá los encabezados y los datos.'});
+        if(added.length>1000)return send(res,400,{error:'La importación supera el máximo permitido.'});
+        nextTools.importLogs.push({id:crypto.randomUUID(),target,rowsAdded:added.length,createdBy:user.name,createdAt:new Date().toISOString()});
+        const serializedSource={...source,[target]:old.concat(added),mattsystemTools:nextTools};
+        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serializedSource)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
+        return send(res,200,{ok:true,rowsAdded:added.length,updatedAt:saved[0]?.updated_at||null});
+      } else {
+        return send(res,400,{error:'Acción no reconocida.'});
+      }
+      nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
+      const serialized={...source,mattsystemTools:nextTools};
+      if(Buffer.byteLength(JSON.stringify(serialized),'utf8')>4500000)return send(res,413,{error:'Los datos de estas herramientas superan el límite de almacenamiento.'});
+      const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serialized)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+      const auditAction=input.action;
+      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},${'business.tools.'+auditAction},'business_tools',${operationId},${JSON.stringify({action:auditAction})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+      return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
+    }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
     if (err && err.code==='23505') {
