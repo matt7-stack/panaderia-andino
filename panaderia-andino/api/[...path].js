@@ -687,6 +687,34 @@ module.exports = async function handler(req, res) {
         const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
+      if(req.method==='DELETE'){
+        const input=body(req),id=String(input.id||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Licencia no válida.'});
+        const removed=await sql`WITH target AS MATERIALIZED (
+            SELECT id,business_id,license_code FROM app_licenses WHERE id=${id} LIMIT 1
+          ),
+          deleted_payments AS (
+            DELETE FROM app_license_payments
+            WHERE license_id IN (SELECT id FROM target)
+            RETURNING id
+          ),
+          deleted_license AS (
+            DELETE FROM app_licenses
+            WHERE id IN (SELECT id FROM target)
+              AND (SELECT COUNT(*) FROM deleted_payments)>=0
+            RETURNING id,business_id,license_code
+          ),
+          audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT business_id,${admin.id},'license.deleted','license',id::text,
+              jsonb_build_object('licenseCode',license_code,'deletedPayments',(SELECT COUNT(*) FROM deleted_payments))
+            FROM deleted_license
+            RETURNING entity_id
+          )
+          SELECT entity_id FROM audit`;
+        if(!removed.length)return send(res,404,{error:'La licencia no existe o ya fue eliminada.'});
+        return send(res,200,{ok:true,deleted:true,id,deletedPayments:true});
+      }
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||'');
         if(input.action==='modules'){
