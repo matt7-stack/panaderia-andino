@@ -257,7 +257,7 @@
           }
           return;
         }
-        const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
         const message = isAppleMobile
           ? 'Para instalar MATTSYSTEM: tocá el botón Compartir del navegador y elegí “Agregar a pantalla de inicio”.'
           : 'La instalación no está disponible en este momento. Abrí MATTSYSTEM en Chrome o Edge, verificá que estés conectado y volvé a intentarlo. También podés usar el menú del navegador y elegir “Instalar aplicación” o “Agregar a pantalla principal”.';
