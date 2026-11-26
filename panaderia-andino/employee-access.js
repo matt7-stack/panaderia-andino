@@ -246,10 +246,15 @@
           return;
         }
         if (installPrompt) {
-          installPrompt.prompt();
-          const choice = await installPrompt.userChoice.catch(() => null);
-          if (choice?.outcome === 'accepted') button.textContent = 'Instalación aceptada';
+          const promptEvent = installPrompt;
           installPrompt = null;
+          try {
+            await promptEvent.prompt();
+            const choice = await promptEvent.userChoice;
+            if (choice?.outcome === 'accepted') button.textContent = 'Instalación aceptada';
+          } catch (_) {
+            window.alert('No se pudo abrir la instalación ahora. Volvé a intentarlo desde el menú del navegador.');
+          }
           return;
         }
         const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
