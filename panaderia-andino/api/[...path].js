@@ -326,24 +326,27 @@ module.exports = async function handler(req, res) {
             WHERE old.business_id=b.business_id
             ORDER BY old.created_at DESC OFFSET 14
           ) RETURNING id`;
-      const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
-      const settings=cfg[0]||{enabled:true,days_before:15};
+      const cfg=await sql`SELECT enabled,days_before,alert_days FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
+      const settings=cfg[0]||{enabled:true,days_before:15,alert_days:[15]};
       let expiryAlertsCreated=0;
       {
-        const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
+        const configuredDays=Array.isArray(settings.alert_days)&&settings.alert_days.length?settings.alert_days:[settings.days_before||15];
+        const alertDays=[...new Set(configuredDays.map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=90))].sort((a,b)=>a-b);
+        const maxDays=Math.max(0,...alertDays);
         const candidates=await sql`
           SELECT 'service'::text AS entity_type,id,NULL::uuid AS business_id,renewal_date AS due_date,description AS item_name,category AS item_group
-          FROM app_platform_expenses WHERE ${settings.enabled===true} AND renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
+          FROM app_platform_expenses WHERE ${settings.enabled===true} AND renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${maxDays}
           UNION ALL
           SELECT 'license'::text AS entity_type,l.id,l.business_id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
           FROM app_licenses l JOIN businesses b ON b.id=l.business_id
-          WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}`;
+          WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${maxDays}`;
         for(const item of candidates){
           const due=String(item.due_date).slice(0,10);
-          const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date) VALUES(${item.entity_type},${item.id},${due}::date) ON CONFLICT(entity_type,entity_id,due_date) DO NOTHING RETURNING id`;
-          if(!logged.length)continue;
           const today=new Date().toISOString().slice(0,10);
           const daysLeft=Math.max(0,Math.round((Date.parse(due+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000));
+          if(!alertDays.includes(daysLeft))continue;
+          const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date,alert_days_before) VALUES(${item.entity_type},${item.id},${due}::date,${daysLeft}) ON CONFLICT(entity_type,entity_id,due_date,alert_days_before) DO NOTHING RETURNING id`;
+          if(!logged.length)continue;
           const title=item.entity_type==='license'?(daysLeft===0?'Licencia vence hoy':'Licencia próxima a vencer'):(daysLeft===0?'Servicio vence hoy':'Servicio próximo a vencer');
           const message=item.entity_type==='license'?(daysLeft===0?'La licencia de '+item.item_name+' vence HOY ('+due+'). Avisá al cliente y gestioná la renovación para evitar la interrupción del servicio.':'La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s).'):(daysLeft===0?'El servicio '+item.item_name+' ('+item.item_group+') se renueva HOY ('+due+').':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan '+daysLeft+' día(s).');
           const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
@@ -2611,7 +2614,7 @@ module.exports = async function handler(req, res) {
         const [rows,totals,settings,upcomingServices,upcomingLicenses,licenseIncome]=await Promise.all([
           sql`SELECT id,expense_date,category,description,amount,recurrence,renewal_date,notes,created_at FROM app_platform_expenses ORDER BY COALESCE(renewal_date,expense_date) ASC NULLS LAST,created_at DESC LIMIT 500`,
           sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`,
-          sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`,
+          sql`SELECT enabled,days_before,alert_days FROM app_platform_notification_settings WHERE id=1 LIMIT 1`,
           sql`SELECT id,category,description,renewal_date,amount FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY renewal_date ASC LIMIT 100`,
           sql`SELECT l.id,l.expires_at,b.name AS business_name,l.plan FROM app_licenses l JOIN businesses b ON b.id=l.business_id WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY l.expires_at ASC LIMIT 200`,
           sql`SELECT COALESCE(SUM(amount),0)::numeric AS month_license_income FROM app_license_payments WHERE paid_at>=date_trunc('month',CURRENT_DATE) AND paid_at<date_trunc('month',CURRENT_DATE)+INTERVAL '1 month'`
@@ -2621,9 +2624,12 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req);
         if(input.kind==='settings'){
-          const enabled=input.enabled===true,daysBefore=Number(input.daysBefore??15);
-          if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>90)return send(res,400,{error:'La anticipación debe estar entre 1 y 90 días.'});
-          const rows=await sql`INSERT INTO app_platform_notification_settings(id,enabled,days_before,updated_by,updated_at) VALUES(1,${enabled},${daysBefore},${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,days_before=EXCLUDED.days_before,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING enabled,days_before`;
+          const enabled=input.enabled===true;
+          const rawDays=Array.isArray(input.alertDays)?input.alertDays:(input.daysBefore!==undefined?[input.daysBefore]:[15]);
+          const alertDays=[...new Set(rawDays.map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=90))].sort((a,b)=>b-a);
+          if(!alertDays.length||alertDays.length>10||alertDays.length!==rawDays.length)return send(res,400,{error:'Configurá entre 1 y 10 alertas distintas, con anticipación de 0 a 90 días.'});
+          const daysBefore=Math.max(...alertDays);
+          const rows=await sql`INSERT INTO app_platform_notification_settings(id,enabled,days_before,alert_days,updated_by,updated_at) VALUES(1,${enabled},${daysBefore},${alertDays}::integer[],${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,days_before=EXCLUDED.days_before,alert_days=EXCLUDED.alert_days,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING enabled,days_before,alert_days`;
           return send(res,200,{ok:true,settings:rows[0]});
         }
         const category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||''),renewalDate=String(input.renewalDate||'');
