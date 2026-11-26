@@ -1357,7 +1357,15 @@ module.exports = async function handler(req, res) {
         const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
+        const activateTrial=input.activateTrial===true;
+        const trialPlanKey=String(input.trialPlanKey||'basic');
+        if(activateTrial&&!['basic','professional','enterprise'].includes(trialPlanKey))return send(res,400,{error:'Seleccioná un plan válido para la prueba gratuita.'});
         let selectedModules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        if(activateTrial){
+          const trialPlan=await sql`SELECT plan_key,modules FROM app_license_plan_settings WHERE plan_key=${trialPlanKey} LIMIT 1`;
+          if(!trialPlan.length)return send(res,400,{error:'No encontramos la configuración del plan elegido para la prueba.'});
+          selectedModules=Array.isArray(trialPlan[0].modules)?[...new Set(trialPlan[0].modules.map(x=>String(x).trim()).filter(Boolean))]:[];
+        }
         if(configMode==='custom'&&!selectedModules.length)return send(res,400,{error:'En configuración personalizada seleccioná al menos un módulo.'});
         if(!selectedModules.length){
           const defaults=await sql`SELECT module_key FROM app_industry_templates WHERE industry_key=${industry} AND enabled_by_default=TRUE ORDER BY module_key`;
@@ -1369,7 +1377,6 @@ module.exports = async function handler(req, res) {
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
         const quotationId=String(input.quotationId||'');
-        const activateTrial=input.activateTrial===true;
         const requestedTrialDays=Number(input.trialDays||7);
         if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>3650))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 3650 días.'});
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
@@ -1401,7 +1408,7 @@ module.exports = async function handler(req, res) {
             setup_amount,monthly_amount,billing_day,created_by,is_trial,
             trial_started_at,trial_days,device_limit,modules
           )
-          SELECT created.id,${trialCode},${licenseSystem},'basic','active',CURRENT_DATE,
+          SELECT created.id,${trialCode},${licenseSystem},${activateTrial?trialPlanKey:'basic'},'active',CURRENT_DATE,
             (CURRENT_DATE + trial_settings.trial_days),
             0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
             trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
