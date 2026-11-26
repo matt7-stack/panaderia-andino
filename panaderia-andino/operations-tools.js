@@ -128,9 +128,12 @@
   };
   const init = async () => {
     await Promise.resolve(window.PanaderiaAuthReady).catch(()=>null);currentUser=window.PanaderiaAuth?.user||null;
-    if(!currentUser||currentUser.isPlatformAdmin===true||!currentUser.businessId&&!currentUser.business_id)return;
+    const nav=document.getElementById('businessToolsNav');
+    const hasBusiness=!!(currentUser?.businessId||currentUser?.business_id);
+    if(nav)nav.hidden=!currentUser||currentUser.isPlatformAdmin===true||!hasBusiness;
+    if(!currentUser||currentUser.isPlatformAdmin===true||!hasBusiness)return;
     if(root)return;
-    addStyles();const nav=document.getElementById('businessToolsNav');if(!nav)return;
+    addStyles();if(!nav)return;
     root=document.createElement('div');root.id='businessToolsModal';root.setAttribute('aria-hidden','true');
     root.innerHTML=`<section class="bt-shell" role="dialog" aria-modal="true" aria-labelledby="btTitle"><header class="bt-head"><div><h2 id="btTitle">Herramientas del negocio</h2><div class="bt-muted">Tareas, comprobantes, importación y continuidad operativa</div></div><button type="button" class="btn-close" aria-label="Cerrar" data-bt-close></button></header><div class="bt-body"><div class="bt-tabs"></div><section data-bt-panel="tasks"></section><section data-bt-panel="attachments" class="bt-hidden"></section><section data-bt-panel="import" class="bt-hidden"></section><section data-bt-panel="offline" class="bt-hidden"></section></div></section>`;
     document.body.appendChild(root);
