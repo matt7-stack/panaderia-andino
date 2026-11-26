@@ -238,6 +238,18 @@
     function hideAutomaticInstallMessages(root = document) {
       const automaticBanner = document.getElementById('mattsystemPwaBanner');
       if (automaticBanner) automaticBanner.remove();
+      // Algunos navegadores muestran una barra flotante de instalación dentro de la página.
+      // Se elimina solo si el botón dice "Instalar" y el contenedor está anclado al borde inferior.
+      root.querySelectorAll('button, [role="button"]').forEach(button => {
+        const label = (button.textContent || button.getAttribute('aria-label') || '').trim();
+        if (!/^instalar(?:\\s+app)?$/i.test(label)) return;
+        const wrapper = button.closest('[role="dialog"], [role="status"], .alert, .toast, .install-banner, .pwa-install-prompt')
+          || button.parentElement?.parentElement;
+        if (!wrapper || wrapper === document.body) return;
+        const style = window.getComputedStyle(wrapper);
+        const fixedBottom = style.position === 'fixed' && (style.bottom !== 'auto' || Number.parseInt(style.insetBlockEnd, 10) >= 0);
+        if (fixedBottom || /install|instal/i.test(String(wrapper.className || ''))) wrapper.remove();
+      });
       root.querySelectorAll('body *').forEach(node => {
         if (node.children.length > 0) return;
         const text = (node.textContent || '').trim();
