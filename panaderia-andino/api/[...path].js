@@ -8,7 +8,7 @@ const { promisify } = require('node:util');
 const scrypt = promisify(crypto.scrypt);
 let sqlClient;
 function hasDbContext(context) {
-  return !!(context && (context.userId || context.businessId || context.loginEmail || context.bootstrapMode || context.publicCatalogBusinessId || context.isPlatformAdmin));
+  return !!(context && (context.userId || context.businessId || context.loginEmail || context.ipHash || context.bootstrapMode || context.publicCatalogBusinessId || context.isPlatformAdmin));
 }
 function setRequestContext(values) {
   const context = requestContext.getStore();
