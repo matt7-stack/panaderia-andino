@@ -1483,8 +1483,8 @@ module.exports = async function handler(req, res) {
     // [deploy] Gestión de empleados aislada por negocio y limitada por licencia.
     if (path === '/api/business/users') {
       const user = await authenticated(req,res,false); if (!user) return;
-      if (user.is_platform_admin === true || user.role !== 'supervisor' || !user.business_id)
-        return send(res,403,{error:'Solo el Supervisor del negocio puede administrar sus empleados.'});
+      if (user.is_platform_admin === true || !['admin','supervisor'].includes(user.role) || !user.business_id)
+        return send(res,403,{error:'Solo el Dueño o Supervisor del negocio puede administrar sus empleados.'});
       const sql = db();
       const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
         LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
@@ -1673,8 +1673,17 @@ module.exports = async function handler(req, res) {
       const businesses = await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if (!businesses.length) return send(res,404,{error:'El negocio no existe o está desactivado.'});
       const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
-      const manager = user.is_platform_admin === true || user.role === 'admin' || user.role === 'supervisor';
-      const can = key => manager || permissions[key] === true;
+      const owner = user.is_platform_admin === true || user.role === 'admin';
+      // El supervisor recibe acceso operativo estándar, nunca privilegios exclusivos del dueño.
+      const supervisorDefaults = user.role === 'supervisor' ? new Set([
+        'sales.view','sales.create','products.view','inventory.view','inventory.manage',
+        'customers.view','customers.manage','suppliers.view','suppliers.manage',
+        'purchases.view','purchases.create','cash.view','recipes.view','recipes.manage',
+        'production.view','production.manage','reports.view','branches.view',
+        'delivery.view','delivery.manage'
+      ]) : new Set();
+      const manager = owner;
+      const can = key => owner || supervisorDefaults.has(key) || permissions[key] === true;
       const canAny = keys => keys.some(can);
       const url = new URL(req.url, `https://${req.headers.host || 'localhost'}`);
       const input = req.method === 'GET' ? {} : body(req);
@@ -2574,7 +2583,7 @@ module.exports = async function handler(req, res) {
       // [deploy] Los empleados no pueden leer ni reemplazar el estado operativo completo.
       // Hasta que exista un modelo de operaciones individuales con autorización por módulo,
       // se aplica denegación por defecto para evitar escalar permisos manipulando /api/data.
-      if(user.is_platform_admin!==true && user.role!=='supervisor')
+      if(user.is_platform_admin!==true && !['admin','supervisor'].includes(user.role))
         return send(res,403,{error:'Tu cuenta de empleado no tiene acceso directo a los datos generales. Solicitá al Supervisor los permisos o una operación habilitada.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
@@ -2606,6 +2615,15 @@ module.exports = async function handler(req, res) {
       if(req.method==='PUT'){
         const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
         const data={...input.data}; delete data.users;
+        if(user.is_platform_admin!==true && user.role==='supervisor'){
+          const currentRows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+          const current=currentRows[0]?.data&&typeof currentRows[0].data==='object'&&!Array.isArray(currentRows[0].data)?currentRows[0].data:{};
+          // Identidad y preferencias globales del negocio pertenecen exclusivamente al dueño.
+          for(const field of ['business','preferences']){
+            if(Object.prototype.hasOwnProperty.call(current,field)) data[field]=current[field];
+            else delete data[field];
+          }
+        }
         if(Array.isArray(enabledBusinessModules)){
           const currentRows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
           const current=currentRows[0]?.data&&typeof currentRows[0].data==='object'&&!Array.isArray(currentRows[0].data)?currentRows[0].data:{};
