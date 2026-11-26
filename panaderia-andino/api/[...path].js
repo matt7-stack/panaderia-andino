@@ -2866,7 +2866,14 @@ module.exports = async function handler(req, res) {
         const team = await sql`SELECT id,name,role,active FROM app_users WHERE business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE ORDER BY name`;
         const visibleTasks = manager ? tasks : tasks.filter(t => String(t.assignedToUserId || '') === String(user.id));
         const movementRows = (Array.isArray(source.movements) ? source.movements : []).slice(-500).map(m => ({id:String(m.id||''),description:String(m.description||m.category||'Movimiento'),date:String(m.date||''),amount:Number(m.amount||0),type:String(m.type||'')}));
-        return send(res,200,{tasks:visibleTasks,attachments:attachments.map(({dataUrl,...meta})=>meta),team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
+        const attachmentId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('attachmentId')||'');
+        if(attachmentId){
+          const file=attachments.find(a=>String(a.id)===attachmentId);
+          if(!file)return send(res,404,{error:'No se encontró el comprobante.'});
+          return send(res,200,{id:file.id,name:file.name,mime:file.mime,dataUrl:file.dataUrl});
+        }
+        const attachmentList=attachments.map(a=>{const movement=movementRows.find(m=>m.id===String(a.movementId));return {id:a.id,movementId:a.movementId,movementDescription:movement?.description||'Movimiento',name:a.name,mime:a.mime,uploadedByName:a.uploadedByName,createdAt:a.createdAt};});
+        return send(res,200,{tasks:visibleTasks,attachments:attachmentList,team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
       }
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
       const input = body(req);
@@ -2892,6 +2899,10 @@ module.exports = async function handler(req, res) {
         if(!manager&&String(nextTools.tasks[index].assignedToUserId||'')!==String(user.id))return send(res,403,{error:'Solo podés actualizar tus propias tareas asignadas.'});
         nextTools.tasks[index]={...nextTools.tasks[index],status,updatedAt:new Date().toISOString(),updatedByUserId:user.id};
       } else if (input.action === 'attachment_add') {
+        if(role==='employee'){
+          const permissions=user.permissions&&typeof user.permissions==='object'&&!Array.isArray(user.permissions)?user.permissions:{};
+          if(permissions['cash.manage']!==true)return send(res,403,{error:'Tu perfil no tiene permiso para adjuntar comprobantes a movimientos.'});
+        }
         const movementId=String(input.movementId||''),name=String(input.name||'').trim().slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
         if(!movementId||!name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||!dataUrl.startsWith('data:'+mime+';base64,'))return send(res,400,{error:'El comprobante debe ser PDF o imagen JPG, PNG o WEBP.'});
         const movement=(Array.isArray(source.movements)?source.movements:[]).find(m=>String(m?.id||'')===movementId);
@@ -2932,9 +2943,9 @@ module.exports = async function handler(req, res) {
         if(!added.length)return send(res,400,{error:'No se encontraron filas válidas para importar. Revisá los encabezados y los datos.'});
         if(added.length>1000)return send(res,400,{error:'La importación supera el máximo permitido.'});
         nextTools.importLogs.push({id:crypto.randomUUID(),target,rowsAdded:added.length,createdBy:user.name,createdAt:new Date().toISOString()});
+        nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
         const serializedSource={...source,[target]:old.concat(added),mattsystemTools:nextTools};
         const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serializedSource)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-        nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
         return send(res,200,{ok:true,rowsAdded:added.length,updatedAt:saved[0]?.updated_at||null});
       } else {
         return send(res,400,{error:'Acción no reconocida.'});
