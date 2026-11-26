@@ -282,8 +282,8 @@ for (const marker of [
 ]) {
   if (!erpUiSource.includes(marker)) throw new Error('Falta control visual de permisos en Gestión operativa: ' + marker);
 }
-if (!serviceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
-    !serviceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
+if (!pushServiceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
+    !pushServiceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
     !pushServiceWorkerSource.includes("mattsystem-pwa-v22")) {
   throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
 }
