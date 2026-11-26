@@ -282,7 +282,7 @@ for (const marker of [
 }
 if (!serviceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
     !serviceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
-    !serviceWorkerSource.includes("mattsystem-pwa-v20")) {
+    !serviceWorkerSource.includes("mattsystem-pwa-v21")) {
   throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
 }
 
