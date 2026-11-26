@@ -2549,8 +2549,15 @@ module.exports = async function handler(req, res) {
         LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
         WHERE bc.business_id=${user.business_id} LIMIT 1`;
       const configured=moduleRows[0]?.configured_modules,licensed=moduleRows[0]?.licensed_modules;
-      const enabledModules=Array.isArray(configured)?(Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured):null;
-      const moduleEnabled=key=>!Array.isArray(enabledModules)||enabledModules.includes(key);
+      // Fail closed: un empleado nunca recibe datos si falta la configuración
+      // del negocio o la lista de módulos de una licencia válida.
+      if(!moduleRows.length||!Array.isArray(configured)||!Array.isArray(licensed)){
+        return send(res,403,{code:'MODULE_ACCESS_UNVERIFIED',error:'No se pudo verificar la configuración y los módulos de tu licencia. Contactá al administrador del negocio.'});
+      }
+      const enabledModules=configured.filter(key=>licensed.includes(key));
+      // Compatibilidad del almacenamiento histórico con las claves actuales del catálogo.
+      const moduleAliases={invoices:'sales',movements:'cash'};
+      const moduleEnabled=key=>enabledModules.includes(moduleAliases[key]||key);
       if (req.method === 'GET') {
         const rows = await sql`SELECT st.data,st.updated_at,b.id AS business_id,b.name AS business_name,b.address AS business_address,b.phone AS business_phone,b.email AS business_email,b.ruc AS business_ruc,b.owner_name AS business_owner
           FROM businesses b LEFT JOIN app_state st ON st.business_id=b.id
