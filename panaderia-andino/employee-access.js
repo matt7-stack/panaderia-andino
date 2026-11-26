@@ -51,7 +51,11 @@
     }
     return result;
   }
-  function renderAccounts(employees, isOwner) {
+  function renderAccounts(employees, isOwner, events) {
+    const latestByEmployee = new Map();
+    (Array.isArray(events) ? events : []).forEach(event => {
+      if (event.employee_user_id && !latestByEmployee.has(event.employee_user_id)) latestByEmployee.set(event.employee_user_id, event.event_type);
+    });
     const list = $('#businessEmployeeAccountsList');
     if (!list) return;
     if (!employees.length) {
@@ -60,8 +64,9 @@
     }
     list.innerHTML = employees.map(employee => {
       const active = employee.active === true;
+      const pending = latestByEmployee.get(employee.id) === 'termination_requested';
       const action = active
-        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">' + (isOwner ? 'Dar de baja' : 'Solicitar baja') + '</button>'
+        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">' + (isOwner ? (pending ? 'Confirmar baja solicitada' : 'Dar de baja') : 'Solicitar baja') + '</button>'
         : (isOwner ? '<button class="btn btn-sm btn-outline-success" type="button" data-employee-offboarding="reactivate">Reactivar</button>' : '');
       return '<article class="border rounded-3 p-3 mb-3" data-business-employee="' + escapeHtml(employee.id) + '">' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><strong>' + escapeHtml(employee.name) +
@@ -106,7 +111,7 @@
       const remaining = limits.remaining == null ? 'sin límite fijo' : String(limits.remaining);
       const summary = $('#businessEmployeeLimit');
       if (summary) summary.textContent = 'Plan ' + (limits.plan || 'actual') + ' · ' + active + ' empleados activos · límite ' + limitText + ' · disponibles ' + remaining + '.';
-      renderAccounts(employees, authUser()?.role === 'admin');
+      renderAccounts(employees, authUser()?.role === 'admin', events);
       renderOffboardingEvents(events);
     } catch (error) {
       const list = $('#businessEmployeeAccountsList');
