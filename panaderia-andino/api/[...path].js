@@ -813,8 +813,8 @@ module.exports = async function handler(req, res) {
     if (path === '/api/auth/login' && req.method === 'POST') {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema(); const input = body(req);
-      const email = String(input.email || '').trim().toLowerCase(); const password = String(input.password || '');
-      if (!email || !password) return send(res,400,{error:'Ingresá tu correo y contraseña.'});
+      const email = String(input.email || '').trim().toLowerCase(); const password = typeof input.password === 'string' ? input.password : '';
+      if (!validEmail(email) || !password || password.length > 200) return send(res,400,{error:'Ingresá un correo válido y una contraseña de hasta 200 caracteres.'});
       setRequestContext({ loginEmail: email });
       const normalizedIp = requestIp(req) || '';
       const ipHash = normalizedIp ? crypto.createHmac('sha256', secret('SESSION_SECRET')).update(normalizedIp).digest('hex') : '';
