@@ -601,12 +601,26 @@ module.exports = async function handler(req, res) {
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),plan=String(input.plan||''),status=String(input.status||''),setup=Number(input.setupAmount),monthly=Number(input.monthlyAmount),billingDay=Number(input.billingDay),userLimit=input.userLimit===''||input.userLimit===null?null:Number(input.userLimit),deviceLimit=input.deviceLimit===''||input.deviceLimit===null?null:Number(input.deviceLimit);
         if(!/^[0-9a-f-]{36}$/i.test(id)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended','cancelled'].includes(status)||!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!(userLimit===null||(Number.isInteger(userLimit)&&userLimit>=1&&userLimit<=500))||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'Revisá el plan, estado, importes, fecha y límites de la licencia.'});
-        const current=await sql`SELECT id,business_id,license_code,modules FROM app_licenses WHERE id=${id} LIMIT 1`;
+        const current=await sql`SELECT id,business_id,license_code,modules,is_trial FROM app_licenses WHERE id=${id} LIMIT 1`;
         if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});
         const configured=await sql`SELECT modules FROM app_business_config WHERE business_id=${current[0].business_id} LIMIT 1`;
-        const authorizedModules=Array.isArray(configured[0]?.modules)?configured[0].modules:(Array.isArray(current[0].modules)?current[0].modules:[]);
-        const rows=await sql`UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},user_limit=${userLimit},device_limit=${deviceLimit},modules=${JSON.stringify(authorizedModules)}::jsonb,expires_at=((CASE WHEN expires_at IS NULL OR expires_at<CURRENT_DATE THEN CURRENT_DATE ELSE expires_at END)+INTERVAL '1 month')::date,updated_at=NOW() WHERE id=${id} RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at`;
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules})}::jsonb)`;
+        const requestedModules=Array.isArray(input.modules)?[...new Set(input.modules.map(value=>String(value).trim()).filter(Boolean))]:null;
+        const authorizedModules=requestedModules|| (Array.isArray(current[0].modules)?current[0].modules:(Array.isArray(configured[0]?.modules)?configured[0].modules:[]));
+        if(!authorizedModules.length||authorizedModules.length>50)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
+        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(authorizedModules)}::jsonb))`;
+        if(validModules.length!==authorizedModules.length)return send(res,400,{error:'Uno o más módulos no están disponibles o todavía no están implementados.'});
+        if(authorizedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!authorizedModules.includes('products'))return send(res,400,{error:'Ventas, inventario, compras y producción requieren Productos y costos.'});
+        if(authorizedModules.includes('users')&&!authorizedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere Empleados y pagos.'});
+        const rows=await sql`WITH config_updated AS (
+          UPDATE app_business_config SET modules=${JSON.stringify(authorizedModules)}::jsonb,updated_by=${admin.id},updated_at=NOW()
+          WHERE business_id=${current[0].business_id} RETURNING business_id
+        ), license_updated AS (
+          UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},user_limit=${userLimit},device_limit=${deviceLimit},modules=${JSON.stringify(authorizedModules)}::jsonb,updated_at=NOW()
+          WHERE id=${id} AND business_id IN (SELECT business_id FROM config_updated)
+          RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at
+        ) SELECT * FROM license_updated`;
+        if(!rows.length)return send(res,409,{error:'No se pudieron guardar juntos los módulos y la licencia. Actualizá la lista e intentá nuevamente.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${current[0].business_id},u.id,'license_update','Licencia actualizada','El administrador actualizó tu plan o las condiciones de tu licencia. Consultá el apartado Info para ver los nuevos datos.' FROM app_users u WHERE u.business_id=${current[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{license:rows[0],updated:true});
       }
@@ -1478,17 +1492,18 @@ module.exports = async function handler(req, res) {
           SELECT
             COALESCE((SELECT trial_enabled FROM app_license_settings WHERE setting_key='default'),TRUE) AS enabled,
             ${activateTrial?requestedTrialDays:7}::int AS trial_days,
-            (SELECT device_limit FROM app_license_settings WHERE setting_key='default') AS device_limit
+            2::int AS user_limit,
+            1::int AS device_limit
         ), trial_created AS (
           INSERT INTO app_licenses(
             business_id,license_code,system_name,plan,status,sold_at,expires_at,
-            setup_amount,monthly_amount,billing_day,created_by,is_trial,
-            trial_started_at,trial_days,device_limit,modules
+            setup_amount,monthly_amount,billing_day,user_limit,device_limit,created_by,is_trial,
+            trial_started_at,trial_days,modules
           )
           SELECT created.id,${trialCode},${licenseSystem},${activateTrial?trialPlanKey:'basic'},'active',CURRENT_DATE,
             (CURRENT_DATE + trial_settings.trial_days),
-            0,0,1,${admin.id},TRUE,NOW(),trial_settings.trial_days,
-            trial_settings.device_limit,${JSON.stringify(selectedModules)}::jsonb
+            0,0,1,trial_settings.user_limit,trial_settings.device_limit,${admin.id},TRUE,NOW(),trial_settings.trial_days,
+            ${JSON.stringify(selectedModules)}::jsonb
           FROM created CROSS JOIN trial_settings
           WHERE ${activateTrial}::boolean=TRUE
           RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,trial_days,device_limit,modules
