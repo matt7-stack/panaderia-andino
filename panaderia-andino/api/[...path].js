@@ -133,8 +133,10 @@ function validISODate(value) {
   return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === dateText;
 }
 function requestIp(req) {
-  const forwarded = String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',').pop().trim();
-  return net.isIP(forwarded) ? forwarded : null;
+  // Vercel establece x-real-ip en el borde. No confiar en x-forwarded-for
+  // enviado por el cliente para decisiones de seguridad o límites por IP.
+  const address = String(req.headers['x-real-ip'] || '').trim();
+  return net.isIP(address) ? address : null;
 }
 function sameOrigin(req) {
   const method = String(req.method || 'GET').toUpperCase();
@@ -188,9 +190,11 @@ async function verifyPassword(password, stored) {
   } catch (_) { return false; }
 }
 function sessionCookie(id, sessionVersion = 0) {
-  const payload = Buffer.from(JSON.stringify({ sub: id, sv: sessionVersion || 0, exp: Date.now() + 31536000000 })).toString('base64url');
+  // Sesión persistente, con vencimiento absoluto a los 30 días.
+  const lifetimeMs = 30 * 24 * 60 * 60 * 1000;
+  const payload = Buffer.from(JSON.stringify({ sub: id, sv: sessionVersion || 0, exp: Date.now() + lifetimeMs })).toString('base64url');
   const sig = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(payload).digest('base64url');
-  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
+  return `pa_session=${encodeURIComponent(payload + '.' + sig)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
 }
 const clearCookie = 'pa_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 async function currentUser(req) {
@@ -315,6 +319,35 @@ module.exports = async function handler(req, res) {
     ? '/api/' + routeSegments.map(segment => String(segment).replace(/^\/+|\/+$/g, '')).filter(Boolean).join('/')
     : new URL(req.url, `https://${req.headers.host || 'localhost'}`).pathname;
   try {
+    // Límite global de API por IP (300 solicitudes cada 5 minutos).
+    // La IP se HMAC-hashea antes de persistirla; nunca se guarda en texto plano.
+    if (requestMethod !== 'OPTIONS') {
+      const clientIp = requestIp(req);
+      if (clientIp) {
+        const ipHash = crypto.createHmac('sha256', secret('SESSION_SECRET')).update(clientIp).digest('hex');
+        setRequestContext({ ipHash });
+        const rateSql = await ensureSchema();
+        const rate = await rateSql`
+          INSERT INTO app_api_rate_limits(ip_hash,window_started,request_count,updated_at)
+          VALUES(${ipHash},NOW(),1,NOW())
+          ON CONFLICT(ip_hash) DO UPDATE SET
+            request_count=CASE
+              WHEN app_api_rate_limits.window_started <= NOW()-INTERVAL '5 minutes' THEN 1
+              ELSE app_api_rate_limits.request_count+1
+            END,
+            window_started=CASE
+              WHEN app_api_rate_limits.window_started <= NOW()-INTERVAL '5 minutes' THEN NOW()
+              ELSE app_api_rate_limits.window_started
+            END,
+            updated_at=NOW()
+          RETURNING request_count,
+            GREATEST(1,CEIL(EXTRACT(EPOCH FROM (window_started+INTERVAL '5 minutes'-NOW()))))::integer AS retry_after
+        `;
+        if (Number(rate[0]?.request_count || 0) > 300) {
+          return send(res,429,{error:'Se alcanzó el límite de solicitudes. Esperá unos minutos y volvé a intentar.'},{'Retry-After':String(rate[0]?.retry_after || 300)});
+        }
+      }
+    }
     if (path === '/api/internal/backup' && req.method === 'GET') {
       const expected = process.env.CRON_SECRET || '';
       const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
