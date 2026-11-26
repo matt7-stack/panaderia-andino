@@ -1532,6 +1532,10 @@ module.exports = async function handler(req, res) {
         if(action==='request_termination'){
           if(user.role!=='supervisor')return send(res,403,{error:'Esta solicitud está reservada al Supervisor.'});
           if(!target.active)return send(res,409,{error:'El empleado ya está dado de baja.'});
+          const latest=await sql`SELECT event_type FROM app_employee_offboarding_events
+            WHERE business_id=${user.business_id} AND employee_user_id=${id}
+            ORDER BY created_at DESC LIMIT 1`;
+          if(latest[0]?.event_type==='termination_requested')return send(res,409,{error:'Ya existe una solicitud de baja pendiente para este empleado.'});
           const reason=String(input.reason||'').trim().slice(0,500);
           const notes=String(input.notes||'').trim().slice(0,1000);
           const event=await sql`WITH saved AS (
@@ -1543,7 +1547,38 @@ module.exports = async function handler(req, res) {
             SELECT ${user.business_id},${user.id},'employee.termination_requested','employee',${id},jsonb_build_object('reason',${reason}) FROM saved
             RETURNING id
           ) SELECT saved.* FROM saved`;
-          return send(res,201,{ok:true,event:event[0],message:'Solicitud de baja registrada. El Dueño debe confirmarla.'});
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+            SELECT ${user.business_id},owner.id,'employee_offboarding','Solicitud de baja de empleado',
+              ${user.name+' solicitó la baja de '+target.name+'. Revisá Empleados para confirmar o rechazar la solicitud.'}
+            FROM app_users owner
+            WHERE owner.business_id=${user.business_id} AND owner.role='admin'
+              AND owner.is_platform_admin=FALSE AND owner.active=TRUE`;
+          return send(res,201,{ok:true,event:event[0],message:'Solicitud registrada. El Dueño recibió una notificación para revisarla.'});
+        }
+        if(action==='reject_request'){
+          if(!isOwner)return send(res,403,{error:'Solo el Dueño puede rechazar una solicitud de baja.'});
+          const latest=await sql`SELECT event_type,actor_user_id FROM app_employee_offboarding_events
+            WHERE business_id=${user.business_id} AND employee_user_id=${id}
+            ORDER BY created_at DESC LIMIT 1`;
+          if(latest[0]?.event_type!=='termination_requested')return send(res,409,{error:'No hay una solicitud pendiente para este empleado.'});
+          const reason=String(input.reason||'').trim().slice(0,500);
+          const event=await sql`WITH saved AS (
+            INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,reason,actor_user_id)
+            VALUES(${user.business_id},${id},${target.name},${target.email},'termination_rejected',${reason||null},${user.id})
+            RETURNING id,event_type,reason,created_at
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT ${user.business_id},${user.id},'employee.termination_rejected','employee',${id},jsonb_build_object('reason',${reason}) FROM saved
+            RETURNING id
+          ) SELECT saved.* FROM saved`;
+          if(latest[0].actor_user_id){
+            await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+              SELECT ${user.business_id},u.id,'employee_offboarding','Solicitud de baja rechazada',
+                ${'El Dueño rechazó la solicitud de baja de '+target.name+'.'+(reason?' Motivo: '+reason:'')}
+              FROM app_users u WHERE u.id=${latest[0].actor_user_id}
+                AND u.business_id=${user.business_id} AND u.active=TRUE`;
+          }
+          return send(res,200,{ok:true,event:event[0],message:'Solicitud rechazada. Se notificó al Supervisor.'});
         }
         if(action==='terminate'){
           if(!isOwner)return send(res,403,{error:'Solo el Dueño puede confirmar la baja de un empleado.'});
