@@ -1518,16 +1518,7 @@ module.exports = async function handler(req, res) {
         if(!id)return send(res,400,{error:'Falta identificar al empleado.'});
         const target=await sql`SELECT id FROM app_users WHERE id=${id} AND business_id=${user.business_id} AND role='employee' AND is_platform_admin=FALSE LIMIT 1`;
         if(!target.length)return send(res,404,{error:'No se encontró el empleado de este negocio.'});
-        if(typeof input.active==='boolean'){
-          if(input.active){
-            const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
-            const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
-            const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE AND id<>${id}`;
-            if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'No se puede reactivar: el negocio alcanzó el límite de empleados de su licencia.'});
-          }
-          const rows=await sql`UPDATE app_users SET active=${input.active},session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
-          return send(res,200,{employee:rows[0]});
-        }
+        if(typeof input.active==='boolean') return send(res,403,{error:'Los cambios de estado deben realizarse desde el proceso formal de baja o reactivación.'});
         if(input.permissions&&typeof input.permissions==='object'&&!Array.isArray(input.permissions)){
           const permissions={}; for(const key of permissionKeys) permissions[key]=input.permissions[key]===true;
           const rows=await sql`UPDATE app_users SET permissions=${JSON.stringify(permissions)}::jsonb,session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} RETURNING id,name,email,role,active,permissions,created_at`;
@@ -1536,6 +1527,83 @@ module.exports = async function handler(req, res) {
         return send(res,400,{error:'No se recibieron permisos o estado válidos.'});
       }
       return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/business/employees/lifecycle') {
+      const user=await authenticated(req,res,false); if(!user)return;
+      if(user.is_platform_admin===true||!['admin','supervisor'].includes(user.role)||!user.business_id)
+        return send(res,403,{error:'Solo el Dueño o Supervisor del negocio puede consultar este historial.'});
+      const sql=db();
+      if(req.method==='GET'){
+        const events=await sql`SELECT e.id,e.employee_user_id,e.actor_user_id,e.event_type,e.status,e.reason,e.private_notes,e.resolved_by,e.resolved_at,e.created_at,
+          employee.name AS employee_name,employee.email AS employee_email,actor.name AS actor_name,resolver.name AS resolved_by_name
+          FROM app_employee_lifecycle_events e
+          JOIN app_users employee ON employee.id=e.employee_user_id
+          JOIN app_users actor ON actor.id=e.actor_user_id
+          LEFT JOIN app_users resolver ON resolver.id=e.resolved_by
+          WHERE e.business_id=${user.business_id}
+          ORDER BY e.created_at DESC LIMIT 200`;
+        return send(res,200,{events});
+      }
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),action=String(input.action||''),employeeId=String(input.employeeId||'');
+      const reason=String(input.reason||'').trim().slice(0,1000),privateNotes=String(input.privateNotes||'').trim().slice(0,2000);
+      if(!employeeId)return send(res,400,{error:'Seleccioná el empleado.'});
+      const targets=await sql`SELECT id,name,email,active FROM app_users WHERE id=${employeeId} AND business_id=${user.business_id} AND role='employee' AND is_platform_admin=FALSE LIMIT 1`;
+      if(!targets.length)return send(res,404,{error:'No se encontró el empleado de este negocio.'});
+      const employee=targets[0];
+      if(action==='request_termination'){
+        if(user.role!=='supervisor')return send(res,403,{error:'La solicitud de baja desde este botón está reservada al Supervisor.'});
+        if(!employee.active)return send(res,409,{error:'El empleado ya está desactivado.'});
+        const pending=await sql`SELECT id FROM app_employee_lifecycle_events WHERE business_id=${user.business_id} AND employee_user_id=${employeeId} AND event_type='termination_requested' AND status='pending' LIMIT 1`;
+        if(pending.length)return send(res,409,{error:'Ya existe una solicitud de baja pendiente para este empleado.'});
+        const rows=await sql`INSERT INTO app_employee_lifecycle_events(business_id,employee_user_id,actor_user_id,event_type,status,reason,private_notes)
+          VALUES(${user.business_id},${employeeId},${user.id},'termination_requested','pending',${reason},${privateNotes}) RETURNING id,created_at`;
+        await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+          SELECT ${user.business_id},u.id,'system_activity','Solicitud de baja de empleado',${'El Supervisor solicitó dar de baja a '+employee.name+'. Revisá la solicitud en Cuentas de empleados.'}
+          FROM app_users u WHERE u.business_id=${user.business_id} AND u.role='admin' AND u.active=TRUE`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${user.business_id},${user.id},'employee.termination_requested','user',${employeeId},${JSON.stringify({employeeName:employee.name,reason})}::jsonb)`;
+        return send(res,201,{requested:true,event:rows[0]});
+      }
+      if(!['admin'].includes(user.role))return send(res,403,{error:'Solo el Dueño puede confirmar una baja, rechazar solicitudes o reactivar empleados.'});
+      if(action==='terminate'){
+        if(!employee.active)return send(res,409,{error:'El empleado ya está desactivado.'});
+        const changed=await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${employeeId} AND business_id=${user.business_id} AND role='employee' AND active=TRUE RETURNING id,name,email,active`;
+        if(!changed.length)return send(res,409,{error:'No se pudo completar la baja; actualizá la lista e intentá nuevamente.'});
+        const event=await sql`INSERT INTO app_employee_lifecycle_events(business_id,employee_user_id,actor_user_id,event_type,status,reason,private_notes)
+          VALUES(${user.business_id},${employeeId},${user.id},'terminated','completed',${reason},${privateNotes}) RETURNING id,created_at`;
+        await sql`UPDATE app_employee_lifecycle_events SET status='completed',resolved_by=${user.id},resolved_at=NOW()
+          WHERE business_id=${user.business_id} AND employee_user_id=${employeeId} AND event_type='termination_requested' AND status='pending'`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${user.business_id},${user.id},'employee.terminated','user',${employeeId},${JSON.stringify({employeeName:employee.name,reason,sessionRevoked:true,historyPreserved:true})}::jsonb)`;
+        return send(res,200,{terminated:true,employee:changed[0],event:event[0],message:'Baja confirmada. Se revocaron todas las sesiones y se conservó el historial.'});
+      }
+      if(action==='reactivate'){
+        if(employee.active)return send(res,409,{error:'El empleado ya tiene acceso activo.'});
+        const lic=await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
+        const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
+        if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'No se puede reactivar: el negocio alcanzó el límite de empleados de su licencia.'});
+        const changed=await sql`UPDATE app_users SET active=TRUE,session_version=session_version+1 WHERE id=${employeeId} AND business_id=${user.business_id} AND role='employee' AND active=FALSE RETURNING id,name,email,active`;
+        if(!changed.length)return send(res,409,{error:'No se pudo reactivar; actualizá la lista e intentá nuevamente.'});
+        const event=await sql`INSERT INTO app_employee_lifecycle_events(business_id,employee_user_id,actor_user_id,event_type,status,reason,private_notes)
+          VALUES(${user.business_id},${employeeId},${user.id},'reactivated','completed',${reason},${privateNotes}) RETURNING id,created_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${user.business_id},${user.id},'employee.reactivated','user',${employeeId},${JSON.stringify({employeeName:employee.name,reason})}::jsonb)`;
+        return send(res,200,{reactivated:true,employee:changed[0],event:event[0]});
+      }
+      if(action==='reject_request'){
+        const requestId=String(input.requestId||'');
+        const rows=await sql`UPDATE app_employee_lifecycle_events SET status='rejected',resolved_by=${user.id},resolved_at=NOW(),private_notes=CASE WHEN ${privateNotes}='' THEN private_notes ELSE ${privateNotes} END
+          WHERE id=${requestId} AND business_id=${user.business_id} AND employee_user_id=${employeeId} AND event_type='termination_requested' AND status='pending' RETURNING id`;
+        if(!rows.length)return send(res,404,{error:'No se encontró una solicitud pendiente para resolver.'});
+        await sql`INSERT INTO app_employee_lifecycle_events(business_id,employee_user_id,actor_user_id,event_type,status,reason,private_notes,resolved_by,resolved_at)
+          VALUES(${user.business_id},${employeeId},${user.id},'termination_request_rejected','rejected',${reason},${privateNotes},${user.id},NOW())`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${user.business_id},${user.id},'employee.termination_request_rejected','user',${employeeId},${JSON.stringify({employeeName:employee.name,reason})}::jsonb)`;
+        return send(res,200,{rejected:true});
+      }
+      return send(res,400,{error:'Acción de personal no reconocida.'});
     }
     if (path === '/api/admin/users') {
       const admin = await authenticated(req,res,true); if (!admin) return;
