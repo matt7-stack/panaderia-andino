@@ -261,7 +261,7 @@ if (appFullHtml.includes('logoPreview.innerHTML = state.business.logo') || !appF
 
 const erpUiSource = fs.readFileSync(path.join(root, 'erp-modules.js'), 'utf8');
 const receivablesSource = fs.readFileSync(path.join(root, 'api/business/receivables.js'), 'utf8');
-const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const pushServiceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 if (!erpUiSource.includes("u.role==='admin'") ||
     !erpUiSource.includes("u.role==='supervisor'&&supervisorDefaults.has(key)") ||
     erpUiSource.includes("u.role==='admin'||u.role==='supervisor'")) {
@@ -398,7 +398,7 @@ if (!webPushMigration.includes('app_push_subscriptions') ||
     !apiSource.includes("path==='/api/push/public-key'") ||
     !apiSource.includes("path==='/api/push/subscriptions'") ||
     !apiSource.includes('sendWebPush(sql,sent.map') ||
-    !serviceWorkerSource.includes("self.addEventListener('push'") ||
+    !pushServiceWorkerSource.includes("self.addEventListener('push'") ||
     !appBundleSource.includes('id="devicePushToggle"') ||
     !appBundleSource.includes("pushManager.subscribe") ||
     !packageSource.dependencies['web-push']) {
