@@ -4056,7 +4056,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }catch(error){notify('No se pudo cargar la configuración de soporte: '+(error.message||'Error de conexión.'));}
     finally{if(submit)submit.disabled=false;}
   }
-  document.getElementById('refreshSupportSettings')?.addEventListener('click',loadAdminSupportSettings);\n  document.getElementById('refreshClientSupportTickets')?.addEventListener('click',loadClientTickets);
+  document.getElementById('refreshSupportSettings')?.addEventListener('click',loadAdminSupportSettings);
+  document.getElementById('refreshClientSupportTickets')?.addEventListener('click',loadClientTickets);
   document.addEventListener('submit',async(event)=>{
     const form=event.target;if(!form||form.id!=='adminSupportSettingsForm')return;
     event.preventDefault();event.stopPropagation();
@@ -4722,7 +4723,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
  });
  window.addEventListener('panaderia:pagenavigate', event => {
    if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) {
-     if(event.detail?.page==='configuracion'){loadPrefs();loadClientTickets();}\n     if(event.detail?.page==='contacto-soporte')loadClientTickets();
+     if(event.detail?.page==='configuracion'){loadPrefs();loadClientTickets();}
+     if(event.detail?.page==='contacto-soporte')loadClientTickets();
      if(event.detail?.page==='notificaciones')window.refreshNotifications();
       if(event.detail?.page==='info')loadLicenseInfo();
      return;
