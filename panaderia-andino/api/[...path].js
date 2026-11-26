@@ -19,19 +19,49 @@ function db() {
   if (!connectionString) throw new Error('DATABASE_URL_RUNTIME or DATABASE_URL missing');
   if (!sqlClient) {
     const raw = neon(connectionString);
-    const contextQuery = context => raw`SELECT
-      set_config('app.user_id', ${String(context.userId || '')}, true),
-      set_config('app.business_id', ${String(context.businessId || '')}, true),
-      set_config('app.is_platform_admin', ${context.isPlatformAdmin === true ? 'true' : 'false'}, true),
-      set_config('app.login_email', ${String(context.loginEmail || '')}, true),
-      set_config('app.ip_hash', ${String(context.ipHash || '')}, true),
-      set_config('app.bootstrap_mode', ${context.bootstrapMode === true ? 'true' : 'false'}, true),
-      set_config('app.public_catalog_business_id', ${String(context.publicCatalogBusinessId || '')}, true)`;
+    const usesRuntimeRole = Boolean(process.env.DATABASE_URL_RUNTIME);
+    const contextQuery = context => {
+      const ctx = context || {};
+      const businessId = String(ctx.businessId || '');
+      const userId = String(ctx.userId || '');
+      const isPlatformAdmin = ctx.isPlatformAdmin === true ? 'true' : 'false';
+      const loginEmail = String(ctx.loginEmail || '');
+      const ipHash = String(ctx.ipHash || '');
+      const bootstrapMode = ctx.bootstrapMode === true ? 'true' : 'false';
+      const publicCatalogBusinessId = String(ctx.publicCatalogBusinessId || '');
+      const contextSecret = secret('TENANT_CONTEXT_SECRET');
+      if (!/^[a-f0-9]{64}$/i.test(contextSecret)) {
+        throw new Error('TENANT_CONTEXT_SECRET must be 32 bytes encoded as 64 hexadecimal characters');
+      }
+      const contextPayload = [businessId, userId, isPlatformAdmin, loginEmail, ipHash, bootstrapMode, publicCatalogBusinessId].join('|');
+      const contextSignature = crypto.createHmac('sha256', Buffer.from(contextSecret, 'hex'))
+        .update(contextPayload, 'utf8').digest('hex');
+      return usesRuntimeRole
+        ? raw`SELECT
+            set_config('app.user_id', ${userId}, true),
+            set_config('app.business_id', ${businessId}, true),
+            set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
+            set_config('app.login_email', ${loginEmail}, true),
+            set_config('app.ip_hash', ${ipHash}, true),
+            set_config('app.bootstrap_mode', ${bootstrapMode}, true),
+            set_config('app.public_catalog_business_id', ${publicCatalogBusinessId}, true),
+            set_config('app.context_signature', ${contextSignature}, true)`
+        : raw`SELECT
+            set_config('role', 'mattsystem_app', true),
+            set_config('app.user_id', ${userId}, true),
+            set_config('app.business_id', ${businessId}, true),
+            set_config('app.is_platform_admin', ${isPlatformAdmin}, true),
+            set_config('app.login_email', ${loginEmail}, true),
+            set_config('app.ip_hash', ${ipHash}, true),
+            set_config('app.bootstrap_mode', ${bootstrapMode}, true),
+            set_config('app.public_catalog_business_id', ${publicCatalogBusinessId}, true),
+            set_config('app.context_signature', ${contextSignature}, true)`;
+    };
     const scoped = (strings, ...values) => {
       const query = raw(strings, ...values);
       const execute = () => {
-        const context = requestContext.getStore();
-        return hasDbContext(context)
+        const context = requestContext.getStore() || {};
+        return (!usesRuntimeRole || hasDbContext(context))
           ? raw.transaction([contextQuery(context), query]).then(results => results[1])
           : query;
       };
@@ -44,8 +74,8 @@ function db() {
     };
     scoped.transaction = queries => {
       const rawQueries = (Array.isArray(queries) ? queries : []).map(query => query && query.rawQuery ? query.rawQuery : query);
-      const context = requestContext.getStore();
-      if (!hasDbContext(context)) return raw.transaction(rawQueries);
+      const context = requestContext.getStore() || {};
+      if (usesRuntimeRole && !hasDbContext(context)) return raw.transaction(rawQueries);
       return raw.transaction([contextQuery(context), ...rawQueries]).then(results => results.slice(1));
     };
     sqlClient = scoped;
@@ -291,7 +321,42 @@ module.exports = async function handler(req, res) {
             WHERE old.business_id=b.business_id
             ORDER BY old.created_at DESC OFFSET 14
           ) RETURNING id`;
-      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,source:'daily_cron'});
+      const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
+      const settings=cfg[0]||{enabled:true,days_before:15};
+      let expiryAlertsCreated=0;
+      if(settings.enabled===true){
+        const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
+        const candidates=await sql`
+          SELECT 'service'::text AS entity_type,id,NULL::uuid AS business_id,renewal_date AS due_date,description AS item_name,category AS item_group
+          FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
+          UNION ALL
+          SELECT 'license'::text AS entity_type,l.id,l.business_id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
+          FROM app_licenses l JOIN businesses b ON b.id=l.business_id
+          WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}`;
+        for(const item of candidates){
+          const due=String(item.due_date).slice(0,10);
+          const logged=await sql`INSERT INTO app_expiry_alert_events(entity_type,entity_id,due_date) VALUES(${item.entity_type},${item.id},${due}::date) ON CONFLICT(entity_type,entity_id,due_date) DO NOTHING RETURNING id`;
+          if(!logged.length)continue;
+          const today=new Date().toISOString().slice(0,10);
+          const daysLeft=Math.max(0,Math.round((Date.parse(due+'T00:00:00Z')-Date.parse(today+'T00:00:00Z'))/86400000));
+          const title=item.entity_type==='license'?'Licencia próxima a vencer':'Servicio próximo a vencer';
+          const message=item.entity_type==='license'?'La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s).':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan '+daysLeft+' día(s).';
+          const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
+          expiryAlertsCreated+=sent.length;
+          if(item.entity_type==='license'&&item.business_id){
+            const customerTitle='Tu licencia está próxima a vencer';
+            const customerMessage='La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s). Para mantener el acceso a MATTSYSTEM, contactá al administrador o realizá la renovación antes del vencimiento.';
+            const customerNotices=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+              SELECT ${item.business_id},u.id,'license_expiry',${customerTitle},${customerMessage}
+              FROM app_users u
+              WHERE u.business_id=${item.business_id} AND u.active=TRUE AND u.is_platform_admin=FALSE
+              AND COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=u.id),TRUE)=TRUE
+              RETURNING id`;
+            expiryAlertsCreated+=customerNotices.length;
+          }
+        }
+      }
+      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,expiryAlertsCreated,source:'daily_cron'});
     }
 
     if (path === '/api/maintenance/status' && req.method === 'GET') {
@@ -538,6 +603,11 @@ module.exports = async function handler(req, res) {
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!(durationMonths===null||(Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120)))return send(res,400,{error:'Datos de licencia no válidos. Revisá negocio, tipo, duración y día de cobro.'});
         const planRows=await sql`SELECT setup_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
+        const defaultSettings=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+        const hasUserLimit=Object.prototype.hasOwnProperty.call(input,'userLimit'),hasDeviceLimit=Object.prototype.hasOwnProperty.call(input,'deviceLimit');
+        const userLimit=hasUserLimit?(input.userLimit===null||input.userLimit===''?null:Number(input.userLimit)):(planRows[0].user_limit===null?null:Number(planRows[0].user_limit));
+        const deviceLimit=hasDeviceLimit?(input.deviceLimit===null||input.deviceLimit===''?null:Number(input.deviceLimit)):(defaultSettings[0]?.device_limit===null||defaultSettings[0]?.device_limit===undefined?null:Number(defaultSettings[0].device_limit));
+        if(!(userLimit===null||(Number.isInteger(userLimit)&&userLimit>=1&&userLimit<=500))||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'Los límites deben ser enteros: usuarios de 1 a 500 y dispositivos de 1 a 100, o dejarlos sin límite.'});
         const setup=Number(planRows[0].setup_amount),monthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
@@ -548,7 +618,7 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationMonths} IS NULL THEN NULL ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${planRows[0].user_limit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationMonths} IS NULL THEN NULL ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -631,11 +701,11 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const rows=await sql`SELECT preferences FROM app_notification_preferences WHERE user_id=${user.id}`;
-        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true}});
+        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true,desktop:false}});
       }
       if(req.method==='PUT'){
         const p=body(req).preferences||{};
-        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false};
+        const preferences={system:p.system!==false,financial:p.financial!==false,support:p.support!==false,desktop:p.desktop===true};
         const rows=await sql`INSERT INTO app_notification_preferences(user_id,preferences,updated_at) VALUES(${user.id},${JSON.stringify(preferences)}::jsonb,NOW()) ON CONFLICT(user_id) DO UPDATE SET preferences=EXCLUDED.preferences,updated_at=NOW() RETURNING preferences`;
         return send(res,200,{preferences:rows[0].preferences});
       }
@@ -1399,7 +1469,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND (${user.is_platform_admin===true} OR n.type<>'system_activity') AND CASE WHEN n.type='system_activity' OR n.type='admin_message' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
+        const rows=await sql`SELECT n.id,n.type,n.title,n.message,n.read_at,n.created_at,b.name AS business_name FROM app_notifications n LEFT JOIN businesses b ON b.id=n.business_id WHERE n.user_id=${user.id} AND (${user.is_platform_admin===true} OR n.type<>'system_activity') AND CASE WHEN n.type='system_activity' OR n.type='admin_message' OR n.type='license_expiry' THEN COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) WHEN n.type='financial' THEN COALESCE((SELECT (p.preferences->>'financial')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) ELSE COALESCE((SELECT (p.preferences->>'support')::boolean FROM app_notification_preferences p WHERE p.user_id=${user.id}),TRUE) END ORDER BY n.created_at DESC LIMIT 100`;
         return send(res,200,{notifications:rows});
       }
       if(req.method==='PATCH'){
@@ -1422,7 +1492,7 @@ module.exports = async function handler(req, res) {
       const configured=moduleRows[0]?.configured_modules,licensed=moduleRows[0]?.licensed_modules;
       const enabledModules=Array.isArray(configured)?(Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured):null;
       if(Array.isArray(enabledModules)&&(!enabledModules.includes('users')||!enabledModules.includes('employees')))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'La gestión de usuarios y empleados no está incluida en la configuración contratada.'});
-      const permissionKeys = ['sales.view','sales.create','sales.cancel','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export','receivables.view','receivables.manage','branches.view','branches.manage','delivery.view','delivery.manage'];
+      const permissionKeys = ['sales.view','sales.create','sales.cancel','sales.price_override','sales.discount','products.view','products.manage','inventory.view','inventory.manage','customers.view','customers.manage','suppliers.view','suppliers.manage','purchases.view','purchases.create','cash.view','cash.manage','cash.open','cash.close','recipes.view','recipes.manage','production.view','production.manage','reports.view','reports.export','receivables.view','receivables.manage','branches.view','branches.manage','delivery.view','delivery.manage','delivery.price_override','delivery.discount'];
       if (req.method === 'GET') {
         const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
         const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
@@ -1747,26 +1817,43 @@ module.exports = async function handler(req, res) {
           const phone=String(input.phone||'').trim().slice(0,60)||null;
           const customerId=String(input.customerId||'')||null;
           const idempotencyKey=String(input.idempotencyKey||'').trim().slice(0,128);
-          const deliveryFee=Number(input.deliveryFee||0),discount=Number(input.discount||0);
+          const canOverrideDeliveryPrice=manager||permissions['delivery.price_override']===true;
+          const canDiscountDelivery=manager||permissions['delivery.discount']===true;
+          const requestedDeliveryFee=Number(input.deliveryFee??0),discount=Number(input.discount??0);
           if(!recipientName||!address||raw.length<1||raw.length>40||idempotencyKey.length<8||
-             !Number.isFinite(deliveryFee)||deliveryFee<0||!Number.isFinite(discount)||discount<0)
+             !Number.isFinite(requestedDeliveryFee)||requestedDeliveryFee<0||!Number.isFinite(discount)||discount<0)
             return send(res,400,{error:'Completá destinatario, dirección, artículos e importes válidos.'});
-          const items=raw.map(item=>({
+          if(!canOverrideDeliveryPrice&&requestedDeliveryFee!==0)
+            return send(res,403,{error:'No tenés autorización para modificar el costo de envío.'});
+          if(!canDiscountDelivery&&discount>0)
+            return send(res,403,{error:'No tenés autorización para aplicar descuentos en pedidos.'});
+          const deliveryFee=canOverrideDeliveryPrice?requestedDeliveryFee:0;
+          const requestedItems=raw.map(item=>({
             product_id:String(item.productId||'')||null,
             description:String(item.description||'').trim().slice(0,160),
             quantity:Number(item.quantity),
             unit_price:Number(item.unitPrice)
           }));
-          if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||
+          if(requestedItems.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||
              !Number.isFinite(item.unit_price)||item.unit_price<0||
              (item.product_id&&!/^[0-9a-f-]{36}$/i.test(item.product_id))))
             return send(res,400,{error:'Revisá los productos, cantidades y precios del pedido.'});
-          const productIds=[...new Set(items.filter(x=>x.product_id).map(x=>x.product_id))];
-          if(productIds.length){
-            const found=await sql`SELECT id FROM app_products WHERE business_id=${businessId}
-              AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb)) AND active=TRUE`;
-            if(found.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio o están inactivos.'});
-          }
+          const productIds=[...new Set(requestedItems.filter(x=>x.product_id).map(x=>x.product_id))];
+          const products=productIds.length?await sql`SELECT id,sale_price,active FROM app_products WHERE business_id=${businessId}
+            AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`:[];
+          if(products.length!==productIds.length||products.some(product=>product.active!==true))
+            return send(res,400,{error:'Uno o más productos no pertenecen a este negocio o están inactivos.'});
+          const productById=new Map(products.map(product=>[String(product.id),product]));
+          const items=requestedItems.map(item=>{
+            if(!item.product_id)return canOverrideDeliveryPrice?item:null;
+            const product=productById.get(item.product_id);
+            if(!product)return null;
+            const catalogPrice=Number(product.sale_price||0);
+            if(!canOverrideDeliveryPrice&&item.unit_price!==catalogPrice)return null;
+            return {...item,unit_price:canOverrideDeliveryPrice?item.unit_price:catalogPrice};
+          });
+          if(items.some(item=>!item))
+            return send(res,403,{error:'El precio del pedido debe coincidir con el catálogo. Solicitá autorización para modificarlo.'});
           if(customerId){
             if(!/^[0-9a-f-]{36}$/i.test(customerId))return send(res,400,{error:'El identificador del cliente no es válido.'});
             const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;
@@ -1835,33 +1922,66 @@ module.exports = async function handler(req, res) {
         }
         if (module === 'inventory') {
           const productId=String(input.productId||''),type=String(input.movementType||''),quantity=Number(input.quantity),unitCost=Number(input.unitCost||0);
-          if(!productId||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
-          const products=await sql`SELECT id,stock FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1`;
-          if(!products.length)return send(res,404,{error:'Producto no encontrado en este negocio.'});
-          const oldStock=Number(products[0].stock||0),newStock=type==='entry'?oldStock+quantity:(type==='adjustment'?quantity:oldStock-quantity),movementQuantity=type==='adjustment'?Math.abs(quantity-oldStock):quantity;
-          if(newStock<0)return send(res,409,{error:'No hay existencias suficientes para ese movimiento.'});
-          if(movementQuantity<=0)return send(res,400,{error:'El ajuste no cambia las existencias actuales.'});
-          const rows=await sql`WITH changed AS (UPDATE app_products SET stock=${newStock},cost_price=CASE WHEN (${type}='entry' OR (${type}='adjustment' AND ${newStock}>${oldStock})) AND ${newStock}>0 THEN ((stock*cost_price)+(${movementQuantity}*${unitCost}))/${newStock} ELSE cost_price END,updated_at=NOW() WHERE id=${productId} AND business_id=${businessId} AND (${type} NOT IN ('exit','waste') OR stock>=${quantity}) RETURNING id),
-            movement AS (INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
-              SELECT ${businessId},id,${type},${movementQuantity},${unitCost},${String(input.reference||'').slice(0,120)||null},${String(input.notes||'').slice(0,1000)||null},${user.id} FROM changed RETURNING *)
-            SELECT * FROM movement`;
-          return send(res,201,{movement:rows[0],stock:newStock});
+          if(!/^[0-9a-f-]{36}$/i.test(productId)||!['entry','exit','adjustment','waste'].includes(type)||!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0)return send(res,400,{error:'Datos de movimiento de inventario no válidos.'});
+          const rows=await sql`WITH locked AS MATERIALIZED (
+              SELECT id,stock,cost_price FROM app_products WHERE id=${productId} AND business_id=${businessId} FOR UPDATE
+            ), calculated AS (
+              SELECT id,stock AS old_stock,
+                CASE WHEN ${type}='entry' THEN stock+${quantity}
+                     WHEN ${type}='adjustment' THEN ${quantity}
+                     ELSE stock-${quantity} END AS new_stock,
+                CASE WHEN ${type}='adjustment' THEN ABS(${quantity}-stock) ELSE ${quantity} END AS movement_quantity
+              FROM locked
+            ), changed AS (
+              UPDATE app_products p SET stock=c.new_stock,
+                cost_price=CASE WHEN (${type}='entry' OR (${type}='adjustment' AND c.new_stock>c.old_stock)) AND c.new_stock>0
+                  THEN ((p.stock*p.cost_price)+(c.movement_quantity*${unitCost}))/c.new_stock ELSE p.cost_price END,
+                updated_at=NOW()
+              FROM calculated c
+              WHERE p.id=c.id AND c.new_stock>=0 AND c.movement_quantity>0
+                AND (${type} NOT IN ('exit','waste') OR c.old_stock>=${quantity})
+              RETURNING p.id,p.stock
+            ), movement AS (
+              INSERT INTO app_inventory_movements(business_id,product_id,movement_type,quantity,unit_cost,reference,notes,actor_user_id)
+              SELECT ${businessId},c.id,${type},c.movement_quantity,${unitCost},${String(input.reference||'').slice(0,120)||null},
+                ${String(input.notes||'').slice(0,1000)||null},${user.id}
+              FROM calculated c JOIN changed ch ON ch.id=c.id RETURNING *
+            )
+            SELECT movement.*,changed.stock FROM movement JOIN changed ON changed.id=movement.product_id`;
+          if(!rows.length){
+            const exists=await sql`SELECT id FROM app_products WHERE id=${productId} AND business_id=${businessId} LIMIT 1`;
+            if(!exists.length)return send(res,404,{error:'Producto no encontrado en este negocio.'});
+            return send(res,409,{error:'No se pudo aplicar el movimiento: verificá el stock disponible y que el ajuste cambie las existencias.'});
+          }
+          return send(res,201,{movement:rows[0],stock:Number(rows[0].stock)});
         }
         if (module === 'sales') {
           const raw=Array.isArray(input.items)?input.items:[];if(!raw.length||raw.length>100)return send(res,400,{error:'Agregá entre 1 y 100 artículos a la venta.'});
-          const items=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_price:Number(item.unitPrice)}));
-          if(items.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_price)||item.unit_price<0))return send(res,400,{error:'Hay artículos con descripción, cantidad o precio no válidos.'});
-          const productIds=[...new Set(items.filter(item=>item.product_id).map(item=>item.product_id))];
-          const products=productIds.length?await sql`SELECT id,name,stock,cost_price FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`:[];
-          if(products.length!==productIds.length)return send(res,400,{error:'Uno o más productos no pertenecen a este negocio.'});
+          const canOverrideSalePrice=manager||permissions['sales.price_override']===true;
+          const canDiscountSale=manager||permissions['sales.discount']===true;
+          const requestedItems=raw.map(item=>({product_id:item.productId?String(item.productId):null,description:String(item.description||'').trim().slice(0,160),quantity:Number(item.quantity),unit_price:Number(item.unitPrice)}));
+          if(requestedItems.some(item=>!item.description||!Number.isFinite(item.quantity)||item.quantity<=0||!Number.isFinite(item.unit_price)||item.unit_price<0||(item.product_id&&!/^[0-9a-f-]{36}$/i.test(item.product_id))))return send(res,400,{error:'Hay artículos con descripción, cantidad o precio no válidos.'});
+          const productIds=[...new Set(requestedItems.filter(item=>item.product_id).map(item=>item.product_id))];
+          const products=productIds.length?await sql`SELECT id,name,stock,cost_price,sale_price,active FROM app_products WHERE business_id=${businessId} AND id IN (SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(productIds)}::jsonb))`:[];
+          if(products.length!==productIds.length||products.some(product=>product.active!==true))return send(res,400,{error:'Uno o más productos no pertenecen a este negocio o están inactivos.'});
           const byId=new Map(products.map(product=>[String(product.id),product]));
+          const items=requestedItems.map(item=>{
+            if(!item.product_id)return canOverrideSalePrice?item:null;
+            const product=byId.get(item.product_id);
+            if(!product)return null;
+            const catalogPrice=Number(product.sale_price||0);
+            if(!canOverrideSalePrice&&item.unit_price!==catalogPrice)return null;
+            return {...item,unit_price:canOverrideSalePrice?item.unit_price:catalogPrice};
+          });
+          if(items.some(item=>!item))return send(res,403,{error:'El precio de venta debe coincidir con el catálogo. Solicitá autorización para modificarlo.'});
           const required=new Map();for(const item of items)if(item.product_id)required.set(item.product_id,(required.get(item.product_id)||0)+item.quantity);
           for(const [id,qty] of required){if(Number(byId.get(id).stock||0)<qty)return send(res,409,{error:'Existencias insuficientes para '+byId.get(id).name+'.'});}
           const customerId=String(input.customerId||'')||null;
           if(customerId){const customer=await sql`SELECT id FROM app_customers WHERE id=${customerId} AND business_id=${businessId} AND active=TRUE LIMIT 1`;if(!customer.length)return send(res,400,{error:'El cliente no pertenece a este negocio o está inactivo.'});}
           const payload=items.map(item=>({...item,unit_cost:item.product_id?Number(byId.get(item.product_id).cost_price||0):0}));
-          const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0),discount=Number(input.discount||0);
+          const subtotal=items.reduce((sum,item)=>sum+item.quantity*item.unit_price,0),discount=Number(input.discount??0);
           if(!Number.isFinite(discount)||discount<0||discount>subtotal)return send(res,400,{error:'El descuento no puede superar el subtotal.'});
+          if(!canDiscountSale&&discount>0)return send(res,403,{error:'No tenés autorización para aplicar descuentos en ventas.'});
           const total=subtotal-discount,saleNumber='VTA-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(2).toString('hex').toUpperCase(),paymentMethod=String(input.paymentMethod||'').slice(0,40)||null;
           const payloadJson=JSON.stringify(payload);
           const rows=await sql`WITH locked_products AS MATERIALIZED (
@@ -2339,15 +2459,29 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const rows=await sql`SELECT id,expense_date,category,description,amount,recurrence,notes,created_at FROM app_platform_expenses ORDER BY expense_date DESC,created_at DESC LIMIT 500`;
-        const totals=await sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`;
-        return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0}});
+        const [rows,totals,settings,upcomingServices,upcomingLicenses,licenseIncome]=await Promise.all([
+          sql`SELECT id,expense_date,category,description,amount,recurrence,renewal_date,notes,created_at FROM app_platform_expenses ORDER BY COALESCE(renewal_date,expense_date) ASC NULLS LAST,created_at DESC LIMIT 500`,
+          sql`SELECT COALESCE(SUM(amount) FILTER(WHERE date_trunc('month',expense_date)=date_trunc('month',CURRENT_DATE)),0)::numeric AS month_total,COALESCE(SUM(amount),0)::numeric AS all_total FROM app_platform_expenses`,
+          sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`,
+          sql`SELECT id,category,description,renewal_date,amount FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY renewal_date ASC LIMIT 100`,
+          sql`SELECT l.id,l.expires_at,b.name AS business_name,l.plan FROM app_licenses l JOIN businesses b ON b.id=l.business_id WHERE l.status='active' AND l.expires_at IS NOT NULL AND l.expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+30 ORDER BY l.expires_at ASC LIMIT 200`,
+          sql`SELECT COALESCE(SUM(amount),0)::numeric AS month_license_income FROM app_license_payments WHERE paid_at>=date_trunc('month',CURRENT_DATE) AND paid_at<date_trunc('month',CURRENT_DATE)+INTERVAL '1 month'`
+        ]);
+        return send(res,200,{expenses:rows,totals:totals[0]||{month_total:0,all_total:0},settings:settings[0]||{enabled:true,days_before:15},upcomingServices,upcomingLicenses,licenseIncome:licenseIncome[0]||{month_license_income:0}});
       }
       if(req.method==='POST'){
-        const input=body(req),category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||'');
+        const input=body(req);
+        if(input.kind==='settings'){
+          const enabled=input.enabled===true,daysBefore=Number(input.daysBefore??15);
+          if(!Number.isInteger(daysBefore)||daysBefore<1||daysBefore>90)return send(res,400,{error:'La anticipación debe estar entre 1 y 90 días.'});
+          const rows=await sql`INSERT INTO app_platform_notification_settings(id,enabled,days_before,updated_by,updated_at) VALUES(1,${enabled},${daysBefore},${admin.id},NOW()) ON CONFLICT(id) DO UPDATE SET enabled=EXCLUDED.enabled,days_before=EXCLUDED.days_before,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING enabled,days_before`;
+          return send(res,200,{ok:true,settings:rows[0]});
+        }
+        const category=String(input.category||'').trim().slice(0,80),description=String(input.description||'').trim().slice(0,240),amount=parseMoney(input.amount),recurrence=['one_time','monthly','annual'].includes(input.recurrence)?input.recurrence:'one_time',notes=String(input.notes||'').trim().slice(0,500),date=String(input.date||''),renewalDate=String(input.renewalDate||'');
         if(!category||!description||!Number.isFinite(amount)||amount<=0)return send(res,400,{error:'Ingresá categoría, descripción e importe mayor que cero.'});
-        if(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date))return send(res,400,{error:'La fecha no es válida.'});
-        const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,notes,created_at`;
+        if(date&&!validISODate(date))return send(res,400,{error:'La fecha del gasto no es válida.'});
+        if(renewalDate&&!validISODate(renewalDate))return send(res,400,{error:'La fecha de renovación no es válida.'});
+        const rows=await sql`INSERT INTO app_platform_expenses(expense_date,category,description,amount,recurrence,renewal_date,notes,created_by) VALUES(${date||null}::date,${category},${description},${amount},${recurrence},${renewalDate||null}::date,${notes},${admin.id}) RETURNING id,expense_date,category,description,amount,recurrence,renewal_date,notes,created_at`;
         return send(res,201,{ok:true,expense:rows[0]});
       }
       if(req.method==='DELETE'){

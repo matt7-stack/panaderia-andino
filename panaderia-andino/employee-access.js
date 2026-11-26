@@ -7,6 +7,7 @@
   }[char]));
   const groups = [
     { title: 'Ventas y notas', items: [['sales.view', 'Ver ventas y notas'], ['sales.create', 'Registrar ventas y notas'], ['sales.cancel', 'Anular ventas']] },
+    { title: 'Autorizaciones comerciales', items: [['sales.price_override', 'Modificar precios de venta'], ['sales.discount', 'Aplicar descuentos en ventas'], ['delivery.price_override', 'Modificar precios y envío de pedidos'], ['delivery.discount', 'Aplicar descuentos en pedidos']] },
     { title: 'Productos', items: [['products.view', 'Ver productos'], ['products.manage', 'Administrar productos']] },
     { title: 'Inventario', items: [['inventory.view', 'Consultar existencias'], ['inventory.manage', 'Registrar movimientos de stock']] },
     { title: 'Clientes y proveedores', items: [['customers.view', 'Ver clientes'], ['customers.manage', 'Administrar clientes'], ['suppliers.view', 'Ver proveedores'], ['suppliers.manage', 'Administrar proveedores']] },

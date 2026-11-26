@@ -114,12 +114,10 @@
       "destination": "/api/[...path]"
     }
   ],
-  "schedules": {
-    "mattsystem-daily-backup": {
-      "schedule": "0 2 * * *",
-      "timezone": "America/Asuncion",
+  "crons": [
+    {
       "path": "/api/internal/backup",
-      "requestMethod": "GET"
+      "schedule": "0 5 * * *"
     }
-  }
+  ]
 }
