@@ -65,7 +65,7 @@ if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
     !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
   throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
 }
-for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v1","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser"]) {
+for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024"]) {
   if (!operationsToolsSource.includes(marker)) throw new Error('Falta una función de herramientas del negocio o sincronización: ' + marker);
 }
 const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
@@ -87,6 +87,31 @@ if (!apiSource.includes("path === '/api/business/tools'") ||
     !apiSource.includes("nextTools.tasks[index].assignedToUserId||'')!==String(user.id)")) {
   throw new Error('Las herramientas deben validar el rol, limitar responsables y auditar las importaciones.');
 }
+if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
+    !apiSource.includes("fileBytes.subarray(0,5).toString('ascii')==='%PDF-'") ||
+    !apiSource.includes("configured.filter(key=>key==='dashboard')") ||
+    !apiSource.includes("const [orders,customers,products,branches,events]") ||
+    !apiSource.includes("input.name===undefined}::boolean") ||
+    !apiSource.includes("input.address===undefined}::boolean") ||
+    !apiSource.includes("input.phone===undefined}::boolean") ||
+    !apiSource.includes("input.managerName===undefined}::boolean") ||
+    !apiSource.includes("typeof input.active==='boolean'}::boolean")) {
+  throw new Error('La API debe evitar sobrescrituras concurrentes, validar archivos, respetar módulos y tipar condiciones SQL.');
+}
+if (operationsToolsSource.includes('xlsx@0.18.5') ||
+    !operationsToolsSource.includes('xlsx-0.20.3/package/dist/xlsx.full.min.js')) {
+  throw new Error('La importación Excel debe usar la versión oficial actualizada de SheetJS.');
+}
+const csvParserMatch = operationsToolsSource.match(/const parseCSV = text => \{([\s\S]*?)\n  \};/);
+if (!csvParserMatch) throw new Error('No se encontró el lector CSV.');
+const parseCSV = new Function('text', csvParserMatch[1]);
+const semicolonCsv = parseCSV('nombre;importe;concepto\nPanadería;100000;"Venta; mostrador"');
+if (semicolonCsv.length !== 1 || semicolonCsv[0].importe !== '100000' || semicolonCsv[0].concepto !== 'Venta; mostrador') {
+  throw new Error('El lector CSV debe interpretar separadores regionales y campos entre comillas.');
+}
+const commaCsv = parseCSV('name,amount\nPan,100000');
+if (commaCsv.length !== 1 || commaCsv[0].amount !== '100000') throw new Error('El lector CSV debe admitir archivos separados por coma.');
+
 const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
 if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
