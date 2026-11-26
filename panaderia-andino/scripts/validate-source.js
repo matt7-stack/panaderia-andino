@@ -116,6 +116,10 @@ if (semicolonCsv.length !== 1 || semicolonCsv[0].importe !== '100000' || semicol
 const commaCsv = parseCSV('name,amount\nPan,100000');
 if (commaCsv.length !== 1 || commaCsv[0].amount !== '100000') throw new Error('El lector CSV debe admitir archivos separados por coma.');
 
+const uncastBooleanCase = [...apiSource.matchAll(/CASE WHEN \$\{([^}]+)\}(?=\s*(?:THEN|AND|OR))/g)];
+if (uncastBooleanCase.length) {
+  throw new Error('Todas las condiciones CASE parametrizadas deben declarar el tipo booleano para evitar errores SQL 42P18.');
+}
 const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
 if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
