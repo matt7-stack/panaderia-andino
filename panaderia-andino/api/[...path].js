@@ -1542,6 +1542,9 @@ module.exports = async function handler(req, res) {
             SELECT ${user.business_id},${user.id},'employee.termination_requested','employee',${id},jsonb_build_object('reason',${reason}) FROM saved
             RETURNING id
           ) SELECT saved.* FROM saved`;
+          await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+            SELECT ${user.business_id},owner.id,'system_activity','Solicitud de baja de empleado',${'El Supervisor solicitó dar de baja a '+target.name+'. Revisá la solicitud en Cuentas de empleados.'}
+            FROM app_users owner WHERE owner.business_id=${user.business_id} AND owner.role='admin' AND owner.active=TRUE`;
           return send(res,201,{ok:true,event:event[0],message:'Solicitud de baja registrada. El Dueño debe confirmarla.'});
         }
         if(action==='terminate'){
