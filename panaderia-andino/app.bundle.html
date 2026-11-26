@@ -4057,7 +4057,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     finally{if(submit)submit.disabled=false;}
   }
   document.getElementById('refreshSupportSettings')?.addEventListener('click',loadAdminSupportSettings);
-  document.getElementById('refreshClientSupportTickets')?.addEventListener('click',loadClientTickets);
+  // La recarga de tickets se conecta en el módulo de soporte, donde loadClientTickets está definida.
   document.addEventListener('submit',async(event)=>{
     const form=event.target;if(!form||form.id!=='adminSupportSettingsForm')return;
     event.preventDefault();event.stopPropagation();
