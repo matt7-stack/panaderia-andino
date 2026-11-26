@@ -2882,8 +2882,11 @@ module.exports = async function handler(req, res) {
           if(!file)return send(res,404,{error:'No se encontró el comprobante.'});
           return send(res,200,{id:file.id,name:file.name,mime:file.mime,dataUrl:file.dataUrl});
         }
-        const attachmentList=canViewMovements&&moduleEnabled('movements')?attachments.map(a=>{const movement=movementRows.find(m=>m.id===String(a.movementId));return {id:a.id,movementId:a.movementId,movementDescription:movement?.description||'Movimiento',name:a.name,mime:a.mime,uploadedByName:a.uploadedByName,createdAt:a.createdAt};}):[];
-        return send(res,200,{tasks:visibleTasks,attachments:attachmentList,team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
+        const canViewAttachments=canViewMovements&&moduleEnabled('movements');
+        const canAddAttachment=moduleEnabled('movements')&&(manager||user.permissions?.['cash.manage']===true);
+        const importTargets=manager?['movements','products','invoices','customers','suppliers'].filter(moduleEnabled):[];
+        const attachmentList=canViewAttachments?attachments.map(a=>{const movement=movementRows.find(m=>m.id===String(a.movementId));return {id:a.id,movementId:a.movementId,movementDescription:movement?.description||'Movimiento',name:a.name,mime:a.mime,uploadedByName:a.uploadedByName,createdAt:a.createdAt};}):[];
+        return send(res,200,{tasks:visibleTasks,attachments:attachmentList,canViewAttachments,canAddAttachment,importTargets,team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
       }
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
       const input = body(req);
