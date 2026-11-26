@@ -1956,7 +1956,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
+    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Dueño' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de un negocio.
@@ -1976,6 +1976,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true)) ||
         (page === 'erp' && Object.values(employeePermissions).some(value => value === true));
       link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
+      if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
     ['adminLicensesNav','adminQuoteNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
@@ -2230,6 +2231,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-maintenance' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
+    if (page === 'configuracion' && currentUser?.isPlatformAdmin !== true && currentUser?.role !== 'admin') return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-centro' && currentUser?.isPlatformAdmin !== true) return;
     if (currentUser?.role === 'employee') {
@@ -2694,7 +2696,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
-      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+      const roleLabel = user.role === 'admin' ? 'Dueño' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
       const actions = user.isPlatformAdmin === true ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Mover usuario a papelera" aria-label="Mover usuario a papelera" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
