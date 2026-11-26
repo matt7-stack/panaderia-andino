@@ -2856,6 +2856,14 @@ module.exports = async function handler(req, res) {
       const sql = db();
       const businessRows = await sql`SELECT id FROM businesses WHERE id=${user.business_id} AND active=TRUE LIMIT 1`;
       if (!businessRows.length) return send(res,404,{error:'El negocio no está disponible.'});
+      const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
+        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+        WHERE bc.business_id=${user.business_id} LIMIT 1`;
+      const configured=Array.isArray(moduleRows[0]?.configured_modules)?moduleRows[0].configured_modules:[];
+      const licensed=moduleRows[0]?.licensed_modules;
+      const enabledModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured;
+      const moduleEnabled=key=>enabledModules.includes(key);
+      const canViewMovements=manager||user.permissions?.['cash.view']===true||user.permissions?.['cash.manage']===true;
       const stateRows = await sql`SELECT data FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
       const source = stateRows[0]?.data && typeof stateRows[0].data === 'object' && !Array.isArray(stateRows[0].data) ? stateRows[0].data : {};
       const toolsState = source.mattsystemTools && typeof source.mattsystemTools === 'object' ? source.mattsystemTools : {};
@@ -2865,14 +2873,15 @@ module.exports = async function handler(req, res) {
       if (req.method === 'GET') {
         const team = await sql`SELECT id,name,role,active FROM app_users WHERE business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE ORDER BY name`;
         const visibleTasks = manager ? tasks : tasks.filter(t => String(t.assignedToUserId || '') === String(user.id));
-        const movementRows = (Array.isArray(source.movements) ? source.movements : []).slice(-500).map(m => ({id:String(m.id||''),description:String(m.description||m.category||'Movimiento'),date:String(m.date||''),amount:Number(m.amount||0),type:String(m.type||'')}));
+        const movementRows = canViewMovements&&moduleEnabled('movements') ? (Array.isArray(source.movements) ? source.movements : []).slice(-500).map(m => ({id:String(m.id||''),description:String(m.description||m.category||'Movimiento'),date:String(m.date||''),amount:Number(m.amount||0),type:String(m.type||'')})) : [];
         const attachmentId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('attachmentId')||'');
         if(attachmentId){
+          if(!canViewMovements||!moduleEnabled('movements'))return send(res,403,{error:'No tenés permiso para consultar comprobantes.'});
           const file=attachments.find(a=>String(a.id)===attachmentId);
           if(!file)return send(res,404,{error:'No se encontró el comprobante.'});
           return send(res,200,{id:file.id,name:file.name,mime:file.mime,dataUrl:file.dataUrl});
         }
-        const attachmentList=attachments.map(a=>{const movement=movementRows.find(m=>m.id===String(a.movementId));return {id:a.id,movementId:a.movementId,movementDescription:movement?.description||'Movimiento',name:a.name,mime:a.mime,uploadedByName:a.uploadedByName,createdAt:a.createdAt};});
+        const attachmentList=canViewMovements&&moduleEnabled('movements')?attachments.map(a=>{const movement=movementRows.find(m=>m.id===String(a.movementId));return {id:a.id,movementId:a.movementId,movementDescription:movement?.description||'Movimiento',name:a.name,mime:a.mime,uploadedByName:a.uploadedByName,createdAt:a.createdAt};}):[];
         return send(res,200,{tasks:visibleTasks,attachments:attachmentList,team:manager?team:[],movements:movementRows,importLogs:manager?importLogs:[],pendingOperations:Array.isArray(toolsState.appliedOps)?toolsState.appliedOps.length:0});
       }
       if (req.method !== 'POST') return send(res,405,{error:'Método no permitido.'});
@@ -2888,7 +2897,7 @@ module.exports = async function handler(req, res) {
         const assignedToUserId=String(input.assignedToUserId||'');
         const dueDate=input.dueDate?String(input.dueDate):null;
         if(!title||!assignedToUserId||!(/^[0-9a-f-]{36}$/i.test(assignedToUserId))||(dueDate&&!validISODate(dueDate)))return send(res,400,{error:'Completá el título, responsable y una fecha válida.'});
-        const assigned=await sql`SELECT id,name FROM app_users WHERE id=${assignedToUserId} AND business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE LIMIT 1`;
+        const assigned=await sql`SELECT id,name FROM app_users WHERE id=${assignedToUserId} AND business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE AND (${role==='admin'}::boolean OR role='employee') LIMIT 1`;
         if(!assigned.length)return send(res,400,{error:'El responsable no pertenece a este negocio o está inactivo.'});
         nextTools.tasks.push({id:crypto.randomUUID(),title,description,assignedToUserId,assignedToName:assigned[0].name,dueDate,status:'pending',createdByUserId:user.id,createdByName:user.name,createdAt:new Date().toISOString()});
       } else if (input.action === 'task_status') {
@@ -2899,6 +2908,7 @@ module.exports = async function handler(req, res) {
         if(!manager&&String(nextTools.tasks[index].assignedToUserId||'')!==String(user.id))return send(res,403,{error:'Solo podés actualizar tus propias tareas asignadas.'});
         nextTools.tasks[index]={...nextTools.tasks[index],status,updatedAt:new Date().toISOString(),updatedByUserId:user.id};
       } else if (input.action === 'attachment_add') {
+        if(!moduleEnabled('movements'))return send(res,403,{error:'El módulo de movimientos no está incluido en el plan activo de este negocio.'});
         if(role==='employee'){
           const permissions=user.permissions&&typeof user.permissions==='object'&&!Array.isArray(user.permissions)?user.permissions:{};
           if(permissions['cash.manage']!==true)return send(res,403,{error:'Tu perfil no tiene permiso para adjuntar comprobantes a movimientos.'});
@@ -2915,7 +2925,9 @@ module.exports = async function handler(req, res) {
       } else if (input.action === 'import_rows') {
         if (!manager) return send(res,403,{error:'Solo el dueño o Supervisor puede importar datos.'});
         const target=String(input.target||''),rows=Array.isArray(input.rows)?input.rows:[];
-        if(!['movements','products','invoices','customers','suppliers'].includes(target)||!rows.length||rows.length>1000)return send(res,400,{error:'Tipo de importación o cantidad de filas no válida (máximo 1.000).'});
+        const requiredModule={movements:'movements',products:'products',invoices:'invoices',customers:'customers',suppliers:'suppliers'}[target];
+        if(!requiredModule||!moduleEnabled(requiredModule))return send(res,403,{error:'Ese tipo de datos no está incluido en los módulos activos de este negocio.'});
+        if(!rows.length||rows.length>1000)return send(res,400,{error:'Tipo de importación o cantidad de filas no válida (máximo 1.000).'});
         const old=Array.isArray(source[target])?source[target]:[],seen=new Set(old.map(x=>String(x?.id||''))),added=[];
         for(const row of rows){
           if(!row||typeof row!=='object'||Array.isArray(row))continue;
