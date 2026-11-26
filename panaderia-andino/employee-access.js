@@ -58,17 +58,39 @@
       list.innerHTML = '<p class="text-muted mb-0">Todavía no hay cuentas de empleados. Creá la primera desde el formulario.</p>';
       return;
     }
+    const owner = authUser()?.role === 'admin';
     list.innerHTML = employees.map(employee => {
       const active = employee.active === true;
+      const action = active
+        ? (owner ? '<button class="btn btn-sm btn-outline-danger" type="button" data-offboard-business-employee>Dar de baja</button>' : '<button class="btn btn-sm btn-outline-warning" type="button" data-request-business-employee-offboard>Solicitar baja</button>')
+        : (owner ? '<button class="btn btn-sm btn-outline-success" type="button" data-reactivate-business-employee>Reactivar</button>' : '');
       return '<article class="border rounded-3 p-3 mb-3" data-business-employee="' + escapeHtml(employee.id) + '">' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><strong>' + escapeHtml(employee.name) +
-        '</strong><div class="small text-muted">' + escapeHtml(employee.email) + '</div></div><div class="d-flex align-items-center gap-2">' +
-        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Desactivada') + '</span>' +
-        '<button class="btn btn-sm ' + (active ? 'btn-outline-warning' : 'btn-outline-success') + '" type="button" data-toggle-business-employee>' +
-        (active ? 'Desactivar' : 'Activar') + '</button></div></div><div class="row g-2 mt-2">' +
+        '</strong><div class="small text-muted">' + escapeHtml(employee.email) + '</div></div><div class="d-flex align-items-center gap-2 flex-wrap">' +
+        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Sin acceso') + '</span>' +
+        action + '</div></div><div class="row g-2 mt-2">' +
         permissionMarkup(employee.permissions || {}, 'employee-' + employee.id) +
         '</div><div class="d-flex justify-content-end mt-3"><button class="btn btn-sm btn-bakery" type="button" data-save-business-employee-permissions>Guardar permisos</button></div></article>';
     }).join('');
+  }
+  function renderLifecycle(events) {
+    const panel = $('#employeeLifecycleHistory');
+    if (!panel) return;
+    const owner = authUser()?.role === 'admin';
+    const rows = Array.isArray(events) ? events : [];
+    const pending = rows.filter(item => item.event_type === 'termination_requested' && item.status === 'pending');
+    const history = rows.filter(item => !(item.event_type === 'termination_requested' && item.status === 'pending'));
+    panel.innerHTML = (owner && pending.length ? '<div class="mb-3"><strong>Solicitudes pendientes del Supervisor</strong>' +
+      pending.map(item => '<article class="border rounded-3 p-3 mt-2" data-lifecycle-request="' + escapeHtml(item.id) + '" data-employee-id="' + escapeHtml(item.employee_user_id) + '">' +
+        '<div><strong>' + escapeHtml(item.employee_name) + '</strong><div class="small text-muted">Solicitó: ' + escapeHtml(item.actor_name) + ' · ' + escapeHtml(new Date(item.created_at).toLocaleString('es-PY')) + '</div>' +
+        '<p class="mb-2 mt-2">' + escapeHtml(item.reason || 'Sin motivo indicado') + '</p></div><div class="d-flex gap-2 flex-wrap">' +
+        '<button type="button" class="btn btn-sm btn-danger" data-approve-employee-offboard>Confirmar baja</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary" data-reject-employee-offboard>Rechazar solicitud</button></div></article>').join('') + '</div>' : '') +
+      '<div><strong>Historial de movimientos de personal</strong>' +
+      (history.length ? history.map(item => '<div class="border-bottom py-2"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>' +
+        escapeHtml(item.employee_name) + '</strong><span class="small text-muted">' + escapeHtml(new Date(item.created_at).toLocaleString('es-PY')) +
+        '</span></div><div class="small">' + escapeHtml(({terminated:'Baja confirmada',reactivated:'Cuenta reactivada',termination_request_rejected:'Solicitud rechazada',termination_requested:'Solicitud de baja'})[item.event_type] || item.event_type) +
+        ' · Responsable: ' + escapeHtml(item.actor_name) + '</div>' + (item.reason ? '<div class="small text-muted">' + escapeHtml(item.reason) + '</div>' : '') + '</div>').join('') : '<p class="small text-muted mt-2 mb-0">Todavía no hay movimientos registrados.</p>') + '</div>';
   }
   async function loadEmployees() {
     const panel = $('#supervisorEmployeeAccounts');
@@ -86,6 +108,8 @@
       const summary = $('#businessEmployeeLimit');
       if (summary) summary.textContent = 'Plan ' + (limits.plan || 'actual') + ' · ' + active + ' empleados activos · límite ' + limitText + ' · disponibles ' + remaining + '.';
       renderAccounts(employees);
+      const lifecycle = await api('/api/business/employees/lifecycle');
+      renderLifecycle(lifecycle.events || []);
     } catch (error) {
       const list = $('#businessEmployeeAccountsList');
       if (list) list.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(error.message || 'No se pudieron cargar las cuentas.') + '</p>';
@@ -136,8 +160,22 @@
     const id = card.dataset.businessEmployee;
     const toggle = event.target.closest('[data-toggle-business-employee]');
     const save = event.target.closest('[data-save-business-employee-permissions]');
+    const offboard = event.target.closest('[data-offboard-business-employee]');
+    const requestOffboard = event.target.closest('[data-request-business-employee-offboard]');
+    const reactivate = event.target.closest('[data-reactivate-business-employee]');
     try {
-      if (toggle) {
+      if (offboard || requestOffboard || reactivate) {
+        const action = offboard ? 'terminate' : requestOffboard ? 'request_termination' : 'reactivate';
+        const question = action === 'terminate' ? 'Confirmar la baja? Se cerrarán sus sesiones y se conservará su historial.' :
+          action === 'request_termination' ? 'Enviar al Dueño una solicitud de baja?' : 'Reactivar el acceso de este empleado?';
+        if (!window.confirm(question)) return;
+        const reason = window.prompt('Motivo (opcional):', '') || '';
+        const button = offboard || requestOffboard || reactivate;
+        button.disabled = true;
+        await api('/api/business/employees/lifecycle', { method: 'POST', body: JSON.stringify({ action, employeeId: id, reason }) });
+        await loadEmployees();
+        window.alert(action === 'request_termination' ? 'Solicitud enviada al Dueño.' : action === 'terminate' ? 'Baja confirmada. Las sesiones fueron revocadas y el historial se conservó.' : 'Empleado reactivado.');
+      } else if (toggle) {
         toggle.disabled = true;
         const active = !card.querySelector('.badge')?.classList.contains('bg-success');
         await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, active }) });
@@ -156,6 +194,26 @@
       if (save) save.disabled = false;
     }
   }
+  async function resolveLifecycleRequest(event, card) {
+    const approve = event.target.closest('[data-approve-employee-offboard]');
+    const reject = event.target.closest('[data-reject-employee-offboard]');
+    if (!approve && !reject) return;
+    if (authUser()?.role !== 'admin') return;
+    const action = approve ? 'terminate' : 'reject_request';
+    if (!window.confirm(approve ? 'Confirmar la baja solicitada? Se revocarán las sesiones y se conservará el historial.' : 'Rechazar esta solicitud de baja?')) return;
+    const reason = window.prompt('Motivo (opcional):', '') || '';
+    const button = approve || reject; button.disabled = true;
+    try {
+      await api('/api/business/employees/lifecycle', { method: 'POST', body: JSON.stringify({
+        action, employeeId: card.dataset.employeeId, requestId: card.dataset.lifecycleRequest, reason
+      }) });
+      await loadEmployees();
+      window.alert(approve ? 'Baja confirmada. Las sesiones fueron revocadas y el historial se conservó.' : 'Solicitud rechazada.');
+    } catch (error) {
+      window.alert(error.message || 'No se pudo resolver la solicitud.');
+      button.disabled = false;
+    }
+  }
   function activate(user) {
     const panel = $('#supervisorEmployeeAccounts');
     if (!panel) return;
@@ -172,7 +230,9 @@
   });
   document.addEventListener('click', event => {
     if (event.target.closest('#refreshBusinessEmployees')) loadEmployees();
-    if (event.target.closest('[data-toggle-business-employee],[data-save-business-employee-permissions]')) handleAccountAction(event);
+    if (event.target.closest('[data-toggle-business-employee],[data-save-business-employee-permissions],[data-offboard-business-employee],[data-request-business-employee-offboard],[data-reactivate-business-employee]')) handleAccountAction(event);
+    const request = event.target.closest('[data-lifecycle-request]');
+    if (request && canManage()) resolveLifecycleRequest(event, request);
   });
   window.addEventListener('panaderia:authenticated', event => activate(event.detail || authUser()));
   window.addEventListener('panaderia:pagenavigate', event => {
