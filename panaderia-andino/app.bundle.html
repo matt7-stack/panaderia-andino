@@ -3050,7 +3050,78 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<h3 class="section">Hosting, mantenimiento y soporte</h3><p>No aparecen como conceptos incluidos ni cotizados en el total de esta propuesta. Si el cliente los requiere, se detallarán en una cotización o acuerdo separado, con sus importes y periodicidad.</p>'+
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
-              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div></body></html>';
+              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>
+<style id="client-sidebar-layout-fix-20261126">
+/* Cuenta cliente: conservar navegación lateral; nunca convertirla en barra horizontal superior. */
+@media (max-width: 767.98px) {
+  body:not(.platform-admin) .app-shell { display:block; min-height:100vh; }
+  body:not(.platform-admin) .sidebar {
+    position:fixed !important;
+    inset:0 auto 0 0 !important;
+    z-index:1040 !important;
+    width:min(86vw,300px) !important;
+    height:100vh !important;
+    height:100dvh !important;
+    max-height:100dvh !important;
+    min-height:0 !important;
+    display:flex !important;
+    flex-direction:column !important;
+    overflow:hidden !important;
+    padding:18px 14px max(18px,env(safe-area-inset-bottom)) !important;
+    border:0 !important;
+    border-right:1px solid rgba(255,255,255,.1) !important;
+    border-bottom:0 !important;
+    border-radius:0 !important;
+    box-shadow:12px 0 32px rgba(11,28,45,.22) !important;
+    transform:translateX(-105%) !important;
+    transition:transform .22s ease !important;
+  }
+  body:not(.platform-admin) .sidebar.open { transform:translateX(0) !important; }
+  body:not(.platform-admin) .sidebar-label { display:block !important; }
+  body:not(.platform-admin) .sidebar-bottom { display:block !important; }
+  body:not(.platform-admin) .sidebar .brand { display:flex !important; }
+  body:not(.platform-admin) .sidebar .nav-menu {
+    display:grid !important;
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    white-space:normal !important;
+    padding:2px 4px 14px 0 !important;
+  }
+  body:not(.platform-admin) .sidebar .nav-link {
+    flex:initial !important;
+    width:100% !important;
+    min-height:44px !important;
+    padding:0 12px !important;
+    white-space:normal !important;
+  }
+  body:not(.platform-admin) .main-content { width:100% !important; margin-left:0 !important; }
+  body:not(.platform-admin) .sidebar-backdrop.show {
+    position:fixed !important;
+    inset:0 !important;
+    z-index:1035 !important;
+    display:block !important;
+    background:rgba(11,28,45,.48) !important;
+    backdrop-filter:blur(2px);
+  }
+}
+@media (min-width:768px) {
+  body:not(.platform-admin) .sidebar {
+    position:fixed !important;
+    inset:0 auto 0 0 !important;
+    width:258px !important;
+    height:100vh !important;
+    height:100dvh !important;
+    display:flex !important;
+    flex-direction:column !important;
+    transform:none !important;
+  }
+  body:not(.platform-admin) .main-content { margin-left:258px !important; }
+}
+</style>
+
+</body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
           actions.querySelector('#sendBusinessQuote').addEventListener('click',()=>{
