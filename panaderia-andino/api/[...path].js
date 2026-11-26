@@ -15,7 +15,12 @@ function setRequestContext(values) {
   if (context) Object.assign(context, values || {});
 }
 function db() {
-  const connectionString = process.env.DATABASE_URL_RUNTIME || process.env.DATABASE_URL;
+  const previewRequiresRuntime = process.env.VERCEL_ENV === 'preview';
+  const runtimeConnectionString = process.env.DATABASE_URL_RUNTIME;
+  if (previewRequiresRuntime && !runtimeConnectionString) {
+    throw new Error('DATABASE_URL_RUNTIME is required on Vercel Preview; refusing to fall back to DATABASE_URL.');
+  }
+  const connectionString = runtimeConnectionString || process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL_RUNTIME or DATABASE_URL missing');
   if (!sqlClient) {
     const raw = neon(connectionString);
@@ -291,7 +296,7 @@ module.exports = async function handler(req, res) {
   try {
     if (path === '/api/internal/backup' && req.method === 'GET') {
       const expected = process.env.CRON_SECRET || '';
-      const supplied = String(req.headers.authorization || '').replace(/^Bearer\\s+/i, '').trim();
+      const supplied = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
       if (!expected || !safeEqual(supplied, expected)) return send(res, 401, { error: 'No autorizado.' });
       setRequestContext({ isPlatformAdmin: true });
       const sql = db();
@@ -1112,13 +1117,28 @@ module.exports = async function handler(req, res) {
       if(req.method==='DELETE'){
         const input=body(req),id=String(input.id||'');
         if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Cotización no válida.'});
-        const current=await sql`SELECT id,business_id,status,prospect_name FROM app_quotations WHERE id=${id} LIMIT 1`;
-        if(!current.length)return send(res,404,{error:'Cotización no encontrada.'});
-        if(['accepted','converted'].includes(current[0].status))return send(res,409,{error:'No se puede borrar una cotización aceptada o convertida porque forma parte del historial comercial. Podés conservarla como registro.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          VALUES(${current[0].business_id},${admin.id},'commercial.quotation_deleted','quotation',${id},${JSON.stringify({prospectName:current[0].prospect_name,status:current[0].status})}::jsonb)`;
-        const deleted=await sql`DELETE FROM app_quotations WHERE id=${id} AND status NOT IN ('accepted','converted') RETURNING id`;
-        if(!deleted.length)return send(res,409,{error:'La cotización cambió o fue aceptada mientras se intentaba borrar.'});
+        const deleted=await sql`
+          WITH deleted AS (
+            DELETE FROM app_quotations
+            WHERE id=${id} AND status NOT IN ('accepted','converted')
+            RETURNING id,business_id,status,prospect_name
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT business_id,${admin.id},'commercial.quotation_deleted','quotation',id,
+              ${JSON.stringify({source:'api',reason:'admin_delete'})}::jsonb ||
+              jsonb_build_object('prospectName',prospect_name,'status',status)
+            FROM deleted
+            RETURNING id
+          )
+          SELECT id FROM deleted
+        `;
+        if(!deleted.length){
+          const current=await sql`SELECT status FROM app_quotations WHERE id=${id} LIMIT 1`;
+          if(!current.length)return send(res,404,{error:'Cotización no encontrada.'});
+          if(['accepted','converted'].includes(current[0].status))
+            return send(res,409,{error:'No se puede borrar una cotización aceptada o convertida porque forma parte del historial comercial. Podés conservarla como registro.'});
+          return send(res,409,{error:'La cotización cambió mientras se intentaba borrar. Actualizá la lista.'});
+        }
         return send(res,200,{ok:true,id:deleted[0].id});
       }
       if(req.method==='PATCH'){

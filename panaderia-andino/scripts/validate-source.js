@@ -346,6 +346,29 @@ if (appBundleSource.includes('showBanner(mobileDevice?')) {
   throw new Error('No debe mostrarse el aviso automático de instalación PWA; la instalación es manual.');
 }
 
+
+const cronBearerLine = apiSource.split('\\n').find(line => line.includes('const supplied = String(req.headers.authorization'));
+if (!apiSource.includes("const previewRequiresRuntime = process.env.VERCEL_ENV === 'preview';") ||
+    !apiSource.includes('refusing to fall back to DATABASE_URL') ||
+    !cronBearerLine || !cronBearerLine.includes(".replace(/^Bearer\\\\s+/i, '').trim();") ||
+    apiSource.includes(".replace(/^Bearer\\\\\\\\s+/i, '').trim();")) {
+  throw new Error('Preview debe fallar de forma cerrada contra una DB genérica y el parser Bearer del cron debe aceptar el encabezado estándar.');
+}
+const quotationDeleteStart = apiSource.indexOf("if(req.method==='DELETE'){", apiSource.indexOf("if (path === '/api/admin/quotations')"));
+const quotationDeleteEnd = apiSource.indexOf("if(req.method==='PATCH'){", quotationDeleteStart);
+const quotationDeleteCode = apiSource.slice(quotationDeleteStart, quotationDeleteEnd);
+if (!quotationDeleteCode.includes('WITH deleted AS') ||
+    !quotationDeleteCode.includes('INSERT INTO app_audit_logs') ||
+    !quotationDeleteCode.includes('FROM deleted')) {
+  throw new Error('La eliminación y auditoría de cotizaciones deben ejecutarse atómicamente.');
+}
+const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/042_audit_log_immutability_and_quote_delete_scope.sql'), 'utf8');
+if (!hardeningMigration.includes('ALTER POLICY mattsystem_tenant_update ON public.app_audit_logs') ||
+    !hardeningMigration.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_audit_logs') ||
+    !hardeningMigration.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_quotations')) {
+  throw new Error('El registro de auditoría debe ser inmutable para negocios y la eliminación de cotizaciones exclusiva del administrador de plataforma.');
+}
+
 const workflowPath = path.resolve(root, '../.github/workflows/validate.yml');
 const workflowSource = fs.readFileSync(workflowPath, 'utf8');
 if (!workflowSource.includes('feat/employee-offboarding-2026-11-26')) {
