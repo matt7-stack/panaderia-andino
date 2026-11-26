@@ -681,6 +681,13 @@ module.exports = async function handler(req, res) {
         const setup=Number(planRows[0].setup_amount),monthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
+        if(status==='active'){
+          const activeLicense=await sql`SELECT id,is_trial FROM app_licenses
+            WHERE business_id=${businessId} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${systemName}))
+              AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)
+            ORDER BY created_at DESC LIMIT 1`;
+          if(activeLicense.length)return send(res,409,{code:'ACTIVE_LICENSE_EXISTS',error:'Este negocio ya tiene una licencia activa. Para evitar licencias duplicadas, actualizá o convertí la licencia existente en lugar de crear otra.',existingLicenseId:activeLicense[0].id,isTrial:activeLicense[0].is_trial===true});
+        }
         const linkedQuote=await sql`SELECT status,modules,industry_key,config_mode FROM app_quotations WHERE business_id=${businessId} AND is_module_expansion=FALSE ORDER BY created_at DESC LIMIT 1`;
         if(linkedQuote.length){
           if(!['accepted','converted'].includes(linkedQuote[0].status))return send(res,409,{error:'La cotización asociada todavía no fue aceptada. No se puede emitir la licencia hasta confirmar la aceptación comercial.'});
@@ -689,6 +696,8 @@ module.exports = async function handler(req, res) {
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
         const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,modules:planModules,isTrial:false})}::jsonb)`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='DELETE'){
