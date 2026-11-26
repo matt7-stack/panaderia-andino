@@ -3208,7 +3208,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       if(upcomingRoot){
         const services=expenses.upcomingServices||[],licenses=expenses.upcomingLicenses||[];
         const items=[...services.map(x=>({kind:'Servicio',name:x.description,due:x.renewal_date})),...licenses.map(x=>({kind:'Licencia',name:x.business_name,due:x.expires_at}))].sort((a,b)=>String(a.due).localeCompare(String(b.due)));
-        upcomingRoot.innerHTML=items.length?'<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Tipo</th><th>Servicio / negocio</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>'+items.map(x=>{const d=new Date(String(x.due).slice(0,10)+'T12:00:00'),left=Math.ceil((d-new Date(new Date().toDateString()))/86400000);return '<tr><td>'+x.kind+'</td><td>'+releaseEsc(x.name||'')+'</td><td>'+releaseEsc(d.toLocaleDateString('es-PY'))+'</td><td><span class="status-pill '+(left<=7?'status-expense':'status-pending')+'">'+(left<=0?'Vence hoy':left+' días')+'</span></td></tr>';}).join('')+'</tbody></table></div>':'<p class="text-muted small mb-0">No hay vencimientos registrados para los próximos 30 días.</p>';
+        upcomingRoot.innerHTML=items.length?'<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Tipo</th><th>Servicio / negocio</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>'+items.map(x=>{const raw=String(x.due||'').slice(0,10),parts=raw.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/),d=parts?new Date(Number(parts[1]),Number(parts[2])-1,Number(parts[3]),12):new Date(NaN),today=new Date(),dueUTC=parts?Date.UTC(Number(parts[1]),Number(parts[2])-1,Number(parts[3])):NaN,todayUTC=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()),left=Number.isFinite(dueUTC)?Math.round((dueUTC-todayUTC)/86400000):NaN;return '<tr><td>'+x.kind+'</td><td>'+releaseEsc(x.name||'')+'</td><td>'+releaseEsc(Number.isNaN(d.getTime())?'Fecha inválida':d.toLocaleDateString('es-PY'))+'</td><td><span class="status-pill '+(left<=7?'status-expense':'status-pending')+'">'+(Number.isNaN(left)?'Sin fecha':left<=0?'Vence hoy':left===1?'1 día':left+' días')+'</span></td></tr>';}).join('')+'</tbody></table></div>':'<p class="text-muted small mb-0">No hay vencimientos registrados para los próximos 30 días.</p>';
       }
       const expenseRoot=document.getElementById('platformExpensesList');
       if(expenseRoot){const items=expenses.expenses||[];expenseRoot.innerHTML=items.length?'<table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha del pago</th><th>Categoría</th><th>Descripción</th><th>Frecuencia</th><th>Renovación</th><th class="text-end">Importe</th><th></th></tr></thead><tbody>'+items.map(x=>'<tr><td>'+(x.expense_date?releaseEsc(new Date(x.expense_date+'T12:00:00').toLocaleDateString('es-PY')):'—')+'</td><td>'+releaseEsc(x.category)+'</td><td>'+releaseEsc(x.description)+'</td><td>'+({one_time:'Único',monthly:'Mensual',annual:'Anual'}[x.recurrence]||'Único')+'</td><td>'+(x.renewal_date?releaseEsc(new Date(x.renewal_date+'T12:00:00').toLocaleDateString('es-PY')):'—')+'</td><td class="text-end">Gs. '+Math.round(Number(x.amount)).toLocaleString('es-PY')+'</td><td class="text-end"><button class="btn btn-sm btn-outline-danger" data-expense-delete="'+releaseEsc(x.id)+'" aria-label="Eliminar gasto"><i class="bi bi-trash"></i></button></td></tr>').join('')+'</tbody></table>':'<p class="text-muted small mb-0">Todavía no hay gastos registrados.</p>';}
@@ -3270,14 +3270,17 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const button=document.getElementById('saveExpiryReminderSettings'),toggle=document.getElementById('toggleExpiryReminders');
     const rawDays=String(document.getElementById('expiryReminderDays')?.value||'').split(',').map(value=>value.trim()).filter(Boolean);
     const alertDays=rawDays.map(Number);
-    if(!alertDays.length||alertDays.length>10||alertDays.some(n=>!Number.isInteger(n)||n<0||n>90)||new Set(alertDays).size!==alertDays.length){alert('Ingresá entre 1 y 10 días distintos, separados por comas. Se permiten valores de 0 a 90.');return;}
-    if(button)button.disabled=true;if(toggle)toggle.disabled=true;
+    if(!rawDays.length||rawDays.length>10||alertDays.some(n=>!Number.isInteger(n)||n<0||n>90)||new Set(alertDays).size!==alertDays.length){alert('Ingresá entre 1 y 10 días distintos. Se permiten valores de 0 a 90.');return;}
+    const previousButtonText=button?.textContent||'Guardar anticipación',previousToggleText=toggle?.textContent||'';
+    if(button){button.disabled=true;button.textContent='Guardando…';}
+    if(toggle){toggle.disabled=true;toggle.textContent='Actualizando…';}
     try{
       await window.PanaderiaAuth.api('/api/admin/platform-expenses',{method:'POST',body:JSON.stringify({kind:'settings',enabled,alertDays})});
       await loadAdminCenter();
+      const status=document.getElementById('expiryReminderHelp');if(status)status.textContent='Configuración actualizada correctamente. Los días se calculan por fecha calendario.';
       alert(enabled?'Avisos de vencimiento activados.':'Avisos de vencimiento desactivados.');
     }catch(error){alert(error.message||'No se pudo guardar la configuración de avisos.');}
-    finally{if(button)button.disabled=false;if(toggle)toggle.disabled=false;}
+    finally{if(button){button.disabled=false;button.textContent=previousButtonText;}if(toggle)toggle.disabled=false;}
   };
   document.getElementById('toggleExpiryReminders')?.addEventListener('click',()=>{
     const toggle=document.getElementById('toggleExpiryReminders'),enabled=toggle?.dataset.enabled!=='true';
