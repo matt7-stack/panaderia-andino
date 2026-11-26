@@ -10,6 +10,7 @@ const requiredFiles = [
   'api/business/receivables.js',
   'api/admin/business-addons.js',
   'app.bundle.html',
+  'operations-tools.js',
   'admin-nav.js',
   'employee-access.js',
   'erp-modules.js',
@@ -44,7 +45,7 @@ for (const relative of requiredFiles) {
   if (!fs.existsSync(absolute)) throw new Error('Falta el archivo requerido: ' + relative);
 }
 
-for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','admin-nav.js','employee-access.js','erp-modules.js']) {
+for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','admin-nav.js','employee-access.js','erp-modules.js','operations-tools.js']) {
   const absolute = path.join(root, relative);
   new vm.Script(fs.readFileSync(absolute, 'utf8'), { filename: absolute });
 }
@@ -57,6 +58,16 @@ const receivablesMigrationPath = path.join(root, 'migrations/015_receivables_pay
 
 const htmlPath = path.join(root, 'app.bundle.html');
 const html = fs.readFileSync(htmlPath, 'utf8');
+const operationsToolsSource = fs.readFileSync(path.join(root, 'operations-tools.js'), 'utf8');
+const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
+    !serviceWorkerSource.includes("'operations-tools.js?v=2'") ||
+    !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
+  throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
+}
+for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v1","mattsystem-offline-tools","addEventListener('online',syncQueue)"]) {
+  if (!operationsToolsSource.includes(marker)) throw new Error('Falta una función de herramientas del negocio o sincronización: ' + marker);
+}
 const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
   .filter(match => !/\bsrc\s*=/i.test(match[1]))
   .map(match => match[2]);
@@ -70,6 +81,12 @@ for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
 const apiSource = fs.readFileSync(apiPath, 'utf8');
+if (!apiSource.includes("path === '/api/business/tools'") ||
+    !apiSource.includes("role==='admin'}::boolean OR role='employee'") ||
+    !apiSource.includes("'business.tools.import_rows'") ||
+    !apiSource.includes("t.assignedToUserId||'')!==String(user.id)")) {
+  throw new Error('Las herramientas deben validar el rol, limitar responsables y auditar las importaciones.');
+}
 const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
 if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
