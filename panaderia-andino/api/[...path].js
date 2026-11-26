@@ -1501,7 +1501,7 @@ module.exports = async function handler(req, res) {
       };
       if (req.method === 'GET') {
         const rows = await sql`SELECT id,name,email,role,active,permissions,created_at FROM app_users WHERE business_id=${user.business_id} AND is_platform_admin=FALSE AND role='employee' ORDER BY created_at DESC`;
-        const events = await sql`SELECT ev.id,ev.employee_user_id,ev.employee_name,ev.employee_email,ev.event_type,ev.reason,ev.notes,ev.created_at,actor.name AS actor_name
+        const events = await sql`SELECT ev.id,ev.employee_user_id,ev.employee_name,ev.employee_email,ev.event_type,CASE WHEN ${user.role}='admin' THEN ev.reason ELSE NULL END AS reason,CASE WHEN ${user.role}='admin' THEN ev.notes ELSE NULL END AS notes,ev.created_at,actor.name AS actor_name
           FROM app_employee_offboarding_events ev LEFT JOIN app_users actor ON actor.id=ev.actor_user_id
           WHERE ev.business_id=${user.business_id} ORDER BY ev.created_at DESC LIMIT 100`;
         const lic = await sql`SELECT plan,user_limit FROM app_licenses WHERE business_id=${user.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
@@ -1533,11 +1533,15 @@ module.exports = async function handler(req, res) {
           if(!target.active)return send(res,409,{error:'El empleado ya está dado de baja.'});
           const reason=String(input.reason||'').trim().slice(0,500);
           const notes=String(input.notes||'').trim().slice(0,1000);
-          const event=await sql`INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,reason,notes,actor_user_id)
+          const event=await sql`WITH saved AS (
+            INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,reason,notes,actor_user_id)
             VALUES(${user.business_id},${id},${target.name},${target.email},'termination_requested',${reason||null},${notes||null},${user.id})
-            RETURNING id,event_type,reason,notes,created_at`;
-          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-            VALUES(${user.business_id},${user.id},'employee.termination_requested','employee',${id},jsonb_build_object('reason',${reason}))`;
+            RETURNING id,event_type,reason,notes,created_at
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT ${user.business_id},${user.id},'employee.termination_requested','employee',${id},jsonb_build_object('reason',${reason}) FROM saved
+            RETURNING id
+          ) SELECT saved.* FROM saved`;
           return send(res,201,{ok:true,event:event[0],message:'Solicitud de baja registrada. El Dueño debe confirmarla.'});
         }
         if(action==='terminate'){
@@ -1545,14 +1549,23 @@ module.exports = async function handler(req, res) {
           if(!target.active)return send(res,409,{error:'El empleado ya está dado de baja.'});
           const reason=String(input.reason||'').trim().slice(0,500);
           const notes=String(input.notes||'').trim().slice(0,1000);
-          const changed=await sql`UPDATE app_users SET active=FALSE,session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} AND active=TRUE RETURNING id,name,email,role,active,permissions,created_at`;
+          const changed=await sql`WITH changed AS (
+            UPDATE app_users SET active=FALSE,session_version=session_version+1
+            WHERE id=${id} AND business_id=${user.business_id} AND active=TRUE
+            RETURNING id,name,email,role,active,permissions,created_at
+          ), event AS (
+            INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,reason,notes,actor_user_id)
+            SELECT ${user.business_id},id,name,email,'terminated',${reason||null},${notes||null},${user.id} FROM changed
+            RETURNING id,event_type,reason,notes,created_at
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT ${user.business_id},${user.id},'employee.terminated','employee',changed.id,jsonb_build_object('reason',${reason},'sessionsRevoked',true)
+            FROM changed RETURNING id
+          )
+          SELECT changed.*,event.id AS event_id,event.event_type,event.reason,event.notes,event.created_at AS event_created_at
+          FROM changed CROSS JOIN event`;
           if(!changed.length)return send(res,409,{error:'La cuenta ya no está activa. Actualizá la lista.'});
-          const event=await sql`INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,reason,notes,actor_user_id)
-            VALUES(${user.business_id},${id},${target.name},${target.email},'terminated',${reason||null},${notes||null},${user.id})
-            RETURNING id,event_type,reason,notes,created_at`;
-          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-            VALUES(${user.business_id},${user.id},'employee.terminated','employee',${id},jsonb_build_object('reason',${reason},'sessionsRevoked',true))`;
-          return send(res,200,{ok:true,employee:changed[0],event:event[0],sessionsRevoked:true});
+          return send(res,200,{ok:true,employee:changed[0],event:{id:changed[0].event_id,event_type:changed[0].event_type,reason:changed[0].reason,notes:changed[0].notes,created_at:changed[0].event_created_at},sessionsRevoked:true});
         }
         if(action==='reactivate'){
           if(!isOwner)return send(res,403,{error:'Solo el Dueño puede reactivar a un empleado.'});
@@ -1561,15 +1574,24 @@ module.exports = async function handler(req, res) {
           const plan=lic[0]?.plan||'basic',limit=lic[0]?.user_limit ?? (plan==='basic'?1:(plan==='professional'?4:null));
           const count=await sql`SELECT COUNT(*)::int AS total FROM app_users WHERE business_id=${user.business_id} AND role='employee' AND active=TRUE`;
           if(limit!==null&&Number(count[0]?.total||0)>=limit)return send(res,409,{error:'No se puede reactivar: el negocio alcanzó el límite de empleados de su licencia.'});
-          const changed=await sql`UPDATE app_users SET active=TRUE,session_version=session_version+1 WHERE id=${id} AND business_id=${user.business_id} AND active=FALSE RETURNING id,name,email,role,active,permissions,created_at`;
-          if(!changed.length)return send(res,409,{error:'La cuenta cambió mientras se procesaba. Actualizá la lista.'});
           const notes=String(input.notes||'').trim().slice(0,1000);
-          const event=await sql`INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,notes,actor_user_id)
-            VALUES(${user.business_id},${id},${target.name},${target.email},'reactivated',${notes||null},${user.id})
-            RETURNING id,event_type,reason,notes,created_at`;
-          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-            VALUES(${user.business_id},${user.id},'employee.reactivated','employee',${id},jsonb_build_object('sessionsRevoked',true))`;
-          return send(res,200,{ok:true,employee:changed[0],event:event[0],sessionsRevoked:true});
+          const changed=await sql`WITH changed AS (
+            UPDATE app_users SET active=TRUE,session_version=session_version+1
+            WHERE id=${id} AND business_id=${user.business_id} AND active=FALSE
+            RETURNING id,name,email,role,active,permissions,created_at
+          ), event AS (
+            INSERT INTO app_employee_offboarding_events(business_id,employee_user_id,employee_name,employee_email,event_type,notes,actor_user_id)
+            SELECT ${user.business_id},id,name,email,'reactivated',${notes||null},${user.id} FROM changed
+            RETURNING id,event_type,reason,notes,created_at
+          ), audit AS (
+            INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            SELECT ${user.business_id},${user.id},'employee.reactivated','employee',changed.id,jsonb_build_object('sessionsRevoked',true)
+            FROM changed RETURNING id
+          )
+          SELECT changed.*,event.id AS event_id,event.event_type,event.reason,event.notes,event.created_at AS event_created_at
+          FROM changed CROSS JOIN event`;
+          if(!changed.length)return send(res,409,{error:'La cuenta cambió mientras se procesaba. Actualizá la lista.'});
+          return send(res,200,{ok:true,employee:changed[0],event:{id:changed[0].event_id,event_type:changed[0].event_type,reason:changed[0].reason,notes:changed[0].notes,created_at:changed[0].event_created_at},sessionsRevoked:true});
         }
         if(typeof input.active==='boolean'){
           if(!isOwner)return send(res,403,{error:'Solo el Dueño puede dar de baja o reactivar empleados.'});
