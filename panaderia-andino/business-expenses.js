@@ -33,7 +33,15 @@
     return page.contains(panel);
   }
   function initialize() {
-    mountPanel();
+    if(!mountPanel()){
+      if(!window.__bulkExpenseMountObserver){
+        const observer=new MutationObserver(()=>{
+          if(mountPanel()){observer.disconnect();window.__bulkExpenseMountObserver=null;}
+        });
+        window.__bulkExpenseMountObserver=observer;
+        observer.observe(document.body,{childList:true,subtree:true});
+      }
+    }
     const form=$('#bulkExpenseForm'); if(!form||form.dataset.ready==='true')return;
     form.dataset.ready='true'; addRow();
     $('#addBulkExpenseRow')?.addEventListener('click',()=>addRow());
