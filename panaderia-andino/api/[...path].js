@@ -370,8 +370,9 @@ module.exports = async function handler(req, res) {
           if(!logged.length)continue;
           const title=item.entity_type==='license'?(daysLeft===0?'Licencia vence hoy':'Licencia próxima a vencer'):(daysLeft===0?'Servicio vence hoy':'Servicio próximo a vencer');
           const message=item.entity_type==='license'?(daysLeft===0?'La licencia de '+item.item_name+' vence HOY ('+due+'). Avisá al cliente y gestioná la renovación para evitar la interrupción del servicio.':'La licencia de '+item.item_name+' vence el '+due+'. Restan '+daysLeft+' día(s).'):(daysLeft===0?'El servicio '+item.item_name+' ('+item.item_group+') se renueva HOY ('+due+').':'El servicio '+item.item_name+' ('+item.item_group+') se renueva el '+due+'. Restan '+daysLeft+' día(s).');
-          const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id`;
+          const sent=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT NULL,u.id,'system_activity',${title},${message} FROM app_users u WHERE u.active=TRUE AND u.is_platform_admin=TRUE RETURNING id,user_id`;
           expiryAlertsCreated+=sent.length;
+          await sendWebPush(sql,sent.map(row=>row.user_id),title,message,'mattsystem-expiry-'+item.entity_type+'-'+item.id+'-'+due+'-'+daysLeft);
           if(item.entity_type==='license'&&item.business_id){
             const customerTitle=daysLeft===0?'Tu licencia vence hoy':'Tu licencia está próxima a vencer';
             const customerMessage=daysLeft===0?'Tu licencia vence HOY ('+due+'). Contactá al administrador de MATTSYSTEM hoy mismo para renovar y evitar la interrupción del acceso.':'Tu licencia vence el '+due+'. Restan '+daysLeft+' día(s). Para mantener el acceso a MATTSYSTEM, contactá al administrador o realizá la renovación antes del vencimiento.';
@@ -379,8 +380,9 @@ module.exports = async function handler(req, res) {
               SELECT ${item.business_id},u.id,'license_expiry',${customerTitle},${customerMessage}
               FROM app_users u
               WHERE u.business_id=${item.business_id} AND u.active=TRUE AND u.is_platform_admin=FALSE
-              RETURNING id`;
+              RETURNING id,user_id`;
             expiryAlertsCreated+=customerNotices.length;
+            await sendWebPush(sql,customerNotices.map(row=>row.user_id),customerTitle,customerMessage,'mattsystem-license-'+item.id+'-'+due+'-'+daysLeft);
           }
         }
       }
