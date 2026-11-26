@@ -284,7 +284,7 @@ for (const marker of [
 }
 if (!serviceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
     !serviceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
-    !serviceWorkerSource.includes("mattsystem-pwa-v21")) {
+    !pushServiceWorkerSource.includes("mattsystem-pwa-v22")) {
   throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
 }
 
@@ -391,7 +391,6 @@ if (!expirySettingsMigration.includes('alert_days integer[]') ||
 
 
 const webPushMigration = fs.readFileSync(path.join(root, 'migrations/044_web_push_subscriptions.sql'), 'utf8');
-const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 const packageSource = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 if (!webPushMigration.includes('app_push_subscriptions') ||
     !apiSource.includes("require('web-push')") ||
