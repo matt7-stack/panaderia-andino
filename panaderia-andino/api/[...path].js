@@ -2781,16 +2781,15 @@ module.exports = async function handler(req, res) {
         return send(res,403,{error:'Tu cuenta de empleado no tiene acceso directo a los datos generales. Solicitá al Supervisor los permisos o una operación habilitada.'});
       const allowed=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
       if(!allowed.length) return send(res,404,{error:'El negocio seleccionado no existe o está inactiva.'});
-      let enabledBusinessModules=null;
+      let enabledBusinessModules=user.is_platform_admin===true?null:['dashboard'];
       if(user.is_platform_admin!==true){
         const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules
           FROM app_business_config bc
           LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
           WHERE bc.business_id=${businessId} LIMIT 1`;
-        if(Array.isArray(moduleRows[0]?.configured_modules)){
-          const configured=moduleRows[0].configured_modules,licensed=moduleRows[0].licensed_modules;
-          enabledBusinessModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured.filter(key=>key==='dashboard');
-        }
+        const configured=Array.isArray(moduleRows[0]?.configured_modules)?moduleRows[0].configured_modules:[];
+        const licensed=moduleRows[0]?.licensed_modules;
+        enabledBusinessModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)&&key!=='dashboard').concat(configured.includes('dashboard')?['dashboard']:[]):['dashboard'];
       }
       const moduleEnabled=key=>!Array.isArray(enabledBusinessModules)||enabledBusinessModules.includes(key);
       if(req.method==='GET'){
