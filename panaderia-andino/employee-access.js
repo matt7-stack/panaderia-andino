@@ -66,7 +66,13 @@
       const active = employee.active === true;
       const pending = latestByEmployee.get(employee.id) === 'termination_requested';
       const action = active
-        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">' + (isOwner ? (pending ? 'Confirmar baja solicitada' : 'Dar de baja') : 'Solicitar baja') + '</button>'
+        ? (isOwner
+          ? (pending
+            ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">Confirmar baja</button><button class="btn btn-sm btn-outline-secondary" type="button" data-employee-offboarding="reject_request">Rechazar solicitud</button>'
+            : '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">Dar de baja</button>')
+          : (pending
+            ? '<span class="badge bg-warning text-dark">Solicitud pendiente</span>'
+            : '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="request_termination">Solicitar baja</button>'))
         : (isOwner ? '<button class="btn btn-sm btn-outline-success" type="button" data-employee-offboarding="reactivate">Reactivar</button>' : '');
       return '<article class="border rounded-3 p-3 mb-3" data-business-employee="' + escapeHtml(employee.id) + '">' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><strong>' + escapeHtml(employee.name) +
@@ -84,7 +90,7 @@
       list.innerHTML = '<p class="text-muted mb-0">Todavía no hay bajas ni solicitudes registradas.</p>';
       return;
     }
-    const labels = { terminated: 'Baja confirmada', termination_requested: 'Solicitud de baja', reactivated: 'Reactivación' };
+    const labels = { terminated: 'Baja confirmada', termination_requested: 'Solicitud de baja', termination_rejected: 'Solicitud rechazada', reactivated: 'Reactivación' };
     list.innerHTML = events.map(event => {
       const date = event.created_at ? new Date(event.created_at).toLocaleString('es-PY') : 'Fecha no disponible';
       return '<article class="border-bottom py-2"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>' +
@@ -171,13 +177,21 @@
           if (!window.confirm('¿Reactivar esta cuenta? Se restaurará el acceso con sus permisos actuales.')) return;
           const notes = window.prompt('Observaciones de la reactivación (opcional):') || '';
           await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: 'reactivate', notes }) });
-        } else {
-          const isOwner = authUser()?.role === 'admin';
-          const reason = window.prompt(isOwner ? 'Motivo de la baja (opcional):' : 'Motivo de la solicitud de baja (opcional):') || '';
+        } else if (action === 'request_termination') {
+          const reason = window.prompt('Motivo de la solicitud de baja (opcional):') || '';
           const notes = window.prompt('Observaciones adicionales (opcional):') || '';
-          if (!window.confirm(isOwner ? 'Confirmar baja inmediata y cierre de todas las sesiones?' : 'Enviar solicitud de baja al Dueño?')) return;
-          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: isOwner ? 'terminate' : 'request_termination', reason, notes }) });
-          if (!isOwner) window.alert('Solicitud registrada. El Dueño deberá confirmar la baja.');
+          if (!window.confirm('Enviar solicitud de baja al Dueño?')) return;
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action, reason, notes }) });
+          window.alert('Solicitud registrada. El Dueño recibió una notificación para revisarla.');
+        } else if (action === 'reject_request') {
+          const reason = window.prompt('Motivo del rechazo (opcional):') || '';
+          if (!window.confirm('¿Rechazar la solicitud de baja? Se notificará al Supervisor.')) return;
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action, reason }) });
+        } else if (action === 'terminate') {
+          const reason = window.prompt('Motivo de la baja (opcional):') || '';
+          const notes = window.prompt('Observaciones adicionales (opcional):') || '';
+          if (!window.confirm('Confirmar baja inmediata y cierre de todas las sesiones?')) return;
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action, reason, notes }) });
         }
         await loadEmployees();
       } else if (save) {
