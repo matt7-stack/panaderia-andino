@@ -310,6 +310,18 @@ button, .btn, input, select, textarea { touch-action: manipulation; }
 .admin-home-shortcut strong{align-self:end;color:var(--text,#3d3027);font-size:12px}.admin-home-shortcut small{align-self:start;color:var(--muted,#81756b);font-size:10px}
 @media(max-width:760px){.admin-welcome{padding:23px;min-height:0}.admin-welcome-art{min-width:70px}.admin-welcome-art i{font-size:44px}.admin-welcome-art span{display:none}.admin-home-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-section-heading{align-items:center}}
 @media(max-width:420px){.admin-welcome-art{display:none}.admin-home-shortcuts{gap:8px}.admin-home-shortcut{padding:11px;grid-template-columns:38px 1fr;column-gap:8px}.admin-home-icon{width:36px;height:36px;font-size:16px}}
+/* Resumen administrativo separado por contexto */
+.admin-finance-overview,.admin-system-overview{min-width:0}
+.admin-finance-overview{padding:17px;border:1px solid var(--line,#eadfd2);border-radius:16px;background:var(--surface,#fff)}
+.admin-system-overview{padding-top:4px}
+.admin-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.admin-overview-heading h2{margin:0;color:var(--text,#3d3027);font-size:15px;font-weight:800}
+.admin-overview-heading p{margin:4px 0 0;color:var(--muted,#81756b);font-size:11px}
+.admin-overview-period{flex:0 0 auto;padding:6px 9px;border-radius:8px;background:#f3f0eb;color:#75695e;font-size:9px;font-weight:800;letter-spacing:.7px}
+.admin-finance-overview .summary-card{height:100%}
+.admin-sync-help{display:block;margin-top:7px;color:var(--muted,#81756b);font-size:10px;line-height:1.4}
+@media(max-width:760px){.admin-finance-overview{padding:12px}.admin-overview-heading{align-items:flex-start}.admin-overview-period{font-size:8px}.admin-system-overview .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.admin-system-overview .summary-grid{grid-template-columns:1fr}}
 /* Finanzas y notas privadas del administrador */
 .admin-private-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .admin-private-grid .panel{min-width:0}
@@ -1525,12 +1537,18 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
             <div class="admin-welcome-copy"><span class="admin-welcome-kicker"><i class="bi bi-shield-check"></i> CENTRO DE CONTROL</span><h1>Administrador</h1><p>Gestioná todas los negocios, usuarios, comunicaciones y actividad desde el menú lateral.</p></div>
             <div class="admin-welcome-art"><i class="bi bi-buildings"></i><span>ADMINISTRADOR PRINCIPAL</span></div>
           </section>
-          <div class="summary-grid admin-private-kpis mt-3" aria-label="Resumen financiero mensual de MATTSYSTEM">
-            <article class="summary-card income-card"><p class="summary-label">Ingresos de MATTSYSTEM este mes</p><h2 id="adminPrivateIncomeTotal">Gs. 0</h2></article>
-            <article class="summary-card expense-card"><p class="summary-label">Gastos de MATTSYSTEM este mes</p><h2 id="adminPrivateExpenseTotal">Gs. 0</h2></article>
-            <article class="summary-card profit-card"><p class="summary-label">Balance mensual</p><h2 id="adminPrivateBalanceTotal">Gs. 0</h2></article>
-          </div>
-          <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2></article></div>
+          <section class="admin-finance-overview mt-3" aria-label="Resumen financiero mensual de MATTSYSTEM">
+            <div class="admin-overview-heading"><div><h2>Balance de MATTSYSTEM</h2><p>Ingresos y gastos propios de la plataforma durante el mes actual.</p></div><span class="admin-overview-period">MES ACTUAL</span></div>
+            <div class="summary-grid admin-private-kpis">
+              <article class="summary-card income-card"><p class="summary-label">Ingresos de MATTSYSTEM este mes</p><h2 id="adminPrivateIncomeTotal">Gs. 0</h2></article>
+              <article class="summary-card expense-card"><p class="summary-label">Gastos de MATTSYSTEM este mes</p><h2 id="adminPrivateExpenseTotal">Gs. 0</h2></article>
+              <article class="summary-card profit-card"><p class="summary-label">Balance mensual</p><h2 id="adminPrivateBalanceTotal">Gs. 0</h2></article>
+            </div>
+          </section>
+          <section class="admin-system-overview mt-4" aria-label="Actividad y sincronización del sistema">
+            <div class="admin-overview-heading"><div><h2>Actividad del sistema</h2><p>Indicadores generales y estado de conexión con la nube.</p></div></div>
+            <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios del sistema</p><h2 id="adminUserCount">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Empleados activos</p><h2 id="adminEmployeeCount">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Movimientos registrados</p><h2 id="adminMovementCount">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Última sincronización con la nube</p><h2 id="adminLastSync" style="font-size:12px">Pendiente</h2><small class="admin-sync-help">Momento en que MATTSYSTEM confirmó la última actualización de datos con el servidor.</small></article></div>
+          </section>
 <div class="settings-grid mt-3"><article class="panel settings-card"><div class="panel-heading"><div><h3>Copias de seguridad</h3><p>Respaldos protegidos en el servidor y descarga local.</p></div><span class="panel-heading-icon"><i class="bi bi-cloud-check"></i></span></div><p class="page-subtitle mb-3">Cada copia se guarda en la base de datos del negocio, se verifica con SHA-256 y puede restaurarse. Se conservan las 14 copias más recientes.</p><div class="d-flex flex-wrap gap-2 mb-3"><button class="btn btn-outline-bakery" type="button" id="adminBackupButton"><i class="bi bi-cloud-arrow-down"></i> Crear y descargar copia</button><button class="btn btn-outline-bakery" type="button" id="refreshAdminBackups"><i class="bi bi-arrow-clockwise"></i> Actualizar historial</button></div><div id="adminBackupList" class="small text-muted">Consultando copias guardadas…</div></article><article class="panel settings-card"><div class="panel-heading"><div><h3>Limpiar datos operativos</h3><p>Prepará el sistema para comenzar desde cero.</p></div><span class="panel-heading-icon"><i class="bi bi-trash3"></i></span></div><p class="page-subtitle mb-3">Elimina movimientos, notas emitidas y recibidas, empleados y pagos históricos. Conserva el administrador, las credenciales y la configuración del negocio.</p><div class="info-note mb-3"><i class="bi bi-exclamation-triangle"></i> Esta acción afecta a todos los dispositivos conectados y no se puede deshacer. Descargá primero un respaldo si necesitás conservar los registros.</div><button class="btn btn-outline-danger" type="button" id="adminResetDataButton"><i class="bi bi-trash3"></i> Limpiar datos operativos</button></article><article class="panel settings-card" style="border:1px solid #e8b9b9;background:linear-gradient(145deg,#fff8f7,#fff)"><div class="panel-heading"><div><h3 class="text-danger">Restablecer todo el sistema</h3><p>Eliminar todos los datos y empezar nuevamente.</p></div><span class="panel-heading-icon" style="color:#b42318"><i class="bi bi-database-x"></i></span></div><p class="page-subtitle mb-3">Elimina todos los negocios, usuarios secundarios, clientes, licencias, pagos, ventas, compras, productos, inventario, empleados, notas, cotizaciones, solicitudes, notificaciones y demás registros. <strong>Solo se conservará tu cuenta de administrador principal.</strong></p><div class="info-note mb-3" style="border-color:#e7b6b6;background:#fff2f1;color:#8a2424"><i class="bi bi-exclamation-octagon"></i> Acción irreversible para los datos eliminados. Descargá primero un respaldo. La estructura, el código y la cuenta del administrador no se borrarán.</div><button class="btn btn-danger" type="button" id="adminResetSystemButton"><i class="bi bi-trash3-fill"></i> Eliminar todo menos el administrador</button></article></div>
         </section>
 
