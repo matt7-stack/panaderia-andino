@@ -299,6 +299,7 @@ const offboardingMigration = fs.readFileSync(path.join(root, 'migrations/040_emp
 if (!offboardingMigration.includes("'termination_rejected'") ||
     !apiSource.includes("action==='reject_request'") ||
     !apiSource.includes("'employee_offboarding','Solicitud de baja de empleado'") ||
+    !apiSource.includes("n.type='employee_offboarding' THEN") ||
     !apiSource.includes("Ya existe una solicitud de baja pendiente") ||
     !fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8').includes('data-employee-offboarding="reject_request"')) {
   throw new Error('El flujo de bajas debe notificar al Dueño, evitar solicitudes duplicadas y permitir rechazar solicitudes pendientes.');
