@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mattsystem-pwa-v19';
+const CACHE_NAME = 'mattsystem-pwa-v20';
 const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/admin-nav.js', '/business-expenses.js', '/manifest.webmanifest', '/icons/icon.svg?v=3'];
 const APP_SHELL_PATHS = new Set(APP_SHELL.map(path => new URL(path, self.location.origin).pathname));
 
