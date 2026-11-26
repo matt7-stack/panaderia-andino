@@ -31,7 +31,7 @@
   ]);
   function manager(){const u=user();return !!u&&(u.isPlatformAdmin===true||u.role==='admin');}
   function allowed(key){const u=user();if(!u)return false;if(manager())return true;return (u.role==='supervisor'&&supervisorDefaults.has(key))||u.permissions?.[key]===true;}
-  function canModule(key){const m=labels[key],u=user(),configured=u?.businessConfig?.modules;if(!m||!u)return false;if(key==='receivables')return receivablesEnabled&&(manager()||m.read.some(allowed)||allowed(m.write));return (!Array.isArray(configured)||configured.includes(key))&&(manager()||m.read.some(allowed)||allowed(m.write));}
+  function canModule(key){const m=labels[key],u=user(),configured=u?.businessConfig?.modules;if(!m||!u)return false;if(key==='receivables')return receivablesEnabled&&(manager()||m.read.some(allowed)||allowed(m.write));return Array.isArray(configured)&&configured.includes(key)&&(manager()||m.read.some(allowed)||allowed(m.write));}
   function canRead(key){const m=labels[key];return !!m&&(manager()||m.read.some(allowed));}
   function canLoadProducts(){return manager()||['products.view','products.manage','sales.create','purchases.create','inventory.manage','recipes.manage','production.manage'].some(allowed);}
   async function api(module,method,body){
