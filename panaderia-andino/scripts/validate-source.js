@@ -28,6 +28,7 @@ const requiredFiles = [
   'migrations/032_login_ip_rls_compatibility.sql',
   'migrations/036_employee_offboarding.sql',
   'migrations/037_license_write_restrictions.sql',
+  'migrations/038_platform_managed_entitlements.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -205,6 +206,7 @@ const securityEmployeeAccess = fs.readFileSync(path.join(root, 'employee-access.
 const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
 const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/034_signed_tenant_context.sql'), 'utf8');
 const licensePolicyMigration = fs.readFileSync(path.join(root, 'migrations/037_license_write_restrictions.sql'), 'utf8');
+const entitlementPolicyMigration = fs.readFileSync(path.join(root, 'migrations/038_platform_managed_entitlements.sql'), 'utf8');
 const erpPostStart = securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')"));
 const salesStart = securityApi.indexOf("if (module === 'sales')", erpPostStart);
 const salesEnd = securityApi.indexOf("if (module === 'purchases')", salesStart);
@@ -230,8 +232,24 @@ if (!licensePolicyMigration.includes('DROP POLICY IF EXISTS mattsystem_tenant_in
     (licensePolicyMigration.match(/app_is_platform_admin\(\)/g) || []).length < 4) {
   throw new Error('Solo el administrador de plataforma puede crear, modificar o eliminar licencias.');
 }
-if (!securityApi.includes("if (!validEmail(email) || !password || password.length > 200)")) {
+for (const policyName of [
+  'mattsystem_business_config_insert_admin',
+  'mattsystem_business_config_update_admin',
+  'mattsystem_business_config_delete_admin',
+  'mattsystem_business_addons_insert_admin',
+  'mattsystem_business_addons_update_admin',
+  'mattsystem_business_addons_delete_admin'
+]) {
+  if (!entitlementPolicyMigration.includes('CREATE POLICY ' + policyName)) throw new Error('Falta restringir al administrador de plataforma: ' + policyName);
+}
+if (!securityApi.includes("if (!email || email.length > 254 || !password || password.length > 200)")) {
   throw new Error('El login debe limitar la longitud de correo y contraseña para evitar entradas excesivas.');
+}
+if (!securityApi.includes('Number(users[0].session_version || 0) !== Number(session.sv || 0)')) {
+  throw new Error('El diagnóstico de base de datos debe respetar la revocación de sesiones.');
+}
+if (!securityEmployeeAccess.includes('await promptEvent.prompt()')) {
+  throw new Error('La instalación PWA manual debe esperar el resultado del navegador.');
 }
 const appFullHtml = fs.readFileSync(path.join(root, 'app.full.html'), 'utf8');
 if (appFullHtml.includes('logoPreview.innerHTML = state.business.logo') || !appFullHtml.includes('safeLogoSource')) throw new Error('La página alternativa app.full.html también debe proteger la vista previa del logo.');
