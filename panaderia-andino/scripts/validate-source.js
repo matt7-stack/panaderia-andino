@@ -31,6 +31,7 @@ const requiredFiles = [
   'migrations/038_platform_managed_entitlements.sql',
   'migrations/039_owner_supervisor_employee_rls.sql',
   'migrations/040_employee_offboarding_rejection.sql',
+  'migrations/041_user_scoped_notifications_rls.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -303,6 +304,14 @@ if (!offboardingMigration.includes("'termination_rejected'") ||
     !apiSource.includes("Ya existe una solicitud de baja pendiente") ||
     !fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8').includes('data-employee-offboarding="reject_request"')) {
   throw new Error('El flujo de bajas debe notificar al Dueño, evitar solicitudes duplicadas y permitir rechazar solicitudes pendientes.');
+}
+
+
+const notificationRlsMigration = fs.readFileSync(path.join(root, 'migrations/041_user_scoped_notifications_rls.sql'), 'utf8');
+if (!notificationRlsMigration.includes('user_id = public.app_context_user_id()') ||
+    !notificationRlsMigration.includes('public.app_is_platform_admin()') ||
+    !notificationRlsMigration.includes('CREATE POLICY mattsystem_notifications_user_select')) {
+  throw new Error('Las notificaciones deben quedar aisladas por destinatario y por administrador de plataforma.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
