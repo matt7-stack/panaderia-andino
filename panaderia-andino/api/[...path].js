@@ -2323,11 +2323,11 @@ module.exports = async function handler(req, res) {
           if(!current.length)return send(res,404,{error:'No se encontró la sucursal de este negocio.'});
           if(input.active===false&&current[0].is_main)return send(res,409,{error:'La sucursal principal no se puede desactivar.'});
           const rows=await sql`UPDATE app_branches SET
-            name=CASE WHEN ${input.name===undefined} THEN name ELSE COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name) END,
-            address=CASE WHEN ${input.address===undefined} THEN address ELSE NULLIF(${String(input.address||'').trim().slice(0,250)},'') END,
-            phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').trim().slice(0,60)},'') END,
-            manager_name=CASE WHEN ${input.managerName===undefined} THEN manager_name ELSE NULLIF(${String(input.managerName||'').trim().slice(0,120)},'') END,
-            active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,
+            name=CASE WHEN ${input.name===undefined}::boolean THEN name ELSE COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name) END,
+            address=CASE WHEN ${input.address===undefined}::boolean THEN address ELSE NULLIF(${String(input.address||'').trim().slice(0,250)},'') END,
+            phone=CASE WHEN ${input.phone===undefined}::boolean THEN phone ELSE NULLIF(${String(input.phone||'').trim().slice(0,60)},'') END,
+            manager_name=CASE WHEN ${input.managerName===undefined}::boolean THEN manager_name ELSE NULLIF(${String(input.managerName||'').trim().slice(0,120)},'') END,
+            active=CASE WHEN ${typeof input.active==='boolean'}::boolean THEN ${input.active}::boolean ELSE active END,
             updated_at=NOW()
             WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
