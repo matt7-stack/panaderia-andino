@@ -65,7 +65,7 @@ if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
     !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
   throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
 }
-for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024","window.PanaderiaAuth?window.PanaderiaAuth.user:currentUser","cache=emptyCache();throw error"]) {
+for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024","window.PanaderiaAuth?window.PanaderiaAuth.user:currentUser","cache=emptyCache();throw error","canViewAttachments()","canAddAttachment()","importTargets()"]) {
   if (!operationsToolsSource.includes(marker)) throw new Error('Falta una función de herramientas del negocio o sincronización: ' + marker);
 }
 const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
@@ -86,6 +86,11 @@ if (!apiSource.includes("path === '/api/business/tools'") ||
     !apiSource.includes("'business.tools.import_rows'") ||
     !apiSource.includes("nextTools.tasks[index].assignedToUserId||'')!==String(user.id)")) {
   throw new Error('Las herramientas deben validar el rol, limitar responsables y auditar las importaciones.');
+}
+if (!apiSource.includes("canViewAttachments,canAddAttachment,importTargets") ||
+    !apiSource.includes("const canAddAttachment=moduleEnabled('movements')") ||
+    !apiSource.includes("const importTargets=manager?")) {
+  throw new Error('La API debe exponer capacidades según licencia y permisos para ocultar acciones no autorizadas.');
 }
 if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
     !apiSource.includes("fileBytes.subarray(0,5).toString('ascii')==='%PDF-'") ||
