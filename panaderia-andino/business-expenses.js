@@ -25,16 +25,11 @@
   }
   function updateCount() { const count=$$('.bulk-expense-row').length; const el=$('#bulkExpenseCount'); if(el)el.textContent=`${count} ${count===1?'gasto cargado':'gastos cargados'}`; }
   function mountPanel() {
-    const panel=$('#bulkExpensePanel'), page=$('#page-erp');
-    if(!panel||!page)return false;
-    const heading=page.querySelector('.page-heading');
-    if(heading&&panel.parentElement!==page)heading.insertAdjacentElement('afterend',panel);
-    return true;
+    // La carga múltiple forma parte de Movimientos; no debe trasladarse a Gestión operativa.
+    return Boolean($('#bulkExpensePanel') && $('#page-movimientos')?.contains($('#bulkExpensePanel')));
   }
   function initialize() {
     mountPanel();
-    const observer=new MutationObserver(()=>{if(mountPanel())observer.disconnect();});
-    observer.observe(document.body,{childList:true,subtree:true});
     const form=$('#bulkExpenseForm'); if(!form||form.dataset.ready==='true')return;
     form.dataset.ready='true'; addRow();
     $('#addBulkExpenseRow')?.addEventListener('click',()=>addRow());
