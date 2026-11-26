@@ -30,6 +30,7 @@ const requiredFiles = [
   'migrations/037_license_write_restrictions.sql',
   'migrations/038_platform_managed_entitlements.sql',
   'migrations/039_owner_supervisor_employee_rls.sql',
+  'migrations/040_employee_offboarding_rejection.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -291,6 +292,16 @@ if (!ownerSupervisorRlsMigration.includes("actor.role IN ('admin', 'supervisor')
     !ownerSupervisorRlsMigration.includes('app_private.tenant_context_is_valid()') ||
     !ownerSupervisorRlsMigration.includes('actor.business_id = public.app_current_business_id()')) {
   throw new Error('La gestión de empleados debe permitir Dueño y Supervisor solo dentro de su negocio y con contexto firmado.');
+}
+
+
+const offboardingMigration = fs.readFileSync(path.join(root, 'migrations/040_employee_offboarding_rejection.sql'), 'utf8');
+if (!offboardingMigration.includes("'termination_rejected'") ||
+    !apiSource.includes("action==='reject_request'") ||
+    !apiSource.includes("'employee_offboarding','Solicitud de baja de empleado'") ||
+    !apiSource.includes("Ya existe una solicitud de baja pendiente") ||
+    !fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8').includes('data-employee-offboarding="reject_request"')) {
+  throw new Error('El flujo de bajas debe notificar al Dueño, evitar solicitudes duplicadas y permitir rechazar solicitudes pendientes.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
