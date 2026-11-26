@@ -2914,7 +2914,7 @@ module.exports = async function handler(req, res) {
           const permissions=user.permissions&&typeof user.permissions==='object'&&!Array.isArray(user.permissions)?user.permissions:{};
           if(permissions['cash.manage']!==true)return send(res,403,{error:'Tu perfil no tiene permiso para adjuntar comprobantes a movimientos.'});
         }
-        const movementId=String(input.movementId||''),name=String(input.name||'').trim().replace(/[\\/\\u0000-\\u001f]/g,'_').slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
+        const movementId=String(input.movementId||''),name=String(input.name||'').trim().replace(/[\/\\]/g,'_').replace(/[\\x00-\\x1f]/g,'_').slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
         if(!movementId||!name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||!dataUrl.startsWith('data:'+mime+';base64,'))return send(res,400,{error:'El comprobante debe ser PDF o imagen JPG, PNG o WEBP.'});
         const movement=(Array.isArray(source.movements)?source.movements:[]).find(m=>String(m?.id||'')===movementId);
         if(!movement)return send(res,404,{error:'No se encontró el movimiento seleccionado.'});
