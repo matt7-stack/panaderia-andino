@@ -65,7 +65,7 @@ if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
     !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
   throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
 }
-for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024"]) {
+for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024","window.PanaderiaAuth?window.PanaderiaAuth.user:currentUser","cache=emptyCache();throw error"]) {
   if (!operationsToolsSource.includes(marker)) throw new Error('Falta una función de herramientas del negocio o sincronización: ' + marker);
 }
 const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
@@ -97,6 +97,13 @@ if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
     !apiSource.includes("input.managerName===undefined}::boolean") ||
     !apiSource.includes("typeof input.active==='boolean'}::boolean")) {
   throw new Error('La API debe evitar sobrescrituras concurrentes, validar archivos, respetar módulos y tipar condiciones SQL.');
+}
+if (operationsToolsSource.includes('mattsystem_tools_cache_v1') ||
+    operationsToolsSource.includes('window.PanaderiaAuth?.user||currentUser')) {
+  throw new Error('La caché offline no debe reutilizar datos antiguos ni conservar el usuario anterior tras cerrar sesión.');
+}
+if (!apiSource.includes("replace(/[\\/\\\\]/g,'_').replace(/[\\x00-\\x1f]/g,'_')")) {
+  throw new Error('Los nombres de comprobantes deben eliminar separadores de ruta y caracteres de control.');
 }
 if (operationsToolsSource.includes('xlsx@0.18.5') ||
     !operationsToolsSource.includes('xlsx-0.20.3/package/dist/xlsx.full.min.js')) {
