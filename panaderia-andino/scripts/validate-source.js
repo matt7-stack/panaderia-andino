@@ -318,7 +318,8 @@ const employeePwaSource = fs.readFileSync(path.join(root, 'employee-access.js'),
 if (!employeePwaSource.includes("document.getElementById('mattsystemPwaBanner')") ||
     !employeePwaSource.includes('automaticBanner.remove()') ||
     !employeePwaSource.includes("button.id = 'installAppPwaButton'") ||
-    !employeePwaSource.includes("window.addEventListener('beforeinstallprompt'")) {
+    !employeePwaSource.includes("window.addEventListener('beforeinstallprompt'") ||
+    !employeePwaSource.includes("const fixedBottom = style.position === 'fixed'")) {
   throw new Error('La instalación PWA debe quedar disponible manualmente en Novedades y versiones, sin banners automáticos.');
 }
 
