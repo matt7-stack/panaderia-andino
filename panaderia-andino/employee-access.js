@@ -217,4 +217,81 @@
     if (event.detail?.page === 'empleados' && canManage()) loadEmployees();
   });
   Promise.resolve(window.PanaderiaAuthReady).then(activate).catch(() => {});
+  // Instalación PWA manual desde Novedades y versiones; no mostrar avisos automáticos.
+  (function setupManualPwaInstall() {
+    let installPrompt = null;
+    const installCopy = /instal[aá].{0,35}mattsystem.{0,70}(dispositivo|celular|computadora|pc)|mattsystem.{0,60}instal.{0,60}(dispositivo|celular|computadora|pc)/i;
+    function hideAutomaticInstallMessages(root = document) {
+      root.querySelectorAll('body *').forEach(node => {
+        if (node.children.length > 0) return;
+        const text = (node.textContent || '').trim();
+        if (text.length > 15 && text.length < 240 && installCopy.test(text)) {
+          const wrapper = node.closest('[role="status"], .alert, .toast, .install-banner, .pwa-install-prompt') || node;
+          wrapper.hidden = true;
+          wrapper.setAttribute('aria-hidden', 'true');
+        }
+      });
+    }
+    function addInstallButton() {
+      const refresh = document.getElementById('releaseRefresh');
+      if (!refresh || document.getElementById('installAppPwaButton')) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = 'installAppPwaButton';
+      button.className = 'btn btn-bakery';
+      button.innerHTML = '<i class="bi bi-phone"></i> Instalar app (PWA)';
+      button.addEventListener('click', async () => {
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+          window.alert('MATTSYSTEM ya está instalado en este dispositivo.');
+          return;
+        }
+        if (installPrompt) {
+          installPrompt.prompt();
+          const choice = await installPrompt.userChoice.catch(() => null);
+          if (choice?.outcome === 'accepted') button.textContent = 'Instalación aceptada';
+          installPrompt = null;
+          return;
+        }
+        const isAppleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        const message = isAppleMobile
+          ? 'Para instalar MATTSYSTEM: tocá el botón Compartir del navegador y elegí “Agregar a pantalla de inicio”.'
+          : 'La instalación no está disponible en este momento. Abrí MATTSYSTEM en Chrome o Edge, verificá que estés conectado y volvé a intentarlo. También podés usar el menú del navegador y elegir “Instalar aplicación” o “Agregar a pantalla principal”.';
+        window.alert(message);
+      });
+      refresh.insertAdjacentElement('afterend', button);
+      const actions = refresh.parentElement;
+      if (actions) {
+        actions.style.display = 'flex';
+        actions.style.flexWrap = 'wrap';
+        actions.style.gap = '8px';
+      }
+    }
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      installPrompt = event;
+      addInstallButton();
+    });
+    window.addEventListener('appinstalled', () => {
+      installPrompt = null;
+      const button = document.getElementById('installAppPwaButton');
+      if (button) button.textContent = 'App instalada';
+    });
+    const observer = new MutationObserver(() => {
+      hideAutomaticInstallMessages();
+      addInstallButton();
+    });
+    function start() {
+      hideAutomaticInstallMessages();
+      addInstallButton();
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+    else start();
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-page-link="novedades"], [data-go-page="novedades"]')) {
+        setTimeout(addInstallButton, 60);
+      }
+    });
+  })();
+
 })();
