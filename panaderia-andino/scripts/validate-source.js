@@ -362,10 +362,10 @@ if (!quotationDeleteCode.includes('WITH deleted AS') ||
     !quotationDeleteCode.includes('FROM deleted')) {
   throw new Error('La eliminación y auditoría de cotizaciones deben ejecutarse atómicamente.');
 }
-const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/042_audit_log_immutability_and_quote_delete_scope.sql'), 'utf8');
-if (!hardeningMigration.includes('ALTER POLICY mattsystem_tenant_update ON public.app_audit_logs') ||
-    !hardeningMigration.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_audit_logs') ||
-    !hardeningMigration.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_quotations')) {
+const securityMigration042 = fs.readFileSync(path.join(root, 'migrations/042_audit_log_immutability_and_quote_delete_scope.sql'), 'utf8');
+if (!securityMigration042.includes('ALTER POLICY mattsystem_tenant_update ON public.app_audit_logs') ||
+    !securityMigration042.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_audit_logs') ||
+    !securityMigration042.includes('ALTER POLICY mattsystem_tenant_delete ON public.app_quotations')) {
   throw new Error('El registro de auditoría debe ser inmutable para negocios y la eliminación de cotizaciones exclusiva del administrador de plataforma.');
 }
 
