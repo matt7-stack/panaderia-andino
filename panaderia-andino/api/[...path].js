@@ -598,9 +598,10 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req),businessId=String(input.businessId||''),systemName=String(input.systemName||'Mattsystem').trim().slice(0,100),plan=String(input.plan||'basic'),status=String(input.status||'pending');
-        const billingDay=Number(input.billingDay??1),termMonths={monthly:1,year_1:12,year_2:24,year_3:36,year_4:48,year_5:60,permanent:null};
-        const durationType=String(input.durationType||'year_1'),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths??12);
-        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!(durationMonths===null||(Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120)))return send(res,400,{error:'Datos de licencia no válidos. Revisá negocio, tipo, duración y día de cobro.'});
+        const billingDay=Number(input.billingDay??1),termMonths={monthly:1,year_1:12,year_2:24,year_3:36,year_4:48,year_5:60,permanent:null,custom_days:null};
+        const durationType=String(input.durationType||'year_1'),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths??12),durationDays=Number(input.durationDays??0);
+        const validDuration=durationType==='custom_days'?Number.isInteger(durationDays)&&durationDays>=1&&durationDays<=3650:(durationMonths===null||Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120);
+        if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!validDuration)return send(res,400,{error:'Datos de licencia no válidos. La duración personalizada debe ser de 1 a 3650 días.'});
         const planRows=await sql`SELECT setup_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
         const defaultSettings=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
@@ -618,7 +619,7 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationMonths} IS NULL THEN NULL ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -638,11 +639,12 @@ module.exports = async function handler(req, res) {
           return send(res,200,{license:rows[0]});
         }
         if(input.action==='activate'||input.action==='renew'){
-          const termMonths={monthly:1,year_1:12,year_2:24,year_3:36,year_4:48,year_5:60,permanent:null};
-          const durationType=String(input.durationType||''),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths);
+          const termMonths={monthly:1,year_1:12,year_2:24,year_3:36,year_4:48,year_5:60,permanent:null,custom_days:null};
+          const durationType=String(input.durationType||''),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths),durationDays=Number(input.durationDays??0);
+          const validDuration=durationType==='custom_days'?Number.isInteger(durationDays)&&durationDays>=1&&durationDays<=3650:(durationMonths===null||Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120);
           const amount=Number(input.amount??0);
-          if(!id||!(durationMonths===null||(Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120)))
-            return send(res,400,{error:'Elegí una duración válida: mensual, de 1 a 5 años o permanente.'});
+          if(!id||!validDuration)
+            return send(res,400,{error:'Elegí una duración válida. Los días personalizados deben estar entre 1 y 3650.'});
           if(input.action==='renew'&&(!Number.isFinite(amount)||amount<0))
             return send(res,400,{error:'Ingresá un importe igual o mayor que cero.'});
           const rows=await sql`
@@ -650,7 +652,7 @@ module.exports = async function handler(req, res) {
               UPDATE app_licenses
               SET status='active',
                   sold_at=CASE WHEN ${input.action==='activate'} THEN COALESCE(sold_at,CURRENT_DATE) ELSE sold_at END,
-                  expires_at=CASE WHEN ${durationMonths} IS NULL THEN NULL ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,
+                  expires_at=CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,
                   updated_at=NOW()
               WHERE id=${id} RETURNING *
             ),
@@ -667,7 +669,7 @@ module.exports = async function handler(req, res) {
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
             SELECT business_id,${admin.id},${input.action==='activate'?'license.activated':'license.renewed'},'license',id,
               ${JSON.stringify({durationType:durationType||null,durationMonths,expiresAt:rows[0].expires_at})}::jsonb FROM app_licenses WHERE id=${id}`;
-          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0,durationMonths,durationType:durationType||null});
+          return send(res,200,{license:rows[0],paymentRecorded:Number(rows[0].payment_recorded||0)>0,durationMonths,durationDays:durationType==='custom_days'?durationDays:null,durationType:durationType||null});
         }
         const status=String(input.status||'');
         if(!id||!['pending','active','suspended','cancelled','expired'].includes(status))return send(res,400,{error:'Estado de licencia no válido.'});
@@ -1108,6 +1110,18 @@ module.exports = async function handler(req, res) {
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'commercial.quotation_created','quotation',${rows[0].id},${JSON.stringify({prospectName,industry,licensePlanKey,plan,modules,moduleExpansion})}::jsonb)`;
         return send(res,201,{quotation:rows[0],totals:{setup:plan==='monthly'||plan==='annual'?setup:oneTime,monthly:plan==='monthly'?monthly:0,annual:plan==='annual'?annual:0,currency:settings.currency||'PYG'},pricingConfigured:pricedCatalog.some(m=>Number(m.monthly_price||0)>0||Number(m.setup_price||0)>0)||(moduleExpansion?false:Number(planSettings.monthly_amount||0)>0||Number(planSettings.setup_amount||0)>0)||((plan==='permanent'&&Number(planSettings.permanent_price||0)>0)||(plan==='full_sale'&&Number(planSettings.full_sale_price||0)>0))});
       }
+      if(req.method==='DELETE'){
+        const input=body(req),id=String(input.id||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Cotización no válida.'});
+        const current=await sql`SELECT id,business_id,status,prospect_name FROM app_quotations WHERE id=${id} LIMIT 1`;
+        if(!current.length)return send(res,404,{error:'Cotización no encontrada.'});
+        if(['accepted','converted'].includes(current[0].status))return send(res,409,{error:'No se puede borrar una cotización aceptada o convertida porque forma parte del historial comercial. Podés conservarla como registro.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${current[0].business_id},${admin.id},'commercial.quotation_deleted','quotation',${id},${JSON.stringify({prospectName:current[0].prospect_name,status:current[0].status})}::jsonb)`;
+        const deleted=await sql`DELETE FROM app_quotations WHERE id=${id} AND status NOT IN ('accepted','converted') RETURNING id`;
+        if(!deleted.length)return send(res,409,{error:'La cotización cambió o fue aceptada mientras se intentaba borrar.'});
+        return send(res,200,{ok:true,id:deleted[0].id});
+      }
       if(req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),status=String(input.status||'');
         if(!/^[0-9a-f-]{36}$/i.test(id)||!['sent','accepted','rejected','expired'].includes(status))return send(res,400,{error:'Estado de cotización no válido.'});
@@ -1287,7 +1301,7 @@ module.exports = async function handler(req, res) {
         const quotationId=String(input.quotationId||'');
         const activateTrial=input.activateTrial===true;
         const requestedTrialDays=Number(input.trialDays||7);
-        if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>90))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 90 días.'});
+        if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>3650))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 3650 días.'});
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
         if(quotationId){
           const quote=await sql`SELECT id,prospect_name,prospect_email,industry_key,config_mode,modules FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
