@@ -3050,34 +3050,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<h3 class="section">Hosting, mantenimiento y soporte</h3><p>No aparecen como conceptos incluidos ni cotizados en el total de esta propuesta. Si el cliente los requiere, se detallarán en una cotización o acuerdo separado, con sus importes y periodicidad.</p>'+
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
-              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>
-
-
-<style id="movement-filter-compact-20261126">
-/* Filtros de Movimientos: conservar el ancho y reducir la altura de los controles. */
-#page-movimientos .filter-bar{align-items:center}
-#page-movimientos .filter-bar .search-field{min-height:34px;padding:5px 9px}
-#page-movimientos .filter-bar .search-field input{min-height:22px;font-size:10px}
-#page-movimientos .filter-bar .filter-select{min-height:34px;padding-top:4px;padding-bottom:4px;font-size:10px}
-#page-movimientos .filter-bar .date-range{min-height:34px;padding:3px 7px}
-#page-movimientos .filter-bar .date-field{gap:1px;font-size:8px}
-#page-movimientos .filter-bar .date-field input{min-height:23px;padding:1px 4px;font-size:10px}
-#page-movimientos .filter-bar .btn-filter{min-height:34px;padding:5px 10px;font-size:9px}
-@media(max-width:767.98px){
- #page-movimientos .filter-bar .search-field,
- #page-movimientos .filter-bar .filter-select,
- #page-movimientos .filter-bar .btn-filter{min-height:36px}
- #page-movimientos .filter-bar .date-range{min-height:0;padding:6px}
- #page-movimientos .filter-bar .date-field input{min-height:32px;font-size:12px}
-}
-</style>
-<style id="client-role-navigation-visibility-20261126">
-/* El atributo hidden debe prevalecer sobre display:flex de los enlaces del menú. */
-.nav-menu .nav-link[hidden],
-.nav-menu .admin-nav-group[hidden],
-.nav-menu .admin-nav-group__items[hidden]{display:none!important}
-</style>
-</body></html>';
+              '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div></body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
           actions.querySelector('#sendBusinessQuote').addEventListener('click',()=>{
@@ -5049,5 +5022,30 @@ html.auth-locked body::-webkit-scrollbar-track {
   body:not(.platform-admin) .main-content { margin-left:258px !important; }
 }
 </style>
+<style id="movement-filter-compact-20261126">
+/* Filtros de Movimientos: conservar el ancho y reducir la altura de los controles. */
+#page-movimientos .filter-bar{align-items:center}
+#page-movimientos .filter-bar .search-field{min-height:34px;padding:5px 9px}
+#page-movimientos .filter-bar .search-field input{min-height:22px;font-size:10px}
+#page-movimientos .filter-bar .filter-select{min-height:34px;padding-top:4px;padding-bottom:4px;font-size:10px}
+#page-movimientos .filter-bar .date-range{min-height:34px;padding:3px 7px}
+#page-movimientos .filter-bar .date-field{gap:1px;font-size:8px}
+#page-movimientos .filter-bar .date-field input{min-height:23px;padding:1px 4px;font-size:10px}
+#page-movimientos .filter-bar .btn-filter{min-height:34px;padding:5px 10px;font-size:9px}
+@media(max-width:767.98px){
+ #page-movimientos .filter-bar .search-field,
+ #page-movimientos .filter-bar .filter-select,
+ #page-movimientos .filter-bar .btn-filter{min-height:36px}
+ #page-movimientos .filter-bar .date-range{min-height:0;padding:6px}
+ #page-movimientos .filter-bar .date-field input{min-height:32px;font-size:12px}
+}
+</style>
+<style id="client-role-navigation-visibility-20261126">
+/* El atributo hidden debe prevalecer sobre display:flex de los enlaces del menú. */
+.nav-menu .nav-link[hidden],
+.nav-menu .admin-nav-group[hidden],
+.nav-menu .admin-nav-group__items[hidden]{display:none!important}
+</style>
+
 </body>
 </html>
