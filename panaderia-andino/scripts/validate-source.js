@@ -269,7 +269,7 @@ if (!receivablesSource.includes("const owner = user.role === 'admin';") ||
 for (const marker of [
   "const canManage=allowed('products.manage')",
   "const canManage=allowed('inventory.manage')",
-  "const canManage=allowed(manageKey)",
+  "canManage=allowed(manageKey)",
   "const canManage=allowed('purchases.create')",
   "const canManage=allowed('recipes.manage')",
   "const canManage=allowed('production.manage')",
