@@ -51,46 +51,49 @@
     }
     return result;
   }
-  function renderAccounts(employees) {
+  function renderAccounts(employees, isOwner, events) {
+    const latestByEmployee = new Map();
+    (Array.isArray(events) ? events : []).forEach(event => {
+      if (event.employee_user_id && !latestByEmployee.has(event.employee_user_id)) latestByEmployee.set(event.employee_user_id, event.event_type);
+    });
     const list = $('#businessEmployeeAccountsList');
     if (!list) return;
     if (!employees.length) {
       list.innerHTML = '<p class="text-muted mb-0">Todavía no hay cuentas de empleados. Creá la primera desde el formulario.</p>';
       return;
     }
-    const owner = authUser()?.role === 'admin';
     list.innerHTML = employees.map(employee => {
       const active = employee.active === true;
+      const pending = latestByEmployee.get(employee.id) === 'termination_requested';
       const action = active
-        ? (owner ? '<button class="btn btn-sm btn-outline-danger" type="button" data-offboard-business-employee>Dar de baja</button>' : '<button class="btn btn-sm btn-outline-warning" type="button" data-request-business-employee-offboard>Solicitar baja</button>')
-        : (owner ? '<button class="btn btn-sm btn-outline-success" type="button" data-reactivate-business-employee>Reactivar</button>' : '');
+        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">' + (isOwner ? (pending ? 'Confirmar baja solicitada' : 'Dar de baja') : 'Solicitar baja') + '</button>'
+        : (isOwner ? '<button class="btn btn-sm btn-outline-success" type="button" data-employee-offboarding="reactivate">Reactivar</button>' : '');
       return '<article class="border rounded-3 p-3 mb-3" data-business-employee="' + escapeHtml(employee.id) + '">' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><strong>' + escapeHtml(employee.name) +
         '</strong><div class="small text-muted">' + escapeHtml(employee.email) + '</div></div><div class="d-flex align-items-center gap-2 flex-wrap">' +
-        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Sin acceso') + '</span>' +
+        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Baja registrada') + '</span>' +
         action + '</div></div><div class="row g-2 mt-2">' +
         permissionMarkup(employee.permissions || {}, 'employee-' + employee.id) +
         '</div><div class="d-flex justify-content-end mt-3"><button class="btn btn-sm btn-bakery" type="button" data-save-business-employee-permissions>Guardar permisos</button></div></article>';
     }).join('');
   }
-  function renderLifecycle(events) {
-    const panel = $('#employeeLifecycleHistory');
-    if (!panel) return;
-    const owner = authUser()?.role === 'admin';
-    const rows = Array.isArray(events) ? events : [];
-    const pending = rows.filter(item => item.event_type === 'termination_requested' && item.status === 'pending');
-    const history = rows.filter(item => !(item.event_type === 'termination_requested' && item.status === 'pending'));
-    panel.innerHTML = (owner && pending.length ? '<div class="mb-3"><strong>Solicitudes pendientes del Supervisor</strong>' +
-      pending.map(item => '<article class="border rounded-3 p-3 mt-2" data-lifecycle-request="' + escapeHtml(item.id) + '" data-employee-id="' + escapeHtml(item.employee_user_id) + '">' +
-        '<div><strong>' + escapeHtml(item.employee_name) + '</strong><div class="small text-muted">Solicitó: ' + escapeHtml(item.actor_name) + ' · ' + escapeHtml(new Date(item.created_at).toLocaleString('es-PY')) + '</div>' +
-        '<p class="mb-2 mt-2">' + escapeHtml(item.reason || 'Sin motivo indicado') + '</p></div><div class="d-flex gap-2 flex-wrap">' +
-        '<button type="button" class="btn btn-sm btn-danger" data-approve-employee-offboard>Confirmar baja</button>' +
-        '<button type="button" class="btn btn-sm btn-outline-secondary" data-reject-employee-offboard>Rechazar solicitud</button></div></article>').join('') + '</div>' : '') +
-      '<div><strong>Historial de movimientos de personal</strong>' +
-      (history.length ? history.map(item => '<div class="border-bottom py-2"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>' +
-        escapeHtml(item.employee_name) + '</strong><span class="small text-muted">' + escapeHtml(new Date(item.created_at).toLocaleString('es-PY')) +
-        '</span></div><div class="small">' + escapeHtml(({terminated:'Baja confirmada',reactivated:'Cuenta reactivada',termination_request_rejected:'Solicitud rechazada',termination_requested:'Solicitud de baja'})[item.event_type] || item.event_type) +
-        ' · Responsable: ' + escapeHtml(item.actor_name) + '</div>' + (item.reason ? '<div class="small text-muted">' + escapeHtml(item.reason) + '</div>' : '') + '</div>').join('') : '<p class="small text-muted mt-2 mb-0">Todavía no hay movimientos registrados.</p>') + '</div>';
+  function renderOffboardingEvents(events) {
+    const list = $('#businessEmployeeOffboardingHistory');
+    if (!list) return;
+    if (!events.length) {
+      list.innerHTML = '<p class="text-muted mb-0">Todavía no hay bajas ni solicitudes registradas.</p>';
+      return;
+    }
+    const labels = { terminated: 'Baja confirmada', termination_requested: 'Solicitud de baja', reactivated: 'Reactivación' };
+    list.innerHTML = events.map(event => {
+      const date = event.created_at ? new Date(event.created_at).toLocaleString('es-PY') : 'Fecha no disponible';
+      return '<article class="border-bottom py-2"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>' +
+        escapeHtml(event.employee_name || event.employee_email || 'Empleado') + ' · ' + escapeHtml(labels[event.event_type] || 'Movimiento') +
+        '</strong><small class="text-muted">' + escapeHtml(date) + '</small></div><div class="small text-muted">Registró: ' +
+        escapeHtml(event.actor_name || 'Usuario no disponible') + '</div>' +
+        (event.reason ? '<div class="small mt-1">Motivo: ' + escapeHtml(event.reason) + '</div>' : '') +
+        (event.notes ? '<div class="small mt-1">Observaciones: ' + escapeHtml(event.notes) + '</div>' : '') + '</article>';
+    }).join('');
   }
   async function loadEmployees() {
     const panel = $('#supervisorEmployeeAccounts');
@@ -101,15 +104,15 @@
     try {
       const result = await api('/api/business/users');
       const employees = Array.isArray(result.employees) ? result.employees : [];
+      const events = Array.isArray(result.events) ? result.events : [];
       const limits = result.limits || {};
       const limitText = limits.employeeLimit == null ? 'sin límite fijo' : String(limits.employeeLimit);
       const active = Number(limits.activeEmployees || 0);
       const remaining = limits.remaining == null ? 'sin límite fijo' : String(limits.remaining);
       const summary = $('#businessEmployeeLimit');
       if (summary) summary.textContent = 'Plan ' + (limits.plan || 'actual') + ' · ' + active + ' empleados activos · límite ' + limitText + ' · disponibles ' + remaining + '.';
-      renderAccounts(employees);
-      const lifecycle = await api('/api/business/employees/lifecycle');
-      renderLifecycle(lifecycle.events || []);
+      renderAccounts(employees, authUser()?.role === 'admin', events);
+      renderOffboardingEvents(events);
     } catch (error) {
       const list = $('#businessEmployeeAccountsList');
       if (list) list.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(error.message || 'No se pudieron cargar las cuentas.') + '</p>';
@@ -158,27 +161,24 @@
     const card = event.target.closest('[data-business-employee]');
     if (!card || !canManage()) return;
     const id = card.dataset.businessEmployee;
-    const toggle = event.target.closest('[data-toggle-business-employee]');
+    const offboard = event.target.closest('[data-employee-offboarding]');
     const save = event.target.closest('[data-save-business-employee-permissions]');
-    const offboard = event.target.closest('[data-offboard-business-employee]');
-    const requestOffboard = event.target.closest('[data-request-business-employee-offboard]');
-    const reactivate = event.target.closest('[data-reactivate-business-employee]');
     try {
-      if (offboard || requestOffboard || reactivate) {
-        const action = offboard ? 'terminate' : requestOffboard ? 'request_termination' : 'reactivate';
-        const question = action === 'terminate' ? 'Confirmar la baja? Se cerrarán sus sesiones y se conservará su historial.' :
-          action === 'request_termination' ? 'Enviar al Dueño una solicitud de baja?' : 'Reactivar el acceso de este empleado?';
-        if (!window.confirm(question)) return;
-        const reason = window.prompt('Motivo (opcional):', '') || '';
-        const button = offboard || requestOffboard || reactivate;
-        button.disabled = true;
-        await api('/api/business/employees/lifecycle', { method: 'POST', body: JSON.stringify({ action, employeeId: id, reason }) });
-        await loadEmployees();
-        window.alert(action === 'request_termination' ? 'Solicitud enviada al Dueño.' : action === 'terminate' ? 'Baja confirmada. Las sesiones fueron revocadas y el historial se conservó.' : 'Empleado reactivado.');
-      } else if (toggle) {
-        toggle.disabled = true;
-        const active = !card.querySelector('.badge')?.classList.contains('bg-success');
-        await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, active }) });
+      if (offboard) {
+        offboard.disabled = true;
+        const action = offboard.dataset.employeeOffboarding;
+        if (action === 'reactivate') {
+          if (!window.confirm('¿Reactivar esta cuenta? Se restaurará el acceso con sus permisos actuales.')) return;
+          const notes = window.prompt('Observaciones de la reactivación (opcional):') || '';
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: 'reactivate', notes }) });
+        } else {
+          const isOwner = authUser()?.role === 'admin';
+          const reason = window.prompt(isOwner ? 'Motivo de la baja (opcional):' : 'Motivo de la solicitud de baja (opcional):') || '';
+          const notes = window.prompt('Observaciones adicionales (opcional):') || '';
+          if (!window.confirm(isOwner ? 'Confirmar baja inmediata y cierre de todas las sesiones?' : 'Enviar solicitud de baja al Dueño?')) return;
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: isOwner ? 'terminate' : 'request_termination', reason, notes }) });
+          if (!isOwner) window.alert('Solicitud registrada. El Dueño deberá confirmar la baja.');
+        }
         await loadEmployees();
       } else if (save) {
         save.disabled = true;
@@ -190,28 +190,8 @@
     } catch (error) {
       window.alert(error.message || 'No se pudo actualizar la cuenta.');
     } finally {
-      if (toggle) toggle.disabled = false;
+      if (offboard) offboard.disabled = false;
       if (save) save.disabled = false;
-    }
-  }
-  async function resolveLifecycleRequest(event, card) {
-    const approve = event.target.closest('[data-approve-employee-offboard]');
-    const reject = event.target.closest('[data-reject-employee-offboard]');
-    if (!approve && !reject) return;
-    if (authUser()?.role !== 'admin') return;
-    const action = approve ? 'terminate' : 'reject_request';
-    if (!window.confirm(approve ? 'Confirmar la baja solicitada? Se revocarán las sesiones y se conservará el historial.' : 'Rechazar esta solicitud de baja?')) return;
-    const reason = window.prompt('Motivo (opcional):', '') || '';
-    const button = approve || reject; button.disabled = true;
-    try {
-      await api('/api/business/employees/lifecycle', { method: 'POST', body: JSON.stringify({
-        action, employeeId: card.dataset.employeeId, requestId: card.dataset.lifecycleRequest, reason
-      }) });
-      await loadEmployees();
-      window.alert(approve ? 'Baja confirmada. Las sesiones fueron revocadas y el historial se conservó.' : 'Solicitud rechazada.');
-    } catch (error) {
-      window.alert(error.message || 'No se pudo resolver la solicitud.');
-      button.disabled = false;
     }
   }
   function activate(user) {
@@ -230,9 +210,7 @@
   });
   document.addEventListener('click', event => {
     if (event.target.closest('#refreshBusinessEmployees')) loadEmployees();
-    if (event.target.closest('[data-toggle-business-employee],[data-save-business-employee-permissions],[data-offboard-business-employee],[data-request-business-employee-offboard],[data-reactivate-business-employee]')) handleAccountAction(event);
-    const request = event.target.closest('[data-lifecycle-request]');
-    if (request && canManage()) resolveLifecycleRequest(event, request);
+    if (event.target.closest('[data-employee-offboarding],[data-save-business-employee-permissions]')) handleAccountAction(event);
   });
   window.addEventListener('panaderia:authenticated', event => activate(event.detail || authUser()));
   window.addEventListener('panaderia:pagenavigate', event => {
