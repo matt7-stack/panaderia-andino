@@ -255,6 +255,27 @@ async function authenticated(req, res, adminOnly = false, allowInactiveLicense =
   if (adminOnly && user.is_platform_admin !== true) { send(res, 403, { error: 'Solo el administrador puede acceder a estos datos.' }); return null; }
   return user;
 }
+async function sendWebPush(sql, userIds, title, message, tag) {
+  const publicKey=process.env.VAPID_PUBLIC_KEY||'',privateKey=process.env.VAPID_PRIVATE_KEY||'';
+  if(!publicKey||!privateKey||!Array.isArray(userIds)||!userIds.length)return {sent:0,failed:0};
+  let webpush;
+  try { webpush=require('web-push'); webpush.setVapidDetails(process.env.VAPID_SUBJECT||'mailto:soporte@mattsystem.app',publicKey,privateKey); }
+  catch(error){ console.error('Web Push no configurado:',error.message); return {sent:0,failed:0}; }
+  const subscriptions=await sql`SELECT id,user_id,subscription FROM app_push_subscriptions WHERE user_id=ANY(${userIds}::uuid[])`;
+  let sent=0,failed=0;
+  for(const item of subscriptions){
+    try {
+      await webpush.sendNotification(item.subscription,JSON.stringify({title:String(title||'MATTSYSTEM'),body:String(message||'Tenés una nueva notificación.'),tag:String(tag||'mattsystem-alert'),url:'/app.bundle.html#notificaciones'}),{TTL:86400,urgency:'high'});
+      await sql`UPDATE app_push_subscriptions SET last_success_at=NOW(),updated_at=NOW() WHERE id=${item.id}`;
+      sent++;
+    } catch(error) {
+      failed++;
+      if(error.statusCode===404||error.statusCode===410)await sql`DELETE FROM app_push_subscriptions WHERE id=${item.id}`;
+      else console.error('Error al enviar Web Push:',error.statusCode||error.message);
+    }
+  }
+  return {sent,failed};
+}
 const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const validPassword = value => typeof value === 'string' && value.length >= 12 && value.length <= 200;
 const publicUser = u => ({
@@ -704,6 +725,30 @@ module.exports = async function handler(req, res) {
       const businesses=await sql`SELECT b.id,b.name,b.active,b.created_at,MAX(u.last_seen_at) AS last_seen_at,COUNT(u.id)::int AS users,COUNT(*) FILTER(WHERE u.active)::int AS active_users FROM businesses b LEFT JOIN app_users u ON u.business_id=b.id GROUP BY b.id ORDER BY b.created_at DESC`;
       const ticketCounts=await sql`SELECT status,COUNT(*)::int AS total FROM app_support_tickets GROUP BY status`;
       return send(res,200,{businesses,ticketCounts,totals:{businesses:businesses.length,active:businesses.filter(x=>x.active).length,inactive:businesses.filter(x=>!x.active).length,needsAttention:businesses.filter(x=>x.active&&(!x.last_seen_at||Date.now()-new Date(x.last_seen_at).getTime()>30*86400000)).length}});
+    }
+    if(path==='/api/push/public-key'&&req.method==='GET'){
+      const key=process.env.VAPID_PUBLIC_KEY||'';
+      return send(res,key?200:503,{publicKey:key||null,configured:Boolean(key)});
+    }
+    if(path==='/api/push/subscriptions'){
+      const user=await authenticated(req,res,false,true);if(!user)return;
+      const sql=db();
+      if(req.method==='POST'){
+        const input=body(req),subscription=input.subscription;
+        if(!subscription||typeof subscription.endpoint!=='string'||subscription.endpoint.length>3000||!/^https:\/\//i.test(subscription.endpoint)||!subscription.keys||typeof subscription.keys.p256dh!=='string'||typeof subscription.keys.auth!=='string'||subscription.keys.p256dh.length>200||subscription.keys.auth.length>100)return send(res,400,{error:'Suscripción de dispositivo no válida.'});
+        const rows=await sql`INSERT INTO app_push_subscriptions(user_id,business_id,endpoint,subscription,user_agent,updated_at)
+          VALUES(${user.id},${user.business_id||null},${subscription.endpoint},${JSON.stringify(subscription)}::jsonb,${String(req.headers['user-agent']||'').slice(0,300)},NOW())
+          ON CONFLICT(endpoint) DO UPDATE SET user_id=EXCLUDED.user_id,business_id=EXCLUDED.business_id,subscription=EXCLUDED.subscription,user_agent=EXCLUDED.user_agent,updated_at=NOW()
+          RETURNING id`;
+        return send(res,201,{ok:true,id:rows[0]?.id});
+      }
+      if(req.method==='DELETE'){
+        const endpoint=String(body(req).endpoint||'');
+        if(!endpoint||endpoint.length>3000)return send(res,400,{error:'Dispositivo no válido.'});
+        const rows=await sql`DELETE FROM app_push_subscriptions WHERE user_id=${user.id} AND endpoint=${endpoint} RETURNING id`;
+        return send(res,200,{ok:true,deleted:rows.length});
+      }
+      return send(res,405,{error:'Método no permitido.'});
     }
     if(path==='/api/notification-preferences'){
       const user=await authenticated(req,res,false);if(!user)return;
