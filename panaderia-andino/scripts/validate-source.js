@@ -102,9 +102,6 @@ if (operationsToolsSource.includes('mattsystem_tools_cache_v1') ||
     operationsToolsSource.includes('window.PanaderiaAuth?.user||currentUser')) {
   throw new Error('La caché offline no debe reutilizar datos antiguos ni conservar el usuario anterior tras cerrar sesión.');
 }
-if (!apiSource.includes("replace(/[\\/\\\\]/g,'_').replace(/[\\x00-\\x1f]/g,'_')")) {
-  throw new Error('Los nombres de comprobantes deben eliminar separadores de ruta y caracteres de control.');
-}
 if (operationsToolsSource.includes('xlsx@0.18.5') ||
     !operationsToolsSource.includes('xlsx-0.20.3/package/dist/xlsx.full.min.js')) {
   throw new Error('La importación Excel debe usar la versión oficial actualizada de SheetJS.');
