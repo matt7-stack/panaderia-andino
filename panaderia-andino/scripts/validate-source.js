@@ -29,6 +29,7 @@ const requiredFiles = [
   'migrations/036_employee_offboarding.sql',
   'migrations/037_license_write_restrictions.sql',
   'migrations/038_platform_managed_entitlements.sql',
+  'migrations/039_owner_supervisor_employee_rls.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -281,6 +282,15 @@ if (!serviceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
     !serviceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
     !serviceWorkerSource.includes("mattsystem-pwa-v19")) {
   throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
+}
+
+
+const ownerSupervisorRlsMigration = fs.readFileSync(path.join(root, 'migrations/039_owner_supervisor_employee_rls.sql'), 'utf8');
+if (!ownerSupervisorRlsMigration.includes("actor.role IN ('admin', 'supervisor')") ||
+    !ownerSupervisorRlsMigration.includes('actor.is_platform_admin = FALSE') ||
+    !ownerSupervisorRlsMigration.includes('app_private.tenant_context_is_valid()') ||
+    !ownerSupervisorRlsMigration.includes('actor.business_id = public.app_current_business_id()')) {
+  throw new Error('La gestión de empleados debe permitir Dueño y Supervisor solo dentro de su negocio y con contexto firmado.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
