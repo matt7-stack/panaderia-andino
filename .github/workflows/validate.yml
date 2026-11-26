@@ -5,6 +5,7 @@ on:
       - feature/erp-multiempresa
       - fix/admin-client-panels-licenses-preview
       - security/hardening-2026-11-25
+      - feat/employee-offboarding-2026-11-26
   pull_request:
     branches:
       - main

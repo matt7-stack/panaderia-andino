@@ -236,6 +236,8 @@
     let installPrompt = null;
     const installCopy = /instal[aá].{0,35}mattsystem.{0,70}(dispositivo|celular|computadora|pc)|mattsystem.{0,60}instal.{0,60}(dispositivo|celular|computadora|pc)/i;
     function hideAutomaticInstallMessages(root = document) {
+      const automaticBanner = document.getElementById('mattsystemPwaBanner');
+      if (automaticBanner) automaticBanner.remove();
       root.querySelectorAll('body *').forEach(node => {
         if (node.children.length > 0) return;
         const text = (node.textContent || '').trim();
@@ -288,6 +290,7 @@
     window.addEventListener('beforeinstallprompt', event => {
       event.preventDefault();
       installPrompt = event;
+      hideAutomaticInstallMessages();
       addInstallButton();
     });
     window.addEventListener('appinstalled', () => {

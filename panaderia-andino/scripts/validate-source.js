@@ -314,4 +314,18 @@ if (!notificationRlsMigration.includes('user_id = public.app_context_user_id()')
   throw new Error('Las notificaciones deben quedar aisladas por destinatario y por administrador de plataforma.');
 }
 
-process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
+const employeePwaSource = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
+if (!employeePwaSource.includes("document.getElementById('mattsystemPwaBanner')") ||
+    !employeePwaSource.includes('automaticBanner.remove()') ||
+    !employeePwaSource.includes("button.id = 'installAppPwaButton'") ||
+    !employeePwaSource.includes("window.addEventListener('beforeinstallprompt'")) {
+  throw new Error('La instalación PWA debe quedar disponible manualmente en Novedades y versiones, sin banners automáticos.');
+}
+
+const workflowPath = path.resolve(root, '../.github/workflows/validate.yml');
+const workflowSource = fs.readFileSync(workflowPath, 'utf8');
+if (!workflowSource.includes('feat/employee-offboarding-2026-11-26')) {
+  throw new Error('La rama activa de QA debe ejecutar la validación de GitHub Actions en cada push.');
+}
+
+process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
