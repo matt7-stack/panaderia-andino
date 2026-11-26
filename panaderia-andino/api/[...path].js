@@ -814,7 +814,7 @@ module.exports = async function handler(req, res) {
       if (!sameOrigin(req)) return send(res,403,{error:'Solicitud no permitida.'});
       const sql = await ensureSchema(); const input = body(req);
       const email = String(input.email || '').trim().toLowerCase(); const password = typeof input.password === 'string' ? input.password : '';
-      if (!validEmail(email) || !password || password.length > 200) return send(res,400,{error:'Ingresá un correo válido y una contraseña de hasta 200 caracteres.'});
+      if (!email || email.length > 254 || !password || password.length > 200) return send(res,400,{error:'Ingresá tu correo y contraseña válidos.'});
       setRequestContext({ loginEmail: email });
       const normalizedIp = requestIp(req) || '';
       const ipHash = normalizedIp ? crypto.createHmac('sha256', secret('SESSION_SECRET')).update(normalizedIp).digest('hex') : '';
@@ -875,13 +875,14 @@ module.exports = async function handler(req, res) {
       try { session = JSON.parse(Buffer.from(payload,'base64url').toString('utf8')); } catch (_) {
         return send(res,401,{error:'Iniciá sesión para continuar.'});
       }
-      if (!session.sub || !Number.isFinite(session.exp) || session.exp < Date.now()) {
+      if (!session.sub || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(session.sub)) || !Number.isFinite(session.exp) || session.exp < Date.now()) {
         return send(res,401,{error:'Iniciá sesión para continuar.'});
       }
       setRequestContext({ userId: String(session.sub) });
       const sql = db();
-      const users = await sql`SELECT id,role,active,is_platform_admin FROM app_users WHERE id = ${session.sub} LIMIT 1`;
-      if (!users[0] || !users[0].active || users[0].is_platform_admin !== true) {
+      const users = await sql`SELECT id,role,active,is_platform_admin,session_version FROM app_users WHERE id = ${session.sub} LIMIT 1`;
+      if (!users[0] || !users[0].active || users[0].is_platform_admin !== true ||
+          Number(users[0].session_version || 0) !== Number(session.sv || 0)) {
         return send(res,403,{error:'Solo el administrador puede acceder a este diagnóstico.'});
       }
       setRequestContext({ isPlatformAdmin: true });
