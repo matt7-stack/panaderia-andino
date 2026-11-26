@@ -375,4 +375,16 @@ if (!workflowSource.includes('feat/employee-offboarding-2026-11-26')) {
   throw new Error('La rama activa de QA debe ejecutar la validación de GitHub Actions en cada push.');
 }
 
+
+const expirySettingsMigration = fs.readFileSync(path.join(root, 'migrations/043_multiple_expiry_alert_days.sql'), 'utf8');
+if (!expirySettingsMigration.includes('alert_days integer[]') ||
+    !expirySettingsMigration.includes('alert_days_before') ||
+    !apiSource.includes('alertDays.includes(daysLeft)') ||
+    !apiSource.includes('ON CONFLICT(entity_type,entity_id,due_date,alert_days_before) DO NOTHING') ||
+    !apiSource.includes('alert_days,updated_by,updated_at') ||
+    !appBundleSource.includes('placeholder="7, 3, 0"') ||
+    !appBundleSource.includes('JSON.stringify({kind:\'settings\',enabled,alertDays})')) {
+  throw new Error('Las alertas múltiples deben ser configurables, independientes y no duplicarse.');
+}
+
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
