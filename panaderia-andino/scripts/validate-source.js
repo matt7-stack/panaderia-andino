@@ -347,7 +347,7 @@ if (appBundleSource.includes('showBanner(mobileDevice?')) {
 }
 
 
-const cronBearerPatternCount = (apiSource.match(/replace\\(\\/\\^Bearer\\\\s\\+\\/i/g) || []).length;
+const cronBearerPatternCount = (apiSource.match(/replace\(\/\^Bearer\\s\+\/i/g) || []).length;
 if (!apiSource.includes("const previewRequiresRuntime = process.env.VERCEL_ENV === 'preview';") ||
     !apiSource.includes('refusing to fall back to DATABASE_URL') ||
     cronBearerPatternCount !== 1) {
