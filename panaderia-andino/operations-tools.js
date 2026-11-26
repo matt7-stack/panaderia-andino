@@ -40,9 +40,10 @@
   };
   const emptyCache=()=>({tasks:[],attachments:[],team:[],movements:[],importLogs:[]});
   let root, currentTab='tasks', cache=emptyCache(), currentUser=null, syncing=false, importRows=[], activeScope='';
-  const scopeForUser=(user=window.PanaderiaAuth?.user||currentUser)=>{
-    const userId=String(user?.id||user?.userId||user?.user_id||'');
-    const businessId=String(user?.businessId||user?.business_id||'');
+  const scopeForUser=(user)=>{
+    const resolved=user===undefined?(window.PanaderiaAuth?window.PanaderiaAuth.user:currentUser):user;
+    const userId=String(resolved?.id||resolved?.userId||resolved?.user_id||'');
+    const businessId=String(resolved?.businessId||resolved?.business_id||'');
     return userId&&businessId?businessId+':'+userId:'';
   };
   const applyScope=()=>{
@@ -66,7 +67,7 @@
       const result=await api('/api/business/tools',{method:'POST',body:JSON.stringify(payload)});
       await refresh(); return {queued:false,result};
     } catch(error) {
-      if(!navigator.onLine||/conectar|conexión|network|failed to fetch|load failed/i.test(String(error.message||''))){
+      if(!navigator.onLine||/no se pudo conectar|conectar|conexión|network|failed to fetch|load failed|tardó demasiado|timed out|timeout/i.test(String(error.message||''))){
         await idb.put({operationId:payload.operationId,scopeKey:scope,payload,queuedAt:new Date().toISOString()});await setStatus();return {queued:true};
       }
       throw error;
@@ -91,11 +92,13 @@
       cache={...emptyCache(),...fresh};
       try{localStorage.setItem(key,JSON.stringify(cache));}catch(_){}
     }catch(error){
+      const networkFailure=!navigator.onLine||/no se pudo conectar|revisá tu conexión|network|failed to fetch|load failed|tardó demasiado|timed out|timeout/i.test(String(error?.message||''));
+      if(!networkFailure){cache=emptyCache();throw error;}
       try{
         const saved=localStorage.getItem(key),parsed=saved?JSON.parse(saved):null;
-        if(!parsed||!Array.isArray(parsed.tasks)||!Array.isArray(parsed.attachments))throw error;
+        if(!parsed||!Array.isArray(parsed.tasks)||!Array.isArray(parsed.attachments)){cache=emptyCache();throw error;}
         cache={...emptyCache(),...parsed};
-      }catch(_){throw error;}
+      }catch(_){cache=emptyCache();throw error;}
     }
     await setStatus();return cache;
   };
