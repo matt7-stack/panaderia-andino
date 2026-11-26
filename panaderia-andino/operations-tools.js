@@ -135,7 +135,7 @@
     if(window.XLSX)return Promise.resolve();
     if(xlsxLoadPromise)return xlsxLoadPromise;
     xlsxLoadPromise=new Promise((resolve,reject)=>{
-      const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      const script=document.createElement('script');script.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
       script.onload=()=>window.XLSX?resolve():reject(new Error('No se pudo inicializar el lector de Excel.'));
       script.onerror=()=>{xlsxLoadPromise=null;reject(new Error('No se pudo cargar el lector de Excel. Conectate a Internet o guardá la hoja como CSV.'));};
       document.head.appendChild(script);
@@ -144,6 +144,7 @@
   };
   const prepareImport = async file => {
     importRows=[];const preview=root.querySelector('#btImportPreview'),submit=root.querySelector('#btImportSubmit');if(submit)submit.disabled=true;if(!file){if(preview)preview.textContent='Seleccioná un archivo para ver una vista previa.';return;}
+    if(file.size>5*1024*1024){if(preview)preview.textContent='El archivo supera el límite de 5 MB. Dividilo antes de importarlo.';return;}
     try{let rows;if(/\.csv$/i.test(file.name)||file.type==='text/csv')rows=parseCSV(await file.text());else{await loadXLSX();const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false}),sheet=book.Sheets[book.SheetNames[0]];rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});}
       if(rows.length>1000)throw new Error('El archivo contiene '+rows.length+' filas. El máximo permitido es 1.000; dividilo en archivos más pequeños.');
       importRows=rows;if(preview)preview.innerHTML=`<strong>${importRows.length} filas detectadas</strong><div class="bt-muted">Vista previa (primeras 5 filas):</div><pre style="white-space:pre-wrap;max-height:150px;overflow:auto;font-size:10px">${esc(JSON.stringify(importRows.slice(0,5),null,2))}</pre>`;if(submit)submit.disabled=!importRows.length;
@@ -163,7 +164,7 @@
     root.addEventListener('submit',async e=>{
       if(e.target.id==='btTaskForm'){e.preventDefault();const button=e.target.querySelector('button[type="submit"]');button.disabled=true;try{const result=await queueOrSend({operationId:uid(),action:'task_create',title:root.querySelector('#btTaskTitle').value,description:root.querySelector('#btTaskDescription').value,assignedToUserId:root.querySelector('#btTaskAssignee').value,dueDate:root.querySelector('#btTaskDue').value||null});notify(result.queued?'Tarea guardada localmente; pendiente de sincronización.':'Tarea asignada correctamente.');await refresh();render();}catch(error){notify(error.message||'No se pudo asignar la tarea.');}finally{button.disabled=false;}}
       if(e.target.id==='btAttachmentForm'){e.preventDefault();const button=e.target.querySelector('button[type="submit"]'),file=root.querySelector('#btFile').files?.[0];if(!file)return;if(file.size>1100000){notify('El archivo supera el límite de 1,1 MB.');return;}button.disabled=true;try{const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));reader.readAsDataURL(file);});const result=await queueOrSend({operationId:uid(),action:'attachment_add',movementId:root.querySelector('#btMovement').value,name:file.name,mime:file.type,dataUrl});notify(result.queued?'Comprobante guardado en el dispositivo; se enviará al recuperar Internet.':'Comprobante adjuntado al movimiento.');await refresh();render();}catch(error){notify(error.message||'No se pudo adjuntar el comprobante.');}finally{button.disabled=false;}}
-      if(e.target.id==='btImportForm'){e.preventDefault();if(!importRows.length){notify('No hay filas válidas para importar.');return;}const button=root.querySelector('#btImportSubmit');button.disabled=true;try{const result=await queueOrSend({operationId:uid(),action:'import_rows',target:root.querySelector('#btImportTarget').value,rows:importRows});notify(result.queued?'Importación guardada localmente; se enviará al recuperar Internet.':`Importación completada: ${result.result?.rowsAdded||0} registros.`);importRows=[];await refresh();render();}catch(error){notify(error.message||'No se pudo importar el archivo.');}finally{button.disabled=false;}}
+      if(e.target.id==='btImportForm'){e.preventDefault();if(!importRows.length){notify('No hay filas válidas para importar.');return;}const button=root.querySelector('#btImportSubmit');button.disabled=true;try{const result=await queueOrSend({operationId:uid(),action:'import_rows',target:root.querySelector('#btImportTarget').value,rows:importRows});notify(result.queued?'Importación guardada localmente; se enviará al recuperar Internet.':result.result?.alreadyApplied?'Esta importación ya estaba sincronizada; no se duplicaron registros.':`Importación completada: ${result.result?.rowsAdded||0} registros.`);importRows=[];await refresh();render();}catch(error){notify(error.message||'No se pudo importar el archivo.');}finally{button.disabled=false;}}
     });
   };
   const init = async () => {
