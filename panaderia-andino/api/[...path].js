@@ -2857,14 +2857,15 @@ module.exports = async function handler(req, res) {
       const businessRows = await sql`SELECT id FROM businesses WHERE id=${user.business_id} AND active=TRUE LIMIT 1`;
       if (!businessRows.length) return send(res,404,{error:'El negocio no está disponible.'});
       const moduleRows=await sql`SELECT bc.modules AS configured_modules,lic.modules AS licensed_modules FROM app_business_config bc
-        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+        LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) AND l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE) ORDER BY l.created_at DESC LIMIT 1) lic ON TRUE
         WHERE bc.business_id=${user.business_id} LIMIT 1`;
       const configured=Array.isArray(moduleRows[0]?.configured_modules)?moduleRows[0].configured_modules:[];
       const licensed=moduleRows[0]?.licensed_modules;
-      const enabledModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured;
+      const enabledModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured.filter(key=>key==='dashboard');
       const moduleEnabled=key=>enabledModules.includes(key);
       const canViewMovements=manager||user.permissions?.['cash.view']===true||user.permissions?.['cash.manage']===true;
-      const stateRows = await sql`SELECT data FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
+      const stateRows = await sql`SELECT data,updated_at FROM app_state WHERE business_id=${user.business_id} LIMIT 1`;
+      const expectedUpdatedAt=stateRows[0]?.updated_at||null;
       const source = stateRows[0]?.data && typeof stateRows[0].data === 'object' && !Array.isArray(stateRows[0].data) ? stateRows[0].data : {};
       const toolsState = source.mattsystemTools && typeof source.mattsystemTools === 'object' ? source.mattsystemTools : {};
       const tasks = Array.isArray(toolsState.tasks) ? toolsState.tasks : [];
@@ -2913,12 +2914,20 @@ module.exports = async function handler(req, res) {
           const permissions=user.permissions&&typeof user.permissions==='object'&&!Array.isArray(user.permissions)?user.permissions:{};
           if(permissions['cash.manage']!==true)return send(res,403,{error:'Tu perfil no tiene permiso para adjuntar comprobantes a movimientos.'});
         }
-        const movementId=String(input.movementId||''),name=String(input.name||'').trim().slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
+        const movementId=String(input.movementId||''),name=String(input.name||'').trim().replace(/[\\/\\u0000-\\u001f]/g,'_').slice(0,160),mime=String(input.mime||'').toLowerCase(),dataUrl=String(input.dataUrl||'');
         if(!movementId||!name||!['application/pdf','image/jpeg','image/png','image/webp'].includes(mime)||!dataUrl.startsWith('data:'+mime+';base64,'))return send(res,400,{error:'El comprobante debe ser PDF o imagen JPG, PNG o WEBP.'});
         const movement=(Array.isArray(source.movements)?source.movements:[]).find(m=>String(m?.id||'')===movementId);
         if(!movement)return send(res,404,{error:'No se encontró el movimiento seleccionado.'});
         const base64=dataUrl.slice(dataUrl.indexOf(',')+1);
-        if(!/^[A-Za-z0-9+/=]+$/.test(base64)||Buffer.from(base64,'base64').length>1100000)return send(res,413,{error:'El comprobante supera el límite de 1,1 MB.'});
+        if(!/^[A-Za-z0-9+/=]+$/.test(base64))return send(res,400,{error:'El archivo adjunto no tiene una codificación válida.'});
+        const fileBytes=Buffer.from(base64,'base64');
+        if(fileBytes.length>1100000)return send(res,413,{error:'El comprobante supera el límite de 1,1 MB.'});
+        if(fileBytes.toString('base64').replace(/=+$/,'')!==base64.replace(/=+$/,''))return send(res,400,{error:'El archivo adjunto no tiene una codificación válida.'});
+        const signatureOk=mime==='application/pdf'?fileBytes.subarray(0,5).toString('ascii')==='%PDF-':
+          mime==='image/jpeg'?fileBytes[0]===0xff&&fileBytes[1]===0xd8&&fileBytes[2]===0xff:
+          mime==='image/png'?fileBytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):
+          mime==='image/webp'?fileBytes.subarray(0,4).toString('ascii')==='RIFF'&&fileBytes.subarray(8,12).toString('ascii')==='WEBP':false;
+        if(!signatureOk)return send(res,400,{error:'El contenido del archivo no coincide con el formato seleccionado.'});
         const movementAttachments=nextTools.attachments.filter(a=>String(a.movementId)===movementId);
         if(movementAttachments.length>=5)return send(res,409,{error:'Este movimiento ya tiene el máximo de 5 comprobantes.'});
         nextTools.attachments.push({id:crypto.randomUUID(),movementId,name,mime,dataUrl,uploadedByUserId:user.id,uploadedByName:user.name,createdAt:new Date().toISOString()});
@@ -2957,8 +2966,16 @@ module.exports = async function handler(req, res) {
         nextTools.importLogs.push({id:crypto.randomUUID(),target,rowsAdded:added.length,createdBy:user.name,createdAt:new Date().toISOString()});
         nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
         const serializedSource={...source,[target]:old.concat(added),mattsystemTools:nextTools};
-        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serializedSource)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'business.tools.import_rows','business_tools',${operationId},${JSON.stringify({target,rowsAdded:added.length})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+        if(Buffer.byteLength(JSON.stringify(serializedSource),'utf8')>4500000)return send(res,413,{error:'La importación supera el límite de almacenamiento del negocio.'});
+        const saved=await sql`WITH saved AS (
+          INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serializedSource)}::jsonb,${user.id},${user.business_id},NOW())
+          ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt} RETURNING updated_at
+        ), audited AS (
+          INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+          SELECT ${user.business_id},${user.id},'business.tools.import_rows','business_tools',${operationId},${JSON.stringify({target,rowsAdded:added.length})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null} FROM saved RETURNING id
+        ) SELECT saved.updated_at FROM saved CROSS JOIN (SELECT COUNT(*) FROM audited) audit`;
+        if(!saved.length)return send(res,409,{error:'Los datos del negocio cambiaron durante la importación. Recargá e intentá nuevamente.'});
         return send(res,200,{ok:true,rowsAdded:added.length,updatedAt:saved[0]?.updated_at||null});
       } else {
         return send(res,400,{error:'Acción no reconocida.'});
@@ -2966,9 +2983,16 @@ module.exports = async function handler(req, res) {
       nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
       const serialized={...source,mattsystemTools:nextTools};
       if(Buffer.byteLength(JSON.stringify(serialized),'utf8')>4500000)return send(res,413,{error:'Los datos de estas herramientas superan el límite de almacenamiento.'});
-      const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serialized)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
       const auditAction=input.action;
-      await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},${'business.tools.'+auditAction},'business_tools',${operationId},${JSON.stringify({action:auditAction})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
+      const saved=await sql`WITH saved AS (
+        INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serialized)}::jsonb,${user.id},${user.business_id},NOW())
+        ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+        WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt} RETURNING updated_at
+      ), audited AS (
+        INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address)
+        SELECT ${user.business_id},${user.id},${'business.tools.'+auditAction},'business_tools',${operationId},${JSON.stringify({action:auditAction})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null} FROM saved RETURNING id
+      ) SELECT saved.updated_at FROM saved CROSS JOIN (SELECT COUNT(*) FROM audited) audit`;
+      if(!saved.length)return send(res,409,{error:'Los datos del negocio cambiaron mientras trabajabas. Recargá e intentá nuevamente.'});
       return send(res,200,{ok:true,updatedAt:saved[0]?.updated_at||null});
     }
     return send(res,404,{error:'Ruta no encontrada.'});
