@@ -3774,6 +3774,14 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if(updateLicense){
       const business=cloudBusinesses.find(item=>item.id===updateLicense.dataset.updateBusinessLicense);
       if(!business){notify('No se encontró el negocio seleccionado. Actualizá la lista e intentá nuevamente.');return;}
+      const formatLicenseDate=(value,withTime=false)=>{
+        if(!value)return '—';
+        const raw=String(value).trim();let date;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(raw)){const [year,month,day]=raw.split('-').map(Number);date=new Date(year,month-1,day,12);}
+        else{date=new Date(raw);if(Number.isNaN(date.getTime())&&/^\d{4}-\d{2}-\d{2}T/.test(raw))date=new Date(raw.slice(0,10)+'T12:00:00');}
+        if(Number.isNaN(date.getTime()))return '—';
+        return new Intl.DateTimeFormat('es-PY',withTime?{dateStyle:'short',timeStyle:'short'}:{dateStyle:'short'}).format(date);
+      };
       updateLicense.disabled=true;
       try{
         const [result,planCatalog]=await Promise.all([window.PanaderiaAuth.api('/api/admin/business-license?businessId='+encodeURIComponent(business.id)),window.PanaderiaAuth.api('/api/admin/license-plan-settings')]);
