@@ -289,7 +289,7 @@ const publicUser = u => ({
     configuredModules:Array.isArray(u.business_modules)?u.business_modules:[],
     licensedModules:Array.isArray(u.license_modules)?u.license_modules:null,
     modules:Array.isArray(u.business_modules)
-      ? (Array.isArray(u.license_modules) ? u.business_modules.filter(key=>u.license_modules.includes(key)) : u.business_modules)
+      ? (Array.isArray(u.license_modules) ? u.business_modules.filter(key=>u.license_modules.includes(key)) : u.business_modules.filter(key=>key==='dashboard'))
       : null
   },
   license:u.is_platform_admin === true ? null : {
@@ -1302,12 +1302,13 @@ module.exports = async function handler(req, res) {
           await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${request.business_id},u.id,'license_update','Solicitud de módulo rechazada',${'La solicitud del módulo '+request.module_key+' fue rechazada por el administrador.'} FROM app_users u WHERE u.business_id=${request.business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
           return send(res,200,{request:rows[0]});
         }
-        const license=await sql`SELECT id,modules FROM app_licenses WHERE business_id=${request.business_id} AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
+        const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
+        const license=await sql`SELECT id,modules FROM app_licenses WHERE business_id=${request.business_id} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${licenseSystem})) AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE) ORDER BY created_at DESC LIMIT 1`;
         if(!license.length)return send(res,409,{error:'El negocio necesita una licencia activa antes de habilitar módulos.'});
         const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${request.business_id} LIMIT 1`;
         const configured=Array.isArray(config[0]?.modules)?config[0].modules:[];
-        const licensed=Array.isArray(license[0].modules)?license[0].modules:configured;
-        const effective=configured.filter(moduleKey=>!Array.isArray(license[0].modules)||license[0].modules.includes(moduleKey));
+        const licensed=Array.isArray(license[0].modules)?license[0].modules:[];
+        const effective=configured.filter(moduleKey=>Array.isArray(license[0].modules)&&license[0].modules.includes(moduleKey));
         if(['sales','inventory','purchases','recipes','production'].includes(request.module_key)&&!effective.includes('products'))return send(res,409,{error:'Habilitá primero Productos y costos para poder activar este módulo.'});
         if(request.module_key==='users'&&!effective.includes('employees'))return send(res,409,{error:'Habilitá primero Empleados y pagos para poder activar la gestión de usuarios.'});
         const nextConfig=[...new Set([...configured,request.module_key])],nextLicense=[...new Set([...licensed,request.module_key])];
@@ -1884,8 +1885,8 @@ module.exports = async function handler(req, res) {
           LEFT JOIN LATERAL (SELECT l.modules FROM app_licenses l WHERE l.business_id=bc.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)) DESC,l.created_at DESC LIMIT 1) lic ON TRUE
           WHERE bc.business_id=${businessId} LIMIT 1`;
         const config=moduleConfig[0];
-        if(config&&Array.isArray(config.configured_modules)&&!config.configured_modules.includes(module))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'Este módulo no está incluido en la configuración contratada. Solicitá una ampliación al administrador.'});
-        if(config&&Array.isArray(config.licensed_modules)&&!config.licensed_modules.includes(module))return send(res,403,{code:'MODULE_NOT_LICENSED',error:'Este módulo no está habilitado en la licencia de tu negocio. Contactá al administrador.'});
+        if(!config||!Array.isArray(config.configured_modules)||!config.configured_modules.includes(module))return send(res,403,{code:'MODULE_NOT_INCLUDED',error:'Este módulo no está incluido en la configuración contratada. Solicitá una ampliación al administrador.'});
+        if(!Array.isArray(config.licensed_modules)||!config.licensed_modules.includes(module))return send(res,403,{code:'MODULE_NOT_LICENSED',error:'Este módulo no está habilitado en la licencia de tu negocio. Contactá al administrador.'});
       }
 
       const readPermissions = {
@@ -1910,7 +1911,7 @@ module.exports = async function handler(req, res) {
           return send(res,200,{branches:rows});
         }
         if (module === 'delivery') {
-          const [orders,customers,products,branches]=await Promise.all([
+          const [orders,customers,products,branches,events]=await Promise.all([
             sql`SELECT o.*,b.name AS branch_name,concat_ws(' ',c.name,c.last_name) AS customer_name,
               COALESCE((SELECT json_agg(json_build_object('id',i.id,'product_id',i.product_id,'description',i.description,'quantity',i.quantity,'unit_price',i.unit_price,'line_total',i.line_total) ORDER BY i.created_at)
                 FROM app_delivery_order_items i WHERE i.business_id=o.business_id AND i.order_id=o.id),'[]'::json) AS items
@@ -2788,7 +2789,7 @@ module.exports = async function handler(req, res) {
           WHERE bc.business_id=${businessId} LIMIT 1`;
         if(Array.isArray(moduleRows[0]?.configured_modules)){
           const configured=moduleRows[0].configured_modules,licensed=moduleRows[0].licensed_modules;
-          enabledBusinessModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured;
+          enabledBusinessModules=Array.isArray(licensed)?configured.filter(key=>licensed.includes(key)):configured.filter(key=>key==='dashboard');
         }
       }
       const moduleEnabled=key=>!Array.isArray(enabledBusinessModules)||enabledBusinessModules.includes(key);
