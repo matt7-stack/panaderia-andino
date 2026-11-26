@@ -322,6 +322,30 @@ if (!employeePwaSource.includes("document.getElementById('mattsystemPwaBanner')"
   throw new Error('La instalación PWA debe quedar disponible manualmente en Novedades y versiones, sin banners automáticos.');
 }
 
+
+const appBundleSource = fs.readFileSync(path.join(root, 'app.bundle.html'), 'utf8');
+if (!apiSource.includes("req.method==='DELETE'") ||
+    !apiSource.includes("'commercial.quotation_deleted'") ||
+    !appBundleSource.includes('data-quote-delete') ||
+    !appBundleSource.includes("method:'DELETE'")) {
+  throw new Error('Las cotizaciones deben poder eliminarse desde la interfaz con confirmación y registro de auditoría.');
+}
+if (!apiSource.includes("durationType==='custom_days'") ||
+    !apiSource.includes('durationDays<=3650') ||
+    !apiSource.includes('requestedTrialDays>3650') ||
+    !appBundleSource.includes('id="licenseCustomDaysWrap"') ||
+    !appBundleSource.includes('id="businessTrialDays" type="number" class="form-control" min="1" max="3650"')) {
+  throw new Error('Las licencias y pruebas deben admitir duraciones personalizadas de 1 a 3650 días.');
+}
+if (!apiSource.includes('Tu licencia vence HOY') ||
+    !apiSource.includes('Licencia vence hoy') ||
+    !apiSource.includes('WHERE ${settings.enabled===true} AND renewal_date')) {
+  throw new Error('Las notificaciones críticas de vencimiento deben llegar el mismo día al negocio y al administrador.');
+}
+if (appBundleSource.includes('showBanner(mobileDevice?')) {
+  throw new Error('No debe mostrarse el aviso automático de instalación PWA; la instalación es manual.');
+}
+
 const workflowPath = path.resolve(root, '../.github/workflows/validate.yml');
 const workflowSource = fs.readFileSync(workflowPath, 'utf8');
 if (!workflowSource.includes('feat/employee-offboarding-2026-11-26')) {
