@@ -1,11 +1,11 @@
-const CACHE_NAME = 'mattsystem-pwa-v17';
+const CACHE_NAME = 'mattsystem-pwa-v18';
 const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/admin-nav.js', '/business-expenses.js', '/manifest.webmanifest', '/icons/icon.svg?v=3'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+      .then(() => undefined)
   );
 });
 
@@ -47,4 +47,17 @@ self.addEventListener('fetch', (event) => {
       }))
     );
   }
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) { if ('focus' in client) return client.focus(); }
+    if (self.clients.openWindow) return self.clients.openWindow('/app.bundle.html');
+  })());
 });
