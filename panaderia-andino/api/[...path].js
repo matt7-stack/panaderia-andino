@@ -696,7 +696,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const rows=await sql`SELECT preferences FROM app_notification_preferences WHERE user_id=${user.id}`;
-        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true}});
+        return send(res,200,{preferences:rows[0]?.preferences||{system:true,financial:true,support:true,desktop:false}});
       }
       if(req.method==='PUT'){
         const p=body(req).preferences||{};
