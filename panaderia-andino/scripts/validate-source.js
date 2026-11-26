@@ -61,7 +61,7 @@ const html = fs.readFileSync(htmlPath, 'utf8');
 const operationsToolsSource = fs.readFileSync(path.join(root, 'operations-tools.js'), 'utf8');
 const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
-    !serviceWorkerSource.includes("'operations-tools.js?v=2'") ||
+    !serviceWorkerSource.includes("'/operations-tools.js?v=2'") ||
     !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
   throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
 }
