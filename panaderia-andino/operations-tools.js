@@ -34,19 +34,32 @@
   const addStyles = () => { if (document.getElementById('businessToolsStyles')) return; const s=document.createElement('style');s.id='businessToolsStyles';s.textContent=styles;document.head.appendChild(s); };
   const idb = {
     open() { return new Promise((resolve,reject)=>{const r=indexedDB.open('mattsystem-offline-tools',1);r.onupgradeneeded=()=>r.result.createObjectStore('queue',{keyPath:'operationId'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);}); },
-    async all(){const db=await this.open();return new Promise((resolve,reject)=>{const r=db.transaction('queue','readonly').objectStore('queue').getAll();r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);});},
+    async all(scope){const db=await this.open();return new Promise((resolve,reject)=>{const r=db.transaction('queue','readonly').objectStore('queue').getAll();r.onsuccess=()=>resolve((r.result||[]).filter(item=>item.scopeKey===scope));r.onerror=()=>reject(r.error);});},
     async put(item){const db=await this.open();return new Promise((resolve,reject)=>{const r=db.transaction('queue','readwrite').objectStore('queue').put(item);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error);});},
     async remove(id){const db=await this.open();return new Promise((resolve,reject)=>{const r=db.transaction('queue','readwrite').objectStore('queue').delete(id);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error);});}
   };
-  let root, currentTab='tasks', cache={tasks:[],attachments:[],team:[],movements:[],importLogs:[]}, currentUser=null, syncing=false, importRows=[];
+  const emptyCache=()=>({tasks:[],attachments:[],team:[],movements:[],importLogs:[]});
+  let root, currentTab='tasks', cache=emptyCache(), currentUser=null, syncing=false, importRows=[], activeScope='';
+  const scopeForUser=(user=window.PanaderiaAuth?.user||currentUser)=>{
+    const userId=String(user?.id||user?.userId||user?.user_id||'');
+    const businessId=String(user?.businessId||user?.business_id||'');
+    return userId&&businessId?businessId+':'+userId:'';
+  };
+  const applyScope=()=>{
+    const next=scopeForUser();
+    if(next!==activeScope){activeScope=next;cache=emptyCache();importRows=[];currentTab='tasks';if(root)close();}
+    return activeScope;
+  };
+  const cacheStorageKey=scope=>'mattsystem_tools_cache_v2:'+encodeURIComponent(scope);
   const api = (path,options={}) => window.PanaderiaAuth.api(path,options);
   const isManager = () => ['admin','supervisor'].includes(String(currentUser?.role||'').toLowerCase());
   const notify = message => { const toast=document.getElementById('toastMessage'); if(toast)toast.textContent=message; const el=document.getElementById('appToast'); if(el&&window.bootstrap)bootstrap.Toast.getOrCreateInstance(el,{delay:3500}).show(); else alert(message); };
   const setStatus = async () => {
-    const count=(await idb.all().catch(()=>[])).length, node=document.getElementById('btOfflineStatus');
+    const scope=applyScope(),count=scope?(await idb.all(scope).catch(()=>[])).length:0, node=document.getElementById('btOfflineStatus');
     if(node)node.innerHTML=navigator.onLine?`<span class="bt-status completed">Con conexión</span> · ${count} operación(es) pendientes`:`<span class="bt-status pending">Sin conexión</span> · ${count} operación(es) guardadas localmente`;
   };
   const queueOrSend = async payload => {
+    const scope=applyScope();if(!scope)throw new Error('Iniciá sesión en un negocio para guardar esta operación.');
     if(!payload.operationId)payload.operationId=uid();
     try {
       if(!navigator.onLine)throw new Error('offline');
@@ -54,25 +67,36 @@
       await refresh(); return {queued:false,result};
     } catch(error) {
       if(!navigator.onLine||/conectar|conexión|network|failed to fetch|load failed/i.test(String(error.message||''))){
-        await idb.put({operationId:payload.operationId,payload,queuedAt:new Date().toISOString()});await setStatus();return {queued:true};
+        await idb.put({operationId:payload.operationId,scopeKey:scope,payload,queuedAt:new Date().toISOString()});await setStatus();return {queued:true};
       }
       throw error;
     }
   };
   const syncQueue = async () => {
-    if(syncing||!navigator.onLine||!window.PanaderiaAuth?.user)return;
+    const scope=applyScope();if(syncing||!navigator.onLine||!scope||!window.PanaderiaAuth?.user)return;
     syncing=true;
     try{
-      const items=(await idb.all()).sort((a,b)=>String(a.queuedAt).localeCompare(String(b.queuedAt)));
+      const items=(await idb.all(scope)).sort((a,b)=>String(a.queuedAt).localeCompare(String(b.queuedAt)));
       for(const item of items){try{await api('/api/business/tools',{method:'POST',body:JSON.stringify(item.payload)});await idb.remove(item.operationId);}catch(error){console.warn('Sincronización pendiente:',error);break;}}
       await setStatus();await refresh().catch(()=>{});
     }finally{syncing=false;}
   };
   const close = () => {root?.classList.remove('open');root?.setAttribute('aria-hidden','true');};
   const refresh = async () => {
-    if(!window.PanaderiaAuth?.user)return;
-    try{cache=await api('/api/business/tools');try{localStorage.setItem('mattsystem_tools_cache_v1',JSON.stringify(cache));}catch(_){}}
-    catch(error){try{const saved=localStorage.getItem('mattsystem_tools_cache_v1');if(saved)cache=JSON.parse(saved);else throw error;}catch(_){throw error;}}
+    const scope=applyScope();if(!scope||!window.PanaderiaAuth?.user)return;
+    const key=cacheStorageKey(scope);
+    try{
+      const fresh=await api('/api/business/tools');
+      if(!fresh||typeof fresh!=='object'||!Array.isArray(fresh.tasks)||!Array.isArray(fresh.attachments))throw new Error('El servidor devolvió datos incompletos.');
+      cache={...emptyCache(),...fresh};
+      try{localStorage.setItem(key,JSON.stringify(cache));}catch(_){}
+    }catch(error){
+      try{
+        const saved=localStorage.getItem(key),parsed=saved?JSON.parse(saved):null;
+        if(!parsed||!Array.isArray(parsed.tasks)||!Array.isArray(parsed.attachments))throw error;
+        cache={...emptyCache(),...parsed};
+      }catch(_){throw error;}
+    }
     await setStatus();return cache;
   };
   const tabs = () => [['tasks','Agenda de tareas'],['attachments','Comprobantes'],...(isManager()?[['import','Importar datos']]:[]),['offline','Modo sin conexión']];
@@ -96,17 +120,33 @@
     setStatus();
   };
   const parseCSV = text => {
+    const firstLine=String(text).split(/\r?\n/,1)[0]||'';
+    const counts={',':0,';':0,'\t':0};let inQuotes=false;
+    for(let i=0;i<firstLine.length;i++){const c=firstLine[i];if(c==='"'&&inQuotes&&firstLine[i+1]==='"'){i++;continue;}if(c==='"'){inQuotes=!inQuotes;continue;}if(!inQuotes&&Object.prototype.hasOwnProperty.call(counts,c))counts[c]++;}
+    const delimiter=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0][0];
     const rows=[];let row=[],field='',quoted=false;
-    for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'&&quoted&&text[i+1]==='"'){field+='"';i++;}else if(c==='"'){quoted=!quoted;}else if(c===','&&!quoted){row.push(field);field='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(field);if(row.some(v=>String(v).trim()))rows.push(row);row=[];field='';}else field+=c;}
+    for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'&&quoted&&text[i+1]==='"'){field+='"';i++;}else if(c==='"'){quoted=!quoted;}else if(c===delimiter&&!quoted){row.push(field);field='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(field);if(row.some(v=>String(v).trim()))rows.push(row);row=[];field='';}else field+=c;}
     row.push(field);if(row.some(v=>String(v).trim()))rows.push(row);if(rows.length<2)return [];
     const headers=rows.shift().map(h=>String(h).trim().replace(/^\uFEFF/,'').toLowerCase());
     return rows.map(values=>Object.fromEntries(headers.map((h,i)=>[h,String(values[i]??'').trim()])));
   };
-  const loadXLSX = () => new Promise((resolve,reject)=>{if(window.XLSX)return resolve();const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('No se pudo cargar el lector de Excel. Conectate a Internet o guardá la hoja como CSV.'));document.head.appendChild(script);});
+  let xlsxLoadPromise=null;
+  const loadXLSX = () => {
+    if(window.XLSX)return Promise.resolve();
+    if(xlsxLoadPromise)return xlsxLoadPromise;
+    xlsxLoadPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload=()=>window.XLSX?resolve():reject(new Error('No se pudo inicializar el lector de Excel.'));
+      script.onerror=()=>{xlsxLoadPromise=null;reject(new Error('No se pudo cargar el lector de Excel. Conectate a Internet o guardá la hoja como CSV.'));};
+      document.head.appendChild(script);
+    });
+    return xlsxLoadPromise;
+  };
   const prepareImport = async file => {
     importRows=[];const preview=root.querySelector('#btImportPreview'),submit=root.querySelector('#btImportSubmit');if(submit)submit.disabled=true;if(!file){if(preview)preview.textContent='Seleccioná un archivo para ver una vista previa.';return;}
     try{let rows;if(/\.csv$/i.test(file.name)||file.type==='text/csv')rows=parseCSV(await file.text());else{await loadXLSX();const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:false}),sheet=book.Sheets[book.SheetNames[0]];rows=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});}
-      importRows=rows.slice(0,1000);if(preview)preview.innerHTML=`<strong>${importRows.length} filas detectadas</strong><div class="bt-muted">Vista previa (primeras 5 filas):</div><pre style="white-space:pre-wrap;max-height:150px;overflow:auto;font-size:10px">${esc(JSON.stringify(importRows.slice(0,5),null,2))}</pre>`;if(submit)submit.disabled=!importRows.length;
+      if(rows.length>1000)throw new Error('El archivo contiene '+rows.length+' filas. El máximo permitido es 1.000; dividilo en archivos más pequeños.');
+      importRows=rows;if(preview)preview.innerHTML=`<strong>${importRows.length} filas detectadas</strong><div class="bt-muted">Vista previa (primeras 5 filas):</div><pre style="white-space:pre-wrap;max-height:150px;overflow:auto;font-size:10px">${esc(JSON.stringify(importRows.slice(0,5),null,2))}</pre>`;if(submit)submit.disabled=!importRows.length;
     }catch(error){if(preview)preview.textContent=error.message||'No se pudo leer el archivo.';}
   };
   const bindEvents = () => {
@@ -131,8 +171,9 @@
     const nav=document.getElementById('businessToolsNav');
     const hasBusiness=!!(currentUser?.businessId||currentUser?.business_id);
     if(nav)nav.hidden=!currentUser||currentUser.isPlatformAdmin===true||!hasBusiness;
+    applyScope();
     if(!currentUser||currentUser.isPlatformAdmin===true||!hasBusiness)return;
-    if(root)return;
+    if(root){syncQueue();return;}
     addStyles();if(!nav)return;
     root=document.createElement('div');root.id='businessToolsModal';root.setAttribute('aria-hidden','true');
     root.innerHTML=`<section class="bt-shell" role="dialog" aria-modal="true" aria-labelledby="btTitle"><header class="bt-head"><div><h2 id="btTitle">Herramientas del negocio</h2><div class="bt-muted">Tareas, comprobantes, importación y continuidad operativa</div></div><button type="button" class="btn-close" aria-label="Cerrar" data-bt-close></button></header><div class="bt-body"><div class="bt-tabs"></div><section data-bt-panel="tasks"></section><section data-bt-panel="attachments" class="bt-hidden"></section><section data-bt-panel="import" class="bt-hidden"></section><section data-bt-panel="offline" class="bt-hidden"></section></div></section>`;
@@ -142,5 +183,5 @@
     bindEvents();window.addEventListener('online',syncQueue);window.addEventListener('offline',setStatus);window.addEventListener('focus',syncQueue);loadXLSX().catch(()=>{});await syncQueue();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.addEventListener('panaderia:authenticated',()=>{currentUser=window.PanaderiaAuth?.user||null;init();});
+  window.addEventListener('panaderia:authenticated',event=>{currentUser=event.detail||window.PanaderiaAuth?.user||null;applyScope();init();});
 })();
