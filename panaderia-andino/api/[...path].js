@@ -2871,7 +2871,7 @@ module.exports = async function handler(req, res) {
       const attachments = Array.isArray(toolsState.attachments) ? toolsState.attachments : [];
       const importLogs = Array.isArray(toolsState.importLogs) ? toolsState.importLogs : [];
       if (req.method === 'GET') {
-        const team = await sql`SELECT id,name,role,active FROM app_users WHERE business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE ORDER BY name`;
+        const team = await sql`SELECT id,name,role,active FROM app_users WHERE business_id=${user.business_id} AND active=TRUE AND is_platform_admin=FALSE AND (${role==='admin'}::boolean OR role='employee') ORDER BY name`;
         const visibleTasks = manager ? tasks : tasks.filter(t => String(t.assignedToUserId || '') === String(user.id));
         const movementRows = canViewMovements&&moduleEnabled('movements') ? (Array.isArray(source.movements) ? source.movements : []).slice(-500).map(m => ({id:String(m.id||''),description:String(m.description||m.category||'Movimiento'),date:String(m.date||''),amount:Number(m.amount||0),type:String(m.type||'')})) : [];
         const attachmentId=String(new URL(req.url, `https://${req.headers.host || 'localhost'}`).searchParams.get('attachmentId')||'');
@@ -2958,6 +2958,7 @@ module.exports = async function handler(req, res) {
         nextTools.appliedOps=[...appliedOps,operationId].slice(-1000);
         const serializedSource={...source,[target]:old.concat(added),mattsystemTools:nextTools};
         const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${JSON.stringify(serializedSource)}::jsonb,${user.id},${user.business_id},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${user.business_id},${user.id},'business.tools.import_rows','business_tools',${operationId},${JSON.stringify({target,rowsAdded:added.length})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`;
         return send(res,200,{ok:true,rowsAdded:added.length,updatedAt:saved[0]?.updated_at||null});
       } else {
         return send(res,400,{error:'Acción no reconocida.'});
