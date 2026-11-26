@@ -6,7 +6,8 @@
     "node": "22.x"
   },
   "dependencies": {
-    "@neondatabase/serverless": "1.2.0"
+    "@neondatabase/serverless": "1.2.0",
+    "web-push": "^3.6.7"
   },
   "scripts": {
     "build": "node scripts/validate-source.js",
