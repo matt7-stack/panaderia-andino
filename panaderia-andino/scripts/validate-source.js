@@ -84,7 +84,7 @@ const apiSource = fs.readFileSync(apiPath, 'utf8');
 if (!apiSource.includes("path === '/api/business/tools'") ||
     !apiSource.includes("role==='admin'}::boolean OR role='employee'") ||
     !apiSource.includes("'business.tools.import_rows'") ||
-    !apiSource.includes("t.assignedToUserId||'')!==String(user.id)")) {
+    !apiSource.includes("nextTools.tasks[index].assignedToUserId||'')!==String(user.id)")) {
   throw new Error('Las herramientas deben validar el rol, limitar responsables y auditar las importaciones.');
 }
 const securityMigration = fs.readFileSync(path.join(root, 'migrations/029_tenant_rls_runtime_backups_ip_throttle.sql'), 'utf8');
