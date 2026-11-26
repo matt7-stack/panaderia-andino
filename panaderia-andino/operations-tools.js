@@ -69,7 +69,12 @@
     }finally{syncing=false;}
   };
   const close = () => {root?.classList.remove('open');root?.setAttribute('aria-hidden','true');};
-  const refresh = async () => {if(!window.PanaderiaAuth?.user)return;cache=await api('/api/business/tools');await setStatus();};
+  const refresh = async () => {
+    if(!window.PanaderiaAuth?.user)return;
+    try{cache=await api('/api/business/tools');try{localStorage.setItem('mattsystem_tools_cache_v1',JSON.stringify(cache));}catch(_){}}
+    catch(error){try{const saved=localStorage.getItem('mattsystem_tools_cache_v1');if(saved)cache=JSON.parse(saved);else throw error;}catch(_){throw error;}}
+    await setStatus();return cache;
+  };
   const tabs = () => [['tasks','Agenda de tareas'],['attachments','Comprobantes'],...(isManager()?[['import','Importar datos']]:[]),['offline','Modo sin conexión']];
   const render = () => {
     root.querySelector('.bt-tabs').innerHTML=tabs().map(([key,label])=>`<button type="button" class="bt-tab ${currentTab===key?'active':''}" data-bt-tab="${key}">${label}</button>`).join('');
@@ -129,9 +134,9 @@
     root=document.createElement('div');root.id='businessToolsModal';root.setAttribute('aria-hidden','true');
     root.innerHTML=`<section class="bt-shell" role="dialog" aria-modal="true" aria-labelledby="btTitle"><header class="bt-head"><div><h2 id="btTitle">Herramientas del negocio</h2><div class="bt-muted">Tareas, comprobantes, importación y continuidad operativa</div></div><button type="button" class="btn-close" aria-label="Cerrar" data-bt-close></button></header><div class="bt-body"><div class="bt-tabs"></div><section data-bt-panel="tasks"></section><section data-bt-panel="attachments" class="bt-hidden"></section><section data-bt-panel="import" class="bt-hidden"></section><section data-bt-panel="offline" class="bt-hidden"></section></div></section>`;
     document.body.appendChild(root);
-    nav.addEventListener('click',e=>{e.preventDefault();root.classList.add('open');root.setAttribute('aria-hidden','false');refresh().then(render).catch(error=>notify(error.message||'No se pudieron cargar las herramientas.'));});
+    nav.addEventListener('click',e=>{e.preventDefault();root.classList.add('open');root.setAttribute('aria-hidden','false');refresh().then(render).catch(error=>{render();notify(navigator.onLine?(error.message||'No se pudieron cargar las herramientas.'):'Sin conexión: se muestran los últimos datos guardados en este dispositivo.');});});
     root.addEventListener('click',e=>{if(e.target===root)close();});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.classList.contains('open'))close();});
-    bindEvents();window.addEventListener('online',syncQueue);window.addEventListener('offline',setStatus);window.addEventListener('focus',syncQueue);await syncQueue();
+    bindEvents();window.addEventListener('online',syncQueue);window.addEventListener('offline',setStatus);window.addEventListener('focus',syncQueue);loadXLSX().catch(()=>{});await syncQueue();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
   window.addEventListener('panaderia:authenticated',()=>{currentUser=window.PanaderiaAuth?.user||null;init();});
