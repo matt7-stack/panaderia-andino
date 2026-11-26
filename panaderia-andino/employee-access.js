@@ -25,7 +25,7 @@
   function authUser() { return window.PanaderiaAuth?.user || null; }
   function canManage() {
     const user = authUser();
-    return !!user && user.isPlatformAdmin !== true && user.role === 'supervisor';
+    return !!user && user.isPlatformAdmin !== true && ['admin','supervisor'].includes(user.role);
   }
   async function api(path, options) {
     if (!window.PanaderiaAuth?.api) throw new Error('La sesión todavía no está lista.');
@@ -161,7 +161,7 @@
     if (!panel) return;
     const modules=user?.businessConfig?.modules;
     const moduleAllowed=!Array.isArray(modules)||(modules.includes('users')&&modules.includes('employees'));
-    panel.hidden = !user || user.isPlatformAdmin === true || user.role !== 'supervisor' || !moduleAllowed;
+    panel.hidden = !user || user.isPlatformAdmin === true || !['admin','supervisor'].includes(user.role) || !moduleAllowed;
     if (!panel.hidden) {
       initializeCreatePermissions();
       loadEmployees();
