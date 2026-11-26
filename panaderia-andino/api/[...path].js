@@ -291,9 +291,13 @@ const publicUser = u => ({
     industry:u.business_industry,
     mode:u.business_config_mode || 'legacy',
     configuredModules:Array.isArray(u.business_modules)?u.business_modules:[],
-    licensedModules:Array.isArray(u.license_modules)?u.license_modules:null,
+    licensedModules:Array.isArray(u.license_modules)
+      ? (u.license_is_valid === true ? u.license_modules : [])
+      : null,
     modules:Array.isArray(u.business_modules)
-      ? (Array.isArray(u.license_modules) ? u.business_modules.filter(key=>u.license_modules.includes(key)) : u.business_modules.filter(key=>key==='dashboard'))
+      ? (Array.isArray(u.license_modules)
+        ? (u.license_is_valid === true ? u.business_modules.filter(key=>u.license_modules.includes(key)) : [])
+        : u.business_modules.filter(key=>key==='dashboard'))
       : null
   },
   license:u.is_platform_admin === true ? null : {
@@ -302,7 +306,7 @@ const publicUser = u => ({
     status:!u.license_status ? 'missing' : (u.license_status === 'active' && u.license_is_valid !== true ? 'expired' : u.license_status),
     valid:u.license_is_valid === true,
     expiresAt:u.license_expires_at || null,
-    modules:Array.isArray(u.license_modules) ? u.license_modules : null
+    modules:Array.isArray(u.license_modules) && u.license_is_valid === true ? u.license_modules : (Array.isArray(u.license_modules) ? [] : null)
   },
   createdAt:u.created_at || u.createdAt
 });
