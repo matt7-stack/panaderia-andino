@@ -32,6 +32,8 @@ const requiredFiles = [
   'migrations/039_owner_supervisor_employee_rls.sql',
   'migrations/040_employee_offboarding_rejection.sql',
   'migrations/041_user_scoped_notifications_rls.sql',
+  'migrations/043_multiple_expiry_alert_days.sql',
+  'migrations/044_web_push_subscriptions.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -385,6 +387,22 @@ if (!expirySettingsMigration.includes('alert_days integer[]') ||
     !appBundleSource.includes('placeholder="7, 3, 0"') ||
     !appBundleSource.includes('JSON.stringify({kind:\'settings\',enabled,alertDays})')) {
   throw new Error('Las alertas múltiples deben ser configurables, independientes y no duplicarse.');
+}
+
+
+const webPushMigration = fs.readFileSync(path.join(root, 'migrations/044_web_push_subscriptions.sql'), 'utf8');
+const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const packageSource = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+if (!webPushMigration.includes('app_push_subscriptions') ||
+    !apiSource.includes("require('web-push')") ||
+    !apiSource.includes("path==='/api/push/public-key'") ||
+    !apiSource.includes("path==='/api/push/subscriptions'") ||
+    !apiSource.includes('sendWebPush(sql,sent.map') ||
+    !serviceWorkerSource.includes("self.addEventListener('push'") ||
+    !appBundleSource.includes('id="devicePushToggle"') ||
+    !appBundleSource.includes("pushManager.subscribe") ||
+    !packageSource.dependencies['web-push']) {
+  throw new Error('Las notificaciones push deben guardar suscripciones privadas y enviarse en segundo plano.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
