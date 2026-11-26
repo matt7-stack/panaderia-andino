@@ -324,11 +324,11 @@ module.exports = async function handler(req, res) {
       const cfg=await sql`SELECT enabled,days_before FROM app_platform_notification_settings WHERE id=1 LIMIT 1`;
       const settings=cfg[0]||{enabled:true,days_before:15};
       let expiryAlertsCreated=0;
-      if(settings.enabled===true){
+      {
         const days=Math.max(1,Math.min(90,Number(settings.days_before)||15));
         const candidates=await sql`
           SELECT 'service'::text AS entity_type,id,NULL::uuid AS business_id,renewal_date AS due_date,description AS item_name,category AS item_group
-          FROM app_platform_expenses WHERE renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
+          FROM app_platform_expenses WHERE ${settings.enabled===true} AND renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE+${days}
           UNION ALL
           SELECT 'license'::text AS entity_type,l.id,l.business_id,l.expires_at AS due_date,b.name AS item_name,l.plan AS item_group
           FROM app_licenses l JOIN businesses b ON b.id=l.business_id
@@ -350,7 +350,6 @@ module.exports = async function handler(req, res) {
               SELECT ${item.business_id},u.id,'license_expiry',${customerTitle},${customerMessage}
               FROM app_users u
               WHERE u.business_id=${item.business_id} AND u.active=TRUE AND u.is_platform_admin=FALSE
-              AND COALESCE((SELECT (p.preferences->>'system')::boolean FROM app_notification_preferences p WHERE p.user_id=u.id),TRUE)=TRUE
               RETURNING id`;
             expiryAlertsCreated+=customerNotices.length;
           }
