@@ -51,7 +51,7 @@
     }
     return result;
   }
-  function renderAccounts(employees) {
+  function renderAccounts(employees, isOwner) {
     const list = $('#businessEmployeeAccountsList');
     if (!list) return;
     if (!employees.length) {
@@ -60,14 +60,34 @@
     }
     list.innerHTML = employees.map(employee => {
       const active = employee.active === true;
+      const action = active
+        ? '<button class="btn btn-sm btn-outline-warning" type="button" data-employee-offboarding="terminate">' + (isOwner ? 'Dar de baja' : 'Solicitar baja') + '</button>'
+        : (isOwner ? '<button class="btn btn-sm btn-outline-success" type="button" data-employee-offboarding="reactivate">Reactivar</button>' : '');
       return '<article class="border rounded-3 p-3 mb-3" data-business-employee="' + escapeHtml(employee.id) + '">' +
         '<div class="d-flex justify-content-between align-items-start flex-wrap gap-2"><div><strong>' + escapeHtml(employee.name) +
-        '</strong><div class="small text-muted">' + escapeHtml(employee.email) + '</div></div><div class="d-flex align-items-center gap-2">' +
-        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Desactivada') + '</span>' +
-        '<button class="btn btn-sm ' + (active ? 'btn-outline-warning' : 'btn-outline-success') + '" type="button" data-toggle-business-employee>' +
-        (active ? 'Desactivar' : 'Activar') + '</button></div></div><div class="row g-2 mt-2">' +
+        '</strong><div class="small text-muted">' + escapeHtml(employee.email) + '</div></div><div class="d-flex align-items-center gap-2 flex-wrap">' +
+        '<span class="badge ' + (active ? 'bg-success' : 'bg-secondary') + '">' + (active ? 'Activa' : 'Baja registrada') + '</span>' +
+        action + '</div></div><div class="row g-2 mt-2">' +
         permissionMarkup(employee.permissions || {}, 'employee-' + employee.id) +
         '</div><div class="d-flex justify-content-end mt-3"><button class="btn btn-sm btn-bakery" type="button" data-save-business-employee-permissions>Guardar permisos</button></div></article>';
+    }).join('');
+  }
+  function renderOffboardingEvents(events) {
+    const list = $('#businessEmployeeOffboardingHistory');
+    if (!list) return;
+    if (!events.length) {
+      list.innerHTML = '<p class="text-muted mb-0">Todavía no hay bajas ni solicitudes registradas.</p>';
+      return;
+    }
+    const labels = { terminated: 'Baja confirmada', termination_requested: 'Solicitud de baja', reactivated: 'Reactivación' };
+    list.innerHTML = events.map(event => {
+      const date = event.created_at ? new Date(event.created_at).toLocaleString('es-PY') : 'Fecha no disponible';
+      return '<article class="border-bottom py-2"><div class="d-flex justify-content-between flex-wrap gap-2"><strong>' +
+        escapeHtml(event.employee_name || event.employee_email || 'Empleado') + ' · ' + escapeHtml(labels[event.event_type] || 'Movimiento') +
+        '</strong><small class="text-muted">' + escapeHtml(date) + '</small></div><div class="small text-muted">Registró: ' +
+        escapeHtml(event.actor_name || 'Usuario no disponible') + '</div>' +
+        (event.reason ? '<div class="small mt-1">Motivo: ' + escapeHtml(event.reason) + '</div>' : '') +
+        (event.notes ? '<div class="small mt-1">Observaciones: ' + escapeHtml(event.notes) + '</div>' : '') + '</article>';
     }).join('');
   }
   async function loadEmployees() {
@@ -79,13 +99,15 @@
     try {
       const result = await api('/api/business/users');
       const employees = Array.isArray(result.employees) ? result.employees : [];
+      const events = Array.isArray(result.events) ? result.events : [];
       const limits = result.limits || {};
       const limitText = limits.employeeLimit == null ? 'sin límite fijo' : String(limits.employeeLimit);
       const active = Number(limits.activeEmployees || 0);
       const remaining = limits.remaining == null ? 'sin límite fijo' : String(limits.remaining);
       const summary = $('#businessEmployeeLimit');
       if (summary) summary.textContent = 'Plan ' + (limits.plan || 'actual') + ' · ' + active + ' empleados activos · límite ' + limitText + ' · disponibles ' + remaining + '.';
-      renderAccounts(employees);
+      renderAccounts(employees, authUser()?.role === 'admin');
+      renderOffboardingEvents(events);
     } catch (error) {
       const list = $('#businessEmployeeAccountsList');
       if (list) list.innerHTML = '<p class="text-danger mb-0">' + escapeHtml(error.message || 'No se pudieron cargar las cuentas.') + '</p>';
@@ -134,13 +156,24 @@
     const card = event.target.closest('[data-business-employee]');
     if (!card || !canManage()) return;
     const id = card.dataset.businessEmployee;
-    const toggle = event.target.closest('[data-toggle-business-employee]');
+    const offboard = event.target.closest('[data-employee-offboarding]');
     const save = event.target.closest('[data-save-business-employee-permissions]');
     try {
-      if (toggle) {
-        toggle.disabled = true;
-        const active = !card.querySelector('.badge')?.classList.contains('bg-success');
-        await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, active }) });
+      if (offboard) {
+        offboard.disabled = true;
+        const action = offboard.dataset.employeeOffboarding;
+        if (action === 'reactivate') {
+          if (!window.confirm('¿Reactivar esta cuenta? Se restaurará el acceso con sus permisos actuales.')) return;
+          const notes = window.prompt('Observaciones de la reactivación (opcional):') || '';
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: 'reactivate', notes }) });
+        } else {
+          const isOwner = authUser()?.role === 'admin';
+          const reason = window.prompt(isOwner ? 'Motivo de la baja (opcional):' : 'Motivo de la solicitud de baja (opcional):') || '';
+          const notes = window.prompt('Observaciones adicionales (opcional):') || '';
+          if (!window.confirm(isOwner ? 'Confirmar baja inmediata y cierre de todas las sesiones?' : 'Enviar solicitud de baja al Dueño?')) return;
+          await api('/api/business/users', { method: 'PATCH', body: JSON.stringify({ id, action: isOwner ? 'terminate' : 'request_termination', reason, notes }) });
+          if (!isOwner) window.alert('Solicitud registrada. El Dueño deberá confirmar la baja.');
+        }
         await loadEmployees();
       } else if (save) {
         save.disabled = true;
@@ -152,7 +185,7 @@
     } catch (error) {
       window.alert(error.message || 'No se pudo actualizar la cuenta.');
     } finally {
-      if (toggle) toggle.disabled = false;
+      if (offboard) offboard.disabled = false;
       if (save) save.disabled = false;
     }
   }
@@ -172,7 +205,7 @@
   });
   document.addEventListener('click', event => {
     if (event.target.closest('#refreshBusinessEmployees')) loadEmployees();
-    if (event.target.closest('[data-toggle-business-employee],[data-save-business-employee-permissions]')) handleAccountAction(event);
+    if (event.target.closest('[data-employee-offboarding],[data-save-business-employee-permissions]')) handleAccountAction(event);
   });
   window.addEventListener('panaderia:authenticated', event => activate(event.detail || authUser()));
   window.addEventListener('panaderia:pagenavigate', event => {
