@@ -35,6 +35,7 @@ const requiredFiles = [
   'migrations/041_user_scoped_notifications_rls.sql',
   'migrations/043_multiple_expiry_alert_days.sql',
   'migrations/044_web_push_subscriptions.sql',
+  'migrations/045_api_global_rate_limits.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -130,7 +131,7 @@ if (!apiSource.includes('DATABASE_URL_RUNTIME || process.env.DATABASE_URL') ||
     !apiSource.includes('raw.transaction([contextQuery(context), query])') ||
     !apiSource.includes('runWithRequestContext: callback => requestContext.run({}, callback)') ||
     !apiSource.includes("!['GET','HEAD','OPTIONS'].includes(requestMethod) && !sameOrigin(req)") ||
-    !apiSource.includes('net.isIP(forwarded)') ||
+    !apiSource.includes("const address = String(req.headers['x-real-ip'] || '').trim()") ||
     !apiSource.includes("set_config('app.ip_hash'")) {
   throw new Error('La API debe usar el rol de ejecución, contexto de negocio, CSRF global y límites de intentos por IP.');
 }
