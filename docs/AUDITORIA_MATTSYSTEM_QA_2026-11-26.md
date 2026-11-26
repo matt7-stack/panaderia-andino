@@ -3,7 +3,7 @@
 ## Alcance y límites
 Revisión del branch `feat/employee-offboarding-2026-11-26` y su proyecto Vercel Preview. Base inspeccionada: base `gestion_panaderia` del branch Neon QA `qa-admin-finance-dev-2026-11`. No se consultó ni modificó producción. No se leyeron valores de secretos ni credenciales. No se eliminaron datos de negocio.
 
-El despliegue Preview que estaba disponible al inicio apuntaba al commit `e3b7f4013e1bf250e31e179cfa791f334d7e2184`; el branch de GitHub ya estaba ocho commits por delante (HEAD inicial `25df7f5c3616211ad29f93e2536367548360ec87`). Por eso se considera obsoleto respecto del código inspeccionado y no se debe dar por publicado el trabajo de ese branch hasta verificar un nuevo deployment.
+El despliegue Preview que estaba disponible al inicio apuntaba al commit `e3b7f4013e1bf250e31e179cfa791f334d7e2184`; el branch de GitHub ya estaba ocho commits por delante (HEAD inicial `25df7f5c3616211ad29f93e2536367548360ec87`). Por eso se considera obsoleto respecto del código inspeccionado. Se intentó crear un Preview desde el commit remediado, pero Vercel devolvió HTTP 402 `api-deployments-free-per-day` (más de 100 deploys del día; `retryAfter=86400`). No hay CLI `vercel` instalada en el entorno para un fallback. El despliegue activo sigue en el commit antiguo; no se afirma que la rama remediada esté publicada.
 
 ## Hallazgos priorizados
 
@@ -57,26 +57,35 @@ Se verificó protección de login por correo (6 fallos) y por IP (12 fallos), co
 | CORS cross-origin | Aprobado | OPTIONS desde origen ajeno devuelve 403 y no expone ACAO |
 | Headers de seguridad | Aprobado parcialmente | HSTS, nosniff, DENY, Referrer-Policy, Permissions-Policy, CSP presentes |
 | Neon QA | Aprobado | DB `gestion_panaderia`; branch QA READY; URL runtime Preview vinculada a QA; no se usó branch producción |
-| Migraciones y RLS | Aprobado | 42 migraciones registradas hasta 041 en el baseline; las 57 tablas públicas están RLS ENABLED y FORCE |
+| Migraciones y RLS | Aprobado | 42 migraciones del baseline hasta 041; migración 042 aplicada y verificada en QA (43 entradas registradas); las 57 tablas públicas están RLS ENABLED y FORCE |
 | Rol SQL de runtime | Aprobado en metadatos | `mattsystem_runtime` sin SUPERUSER ni BYPASSRLS |
 | npm test | Aprobado | Validador estático completa sin error |
 | npm run build | Aprobado | Ejecuta el mismo validador y completa sin error |
+| Guardia DB Preview fail-closed | Aprobado | Prueba local con `VERCEL_ENV=preview`, sin `DATABASE_URL_RUNTIME` y con una `DATABASE_URL` ficticia: `db()` se detiene antes de conectarse |
+| Regex del token Cron | Aprobado | Prueba Node con `Bearer test-secret`; extracción de Bearer pasa y la validación estática confirma un solo patrón correcto |
+| RLS migración 042 | Aprobado | En QA, UPDATE/DELETE de auditoría y DELETE de cotizaciones quedaron con `app_is_platform_admin()`
 | UI móvil/escritorio y consola de navegador | No verificable | Sandbox no trae Chromium/Chrome/Firefox; no se ejecutó un navegador |
 | Instalación PWA real | No verificable | Manifest y service worker responden 200; flujo UI está en código, falta browser real |
 | Flujos completos con sesión por rol | No verificable | Sin credenciales de cuentas QA por rol |
 | Cron autenticado y alerta el mismo día | No verificable | Requiere secreto Cron y ejecución real; Vercel Cron no se ejecuta en Preview |
 | Reinicio/eliminaciones destructivas | No probado | Se dejó sin ejecutar para preservar datos |
 
+## Estado del despliegue tras la remediación
+- HEAD del branch de Preview: `109bfbf8a612a52eb584d4a54581bd27efe05979` (posteriormente, solo se añadió esta actualización documental).
+- La variable `DATABASE_URL_RUNTIME` está configurada como secreto solo para el target Preview y la rama QA; no se leyeron valores.
+- El deployment previo continúa READY, pero sigue en `e3b7f4013e1bf250e31e179cfa791f334d7e2184`, no en el commit remediado.
+- El nuevo deployment fue bloqueado por la cuota de Vercel; por eso no se hizo retest HTTP sobre el código remediado.
+
 ## Cambios de esta remediación
 1. Preview falla de forma cerrada sin `DATABASE_URL_RUNTIME`.
 2. Parser de autorización Bearer del cron corregido.
 3. Eliminación y auditoría de cotizaciones atómicas.
-4. Migración 042 protege historial de auditoría y cotizaciones por RLS.
+4. Migración 042 aplicada en el branch Neon QA; protege historial de auditoría y cotizaciones por RLS.
 5. Validador estático cubre las tres correcciones.
 6. Service worker actualizado para invalidar la caché anterior.
 
 ## Pendientes para cerrar E2E
-- Verificar nuevo deployment Preview y que su SHA coincida con el commit remediado.
+- Resolver la cuota de deploys de Vercel y crear un nuevo Preview; verificar que su SHA coincida con el commit remediado antes de probarlo.
 - Inicio real del administrador, cuentas Dueño/Supervisor/Empleado y pruebas con dos negocios aislados.
 - Probar UI móvil y escritorio, instalación PWA y consola.
 - Probar cron autenticado en el entorno que lo ejecuta, sin exponer su secreto.
