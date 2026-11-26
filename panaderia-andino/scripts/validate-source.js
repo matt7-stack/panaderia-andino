@@ -26,6 +26,8 @@ const requiredFiles = [
   'migrations/030_supervisor_employee_rls.sql',
   'migrations/031_login_rate_limit_rls.sql',
   'migrations/032_login_ip_rls_compatibility.sql',
+  'migrations/036_employee_offboarding.sql',
+  'migrations/037_license_write_restrictions.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -202,6 +204,7 @@ const securityHtml = fs.readFileSync(path.join(root, 'app.bundle.html'), 'utf8')
 const securityEmployeeAccess = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
 const hardeningMigration = fs.readFileSync(path.join(root, 'migrations/033_security_price_stock_and_ip_rls.sql'), 'utf8');
 const signedContextMigration = fs.readFileSync(path.join(root, 'migrations/034_signed_tenant_context.sql'), 'utf8');
+const licensePolicyMigration = fs.readFileSync(path.join(root, 'migrations/037_license_write_restrictions.sql'), 'utf8');
 const erpPostStart = securityApi.indexOf("if (req.method === 'POST')", securityApi.indexOf("if (path === '/api/business/erp')"));
 const salesStart = securityApi.indexOf("if (module === 'sales')", erpPostStart);
 const salesEnd = securityApi.indexOf("if (module === 'purchases')", salesStart);
@@ -220,6 +223,16 @@ if (!inventoryBlock.includes('FOR UPDATE') || !inventoryBlock.includes('c.new_st
 if (!hardeningMigration.includes('ENABLE ROW LEVEL SECURITY') || !hardeningMigration.includes('app_login_ip_attempts_scope') || !hardeningMigration.includes('stock >= 0')) throw new Error('Falta la migración de RLS para intentos por IP y la restricción de stock no negativo.');
 if (!securityHtml.includes('logoPreview.replaceChildren()') || !securityHtml.includes('safeLogoSource') || securityHtml.includes('logoPreview.innerHTML = state.business.logo')) throw new Error('La vista previa del logo debe usar DOM seguro y validar el origen de la imagen.');
 if (!securityEmployeeAccess.includes('sales.price_override') || !securityEmployeeAccess.includes('sales.discount') || !securityEmployeeAccess.includes('delivery.price_override') || !securityApi.includes("'sales.price_override'") || !securityApi.includes("'delivery.price_override'")) throw new Error('Faltan los permisos explícitos para modificar precios y aplicar descuentos en la interfaz y en el servidor.');
+if (!licensePolicyMigration.includes('DROP POLICY IF EXISTS mattsystem_tenant_insert ON public.app_licenses') ||
+    !licensePolicyMigration.includes('CREATE POLICY mattsystem_license_insert_admin') ||
+    !licensePolicyMigration.includes('CREATE POLICY mattsystem_license_update_admin') ||
+    !licensePolicyMigration.includes('CREATE POLICY mattsystem_license_delete_admin') ||
+    (licensePolicyMigration.match(/app_is_platform_admin\(\)/g) || []).length < 4) {
+  throw new Error('Solo el administrador de plataforma puede crear, modificar o eliminar licencias.');
+}
+if (!securityApi.includes("if (!validEmail(email) || !password || password.length > 200)")) {
+  throw new Error('El login debe limitar la longitud de correo y contraseña para evitar entradas excesivas.');
+}
 const appFullHtml = fs.readFileSync(path.join(root, 'app.full.html'), 'utf8');
 if (appFullHtml.includes('logoPreview.innerHTML = state.business.logo') || !appFullHtml.includes('safeLogoSource')) throw new Error('La página alternativa app.full.html también debe proteger la vista previa del logo.');
 
