@@ -1,5 +1,6 @@
-const CACHE_NAME = 'mattsystem-pwa-v18';
+const CACHE_NAME = 'mattsystem-pwa-v19';
 const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/admin-nav.js', '/business-expenses.js', '/manifest.webmanifest', '/icons/icon.svg?v=3'];
+const APP_SHELL_PATHS = new Set(APP_SHELL.map(path => new URL(path, self.location.origin).pathname));
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -39,7 +40,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (APP_SHELL.includes(url.pathname)) {
+  if (APP_SHELL_PATHS.has(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => cached || fetch(request).then((response) => {
         if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));

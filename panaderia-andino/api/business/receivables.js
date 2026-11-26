@@ -36,8 +36,8 @@ module.exports = async function receivablesHandler(req, res) {
     }
 
     const permissions = user.permissions && typeof user.permissions === 'object' && !Array.isArray(user.permissions) ? user.permissions : {};
-    const manager = user.role === 'admin' || user.role === 'supervisor';
-    const can = key => manager || permissions[key] === true;
+    const owner = user.role === 'admin';
+    const can = key => owner || permissions[key] === true;
     const canRead = can('receivables.view') || can('receivables.manage');
     const canWrite = can('receivables.manage');
 

@@ -254,4 +254,33 @@ if (!securityEmployeeAccess.includes('await promptEvent.prompt()')) {
 const appFullHtml = fs.readFileSync(path.join(root, 'app.full.html'), 'utf8');
 if (appFullHtml.includes('logoPreview.innerHTML = state.business.logo') || !appFullHtml.includes('safeLogoSource')) throw new Error('La página alternativa app.full.html también debe proteger la vista previa del logo.');
 
+const erpUiSource = fs.readFileSync(path.join(root, 'erp-modules.js'), 'utf8');
+const receivablesSource = fs.readFileSync(path.join(root, 'api/business/receivables.js'), 'utf8');
+const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+if (!erpUiSource.includes("u.role==='admin'") ||
+    !erpUiSource.includes("u.role==='supervisor'&&supervisorDefaults.has(key)") ||
+    erpUiSource.includes("u.role==='admin'||u.role==='supervisor'")) {
+  throw new Error('La interfaz ERP no debe elevar al Supervisor a permisos de Dueño.');
+}
+if (!receivablesSource.includes("const owner = user.role === 'admin';") ||
+    receivablesSource.includes("user.role === 'admin' || user.role === 'supervisor'")) {
+  throw new Error('Cuentas por cobrar debe requerir permisos explícitos al Supervisor.');
+}
+for (const marker of [
+  "const canManage=allowed('products.manage')",
+  "const canManage=allowed('inventory.manage')",
+  "const canManage=allowed(manageKey)",
+  "const canManage=allowed('purchases.create')",
+  "const canManage=allowed('recipes.manage')",
+  "const canManage=allowed('production.manage')",
+  "const canExport=allowed('reports.export')"
+]) {
+  if (!erpUiSource.includes(marker)) throw new Error('Falta control visual de permisos en Gestión operativa: ' + marker);
+}
+if (!serviceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
+    !serviceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
+    !serviceWorkerSource.includes("mattsystem-pwa-v19")) {
+  throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
+}
+
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\n');
