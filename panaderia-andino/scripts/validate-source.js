@@ -347,11 +347,10 @@ if (appBundleSource.includes('showBanner(mobileDevice?')) {
 }
 
 
-const cronBearerLine = apiSource.split('\\n').find(line => line.includes('const supplied = String(req.headers.authorization'));
+const cronBearerPatternCount = (apiSource.match(/replace\\(\\/\\^Bearer\\\\s\\+\\/i/g) || []).length;
 if (!apiSource.includes("const previewRequiresRuntime = process.env.VERCEL_ENV === 'preview';") ||
     !apiSource.includes('refusing to fall back to DATABASE_URL') ||
-    !cronBearerLine || !cronBearerLine.includes(".replace(/^Bearer\\\\s+/i, '').trim();") ||
-    apiSource.includes(".replace(/^Bearer\\\\\\\\s+/i, '').trim();")) {
+    cronBearerPatternCount !== 1) {
   throw new Error('Preview debe fallar de forma cerrada contra una DB genérica y el parser Bearer del cron debe aceptar el encabezado estándar.');
 }
 const quotationDeleteStart = apiSource.indexOf("if(req.method==='DELETE'){", apiSource.indexOf("if (path === '/api/admin/quotations')"));
