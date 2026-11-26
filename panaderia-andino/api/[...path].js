@@ -1381,7 +1381,7 @@ module.exports = async function handler(req, res) {
           (SELECT COALESCE(SUM((item->>'amount')::numeric),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'movements')='array' THEN st.data->'movements' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND item->>'type'='expense') AS recorded_expenses,
           (SELECT COALESCE(SUM(COALESCE(NULLIF(item->>'total','')::numeric,NULLIF(item->>'totalAmount','')::numeric,NULLIF(item->>'amount','')::numeric,0)),0)::numeric(14,2) FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(item->>'status','completed') NOT IN ('cancelled','void')) AS sales_total,
           (SELECT updated_at FROM app_state st WHERE st.business_id=b.id LIMIT 1) AS last_sync,
-          (SELECT MAX(u.last_seen_at) FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS last_seen_at
+          (SELECT MAX(u.last_seen_at) FROM app_users u WHERE u.business_id=b.id) AS last_seen_at
           FROM businesses b LEFT JOIN app_business_config bc ON bc.business_id=b.id
           WHERE NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=b.id::text AND t.restored_at IS NULL) ORDER BY b.created_at DESC`;
         return send(res,200,{businesses:rows});
