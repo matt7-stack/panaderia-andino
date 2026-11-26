@@ -467,7 +467,7 @@ module.exports = async function handler(req, res) {
         : await sql`SELECT id FROM app_support_tickets WHERE id=${ticketId} AND business_id=${user.business_id}`;
       if(!tickets.length)return send(res,404,{error:'Solicitud no encontrada.'});
       const rows=await sql`INSERT INTO app_support_replies(ticket_id,author_user_id,message,is_admin) VALUES(${ticketId},${user.id},${message},${user.is_platform_admin===true}) RETURNING *`;
-      await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true} AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
+      await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true}::boolean AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
     if(path==='/api/license/info'){
@@ -681,7 +681,7 @@ module.exports = async function handler(req, res) {
             WITH renewed AS (
               UPDATE app_licenses
               SET status='active',
-                  sold_at=CASE WHEN ${input.action==='activate'} THEN COALESCE(sold_at,CURRENT_DATE) ELSE sold_at END,
+                  sold_at=CASE WHEN ${input.action==='activate'}::boolean THEN COALESCE(sold_at,CURRENT_DATE) ELSE sold_at END,
                   expires_at=CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,
                   updated_at=NOW()
               WHERE id=${id} RETURNING *
@@ -689,8 +689,8 @@ module.exports = async function handler(req, res) {
             payment AS (
               INSERT INTO app_license_payments(license_id,amount,payment_type,period_start,period_end,reference,notes,created_by)
               SELECT id,${amount},'monthly',CURRENT_DATE,expires_at,
-                CASE WHEN ${input.action==='activate'} THEN 'Activación de licencia' ELSE 'Renovación de licencia' END,
-                CASE WHEN ${input.action==='activate'} THEN 'Pago registrado al activar la licencia.' ELSE 'Pago registrado al renovar la licencia.' END,${admin.id}
+                CASE WHEN ${input.action==='activate'}::boolean THEN 'Activación de licencia' ELSE 'Renovación de licencia' END,
+                CASE WHEN ${input.action==='activate'}::boolean THEN 'Pago registrado al activar la licencia.' ELSE 'Pago registrado al renovar la licencia.' END,${admin.id}
               FROM renewed WHERE ${input.action==='renew'} AND ${amount}>0 RETURNING id
             )
             SELECT renewed.*,(SELECT COUNT(*)::int FROM payment) AS payment_recorded FROM renewed
@@ -1005,7 +1005,7 @@ module.exports = async function handler(req, res) {
           const moduleRow=await sql`SELECT implemented FROM app_module_catalog WHERE module_key=${key} LIMIT 1`;
           if(!moduleRow.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
           if(moduleRow[0].implemented!==true&&(item.active===true||monthly>0||setup>0))return send(res,409,{error:'El módulo '+key+' todavía no está implementado y no puede comercializarse.'});
-          const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'} AND implemented=TRUE THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
+          const rows=await sql`UPDATE app_module_catalog SET monthly_price=${monthly},setup_price=${setup},active=CASE WHEN ${typeof item.active==='boolean'}::boolean AND implemented=TRUE THEN ${item.active} ELSE active END,updated_by=${admin.id},updated_at=NOW() WHERE module_key=${key} RETURNING module_key`;
           if(!rows.length)return send(res,404,{error:'No se encontró el módulo '+key+'.'});
         }
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.catalog_updated','module_catalog','catalog',${JSON.stringify({moduleKeys:items.map(item=>String(item.moduleKey||''))})}::jsonb)`;
@@ -1437,7 +1437,7 @@ module.exports = async function handler(req, res) {
             UPDATE app_users SET session_version=session_version+1 WHERE business_id=${id} AND is_platform_admin=FALSE RETURNING id
           ), audit AS (
             INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-            SELECT id,${admin.id},CASE WHEN ${input.active} THEN 'business.reactivated' ELSE 'business.deactivated' END,
+            SELECT id,${admin.id},CASE WHEN ${input.active}::boolean THEN 'business.reactivated' ELSE 'business.deactivated' END,
               'business',id,${JSON.stringify({active:input.active})}::jsonb FROM changed RETURNING id
           )
           SELECT * FROM changed`;
@@ -2364,15 +2364,15 @@ module.exports = async function handler(req, res) {
         }
         const id=String(input.id||'');if(!id)return send(res,400,{error:'Falta el identificador del registro.'});
         if(module==='products'&&can('products.manage')){
-          const rows=await sql`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined} THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined} THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined} THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined} THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined} THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          const rows=await sql`UPDATE app_products SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),sku=CASE WHEN ${input.sku===undefined}::boolean THEN sku ELSE NULLIF(${String(input.sku||'').trim().slice(0,60)},'') END,category=CASE WHEN ${input.category===undefined}::boolean THEN category ELSE NULLIF(${String(input.category||'').trim().slice(0,80)},'') END,unit=COALESCE(NULLIF(${String(input.unit||'').trim().slice(0,24)},''),unit),sale_price=CASE WHEN ${input.salePrice===undefined}::boolean THEN sale_price ELSE ${Number(input.salePrice)} END,cost_price=CASE WHEN ${input.costPrice===undefined}::boolean THEN cost_price ELSE ${Number(input.costPrice)} END,min_stock=CASE WHEN ${input.minStock===undefined}::boolean THEN min_stock ELSE ${Number(input.minStock)} END,active=CASE WHEN ${typeof input.active==='boolean'}::boolean THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Producto no encontrado.'});return send(res,200,{product:rows[0]});
         }
         if(module==='customers'&&can('customers.manage')){
-          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),last_name=CASE WHEN ${input.lastName===undefined} THEN last_name ELSE ${String(input.lastName||'').trim().slice(0,100)} END,phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          const rows=await sql`UPDATE app_customers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),last_name=CASE WHEN ${input.lastName===undefined}::boolean THEN last_name ELSE ${String(input.lastName||'').trim().slice(0,100)} END,phone=CASE WHEN ${input.phone===undefined}::boolean THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined}::boolean THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'}::boolean THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Cliente no encontrado.'});return send(res,200,{customer:rows[0]});
         }
         if(module==='suppliers'&&can('suppliers.manage')){
-          const rows=await sql`UPDATE app_suppliers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined} THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined} THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          const rows=await sql`UPDATE app_suppliers SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),phone=CASE WHEN ${input.phone===undefined}::boolean THEN phone ELSE NULLIF(${String(input.phone||'').slice(0,60)},'') END,email=CASE WHEN ${input.email===undefined}::boolean THEN email ELSE NULLIF(${String(input.email||'').slice(0,254)},'') END,active=CASE WHEN ${typeof input.active==='boolean'}::boolean THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Proveedor no encontrado.'});return send(res,200,{supplier:rows[0]});
         }
         if(module==='sales'&&input.action==='cancel'&&can('sales.cancel')){
@@ -2401,7 +2401,7 @@ module.exports = async function handler(req, res) {
           if(!rows.length)return send(res,404,{error:'Compra no encontrada o ya anulada.'});return send(res,200,{ok:true});
         }
         if(module==='recipes'&&can('recipes.manage')){
-          const rows=await sql`UPDATE app_recipes SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),yield_quantity=CASE WHEN ${input.yieldQuantity===undefined} THEN yield_quantity ELSE ${Number(input.yieldQuantity)} END,instructions=CASE WHEN ${input.instructions===undefined} THEN instructions ELSE NULLIF(${String(input.instructions||'').slice(0,3000)},'') END,active=CASE WHEN ${typeof input.active==='boolean'} THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
+          const rows=await sql`UPDATE app_recipes SET name=COALESCE(NULLIF(${String(input.name||'').trim().slice(0,120)},''),name),yield_quantity=CASE WHEN ${input.yieldQuantity===undefined}::boolean THEN yield_quantity ELSE ${Number(input.yieldQuantity)} END,instructions=CASE WHEN ${input.instructions===undefined}::boolean THEN instructions ELSE NULLIF(${String(input.instructions||'').slice(0,3000)},'') END,active=CASE WHEN ${typeof input.active==='boolean'}::boolean THEN ${input.active} ELSE active END,updated_at=NOW() WHERE id=${id} AND business_id=${businessId} RETURNING *`;
           if(!rows.length)return send(res,404,{error:'Receta no encontrada.'});return send(res,200,{recipe:rows[0]});
         }
         if(module==='production'&&can('production.manage')){
@@ -2756,7 +2756,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req),title=String(input.title||'').trim().slice(0,140),version=String(input.version||'').trim().slice(0,40),category=['mejora','funcion','seguridad','mantenimiento','correccion'].includes(input.category)?input.category:'mejora',summary=String(input.summary||'').trim().slice(0,500),content=String(input.content||'').trim(),published=input.published===true;
         if(!title||!content)return send(res,400,{error:'Completá el título y el detalle de la novedad.'});
-        const rows=await sql`INSERT INTO app_release_notes(title,version,category,summary,content,published,published_at,created_by) VALUES(${title},${version},${category},${summary},${content},${published},CASE WHEN ${published} THEN NOW() ELSE NULL END,${user.id}) RETURNING id,title,version,category,summary,content,published,published_at,created_at`;
+        const rows=await sql`INSERT INTO app_release_notes(title,version,category,summary,content,published,published_at,created_by) VALUES(${title},${version},${category},${summary},${content},${published},CASE WHEN ${published}::boolean THEN NOW() ELSE NULL END,${user.id}) RETURNING id,title,version,category,summary,content,published,published_at,created_at`;
         return send(res,201,{ok:true,item:rows[0]});
       }
       if(req.method==='PATCH'){
@@ -2765,7 +2765,7 @@ module.exports = async function handler(req, res) {
         const existing=await sql`SELECT * FROM app_release_notes WHERE id=${id} LIMIT 1`;
         if(!existing.length)return send(res,404,{error:'No se encontró la novedad.'});
         const old=existing[0],published=typeof input.published==='boolean'?input.published:old.published;
-        const rows=await sql`UPDATE app_release_notes SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,140)},version=${input.version===undefined?old.version:String(input.version).trim().slice(0,40)},category=${input.category===undefined?old.category:(['mejora','funcion','seguridad','mantenimiento','correccion'].includes(input.category)?input.category:'mejora')},summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},content=${input.content===undefined?old.content:String(input.content).trim()},published=${published},published_at=CASE WHEN ${published} THEN COALESCE(published_at,NOW()) ELSE NULL END,updated_at=NOW() WHERE id=${id} RETURNING id,title,version,category,summary,content,published,published_at,created_at,updated_at`;
+        const rows=await sql`UPDATE app_release_notes SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,140)},version=${input.version===undefined?old.version:String(input.version).trim().slice(0,40)},category=${input.category===undefined?old.category:(['mejora','funcion','seguridad','mantenimiento','correccion'].includes(input.category)?input.category:'mejora')},summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},content=${input.content===undefined?old.content:String(input.content).trim()},published=${published},published_at=CASE WHEN ${published}::boolean THEN COALESCE(published_at,NOW()) ELSE NULL END,updated_at=NOW() WHERE id=${id} RETURNING id,title,version,category,summary,content,published,published_at,created_at,updated_at`;
         return send(res,200,{ok:true,item:rows[0]});
       }
       if(req.method==='DELETE'){
