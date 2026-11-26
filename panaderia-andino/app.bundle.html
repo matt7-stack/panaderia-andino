@@ -1511,6 +1511,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
             <div class="divider my-4"></div>
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2"><h3 class="mb-0">Empleados con acceso al sistema</h3><small class="text-muted">Los cambios de permisos revocan sus sesiones anteriores.</small></div>
             <div id="businessEmployeeAccountsList"><p class="text-muted mb-0">Cargando cuentas…</p></div>
+            <div class="divider my-4"></div><div class="mb-2"><h3 class="mb-1">Historial de bajas y reactivaciones</h3><p class="small text-muted mb-2">Registro de quién realizó cada acción, fecha, motivo y observaciones.</p></div><div id="businessEmployeeOffboardingHistory"><p class="text-muted mb-0">Cargando historial…</p></div>
           </section>
         </section>
 
@@ -1732,7 +1733,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           <div class="page-heading"><div><p class="eyebrow">CENTRO DE AYUDA</p><h1><i class="bi bi-book-half heading-page-icon"></i> Guía de uso</h1><p class="page-subtitle">Instrucciones para utilizar las herramientas habilitadas en tu negocio.</p></div></div>
           <article class="panel settings-card mb-3"><h3>Acceso y navegación</h3><ul class="mb-0"><li>Ingresá con el correo y contraseña que te proporcionó el administrador de MATTSYSTEM.</li><li>Usá el menú lateral para abrir los módulos habilitados para tu negocio.</li><li>Los datos se guardan en línea. Esperá el mensaje de confirmación antes de cerrar un formulario.</li><li>Si un apartado no carga, usá Actualizar y comprobá tu conexión a Internet.</li></ul></article>
           <article class="panel settings-card mb-3"><h3>Operación diaria</h3><ul class="mb-0"><li><strong>Dashboard:</strong> consultá el resumen de ingresos, gastos, resultados y pendientes.</li><li><strong>Movimientos:</strong> registrá ingresos y gastos con fecha, importe, categoría y descripción.</li><li><strong>Notas y ventas:</strong> registrá operaciones, cobros y saldos pendientes.</li><li><strong>Productos e inventario:</strong> administrá artículos, costos y existencias si estos módulos están habilitados.</li><li><strong>Compras, producción, caja y reportes:</strong> utilizá únicamente las opciones disponibles en tu plan.</li><li><strong>Clientes y proveedores:</strong> mantené actualizados sus datos para facilitar el seguimiento de las operaciones.</li></ul></article>
-          <article class="panel settings-card mb-3"><h3>Usuarios y configuración del negocio</h3><p>El administrador o supervisor de tu negocio puede gestionar los accesos internos y los datos de configuración que tenga autorizados. Si no encontrás una opción, consultá con el responsable de tu negocio.</p></article>
+          <article class="panel settings-card mb-3"><h3>Usuarios y configuración del negocio</h3><p>El dueño administra la configuración general del negocio. El dueño y el supervisor pueden gestionar las cuentas de empleados; el supervisor no puede cambiar la identidad ni las preferencias generales del negocio.</p></article>
           <article class="panel settings-card"><h3>Licencia, módulos y ayuda</h3><ul class="mb-0"><li>En Información de licencia podés consultar el plan, fechas, módulos y condiciones contratadas.</li><li>En Gastos podés registrar y organizar los gastos de tu empresa.</li><li>En Notificaciones consultá avisos y respuestas del sistema.</li><li>En Contactar a soporte enviá una solicitud y revisá las respuestas del equipo.</li></ul></article>
         </section>
 
@@ -1956,7 +1957,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const name = document.getElementById('topUserName');
     if (name) name.textContent = user.name;
     const meta = document.querySelector('.user-meta small');
-    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
+    if (meta) meta.textContent = user.isPlatformAdmin ? 'Administrador principal' : (user.role === 'admin' ? 'Dueño' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado'));
     const adminNav = document.getElementById('adminNavLink');
     if (adminNav) adminNav.hidden = user.isPlatformAdmin !== true;
     // El administrador de plataforma gestiona la plataforma completa; no necesita los módulos operativos de un negocio.
@@ -1976,6 +1977,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true)) ||
         (page === 'erp' && Object.values(employeePermissions).some(value => value === true));
       link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
+      if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
     ['adminLicensesNav','adminQuoteNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
@@ -2230,6 +2232,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-maintenance' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
+    if (page === 'configuracion' && currentUser?.isPlatformAdmin !== true && currentUser?.role !== 'admin') return;
     if (page === 'admin-support' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-centro' && currentUser?.isPlatformAdmin !== true) return;
     if (currentUser?.role === 'employee') {
@@ -2694,7 +2697,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     $('#expenseCategoriesList').innerHTML = renderCategoryItems('expense');
     $('#paymentMethodsList').innerHTML = state.paymentMethods.map((method) => `<div class="payment-method-item"><i class="bi bi-credit-card-2-front"></i><span>${escapeHTML(method)}</span><button type="button" class="mini-delete" title="Eliminar método" aria-label="Eliminar método" data-delete-payment="${escapeHTML(method)}"><i class="bi bi-trash3"></i></button></div>`).join('') || '<div class="empty-inline">No hay métodos de pago.</div>';
     $('#usersTableBody').innerHTML = cloudUsers.map((user) => {
-      const roleLabel = user.role === 'admin' ? 'Administrador' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
+      const roleLabel = user.role === 'admin' ? 'Dueño' : (user.role === 'supervisor' ? 'Supervisor' : 'Empleado');
       const actions = user.isPlatformAdmin === true ? '<span class="table-sub-text">Cuenta principal</span>' : `<button class="icon-action" type="button" title="${user.active ? 'Desactivar' : 'Activar'} usuario" aria-label="${user.active ? 'Desactivar' : 'Activar'} usuario" data-toggle-user="${escapeHTML(user.id)}" data-active="${user.active ? 'true' : 'false'}"><i class="bi ${user.active ? 'bi-person-check' : 'bi-person-x'}"></i></button><button class="icon-action danger" type="button" title="Mover usuario a papelera" aria-label="Mover usuario a papelera" data-delete-user="${escapeHTML(user.id)}"><i class="bi bi-trash3"></i></button>`;
       return `<tr><td><span class="table-main-text">${escapeHTML(user.name)}</span></td><td>${escapeHTML(user.email)}</td><td>${roleLabel}</td><td><span class="status-pill ${user.active ? 'status-paid' : 'status-cancelled'}">${user.active ? 'Activo' : 'Inactivo'}</span></td><td><div class="table-actions">${actions}</div></td></tr>`;
     }).join('') || '<tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios registrados.</td></tr>';
@@ -3107,7 +3110,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       setText('#simpleModalTitle', 'Agregar usuario');
       const activeBusinesses = cloudBusinesses.filter((business) => business.active);
       const businessOptions = activeBusinesses.map((business) => '<option value="' + escapeHTML(business.id) + '">' + escapeHTML(business.name) + '</option>').join('');
-      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Negocio asignado</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná un negocio</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente al negocio seleccionado y no podrá administrar ni crear otras cuentas.</small>';
+      fields.innerHTML = '<div class="simple-modal-field"><label for="simpleName">Nombre</label><input id="simpleName" name="name" maxlength="70" required placeholder="Nombre y apellido"></div><div class="simple-modal-field"><label for="simpleEmail">Correo electrónico</label><input id="simpleEmail" name="email" type="email" maxlength="100" required placeholder="usuario@correo.com"></div><div class="simple-modal-field"><label for="simplePassword">Contraseña inicial</label><input id="simplePassword" name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="Mínimo 12 caracteres"></div><div class="simple-modal-field"><label for="simpleBusiness">Negocio asignado</label><select id="simpleBusiness" name="businessId" required><option value="">Seleccioná un negocio</option>' + businessOptions + '</select></div><div class="simple-modal-field"><label for="simpleRole">Rol</label><select id="simpleRole" name="role"><option value="employee">Empleado</option><option value="supervisor">Supervisor</option><option value="admin">Dueño</option></select></div><small class="text-muted">El usuario quedará vinculado únicamente al negocio seleccionado. No podrá administrar licencias ni otros negocios; sus permisos dependerán de su rol.</small>';
     }
     simpleModal.show();
   }
