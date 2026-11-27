@@ -3666,6 +3666,15 @@ module.exports = async function handler(req, res) {
     }
     return send(res,404,{error:'Ruta no encontrada.'});
   } catch (err) {
+    const failedPath=String(req.url||'').split('?')[0];
+    if(failedPath.endsWith('/api/internal/backup')){
+      try{
+        setRequestContext({isPlatformAdmin:true});
+        const failureDb=db();
+        await failureDb`INSERT INTO app_backup_log(business_id,status,storage_reference,details)
+          VALUES(NULL,'failed',NULL,${JSON.stringify({source:'daily_cron',code:String(err?.code||'BACKUP_FAILED').slice(0,80)})}::jsonb)`;
+      }catch(logFailure){console.error('No se pudo registrar el fallo del respaldo:',logFailure?.message||logFailure);}
+    }
     if (err && err.code==='23505') {
       const constraint=String(err.constraint||'');
       if (constraint.includes('businesses_slug')) return send(res,409,{error:'Ya existe un negocio con un nombre similar. Cambiá el nombre e intentá nuevamente.'});
