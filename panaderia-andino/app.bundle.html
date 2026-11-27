@@ -4698,7 +4698,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const result=await window.PanaderiaAuth.api('/api/business/version?build='+encodeURIComponent(buildVersion));
     if(result.action==='redirect'&&result.artifactUrl){
       const destination=new URL(result.artifactUrl,window.location.origin);
-      if(destination.origin!==window.location.origin||!destination.pathname.startsWith('/releases/'))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
+      if(destination.origin!==window.location.origin||!(destination.pathname.startsWith('/releases/')||destination.pathname.startsWith('/api/releases/')))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
       if(!result.sha256||!window.crypto?.subtle)throw new Error('No se pudo verificar la integridad del paquete de actualización.');
       const response=await fetch(destination.href,{cache:'no-store',credentials:'same-origin'});
       if(!response.ok)throw new Error('No se pudo descargar el paquete de la versión '+result.version+'.');
