@@ -1571,6 +1571,18 @@ module.exports = async function handler(req, res) {
         const licenseDeviceLimit=defaultDeviceSettings[0]?.device_limit===null||defaultDeviceSettings[0]?.device_limit===undefined?null:Number(defaultDeviceSettings[0].device_limit);
         const newLicenseCode='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
         const quotationId=String(input.quotationId||'');
+        const requestedReleaseId=String(input.releaseId||'');
+        let selectedRelease;
+        if(requestedReleaseId){
+          if(!/^[0-9a-f-]{36}$/i.test(requestedReleaseId))return send(res,400,{error:'La versión inicial seleccionada no es válida.'});
+          const chosen=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${requestedReleaseId} LIMIT 1`;
+          if(!chosen.length||chosen[0].status!=='published'||chosen[0].delivery_ready!==true)return send(res,409,{error:'La versión seleccionada no tiene un paquete independiente listo para instalar.'});
+          selectedRelease=chosen[0];
+        }else{
+          const current=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE version='2.0.1' AND status='published' LIMIT 1`;
+          if(!current.length)return send(res,409,{error:'No hay una versión base registrada para crear el negocio.'});
+          selectedRelease=current[0];
+        }
         const requestedTrialDays=Number(input.trialDays||7);
         if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>3650))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 3650 días.'});
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
@@ -1595,6 +1607,10 @@ module.exports = async function handler(req, res) {
         ), config_created AS (
           INSERT INTO app_business_config(business_id,industry_key,config_mode,modules,created_by,updated_by)
           SELECT id,${industry},${configMode},${JSON.stringify(selectedModules)}::jsonb,${admin.id},${admin.id} FROM created RETURNING business_id
+        ), version_created AS (
+          INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
+          SELECT id,${selectedRelease.id},${selectedRelease.id},${admin.id} FROM created
+          RETURNING business_id
         ), trial_settings AS (
           SELECT
             COALESCE((SELECT trial_enabled FROM app_license_settings WHERE setting_key='default'),TRUE) AS enabled,
@@ -1647,7 +1663,7 @@ module.exports = async function handler(req, res) {
         FROM created`;
         const trialLicense=rows[0]?.trial_license||null;
         const paidLicense=rows[0]?.paid_license||null;
-        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:!!(trialLicense||paidLicense),trialLicense,license:paidLicense,additionalModules:requestedAddons,addonsCreated:Number(rows[0]?.addons_created_count||0)});
+        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},version:{id:selectedRelease.id,version:selectedRelease.version},licenseCreated:!!(trialLicense||paidLicense),trialLicense,license:paidLicense,additionalModules:requestedAddons,addonsCreated:Number(rows[0]?.addons_created_count||0)});
       }
       if(req.method==='PATCH'){
         const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
