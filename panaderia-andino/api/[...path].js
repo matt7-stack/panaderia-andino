@@ -3056,7 +3056,7 @@ module.exports = async function handler(req, res) {
           if(!snapshot.ok)return send(res,502,{error:'No se pudo capturar el paquete de la versión desplegada.'});
           artifactContent=await snapshot.text();
         }
-        const versionMeta=/(<meta\\s+name=["']mattsystem-version["']\\s+content=["'])[^"']+(["'])/i;
+        const versionMeta=/(<meta\s+name=["']mattsystem-version["']\s+content=["'])[^"']+(["'])/i;
         if(versionMeta.test(artifactContent))artifactContent=artifactContent.replace(versionMeta,(_,prefix,suffix)=>prefix+version+suffix);
         const artifactBytes=artifactContent?Buffer.byteLength(artifactContent,'utf8'):null;
         const artifactSha=artifactContent?crypto.createHash('sha256').update(artifactContent,'utf8').digest('hex'):'';
