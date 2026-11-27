@@ -2933,8 +2933,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         if(!addonHost||!businessPriceCatalog)return;
         const available=(businessPriceCatalog.modules||[]).filter(item=>['branches','delivery','receivables'].includes(item.module_key)&&item.active!==false&&item.implemented===true&&item.commercial_mode==='addon');
         addonHost.innerHTML=available.map(item=>'<div class="col-md-4"><label class="border rounded p-2 d-flex gap-2 align-items-start h-100"><input class="form-check-input mt-1" type="checkbox" data-business-addon="'+item.module_key+'"><span class="flex-grow-1"><strong class="small d-block">'+item.title+'</strong><small class="text-muted d-block">'+money(item.setup_price)+' de alta · '+money(item.monthly_price)+'/mes</small></span></label></div>').join('')||'<p class="small text-muted mb-0">No hay complementos disponibles para contratar.</p>';
-        addonHost.addEventListener('change',()=>{updateBusinessPricingSummary();invalidateBusinessQuote();},{once:true});
-        addonHost.querySelectorAll('[data-business-addon]').forEach(input=>input.addEventListener('change',()=>{updateBusinessPricingSummary();invalidateBusinessQuote();}));
+        addonHost.querySelectorAll('[data-business-addon]').forEach(input=>input.addEventListener('change',()=>{updateBusinessPricingSummary();invalidateBusinessQuote();if(manualToggle.checked)renderManualPricing();}));
       };
       const applyTemplate=()=>{
         const planKey=trialToggle.checked?trialPlanSelect.value:licensePlanSelect.value;
@@ -2945,7 +2944,6 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         fields.querySelector('#businessModuleHelp').textContent='Módulos incluidos automáticamente por el nivel seleccionado. Para ampliar el negocio, contratá complementos opcionales.';
         if(trialToggle.checked){addonHost.querySelectorAll('[data-business-addon]').forEach(input=>{input.checked=false;input.disabled=true;});}
         else addonHost.querySelectorAll('[data-business-addon]').forEach(input=>input.disabled=false);
-        updateBusinessPricingSummary();
         updateBusinessPricingSummary();
       };
       const invalidateBusinessQuote=()=>{delete fields.dataset.quotationId;const preview=fields.querySelector('#businessQuotePreview');if(preview)preview.textContent='La configuración cambió. Generá una nueva cotización antes de crear el negocio.';};
@@ -2979,8 +2977,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       }).catch(()=>{});
       const quotePlanSelect=fields.querySelector('#businessQuoteLicenseType');
       quotePlanSelect.value=licensePlanSelect.value;
-      licensePlanSelect.addEventListener('change',()=>{quotePlanSelect.value=licensePlanSelect.value;trialPlanSelect.value=licensePlanSelect.value;applyTemplate();invalidateBusinessQuote();});
-      quotePlanSelect.addEventListener('change',()=>{licensePlanSelect.value=quotePlanSelect.value;trialPlanSelect.value=quotePlanSelect.value;applyTemplate();invalidateBusinessQuote();});
+      licensePlanSelect.addEventListener('change',()=>{quotePlanSelect.value=licensePlanSelect.value;trialPlanSelect.value=licensePlanSelect.value;applyTemplate();if(manualToggle.checked)renderManualPricing();invalidateBusinessQuote();});
+      quotePlanSelect.addEventListener('change',()=>{licensePlanSelect.value=quotePlanSelect.value;trialPlanSelect.value=quotePlanSelect.value;applyTemplate();if(manualToggle.checked)renderManualPricing();invalidateBusinessQuote();});
       const manualToggle=fields.querySelector('#businessManualPricing'),manualFields=fields.querySelector('#businessManualPricingFields');
       const renderManualPricing=()=>{
         if(!manualToggle.checked){manualFields.hidden=true;manualFields.innerHTML='';return;}
