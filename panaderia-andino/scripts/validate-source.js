@@ -66,7 +66,7 @@ const operationsToolsSource = fs.readFileSync(path.join(root, 'operations-tools.
 const serviceWorkerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 if (!html.includes('<script src="/operations-tools.js?v=2" defer></script>') ||
     !serviceWorkerSource.includes("'/operations-tools.js?v=2'") ||
-    !serviceWorkerSource.includes("mattsystem-pwa-v23")) {
+    !serviceWorkerSource.includes("mattsystem-pwa-v24")) {
   throw new Error('Las herramientas del negocio deben cargarse y quedar disponibles en la caché PWA sin conexión.');
 }
 for (const marker of ["task_create","task_status","attachment_add","import_rows","mattsystem_tools_cache_v2:","mattsystem-offline-tools","addEventListener('online',syncQueue)","nav.hidden=!currentUser","scopeKey:scope","idb.all(scope)","xlsx-0.20.3","file.size>5*1024*1024","window.PanaderiaAuth?window.PanaderiaAuth.user:currentUser","cache=emptyCache();throw error","canViewAttachments()","canAddAttachment()","importTargets()"]) {
@@ -343,7 +343,7 @@ for (const marker of [
 }
 if (!pushServiceWorkerSource.includes('const APP_SHELL_PATHS = new Set(') ||
     !pushServiceWorkerSource.includes('if (APP_SHELL_PATHS.has(url.pathname))') ||
-    !pushServiceWorkerSource.includes("mattsystem-pwa-v23")) {
+    !pushServiceWorkerSource.includes("mattsystem-pwa-v24")) {
   throw new Error('La caché PWA debe reconocer recursos con parámetros de consulta y renovar su versión.');
 }
 
