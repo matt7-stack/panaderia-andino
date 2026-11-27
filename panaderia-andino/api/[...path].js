@@ -126,14 +126,13 @@ function parseMoney(value) {
   const amount = Number(raw);
   return Number.isFinite(amount) && amount <= 999999999999.99 ? amount : NaN;
 }
-function validISODate(value) {
 function isNewerVersion(candidate, current) {
   const parse = value => String(value || '').split(/[+-]/)[0].split('.').slice(0,3).map(part => Number(part));
   const next=parse(candidate),previous=parse(current);
   for(let i=0;i<3;i++){if((next[i]||0)!==(previous[i]||0))return (next[i]||0)>(previous[i]||0);}
   return false;
 }
-
+function validISODate(value) {
   const dateText = String(value || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return false;
   const date = new Date(dateText + 'T00:00:00Z');
