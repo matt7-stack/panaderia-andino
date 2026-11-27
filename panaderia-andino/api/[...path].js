@@ -3063,7 +3063,7 @@ module.exports = async function handler(req, res) {
           installed.version AS installed_version,installed.id AS installed_release_id,
           target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
           CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly'
-            WHEN lic.expires_at IS NULL THEN 'permanent' ELSE 'fixed_term' END AS license_mode,
+            THEN 'permanent' ELSE 'fixed_term' END AS license_mode,
           COALESCE(lic.status,'missing') AS license_status,
           (SELECT COUNT(*)::int FROM app_version_upgrade_requests u WHERE u.business_id=b.id AND u.status NOT IN ('applied','rejected','cancelled')) AS open_upgrade_requests
           FROM businesses b LEFT JOIN app_business_versions bv ON bv.business_id=b.id
@@ -3089,7 +3089,7 @@ module.exports = async function handler(req, res) {
           LEFT JOIN LATERAL(SELECT status FROM app_licenses x WHERE x.business_id=b.id ORDER BY (x.status='active') DESC,x.created_at DESC LIMIT 1) lic ON TRUE
           WHERE b.id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::uuid)`;
         if(businesses.length!==ids.length)return send(res,404,{error:'Uno o más negocios no existen.'});
-        const permanent=businesses.filter(b=>!b.is_trial&&Number(b.monthly_amount||0)===0&&!b.expires_at);
+        const permanent=businesses.filter(b=>!b.is_trial&&Number(b.monthly_amount||0)===0);
         if(permanent.length)return send(res,409,{error:'Las licencias permanentes requieren aceptación y pago registrados en Solicitudes de mejora antes de actualizarse.',permanentBusinessIds:permanent.map(b=>b.id)});
         const trial=businesses.filter(b=>b.is_trial);
         if(trial.length)return send(res,409,{error:'Las pruebas gratuitas no se pueden actualizar mediante una asignación comercial.'});
@@ -3124,8 +3124,8 @@ module.exports = async function handler(req, res) {
             return send(res,400,{error:'Para autorizar una mejora permanente registrá el importe, aceptación del cliente, pago recibido y referencia del pago.'});
           const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
           if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)return send(res,409,{error:'La versión no tiene un paquete publicado y verificable.'});
-          const lic=await sql`SELECT id,is_trial,monthly_amount,expires_at FROM app_licenses WHERE business_id=${businessId} ORDER BY (status='active') DESC,created_at DESC LIMIT 1`;
-          if(!lic.length||lic[0].is_trial||Number(lic[0].monthly_amount||0)>0||lic[0].expires_at)return send(res,409,{error:'Este flujo es exclusivo para licencias permanentes activas.'});
+          const lic=await sql`SELECT id,status,is_trial,monthly_amount,expires_at FROM app_licenses WHERE business_id=${businessId} ORDER BY (status='active') DESC,created_at DESC LIMIT 1`;
+          if(!lic.length||lic[0].status!=='active'||lic[0].is_trial||Number(lic[0].monthly_amount||0)>0)return send(res,409,{error:'Este flujo es exclusivo para licencias permanentes activas.'});
           const current=await sql`SELECT bv.installed_release_id FROM app_business_versions bv WHERE bv.business_id=${businessId} LIMIT 1`;
           const rows=await sql`INSERT INTO app_version_upgrade_requests(business_id,from_release_id,to_release_id,quoted_amount,client_accepted_at,paid_at,payment_reference,status,notes,created_by,approved_by)
             VALUES(${businessId},${current[0]?.installed_release_id||null},${releaseId},${amount},NOW(),NOW(),${paymentReference},'paid',${notes},${admin.id},${admin.id}) RETURNING *`;
