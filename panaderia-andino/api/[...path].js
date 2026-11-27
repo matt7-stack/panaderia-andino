@@ -3120,7 +3120,7 @@ module.exports = async function handler(req, res) {
           if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)return send(res,409,{error:'La versión de respaldo no tiene un paquete publicado y verificable.'});
           const current=await sql`SELECT installed_release_id FROM app_business_versions WHERE business_id=${businessId} LIMIT 1`;
           if(!current.length)return send(res,404,{error:'El negocio todavía no tiene versión instalada.'});
-          const history=await sql`SELECT id FROM app_business_version_history WHERE business_id=${businessId} AND to_release_id=${releaseId} LIMIT 1`;
+          const history=await sql`SELECT id FROM app_business_version_history WHERE business_id=${businessId} AND (to_release_id=${releaseId} OR from_release_id=${releaseId}) LIMIT 1`;
           if(current[0].installed_release_id!==releaseId&&!history.length)return send(res,403,{error:'Solo se puede volver a una versión que este negocio ya tuvo instalada.'});
           await sql`UPDATE app_business_versions SET target_release_id=${releaseId},updated_at=NOW(),updated_by=${admin.id} WHERE business_id=${businessId}`;
           await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
