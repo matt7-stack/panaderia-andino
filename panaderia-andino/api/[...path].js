@@ -620,7 +620,7 @@ module.exports = async function handler(req, res) {
           RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at
         ) SELECT * FROM license_updated`;
         if(!rows.length)return send(res,409,{error:'No se pudieron guardar juntos los módulos y la licencia. Actualizá la lista e intentá nuevamente.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,configuration_amount:configuration,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${current[0].business_id},u.id,'license_update','Licencia actualizada','El administrador actualizó tu plan o las condiciones de tu licencia. Consultá el apartado Info para ver los nuevos datos.' FROM app_users u WHERE u.business_id=${current[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{license:rows[0],updated:true});
       }
@@ -631,7 +631,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const [plans,modules]=await Promise.all([
-          sql`SELECT plan_key,display_name,setup_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
+          sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
           sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`
         ]);
         return send(res,200,{plans,modules});
@@ -641,8 +641,8 @@ module.exports = async function handler(req, res) {
         const keys=['basic','professional','enterprise'];
         if(plans.length!==3||new Set(plans.map(x=>String(x.planKey||''))).size!==3||!keys.every(k=>plans.some(x=>x.planKey===k)))return send(res,400,{error:'Deben enviarse los tres planes.'});
         if(!modules.length||modules.length>100||new Set(modules.map(x=>String(x.moduleKey||''))).size!==modules.length)return send(res,400,{error:'Revisá la lista de módulos.'});
-        const ps=plans.map(p=>({plan_key:String(p.planKey),setup_amount:Number(p.setupAmount),monthly_amount:Number(p.monthlyAmount),annual_discount_percent:Number(p.annualDiscountPercent??15),permanent_price:Number(p.permanentPrice??0),full_sale_price:Number(p.fullSalePrice??0)}));
-        if(ps.some(p=>[p.setup_amount,p.monthly_amount,p.annual_discount_percent,p.permanent_price,p.full_sale_price].some(v=>!Number.isFinite(v)||v<0||v>1000000000)||p.annual_discount_percent>100))return send(res,400,{error:'Los importes no son válidos.'});
+        const ps=plans.map(p=>({plan_key:String(p.planKey),setup_amount:Number(p.setupAmount),configuration_amount:Number(p.configurationAmount??0),monthly_amount:Number(p.monthlyAmount),annual_discount_percent:Number(p.annualDiscountPercent??15),permanent_price:Number(p.permanentPrice??0),full_sale_price:Number(p.fullSalePrice??0)}));
+        if(ps.some(p=>[p.setup_amount,p.configuration_amount,p.monthly_amount,p.annual_discount_percent,p.permanent_price,p.full_sale_price].some(v=>!Number.isFinite(v)||v<0||v>1000000000)||p.annual_discount_percent>100))return send(res,400,{error:'Los importes no son válidos.'});
         const ms=modules.map(m=>({module_key:String(m.moduleKey||'').trim(),monthly_price:Number(m.monthlyPrice),setup_price:Number(m.setupPrice)}));
         if(ms.some(m=>!m.module_key||![m.monthly_price,m.setup_price].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))return send(res,400,{error:'Revisá los precios de cada módulo.'});
         const [ep,em]=await Promise.all([
@@ -661,8 +661,8 @@ module.exports = async function handler(req, res) {
             FROM jsonb_to_recordset(${JSON.stringify(ms)}::jsonb) AS x(module_key text,monthly_price numeric,setup_price numeric)
             WHERE m.module_key=x.module_key RETURNING m.module_key
           ), plan_update AS (
-            UPDATE app_license_plan_settings p SET setup_amount=x.setup_amount,monthly_amount=x.monthly_amount,annual_discount_percent=x.annual_discount_percent,permanent_price=x.permanent_price,full_sale_price=x.full_sale_price,module_prices=x.module_prices,updated_by=${admin.id},updated_at=NOW()
-            FROM jsonb_to_recordset(${JSON.stringify(normalizedPlans)}::jsonb) AS x(plan_key text,setup_amount numeric,monthly_amount numeric,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb)
+            UPDATE app_license_plan_settings p SET setup_amount=x.setup_amount,configuration_amount=x.configuration_amount,monthly_amount=x.monthly_amount,annual_discount_percent=x.annual_discount_percent,permanent_price=x.permanent_price,full_sale_price=x.full_sale_price,module_prices=x.module_prices,updated_by=${admin.id},updated_at=NOW()
+            FROM jsonb_to_recordset(${JSON.stringify(normalizedPlans)}::jsonb) AS x(plan_key text,setup_amount numeric,configuration_amount numeric,monthly_amount numeric,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb)
             WHERE p.plan_key=x.plan_key RETURNING p.plan_key
           )
           SELECT (SELECT COUNT(*) FROM module_update)::int AS modules_updated,(SELECT COUNT(*) FROM plan_update)::int AS plans_updated
@@ -693,12 +693,12 @@ module.exports = async function handler(req, res) {
           return send(res,400,{error:'Debés configurar los tres tipos de licencia.'});
         const normalized=[];
         for(const item of items){
-          const planKey=String(item.planKey),setup=Number(item.setupAmount),monthly=Number(item.monthlyAmount);
+          const planKey=String(item.planKey),setup=Number(item.setupAmount),configuration=Number(item.configurationAmount??0),monthly=Number(item.monthlyAmount);
           const userLimit=item.userLimit===null||item.userLimit===''?null:Number(item.userLimit),deviceLimit=item.deviceLimit===null||item.deviceLimit===''?null:Number(item.deviceLimit);
           const annualDiscount=item.annualDiscountPercent===undefined?null:Number(item.annualDiscountPercent),permanent=item.permanentPrice===undefined?null:Number(item.permanentPrice),fullSale=item.fullSalePrice===undefined?null:Number(item.fullSalePrice);
           const modules=[...new Set((Array.isArray(item.modules)?item.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
           const modulePrices=item.modulePrices===undefined?null:(item.modulePrices&&typeof item.modulePrices==='object'&&!Array.isArray(item.modulePrices)?item.modulePrices:{});
-          if(!Number.isFinite(setup)||setup<0||!Number.isFinite(monthly)||monthly<0||
+          if(!Number.isFinite(setup)||setup<0||!Number.isFinite(configuration)||configuration<0||!Number.isFinite(monthly)||monthly<0||
              (annualDiscount!==null&&(!Number.isFinite(annualDiscount)||annualDiscount<0||annualDiscount>100))||
              (permanent!==null&&(!Number.isFinite(permanent)||permanent<0))||(fullSale!==null&&(!Number.isFinite(fullSale)||fullSale<0))||
              (userLimit!==null&&(!Number.isInteger(userLimit)||userLimit<1||userLimit>500))||(deviceLimit!==null&&(!Number.isInteger(deviceLimit)||deviceLimit<1||deviceLimit>100))||modules.length===0||modules.length>50)
@@ -713,11 +713,11 @@ module.exports = async function handler(req, res) {
         const allKeys=[...new Set(normalized.flatMap(x=>x.modules))];
         const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
         if(valid.length!==allKeys.length)return send(res,400,{error:'Un plan contiene módulos no disponibles o todavía no implementados.'});
-        const rows=await sql`INSERT INTO app_license_plan_settings(plan_key,display_name,setup_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_by,updated_at)
-          SELECT x.plan_key,x.display_name,x.setup_amount,x.monthly_amount,x.user_limit,x.device_limit,x.modules,COALESCE(x.annual_discount_percent,15),COALESCE(x.permanent_price,0),COALESCE(x.full_sale_price,0),COALESCE(x.module_prices,'{}'::jsonb),x.updated_by,NOW()
+        const rows=await sql`INSERT INTO app_license_plan_settings(plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_by,updated_at)
+          SELECT x.plan_key,x.display_name,x.setup_amount,x.configuration_amount,x.monthly_amount,x.user_limit,x.device_limit,x.modules,COALESCE(x.annual_discount_percent,15),COALESCE(x.permanent_price,0),COALESCE(x.full_sale_price,0),COALESCE(x.module_prices,'{}'::jsonb),x.updated_by,NOW()
           FROM jsonb_to_recordset(${JSON.stringify(normalized.map(x=>({...x,updated_by:admin.id})))}::jsonb)
-          AS x(plan_key text,display_name text,setup_amount numeric,monthly_amount numeric,user_limit integer,device_limit integer,modules jsonb,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb,updated_by uuid)
-          ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,device_limit=EXCLUDED.device_limit,modules=EXCLUDED.modules,annual_discount_percent=COALESCE(EXCLUDED.annual_discount_percent,app_license_plan_settings.annual_discount_percent),permanent_price=COALESCE(EXCLUDED.permanent_price,app_license_plan_settings.permanent_price),full_sale_price=COALESCE(EXCLUDED.full_sale_price,app_license_plan_settings.full_sale_price),module_prices=COALESCE(EXCLUDED.module_prices,app_license_plan_settings.module_prices),updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          AS x(plan_key text,display_name text,setup_amount numeric,configuration_amount numeric,monthly_amount numeric,user_limit integer,device_limit integer,modules jsonb,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb,updated_by uuid)
+          ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,configuration_amount=EXCLUDED.configuration_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,device_limit=EXCLUDED.device_limit,modules=EXCLUDED.modules,annual_discount_percent=COALESCE(EXCLUDED.annual_discount_percent,app_license_plan_settings.annual_discount_percent),permanent_price=COALESCE(EXCLUDED.permanent_price,app_license_plan_settings.permanent_price),full_sale_price=COALESCE(EXCLUDED.full_sale_price,app_license_plan_settings.full_sale_price),module_prices=COALESCE(EXCLUDED.module_prices,app_license_plan_settings.module_prices),updated_by=EXCLUDED.updated_by,updated_at=NOW()
           RETURNING plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at`;
         return send(res,200,{plans:rows,updated:true});
       }
@@ -736,14 +736,14 @@ module.exports = async function handler(req, res) {
         const durationType=String(input.durationType||'year_1'),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths??12),durationDays=Number(input.durationDays??0);
         const validDuration=durationType==='custom_days'?Number.isInteger(durationDays)&&durationDays>=1&&durationDays<=3650:(durationMonths===null||Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120);
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!validDuration)return send(res,400,{error:'Datos de licencia no válidos. La duración personalizada debe ser de 1 a 3650 días.'});
-        const planRows=await sql`SELECT setup_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
+        const planRows=await sql`SELECT setup_amount,configuration_amount,monthly_amount,user_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
         const defaultSettings=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
         const hasUserLimit=Object.prototype.hasOwnProperty.call(input,'userLimit'),hasDeviceLimit=Object.prototype.hasOwnProperty.call(input,'deviceLimit');
         const userLimit=hasUserLimit?(input.userLimit===null||input.userLimit===''?null:Number(input.userLimit)):(planRows[0].user_limit===null?null:Number(planRows[0].user_limit));
         const deviceLimit=hasDeviceLimit?(input.deviceLimit===null||input.deviceLimit===''?null:Number(input.deviceLimit)):(defaultSettings[0]?.device_limit===null||defaultSettings[0]?.device_limit===undefined?null:Number(defaultSettings[0].device_limit));
         if(!(userLimit===null||(Number.isInteger(userLimit)&&userLimit>=1&&userLimit<=500))||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'Los límites deben ser enteros: usuarios de 1 a 500 y dispositivos de 1 a 100, o dejarlos sin límite.'});
-        const planSetup=Number(planRows[0].setup_amount),planMonthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
+        const planSetup=Number(planRows[0].setup_amount),planConfiguration=Number(planRows[0].configuration_amount||0),configurationAmount=input.includeConfiguration===true?planConfiguration:0,planMonthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
         const requestedExtraModules=[...new Set((Array.isArray(input.additionalModules)?input.additionalModules:[]).map(x=>String(x).trim()).filter(Boolean))];
         if(requestedExtraModules.length>50||requestedExtraModules.some(key=>planModules.includes(key)))return send(res,400,{error:'Los módulos adicionales no son válidos o ya están incluidos en el plan.'});
         let extraModules=[],setup=planSetup,monthly=planMonthly;
@@ -770,7 +770,7 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(licensedModules)}::jsonb) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${configurationAmount},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(licensedModules)}::jsonb) RETURNING *`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
           VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,modules:licensedModules,additionalModules:requestedExtraModules,isTrial:false})}::jsonb)`;
         return send(res,201,{license:rows[0]});
