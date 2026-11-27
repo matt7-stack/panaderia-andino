@@ -4896,7 +4896,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    const serviceDefs=[['configuration','Configuración inicial'],['hosting','Hosting / alojamiento'],['maintenance','Mantenimiento técnico'],['support','Soporte técnico'],['updates','Actualizaciones del sistema']];
    const readNum=selector=>Math.max(0,Number(root.querySelector(selector)?.value||0));
    const selectedPlan=()=>commercialQuoteCatalog?.plans?.find(p=>p.plan_key===planSelect.value);
-   const chosenModules=()=>[...moduleBox.querySelectorAll('[data-quote-module]:checked')].map(x=>x.dataset.quoteModule);
+   const chosenModules=()=>[...moduleBox.querySelectorAll('[data-quote-module]:checked:not(:disabled)')].map(x=>x.dataset.quoteModule);
    const serviceRows=()=>{const rows=[];serviceDefs.forEach(([key,title])=>{const on=root.querySelector('[data-quote-service="'+key+'"]')?.checked;if(on)rows.push({key,title,setup:readNum('[data-quote-service-setup="'+key+'"]'),monthly:readNum('[data-quote-service-monthly="'+key+'"]')});});const other=root.querySelector('#quoteOtherServiceName').value.trim();if(other)rows.push({key:'other',title:other,setup:readNum('#quoteOtherServiceSetup'),monthly:readNum('#quoteOtherServiceMonthly')});return rows;};
    const renderModules=()=>{
      const plan=selectedPlan();if(!plan){moduleBox.innerHTML='<p class="text-danger">No existe el plan seleccionado.</p>';return;}
