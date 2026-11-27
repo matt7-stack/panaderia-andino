@@ -109,6 +109,16 @@ if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
     !apiSource.includes("typeof input.active==='boolean'}::boolean")) {
   throw new Error('La API debe evitar sobrescrituras concurrentes, validar archivos, respetar módulos y tipar condiciones SQL.');
 }
+const authSource = fs.readFileSync(path.join(root, 'js/auth.js'), 'utf8');
+if (!apiSource.includes("code:'EXPECTED_VERSION_REQUIRED'") ||
+    !apiSource.includes("code:'DATA_VERSION_CONFLICT'") ||
+    !apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt}") ||
+    !html.includes('expectedUpdatedAt: cloudUpdatedAt') ||
+    !html.includes("localStorage.setItem(STORAGE_KEY + '_conflict_backup'") ||
+    !html.includes("cloudConflict || cloudSaving") ||
+    !authSource.includes("error.code === 'DATA_VERSION_CONFLICT'")) {
+  throw new Error('El guardado general debe usar control de concurrencia optimista y conservar los cambios locales ante un conflicto.');
+}
 if (operationsToolsSource.includes('mattsystem_tools_cache_v1') ||
     operationsToolsSource.includes('window.PanaderiaAuth?.user||currentUser')) {
   throw new Error('La caché offline no debe reutilizar datos antiguos ni conservar el usuario anterior tras cerrar sesión.');
