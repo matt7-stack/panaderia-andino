@@ -4096,7 +4096,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   }
   async function refreshAdminHealth(quiet=false){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
-    const status=(id,state,detail)=>{const el=document.getElementById(id);if(!el)return;const labels={operational:'Operativo',healthy:'Saludable',warning:'Advertencia',critical:'Crítico',unknown:'No verificado',not_connected:'No conectado',not_applicable:'No aplica'};el.textContent=labels[state]||state||'No verificado';el.className='status-pill '+(state==='operational'||state==='healthy'?'status-paid':state==='critical'?'status-cancelled':'status-pending');const note=document.getElementById(id+'Detail');if(note)note.textContent=detail||'';};
+    const status=(id,state,detail)=>{const el=document.getElementById(id);if(!el)return;const labels={operational:'Operativo',healthy:'Saludable',warning:'Advertencia',critical:'Crítico',unknown:'No verificado',not_connected:'No conectado',not_verified:'No verificado',not_applicable:'No aplica'};el.textContent=labels[state]||state||'No verificado';el.className='status-pill '+(state==='operational'||state==='healthy'?'status-paid':state==='critical'?'status-cancelled':'status-pending');const note=document.getElementById(id+'Detail');if(note)note.textContent=detail||'';};
     const value=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v===null||v===undefined||v===''?'—':String(v);};
     const date=v=>v?new Date(v).toLocaleString('es-PY'):'No registrado';
     try{
@@ -4130,6 +4130,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       value('healthLatestDeployment',latestDeployment.readyState||'No disponible');
       value('healthLatestDeploymentDate',date(latestDeployment.createdAt));
       value('healthLatestDeploymentBranch',latestDeployment.branch||'—');
+      value('healthLatestDeploymentCommit',latestDeployment.commit||'—');
+      const deploymentLink=document.getElementById('healthLatestDeploymentUrl');if(deploymentLink){if(latestDeployment.url){deploymentLink.href=latestDeployment.url;deploymentLink.textContent='Abrir último deployment';deploymentLink.hidden=false;}else{deploymentLink.removeAttribute('href');deploymentLink.textContent='URL no disponible';deploymentLink.hidden=true;}}
       value('healthLatestDeploymentUrl',latestDeployment.url||'—');
       value('healthExternalNote',deployment.configured?'Vercel conectado para estado de despliegues. Los logs de ejecución externos no están conectados.':'Para conectar Vercel, agregá VERCEL_API_TOKEN en Settings → Environment Variables del proyecto y redeployá el preview.');
       const overallLabels={healthy:'Sin alertas detectadas',warning:'Hay advertencias que revisar',critical:'Se detectaron problemas críticos'};
