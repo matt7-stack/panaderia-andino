@@ -620,7 +620,7 @@ module.exports = async function handler(req, res) {
           RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at
         ) SELECT * FROM license_updated`;
         if(!rows.length)return send(res,409,{error:'No se pudieron guardar juntos los módulos y la licencia. Actualizá la lista e intentá nuevamente.'});
-        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,configuration_amount:configuration,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${current[0].business_id},u.id,'license_update','Licencia actualizada','El administrador actualizó tu plan o las condiciones de tu licencia. Consultá el apartado Info para ver los nuevos datos.' FROM app_users u WHERE u.business_id=${current[0].business_id} AND u.active=TRUE AND u.role IN ('admin','supervisor')`;
         return send(res,200,{license:rows[0],updated:true});
       }
