@@ -137,6 +137,11 @@ if (!apiSource.includes('user_limit,device_limit,modules FROM app_license_plan_s
     apiSource.includes("SELECT device_limit FROM app_license_settings WHERE setting_key='default'")) {
   throw new Error('La emisión de licencias debe heredar el límite de dispositivos del plan seleccionado; NULL representa ilimitado.');
 }
+if (!apiSource.includes('ROW_NUMBER() OVER(ORDER BY last_seen_at DESC,first_seen_at ASC,id ASC)') ||
+    !apiSource.includes('device_rank<=${Number(user.device_limit)}') ||
+    !apiSource.includes('Revalidar el dispositivo en cada petición')) {
+  throw new Error('Las sesiones ya abiertas deben respetar revocaciones y reducciones del límite de dispositivos.');
+}
 if (!deviceMigration.includes('app_device_registrations') ||
     !deviceMigration.includes('ENABLE ROW LEVEL SECURITY') ||
     !deviceMigration.includes('FORCE ROW LEVEL SECURITY') ||
