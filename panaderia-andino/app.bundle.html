@@ -1833,7 +1833,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
             <div class="col-md-6"><div class="d-flex justify-content-between align-items-center gap-2"><strong>Vercel / despliegue</strong><span id="healthVercel" class="status-pill status-pending">Pendiente</span></div><small id="healthVercelDetail" class="text-muted">Entorno, región, commit y deployment</small></div>
           </div></article>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Negocios registrados</p><h2 id="healthBusinesses">—</h2></article><article class="summary-card profit-card"><p class="summary-label">Negocios activos</p><h2 id="healthActiveBusinesses">—</h2></article><article class="summary-card pending-card"><p class="summary-label">Usuarios activos</p><h2 id="healthActiveUsers">—</h2></article><article class="summary-card expense-card"><p class="summary-label">Licencias activas</p><h2 id="healthActiveLicenses">—</h2></article></div>
-          <div class="summary-grid mt-3"><article class="summary-card"><p class="summary-label">Licencias por vencer · 7 días</p><h2 id="healthExpiringLicenses">—</h2></article><article class="summary-card"><p class="summary-label">Intentos fallidos · 24 h</p><h2 id="healthFailedLogins">—</h2></article><article class="summary-card"><p class="summary-label">Errores · 24 h</p><h2 id="healthErrors24h">—</h2></article><article class="summary-card"><p class="summary-label">API p95 · 24 h</p><h2 id="healthApiP95">—</h2></article></div>
+          <div class="summary-grid mt-3"><article class="summary-card"><p class="summary-label">Licencias por vencer · 7 días</p><h2 id="healthExpiringLicenses">—</h2></article><article class="summary-card"><p class="summary-label">Intentos fallidos · 24 h</p><h2 id="healthFailedLogins">—</h2></article><article class="summary-card"><p class="summary-label">Errores · 24 h</p><h2 id="healthErrors24h">—</h2></article><article class="summary-card"><p class="summary-label">API p95 · muestra 24 h</p><h2 id="healthApiP95">—</h2></article></div>
           <div class="summary-grid mt-3"><article class="summary-card"><p class="summary-label">Tickets abiertos</p><h2 id="healthOpenTickets">—</h2></article><article class="summary-card"><p class="summary-label">Eventos de auditoría · 24 h</p><h2 id="healthAuditEvents">—</h2></article></div>
           <article class="panel mt-3"><div class="panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas y recomendaciones</h3><p>Se generan a partir de comprobaciones y registros reales.</p></div></div><div id="healthAlerts" class="d-grid gap-2"><p class="text-muted">Ejecutá el diagnóstico para cargar alertas.</p></div></article>
           <div class="row g-3 mt-1"><div class="col-lg-6"><article class="panel h-100"><div class="panel-heading"><div><h3>Respaldos y continuidad</h3><p>Verificación de respaldos internos de negocios.</p></div></div><div class="d-flex justify-content-between"><span>Respaldos registrados</span><strong id="healthBackupTotal">—</strong></div><div class="d-flex justify-content-between"><span>Checksums válidos</span><strong id="healthBackupValid">—</strong></div><div class="d-flex justify-content-between"><span>Último respaldo interno</span><strong id="healthBackupLatest">—</strong></div><div class="d-flex justify-content-between"><span>Última restauración registrada</span><strong id="healthBackupRestore">—</strong></div><p class="small text-muted mt-3 mb-0" id="healthBackupNote">Snapshots de Neon y prueba de restauración externa no se consideran verificadas desde este panel.</p></article></div>
@@ -1957,6 +1957,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   }
 
   let selectedBusinessId = localStorage.getItem('pa_selected_business_id') || '';
+  let healthRequestSample=0;
   function reportHealthEvent(category,message,durationMs){
     try{
       if(String(location.pathname||'').startsWith('/health'))return;
@@ -1984,7 +1985,11 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       throw new Error('No se pudo conectar con el servidor. Revisá tu conexión e intentá nuevamente.');
     } finally { clearTimeout(timeout); }
     const apiDuration=Math.round(performance.now()-apiStartedAt);
-    if(path!=='/api/health/events'&&apiDuration>=1500)reportHealthEvent('api_slow',String(path)+' tardó '+apiDuration+' ms',apiDuration);
+    if(path!=='/api/health/events'){
+      healthRequestSample=(healthRequestSample+1)%5;
+      if(healthRequestSample===0)reportHealthEvent('api_request',String(path),apiDuration);
+      if(apiDuration>=1500)reportHealthEvent('api_slow',String(path)+' tardó '+apiDuration+' ms',apiDuration);
+    }
     let result = {};
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
     if(path!=='/api/health/events'&&!response.ok)reportHealthEvent('api_error',String(path)+' respondió HTTP '+response.status,apiDuration);
