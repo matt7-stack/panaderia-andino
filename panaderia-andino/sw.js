@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mattsystem-pwa-v23';
-const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/admin-nav.js', '/business-expenses.js', '/operations-tools.js?v=2', '/manifest.webmanifest', '/icons/icon.svg?v=3'];
+const CACHE_NAME = 'mattsystem-pwa-v24';
+const APP_SHELL = ['/app.bundle.html', '/employee-access.js', '/erp-modules.js', '/admin-nav.js', '/business-expenses.js', '/business-improvements.js', '/operations-tools.js?v=2', '/manifest.webmanifest', '/icons/icon.svg?v=3'];
 const APP_SHELL_PATHS = new Set(APP_SHELL.map(path => new URL(path, self.location.origin).pathname));
 
 self.addEventListener('install', (event) => {
