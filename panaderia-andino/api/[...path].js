@@ -1184,7 +1184,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
-      const [database,counts,backups,licenses,events,latency,history,audit,tickets,dailyTrend,weeklyTrend,monthlyTrend]=await Promise.all([
+      const [database,counts,backups,licenses,payments,events,latency,history,audit,tickets,dailyTrend,weeklyTrend,monthlyTrend]=await Promise.all([
         sql`SELECT current_database() AS name,pg_database_size(current_database())::bigint AS bytes,version() AS server_version`,
         sql`SELECT (SELECT COUNT(*)::int FROM businesses) AS businesses,
           (SELECT COUNT(*)::int FROM businesses WHERE active=TRUE) AS active_businesses,
@@ -1195,8 +1195,14 @@ module.exports = async function handler(req, res) {
           FROM app_business_backups`,
         sql`SELECT COUNT(*) FILTER(WHERE status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active,
           COUNT(*) FILTER(WHERE status='active' AND expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+7)::int AS expiring_7d,
-          COUNT(*) FILTER(WHERE status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE))::int AS inactive
+          COUNT(*) FILTER(WHERE status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE))::int AS inactive,
+          COUNT(*) FILTER(WHERE is_trial=TRUE AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active_trials,
+          COUNT(*) FILTER(WHERE is_trial=TRUE AND (status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE)))::int AS expired_trials,
+          COUNT(*) FILTER(WHERE device_limit IS NOT NULL AND device_limit>0)::int AS device_limits_configured,
+          (SELECT COUNT(*)::int FROM app_licenses l WHERE l.user_limit IS NOT NULL AND l.user_limit>0 AND
+            (SELECT COUNT(*) FROM app_users u WHERE u.business_id=l.business_id AND u.active=TRUE)>l.user_limit) AS user_limit_exceeded
           FROM app_licenses`,
+        sql`SELECT COUNT(*)::int AS payments_30d,COALESCE(SUM(amount),0)::numeric(14,2) AS paid_amount_30d FROM app_license_payments WHERE paid_at>NOW()-INTERVAL '30 days'`,
         sql`SELECT COUNT(*) FILTER(WHERE created_at>NOW()-INTERVAL '24 hours')::int AS events_24h,
           COUNT(*) FILTER(WHERE category IN ('js_error','promise_rejection','api_error') AND created_at>NOW()-INTERVAL '24 hours')::int AS errors_24h,
           COUNT(*) FILTER(WHERE category='api_slow' AND created_at>NOW()-INTERVAL '24 hours')::int AS slow_api_24h
@@ -1217,7 +1223,7 @@ module.exports = async function handler(req, res) {
         database:{status:'operational',name:dbInfo.name,sizeBytes:Number(dbInfo.bytes||0),serverVersion:String(dbInfo.server_version||'').split(' ').slice(0,2).join(' ')},
         backups:{status:Number(backup.total||0)===0?'unknown':Number(backup.valid)===Number(backup.total)?'operational':'critical',total:Number(backup.total||0),valid:Number(backup.valid||0),latestAt:backup.latest_at||null,latestRestoreAt:backup.latest_restore_at||null,ageHours:backupAgeHours,providerSnapshots:'not_verified'},
         application:{status:Number(ev.errors_24h||0)>0?'warning':'operational',events24h:Number(ev.events_24h||0),errors24h:Number(ev.errors_24h||0),slowApi24h:Number(ev.slow_api_24h||0),avgApiMs:Number(perf.avg_ms||0),p95ApiMs:Number(perf.p95_ms||0)},
-        licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0)},
+        licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0),activeTrials:Number(lic.active_trials||0),expiredTrials:Number(lic.expired_trials||0),deviceLimitsConfigured:Number(lic.device_limits_configured||0),userLimitExceeded:Number(lic.user_limit_exceeded||0),payments30d:Number(payments[0]?.payments_30d||0),paidAmount30d:Number(payments[0]?.paid_amount_30d||0)},
         platform:{environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'unknown',project:process.env.VERCEL_PROJECT_NAME||null,region:process.env.VERCEL_REGION||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,commit:process.env.VERCEL_GIT_COMMIT_SHA||null,branch:process.env.VERCEL_GIT_COMMIT_REF||null,externalLogs:'not_connected'}
       };
       const alerts=[];
