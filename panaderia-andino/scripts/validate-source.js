@@ -111,6 +111,14 @@ if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
     !apiSource.includes("typeof input.active==='boolean'}::boolean")) {
   throw new Error('La API debe evitar sobrescrituras concurrentes, validar archivos, respetar módulos y tipar condiciones SQL.');
 }
+if (!html.includes('id="businessDevicesPanel"') && !html.includes("id='businessDevicesPanel'")) {
+  throw new Error('El panel de licencia debe permitir al dueño revisar y revocar dispositivos autorizados.');
+}
+if (!html.includes("api('/api/business/devices')") ||
+    !html.includes('data-revoke-device') ||
+    !html.includes('loadBusinessDevices()')) {
+  throw new Error('La interfaz del dueño debe consultar y revocar dispositivos mediante la API protegida.');
+}
 const deviceMigration = fs.readFileSync(path.join(root, 'migrations/056_device_registration_and_limits.sql'), 'utf8');
 if (!deviceMigration.includes('app_device_registrations') ||
     !deviceMigration.includes('ENABLE ROW LEVEL SECURITY') ||
