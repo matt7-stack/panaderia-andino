@@ -263,11 +263,24 @@ const privateFinanceMigration = fs.readFileSync(path.join(root, 'migrations/027_
 if (!privateFinanceApi.includes("if(path==='/api/admin/private-finance')") || !privateFinanceApi.includes("authenticated(req,res,true)")) throw new Error('Las finanzas privadas deben estar protegidas por autenticación exclusiva del administrador.');
 if (!privateFinanceMigration.includes('app_admin_private_notes') || !privateFinanceMigration.includes('app_admin_finance_entries')) throw new Error('Falta la migración de notas y finanzas privadas del administrador.');
 if (!html.includes('id="adminPrivateNoteForm"') || !html.includes('id="adminPrivateFinanceForm"')) throw new Error('Faltan los formularios privados del administrador.');
+const healthMigration = fs.readFileSync(path.join(root, 'migrations/053_system_health_observability.sql'), 'utf8');
 if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sistema"') ||
     !html.includes("if (page === 'salud-sistema') refreshAdminHealth(true);") ||
-    !html.includes("window.PanaderiaAuth.api('/api/admin/database-info')") ||
+    !html.includes("window.PanaderiaAuth.api('/api/admin/health')") ||
+    !html.includes("window.PanaderiaAuth.api('/api/admin/security')") ||
+    !html.includes("window.PanaderiaAuth.api('/api/admin/overview')") ||
+    !html.includes('id="healthHistory"') || !html.includes('id="healthAlerts"') ||
+    !html.includes("reportHealthEvent('js_error'") || !html.includes("reportHealthEvent('api_error'") ||
+    !apiSource.includes("if (path === '/api/admin/health')") ||
+    !apiSource.includes("if (path === '/api/health/events')") ||
+    !apiSource.includes('percentile_cont(0.95)') ||
+    !apiSource.includes("providerSnapshots:'not_verified'") ||
+    !healthMigration.includes('app_health_events') ||
+    !healthMigration.includes('app_health_snapshots') ||
+    !healthMigration.includes('mattsystem_health_events_tenant_insert') ||
+    !healthMigration.includes('mattsystem_health_snapshots_admin') ||
     !html.includes("'adminHealthNav'")) {
-  throw new Error('El Panel de salud debe estar disponible solo para el administrador de plataforma y comprobar servicios reales.');
+  throw new Error('El Panel de salud debe incluir telemetría autenticada, diagnósticos, historial y controles RLS exclusivos.');
 }
 if (html.includes('id="adminCenterCards"')) throw new Error('El Centro de gestión todavía contiene accesos rápidos que fueron solicitados eliminar.');
 if (!html.includes('id="adminPrivateBalanceTotal"')) throw new Error('Falta el resumen mensual privado en la pantalla principal del administrador.');
