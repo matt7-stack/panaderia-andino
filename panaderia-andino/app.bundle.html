@@ -1430,6 +1430,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         <a class="nav-link admin-menu-primary" href="#administracion" data-page-link="administracion" id="adminNavLink" hidden><i class="bi bi-shield-lock-fill"></i><span>Administrador</span></a>
         <a class="nav-link admin-only-menu" href="#admin-licencias" data-page-link="admin-licencias" id="adminLicensesNav" hidden><i class="bi bi-file-earmark-lock"></i><span>Licencias y ventas</span></a>
         <a class="nav-link admin-only-menu" href="#admin-cotizador" data-page-link="admin-cotizador" id="adminQuoteNav" hidden><i class="bi bi-calculator"></i><span>Cotizador comercial</span></a>
+        <a class="nav-link admin-only-menu" href="#admin-precios" data-page-link="admin-precios" id="adminPricesNav" hidden><i class="bi bi-tags"></i><span>Catálogo de precios</span></a>
         <a class="nav-link admin-only-menu" href="#admin-panaderias" data-page-link="admin-panaderias" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Negocios</span></a>
         <a class="nav-link admin-only-menu" href="#admin-usuarios" data-page-link="admin-usuarios" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
@@ -1680,7 +1681,59 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           </div>
         </section>
 
-        <section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
+        <section class="page-view" id="page-admin-precios" data-page="admin-precios">
+  <div class="page-heading"><div><p class="eyebrow">ADMINISTRACIÓN COMERCIAL</p><h1><i class="bi bi-tags heading-page-icon"></i> Catálogo de precios</h1><p class="page-subtitle">Precios separados por licencia, personalización, módulos y servicios. Solo visibles para el administrador de MATTSYSTEM.</p></div></div>
+  <div class="summary-grid">
+    <article class="summary-card"><p class="summary-label">Plan Básico mensual</p><h2>G. 120.000</h2><p class="small text-muted mb-0">Precio oficial</p></article>
+    <article class="summary-card"><p class="summary-label">Plan Profesional mensual</p><h2>G. 200.000</h2><p class="small text-muted mb-0">Precio oficial</p></article>
+    <article class="summary-card"><p class="summary-label">Plan Empresarial mensual</p><h2>G. 320.000</h2><p class="small text-muted mb-0">Precio oficial</p></article>
+  </div>
+  <article class="panel settings-card mt-3">
+    <div class="panel-heading"><div><h3>1. Licencias estándar</h3><p>Importe recurrente según el nivel contratado.</p></div></div>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Plan</th><th>Mensualidad</th><th>Tipo</th></tr></thead><tbody>
+      <tr><td><strong>Básico</strong></td><td>G. 120.000</td><td><span class="badge bg-success-subtle text-success">Oficial</span></td></tr>
+      <tr><td><strong>Profesional</strong></td><td>G. 200.000</td><td><span class="badge bg-success-subtle text-success">Oficial</span></td></tr>
+      <tr><td><strong>Empresarial</strong></td><td>G. 320.000</td><td><span class="badge bg-success-subtle text-success">Oficial</span></td></tr>
+    </tbody></table></div>
+  </article>
+  <article class="panel settings-card mt-3">
+    <div class="panel-heading"><div><h3>2. Personalización inicial</h3><p>Pago único por adaptar la configuración inicial al rubro del cliente. La mensualidad no aumenta por personalizar.</p></div></div>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Nivel</th><th>Pago único</th><th>Mensualidad adicional</th></tr></thead><tbody>
+      <tr><td>Básica personalizada</td><td>G. 1.000.000</td><td>G. 0</td></tr>
+      <tr><td>Profesional personalizada</td><td>G. 1.300.000</td><td>G. 0</td></tr>
+      <tr><td>Empresarial personalizada</td><td>G. 2.000.000</td><td>G. 0</td></tr>
+    </tbody></table></div>
+    <p class="small text-muted mb-0">A la personalización se suma únicamente la mensualidad estándar del plan elegido: G. 120.000, G. 200.000 o G. 320.000.</p>
+  </article>
+  <article class="panel settings-card mt-3">
+    <div class="panel-heading"><div><h3>3. Módulos adicionales</h3><p>Se cotizan por separado y solo se cobran si el módulo no está incluido en el plan del cliente.</p></div><span class="badge bg-warning-subtle text-warning-emphasis">Propuesta por confirmar</span></div>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Módulo</th><th>Mensual sugerido</th><th>Pago único sugerido</th></tr></thead><tbody>
+      <tr><td>Stock avanzado</td><td>G. 25.000</td><td>G. 300.000</td></tr>
+      <tr><td>Proveedores</td><td>G. 20.000</td><td>G. 250.000</td></tr>
+      <tr><td>Cuentas por cobrar</td><td>G. 25.000</td><td>G. 300.000</td></tr>
+      <tr><td>Pedidos y entregas</td><td>G. 30.000</td><td>G. 350.000</td></tr>
+      <tr><td>Cierre de caja</td><td>G. 25.000</td><td>G. 300.000</td></tr>
+      <tr><td>Sucursales</td><td>G. 40.000</td><td>G. 500.000</td></tr>
+      <tr><td>Rentabilidad avanzada</td><td>G. 30.000</td><td>G. 350.000</td></tr>
+      <tr><td>Reportes avanzados</td><td>G. 25.000</td><td>G. 300.000</td></tr>
+      <tr><td>Auditoría e historial</td><td>G. 30.000</td><td>G. 350.000</td></tr>
+    </tbody></table></div>
+    <p class="small text-muted mb-0">Estos importes son orientativos, no precios oficiales. Antes de facturarlos hay que confirmarlos. No se duplica el cobro de módulos ya incluidos en el plan.</p>
+  </article>
+  <article class="panel settings-card mt-3">
+    <div class="panel-heading"><div><h3>4. Otros conceptos</h3><p>Se mantienen separados para evitar confundirlos con el valor de la licencia.</p></div></div>
+    <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Concepto</th><th>Precio registrado</th><th>Observación</th></tr></thead><tbody>
+      <tr><td>Licencia permanente Básica / Profesional / Empresarial</td><td>Por definir</td><td>Propuesta pendiente de aprobación</td></tr>
+      <tr><td>Desarrollo de módulo exclusivo</td><td>A cotizar</td><td>Depende del alcance y horas de trabajo</td></tr>
+      <tr><td>Hosting</td><td>Por definir</td><td>Modalidad y costo todavía pendientes</td></tr>
+      <tr><td>Mantenimiento</td><td>Por definir</td><td>Servicio separado de la licencia</td></tr>
+      <tr><td>Instalación / configuración especial</td><td>A cotizar</td><td>Según requerimientos del cliente</td></tr>
+    </tbody></table></div>
+  </article>
+  <div class="info-note mt-3"><i class="bi bi-info-circle"></i><span>Este catálogo es una referencia comercial para el administrador. Los importes sugeridos de módulos y los conceptos pendientes no deben presentarse como tarifas oficiales ni cobrarse automáticamente. Los precios oficiales de los planes mensuales y de personalización se muestran por separado.</span></div>
+</section>
+
+<section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
 <div class="page-heading"><div><p class="eyebrow">GESTIÓN COMERCIAL MATTSYSTEM</p><h1>Licencias y ventas</h1><p class="page-subtitle">Cada negocio tiene su licencia, contrato, plan y pagos independientes.</p></div></div>
 <div class="summary-grid admin-business-overview"><article class="summary-card"><p class="summary-label">Licencias</p><h2 id="licenseCount">—</h2></article><article class="summary-card"><p class="summary-label">Activas</p><h2 id="licenseActive">—</h2></article><article class="summary-card"><p class="summary-label">Ingreso mensual contratado</p><h2 id="licenseMonthly">—</h2></article></div>
 <article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Condiciones de los tipos de licencia</h3><p>Configurá precios, límite de usuarios y módulos incluidos para las nuevas licencias. Los cambios no modifican licencias ya emitidas.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshLicensePlanSettings" type="button">Actualizar planes</button></div><form id="licensePlanSettingsForm" class="settings-form"><div id="licensePlanSettingsList" class="row g-3"><div class="col-12 text-muted">Cargando condiciones…</div></div><div class="form-actions mt-3"><button class="btn btn-bakery" type="submit">Guardar condiciones de licencias</button></div></form></article>
