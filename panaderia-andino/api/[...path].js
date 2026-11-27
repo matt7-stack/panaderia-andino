@@ -600,6 +600,39 @@ module.exports = async function handler(req, res) {
       await sql`UPDATE app_support_tickets SET updated_at=NOW(),status=CASE WHEN ${user.is_platform_admin===true}::boolean AND status='open' THEN 'in_progress' ELSE status END WHERE id=${ticketId}`;
       return send(res,201,{reply:rows[0]});
     }
+    if(path==='/api/business/devices'){
+      const user=await authenticated(req,res,false);if(!user)return;
+      if(user.is_platform_admin===true||!user.business_id||user.role!=='admin')return send(res,403,{error:'Solo el dueño del negocio puede administrar los dispositivos.'});
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT id,label,first_seen_at,last_seen_at,revoked_at,
+          (revoked_at IS NULL) AS active
+          FROM app_device_registrations
+          WHERE business_id=${user.business_id}
+          ORDER BY revoked_at NULLS FIRST,last_seen_at DESC LIMIT 100`;
+        const license=await sql`SELECT device_limit FROM app_licenses
+          WHERE business_id=${user.business_id}
+            AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem'}))
+          ORDER BY (status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)) DESC,created_at DESC LIMIT 1`;
+        return send(res,200,{devices:rows,limit:license[0]?.device_limit??null,active:rows.filter(x=>!x.revoked_at).length});
+      }
+      if(req.method==='POST'){
+        const id=String(body(req).deviceId||'');
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))return send(res,400,{error:'Seleccioná un dispositivo válido.'});
+        const currentToken=deviceTokenCookie(req);
+        const currentHash=currentToken?crypto.createHash('sha256').update(currentToken).digest('hex'):'';
+        const rows=await sql`UPDATE app_device_registrations
+          SET revoked_at=NOW()
+          WHERE id=${id} AND business_id=${user.business_id} AND revoked_at IS NULL
+            AND (${currentHash}='' OR device_hash<>${currentHash})
+          RETURNING id,label`;
+        if(!rows.length)return send(res,404,{error:'No se encontró el dispositivo, ya estaba revocado o corresponde a esta sesión.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${user.business_id},${user.id},'device.revoked','device',${id},${JSON.stringify({label:rows[0].label})}::jsonb)`;
+        return send(res,200,{ok:true,message:'Dispositivo revocado. Ya no podrá iniciar sesión con ese dispositivo.',device:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if(path==='/api/license/info'){
       const user=await authenticated(req,res,false,true);if(!user)return;
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta información está disponible desde una cuenta vinculada a un negocio.'});
