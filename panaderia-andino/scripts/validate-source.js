@@ -519,5 +519,8 @@ if (releaseArtifactSource !== appBundleSource) {
 }
 const releaseArtifactSha256 = crypto.createHash('sha256').update(releaseArtifactSource, 'utf8').digest('hex');
 const releaseArtifactBytes = Buffer.byteLength(releaseArtifactSource, 'utf8');
+if (!versionMigration.includes(releaseArtifactSha256) || !versionMigration.includes(String(releaseArtifactBytes) + ",true,'published',true")) {
+  throw new Error('El checksum y tamaño del release 2.0.1 no coinciden con la migración.');
+}
 process.stdout.write('Release 2.0.1 SHA-256: ' + releaseArtifactSha256 + ' (' + releaseArtifactBytes + ' bytes).\\n');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
