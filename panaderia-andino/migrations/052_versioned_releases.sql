@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS app_version_upgrade_requests (
 CREATE INDEX IF NOT EXISTS app_version_upgrade_requests_business_idx ON app_version_upgrade_requests(business_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS app_releases_status_published_idx ON app_releases(status,published_at DESC);
 INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at)
-VALUES('2.0.1','MATTSYSTEM 2.0.1','Versión base registrada para distribución por negocio.','Snapshot inmutable de la versión 2.0.1 con bootstrap de verificación SHA-256.','/releases/2.0.1/app.bundle.html','0b445983900adecb51d97c11f63f0d94245db3e9ed4f2621788b17ffb88c9250',598168,true,'published',true,now())
+VALUES('2.0.1','MATTSYSTEM 2.0.1','Versión base registrada para distribución por negocio.','Snapshot inmutable de la versión 2.0.1 con bootstrap de verificación SHA-256.','/releases/2.0.1/app.bundle.html','f855b2a0a81139635e652a8d2026d2f2f8986070a27c6ba29f1d321688c6ea5f',598181,true,'published',true,now())
 ON CONFLICT(version) DO NOTHING;
 INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id)
 SELECT b.id,r.id,r.id FROM businesses b CROSS JOIN app_releases r WHERE r.version='2.0.1'
