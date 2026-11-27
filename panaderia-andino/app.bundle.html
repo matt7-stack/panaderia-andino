@@ -2986,7 +2986,9 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         if(!manualToggle.checked){manualFields.hidden=true;manualFields.innerHTML='';return;}
         const previousLicense=Object.fromEntries(['setup','monthly','permanent','full-sale'].map(k=>[k,manualFields.querySelector('[data-manual-license="'+k+'"]')?.value||'0']));
         const includeLicense=manualFields.querySelector('#manualIncludeLicense')?.checked!==false;
-        const selected=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
+        const selectedCore=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
+        const selectedAddons=selectedAddonKeys();
+        const selected=[...new Set([...selectedCore,...selectedAddons])];
         const previousModules=Object.fromEntries(selected.map(key=>[key,{setup:manualFields.querySelector('[data-manual-module="'+key+'"][data-kind="setup"]')?.value||'0',monthly:manualFields.querySelector('[data-manual-module="'+key+'"][data-kind="monthly"]')?.value||'0'}]));
         const num=(v)=>Math.max(0,Number(v)||0);
         manualFields.hidden=false;
@@ -3005,7 +3007,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
         const prospectName=fields.querySelector('#simpleName').value.trim();
         if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');fields.querySelector('#simpleName').focus();return;}
-        const selected=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
+        const selected=[...new Set([...boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule),...selectedAddonKeys()])];
         if(!selected.length){notify('Seleccioná al menos un módulo.');return;}
         const manualPricing=manualToggle.checked;
         const manualModulePrices={};
@@ -3024,7 +3026,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           const plansResult=await window.PanaderiaAuth.api('/api/admin/license-plan-settings');
           const plans=Array.isArray(plansResult.plans)?plansResult.plans:[];
           const selectedPlan=plans.find(plan=>plan.plan_key===quotePlanSelect.value);
-          const containsModules=plan=>Array.isArray(plan.modules)&&selected.every(key=>plan.modules.includes(key));
+          const containsModules=plan=>Array.isArray(plan.modules)&&selectedCore.every(key=>plan.modules.includes(key));
           let chosenPlan=selectedPlan;
           if(!manualPricing&&(!chosenPlan||!containsModules(chosenPlan))){
             chosenPlan=plans.find(containsModules);
@@ -3039,7 +3041,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           const result=await window.PanaderiaAuth.api('/api/admin/quotations',{method:'POST',body:JSON.stringify({prospectName,prospectEmail:fields.querySelector('#simpleEmail').value.trim(),industry:industrySelect.value,configMode:modeSelect.value,modules:selected,licensePlanKey:chosenPlan.plan_key,planType:fields.querySelector('#businessQuotePlan').value,manualPricing,manualLicense,manualModulePrices,validUntil,reusableInMattsystem:fields.querySelector('#businessReuseConsent').checked,reuseDiscountPercent:Number(fields.querySelector('#businessReuseDiscount').value||20),reuseConsentNotes:fields.querySelector('#businessReuseNotes').value.trim()})});
           if(!result||!result.quotation||!result.quotation.id)throw new Error('El servidor no devolvió el número de cotización. Volvé a intentarlo.');
           fields.dataset.quotationId=result.quotation.id;
-          fields.dataset.quotationData=JSON.stringify({quotation:result.quotation,totals:result.totals||{},modules:selected.map(key=>({key,title:(moduleDefs.find(item=>item[0]===key)||[key,key])[1]})),licenseType:manualPricing&&!manualLicense.enabled?'Sin licencia base':quotePlanSelect.selectedOptions[0]?.textContent||'',plan:fields.querySelector('#businessQuotePlan').selectedOptions[0]?.textContent||'',validDays});
+          fields.dataset.quotationData=JSON.stringify({quotation:result.quotation,totals:result.totals||{},modules:selected.map(key=>({key,title:(moduleDefs.find(item=>item[0]===key)||[key,(businessPriceCatalog?.modules||[]).find(m=>m.module_key===key)?.title||key])[1]})),licenseType:manualPricing&&!manualLicense.enabled?'Sin licencia base':quotePlanSelect.selectedOptions[0]?.textContent||'',plan:fields.querySelector('#businessQuotePlan').selectedOptions[0]?.textContent||'',validDays});
           const totals=result.totals||{},fmt=value=>'Gs. '+Number(value||0).toLocaleString('es-PY',{maximumFractionDigits:0});
           preview.textContent='Cotización #'+result.quotation.id+' · Alta: '+fmt(totals.setup)+' · Mensual: '+fmt(totals.monthly)+' · Anual: '+fmt(totals.annual)+(result.pricingConfigured?'':' · Atención: configurá los precios comerciales antes de enviar.');
           let actions=fields.querySelector('#businessQuoteActions');
