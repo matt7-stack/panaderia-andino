@@ -3062,8 +3062,7 @@ module.exports = async function handler(req, res) {
         const rows=await sql`SELECT b.id AS business_id,b.name,b.active,
           installed.version AS installed_version,installed.id AS installed_release_id,
           target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
-          CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly'
-            THEN 'permanent' ELSE 'fixed_term' END AS license_mode,
+          CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly' ELSE 'permanent' END AS license_mode,
           COALESCE(lic.status,'missing') AS license_status,
           (SELECT COUNT(*)::int FROM app_version_upgrade_requests u WHERE u.business_id=b.id AND u.status NOT IN ('applied','rejected','cancelled')) AS open_upgrade_requests
           FROM businesses b LEFT JOIN app_business_versions bv ON bv.business_id=b.id
