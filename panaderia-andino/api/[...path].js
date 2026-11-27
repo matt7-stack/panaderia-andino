@@ -3006,7 +3006,7 @@ module.exports = async function handler(req, res) {
       if(!rows.length)return send(res,404,{error:'Este negocio todavía no tiene una versión asignada.'});
       const version=rows[0];
       if(version.target_status==='published'&&version.delivery_ready===true&&version.target_version&&version.target_version!==buildVersion){
-        if(!/^\\/releases\\/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\/app\\.bundle\\.html$/.test(String(version.artifact_url||'')))
+        if(!/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(String(version.artifact_url||'')))
           return send(res,409,{error:'El paquete asignado no tiene una ruta segura dentro de MATTSYSTEM.'});
         return send(res,200,{action:'redirect',version:version.target_version,artifactUrl:version.artifact_url,sha256:version.artifact_sha256});
       }
