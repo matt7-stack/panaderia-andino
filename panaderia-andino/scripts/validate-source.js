@@ -132,6 +132,10 @@ const deviceMigration = fs.readFileSync(path.join(root, 'migrations/056_device_r
 if (!apiSource.includes('user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at')) {
   throw new Error('La respuesta al guardar planes debe devolver el límite de dispositivos actualizado.');
 }
+if (!apiSource.includes('device_limit,modules,module_prices FROM app_license_plan_settings') ||
+    !apiSource.includes('planModulePrices[module.module_key]')) {
+  throw new Error('La emisión de licencias debe calcular los módulos extra con los precios definidos para ese plan.');
+}
 if (!apiSource.includes('user_limit,device_limit,modules FROM app_license_plan_settings') ||
     !apiSource.includes('planRows[0].device_limit') ||
     apiSource.includes("SELECT device_limit FROM app_license_settings WHERE setting_key='default'")) {
@@ -483,8 +487,7 @@ if (!html.includes('id="adminBackupBusiness"') ||
     !html.includes('Seleccioná un negocio para consultar su historial')) {
   throw new Error('Las copias de seguridad deben exigir un negocio y enviar su identificador en consulta, creación y restauración.');
 }
-if (!html.includes("m.commercial_mode==='addon'") &&
-    !html.includes("m.active!==false&&!allowed.has(m.module_key)")) {
+if (!html.includes("m.active!==false&&!allowed.has(m.module_key)")) {
   throw new Error('Las cotizaciones deben ofrecer todos los módulos activos que no estén incluidos en el plan.');
 }
 if (!html.includes("m.active!==false&&!included.includes(m.module_key)") ||
