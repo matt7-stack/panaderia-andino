@@ -36,6 +36,8 @@ const requiredFiles = [
   'migrations/043_multiple_expiry_alert_days.sql',
   'migrations/044_web_push_subscriptions.sql',
   'migrations/045_api_global_rate_limits.sql',
+  'migrations/046_license_catalog_branches_delivery.sql',
+  'migrations/047_license_plan_device_limits.sql',
   'migrations/048_industry_library_templates.sql',
   'manifest.webmanifest',
   'vercel.json',
@@ -459,6 +461,13 @@ if (!webPushMigration.includes('app_push_subscriptions') ||
     !appBundleSource.includes("pushManager.subscribe") ||
     !packageSource.dependencies['web-push']) {
   throw new Error('Las notificaciones push deben guardar suscripciones privadas y enviarse en segundo plano.');
+}
+
+const deviceLimitMigration = fs.readFileSync(path.join(root, 'migrations/047_license_plan_device_limits.sql'), 'utf8');
+if (!deviceLimitMigration.includes('ADD COLUMN IF NOT EXISTS device_limit') ||
+    !deviceLimitMigration.includes('BETWEEN 1 AND 100') ||
+    !deviceLimitMigration.includes("INSERT INTO public.schema_migrations(version)")) {
+  throw new Error('La migración de límites de dispositivos debe validar el rango y registrar su versión.');
 }
 
 const industryKeys = [
