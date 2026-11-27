@@ -4893,8 +4893,10 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    const renderModules=()=>{
      const plan=selectedPlan();if(!plan){moduleBox.innerHTML='<p class="text-danger">No existe el plan seleccionado.</p>';return;}
      const allowed=new Set(Array.isArray(plan.modules)?plan.modules:[]);
-     const catalog=commercialQuoteCatalog.modules.filter(m=>m.implemented&&allowed.has(m.module_key));
-     moduleBox.innerHTML=catalog.map(m=>{const p=plan.module_prices?.[m.module_key]||{},checked=true;return '<div class="col-md-6"><label class="border rounded p-2 d-flex gap-2 align-items-start h-100"><input class="form-check-input mt-1" type="checkbox" data-quote-module="'+quoteEsc(m.module_key)+'" '+(checked?'checked':'')+'><span class="flex-grow-1"><strong class="small">'+quoteEsc(m.title)+'</strong><small class="d-block text-muted">'+quoteEsc(m.description||'Módulo incluido en el catálogo')+'</small><span class="row g-1 mt-1"><span class="col-6"><small>Alta Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-setup="'+quoteEsc(m.module_key)+'" value="'+Number(p.setup??m.setup_price??0)+'"></span><span class="col-6"><small>Mensual Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-monthly="'+quoteEsc(m.module_key)+'" value="'+Number(p.monthly??m.monthly_price??0)+'"></span></span></span></label></div>';}).join('')||'<p class="text-muted small">Este plan no tiene módulos activos asociados. Revisá las condiciones de licencia.</p>';
+     const included=commercialQuoteCatalog.modules.filter(m=>m.implemented&&m.commercial_mode==='core'&&allowed.has(m.module_key));
+     const addons=commercialQuoteCatalog.modules.filter(m=>m.implemented&&m.active!==false&&m.commercial_mode==='addon');
+     const catalog=[...included,...addons];
+     moduleBox.innerHTML=catalog.map(m=>{const p=plan.module_prices?.[m.module_key]||{},isIncluded=allowed.has(m.module_key);return '<div class="col-md-6"><label class="border rounded p-2 d-flex gap-2 align-items-start h-100"><input class="form-check-input mt-1" type="checkbox" data-quote-module="'+quoteEsc(m.module_key)+'" '+(isIncluded?'checked disabled':'')+'><span class="flex-grow-1"><strong class="small">'+quoteEsc(m.title)+'</strong><small class="d-block text-muted">'+(isIncluded?'Incluido en '+quoteEsc(plan.display_name||plan.plan_key):'Complemento opcional')+' · '+quoteEsc(m.description||'')+'</small><span class="row g-1 mt-1"><span class="col-6"><small>Alta Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-setup="'+quoteEsc(m.module_key)+'" value="'+Number(p.setup??m.setup_price??0)+'"></span><span class="col-6"><small>Mensual Gs.</small><input class="form-control form-control-sm" type="number" min="0" data-quote-module-monthly="'+quoteEsc(m.module_key)+'" value="'+Number(p.monthly??m.monthly_price??0)+'"></span></span></span></label></div>';}).join('')||'<p class="text-muted small">Este plan no tiene módulos activos asociados. Revisá las condiciones de licencia.</p>';
      renderPlanPricing();updateQuoteSummary();
    };
    const renderPlanPricing=()=>{
@@ -4918,7 +4920,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      return {setup,monthly,annual,firstYearTotal,modules,services,licSetup,licMonthly,licPermanent,licFull,modSetup,modMonthly,kind,total};
    };
    try{
-     const data=await api('/api/admin/license-plan-settings');commercialQuoteCatalog={plans:data.plans||[],modules:data.modules||[]};
+     const data=await api('/api/admin/price-catalog');commercialQuoteCatalog={plans:data.plans||[],modules:data.modules||[]};
      if(!commercialQuoteCatalog.plans.length)throw new Error('No hay planes comerciales configurados.');
      planSelect.innerHTML=commercialQuoteCatalog.plans.map(p=>'<option value="'+quoteEsc(p.plan_key)+'">'+quoteEsc(p.display_name||p.plan_key)+'</option>').join('');
      if(commercialQuoteCatalog.plans.some(p=>p.plan_key==='professional'))planSelect.value='professional';
