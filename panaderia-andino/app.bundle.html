@@ -3074,50 +3074,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>' +
 
 
-'<script id="mattsystem-central-price-catalog-20261126">
-(function(){
- const meta={basic:{label:'Básico',setup:1000000,monthly:120000,oldSetup:1200000,oldMonthly:99000},professional:{label:'Profesional',setup:1300000,monthly:200000,oldSetup:1500000,oldMonthly:179000},enterprise:{label:'Empresarial',setup:2000000,monthly:320000,oldSetup:2000000,oldMonthly:299000}};
- let catalog=null;
- const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
- function status(msg,kind){const el=document.getElementById('priceCatalogStatus');if(el)el.innerHTML='<i class="bi bi-'+(kind==='success'?'check-circle':kind==='error'?'exclamation-triangle':'info-circle')+'"></i><span>'+esc(msg)+'</span>';}
- async function load(){
-  if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true){status('Solo el administrador principal puede modificar precios.','error');return;}
-  status('Cargando precios centrales…');
-  try{
-   const d=await window.PanaderiaAuth.api('/api/admin/price-catalog');
-   catalog={plans:(d.plans||[]).map(p=>{const m=meta[p.plan_key]||{},legacy=Number(p.monthly_amount||0)===m.oldMonthly&&Number(p.setup_amount||0)===m.oldSetup;return {...p,setup_amount:legacy?m.setup:Number(p.setup_amount??m.setup),monthly_amount:legacy?m.monthly:Number(p.monthly_amount??m.monthly)};}),modules:d.modules||[]};
-   render();status('Precios cargados. Guardá para aplicar los valores oficiales a todo el sistema.');
-  }catch(e){status(e.message||'No se pudo cargar el catálogo.','error');}
- }
- function render(){
-  const ps=document.getElementById('priceCatalogPlans'),ms=document.getElementById('priceCatalogModules');if(!ps||!ms||!catalog)return;
-  ps.innerHTML=['basic','professional','enterprise'].map(k=>{const p=catalog.plans.find(x=>x.plan_key===k),m=meta[k];return p?'<tr><td><strong>'+m.label+'</strong></td><td><input class="form-control" type="number" min="0" step="1000" required data-plan-price="'+k+'" data-field="setup" value="'+Number(p.setup_amount||0)+'"></td><td><input class="form-control" type="number" min="0" step="1000" required data-plan-price="'+k+'" data-field="monthly" value="'+Number(p.monthly_amount||0)+'"></td></tr>':'<tr><td colspan="3">Falta configurar '+m.label+'.</td></tr>';}).join('');
-  ms.innerHTML=catalog.modules.map(m=>'<tr><td><strong>'+esc(m.title||m.module_key)+'</strong><small class="d-block text-muted">'+(m.commercial_mode==='addon'?'Complemento adicional':'Módulo del sistema')+'</small></td><td><input class="form-control form-control-sm" type="number" min="0" step="1000" data-module-price="'+esc(m.module_key)+'" data-field="monthly" value="'+Number(m.monthly_price||0)+'" '+(!m.implemented?'disabled':'')+'></td><td><input class="form-control form-control-sm" type="number" min="0" step="1000" data-module-price="'+esc(m.module_key)+'" data-field="setup" value="'+Number(m.setup_price||0)+'" '+(!m.implemented?'disabled':'')+'></td><td>'+(!m.implemented?'En desarrollo':m.active?'Disponible':'No comercializado')+'</td></tr>').join('');
- }
- async function save(ev){
-  ev.preventDefault();if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true){status('Sesión no autorizada.','error');return;}
-  const btn=document.getElementById('savePriceCatalog');btn.disabled=true;btn.textContent='Guardando…';
-  try{
-   const plans=catalog.plans.map(p=>{const v=f=>Number(document.querySelector('[data-plan-price="'+p.plan_key+'"][data-field="'+f+'"]')?.value);return {planKey:p.plan_key,setupAmount:v('setup'),monthlyAmount:v('monthly'),annualDiscountPercent:Number(p.annual_discount_percent??15),permanentPrice:Number(p.permanent_price??0),fullSalePrice:Number(p.full_sale_price??0),modules:Array.isArray(p.modules)?p.modules:[]};});
-   const modules=catalog.modules.map(m=>({moduleKey:m.module_key,monthlyPrice:Number(document.querySelector('[data-module-price="'+m.module_key+'"][data-field="monthly"]')?.value??m.monthly_price??0),setupPrice:Number(document.querySelector('[data-module-price="'+m.module_key+'"][data-field="setup"]')?.value??m.setup_price??0)}));
-   if(plans.some(p=>![p.setupAmount,p.monthlyAmount].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))throw new Error('Revisá los precios de las licencias.');
-   if(modules.some(m=>![m.monthlyPrice,m.setupPrice].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))throw new Error('Revisá los precios de los módulos.');
-   const d=await window.PanaderiaAuth.api('/api/admin/price-catalog',{method:'PUT',body:JSON.stringify({plans,modules})});catalog={plans:d.plans||[],modules:d.modules||[]};render();
-   status('Precios guardados. Las nuevas licencias, cotizaciones y módulos utilizarán estos importes. Las licencias emitidas conservan sus condiciones.','success');
-  }catch(e){status(e.message||'No se pudieron guardar los precios.','error');}
-  finally{btn.disabled=false;btn.textContent='Guardar y aplicar precios';}
- }
- window.loadMattsystemPriceCatalog=load;
- document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('priceCatalogForm')?.addEventListener('submit',save);
-  document.getElementById('reloadPriceCatalog')?.addEventListener('click',load);
-  document.getElementById('adminPricesNav')?.addEventListener('click',()=>setTimeout(load,120));
-  document.getElementById('manageModulePricingButton')?.addEventListener('click',()=>setTimeout(load,220));
-  window.addEventListener('panaderia:authenticated',()=>{if(location.hash==='#admin-precios')load();});
- });
-})();
-</script>
-</body></html>';
+'</body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
           actions.querySelector('#sendBusinessQuote').addEventListener('click',()=>{
@@ -5141,5 +5098,49 @@ html.auth-locked body::-webkit-scrollbar-track {
   }
 }
 </style>
+<script id="mattsystem-central-price-catalog-20261126">
+(function(){
+ const meta={basic:{label:'Básico',setup:1000000,monthly:120000,oldSetup:1200000,oldMonthly:99000},professional:{label:'Profesional',setup:1300000,monthly:200000,oldSetup:1500000,oldMonthly:179000},enterprise:{label:'Empresarial',setup:2000000,monthly:320000,oldSetup:2000000,oldMonthly:299000}};
+ let catalog=null;
+ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ function status(msg,kind){const el=document.getElementById('priceCatalogStatus');if(el)el.innerHTML='<i class="bi bi-'+(kind==='success'?'check-circle':kind==='error'?'exclamation-triangle':'info-circle')+'"></i><span>'+esc(msg)+'</span>';}
+ async function load(){
+  if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true){status('Solo el administrador principal puede modificar precios.','error');return;}
+  status('Cargando precios centrales…');
+  try{
+   const d=await window.PanaderiaAuth.api('/api/admin/price-catalog');
+   catalog={plans:(d.plans||[]).map(p=>{const m=meta[p.plan_key]||{},legacy=Number(p.monthly_amount||0)===m.oldMonthly&&Number(p.setup_amount||0)===m.oldSetup;return {...p,setup_amount:legacy?m.setup:Number(p.setup_amount??m.setup),monthly_amount:legacy?m.monthly:Number(p.monthly_amount??m.monthly)};}),modules:d.modules||[]};
+   render();status('Precios cargados. Guardá para aplicar los valores oficiales a todo el sistema.');
+  }catch(e){status(e.message||'No se pudo cargar el catálogo.','error');}
+ }
+ function render(){
+  const ps=document.getElementById('priceCatalogPlans'),ms=document.getElementById('priceCatalogModules');if(!ps||!ms||!catalog)return;
+  ps.innerHTML=['basic','professional','enterprise'].map(k=>{const p=catalog.plans.find(x=>x.plan_key===k),m=meta[k];return p?'<tr><td><strong>'+m.label+'</strong></td><td><input class="form-control" type="number" min="0" step="1000" required data-plan-price="'+k+'" data-field="setup" value="'+Number(p.setup_amount||0)+'"></td><td><input class="form-control" type="number" min="0" step="1000" required data-plan-price="'+k+'" data-field="monthly" value="'+Number(p.monthly_amount||0)+'"></td></tr>':'<tr><td colspan="3">Falta configurar '+m.label+'.</td></tr>';}).join('');
+  ms.innerHTML=catalog.modules.map(m=>'<tr><td><strong>'+esc(m.title||m.module_key)+'</strong><small class="d-block text-muted">'+(m.commercial_mode==='addon'?'Complemento adicional':'Módulo del sistema')+'</small></td><td><input class="form-control form-control-sm" type="number" min="0" step="1000" data-module-price="'+esc(m.module_key)+'" data-field="monthly" value="'+Number(m.monthly_price||0)+'" '+(!m.implemented?'disabled':'')+'></td><td><input class="form-control form-control-sm" type="number" min="0" step="1000" data-module-price="'+esc(m.module_key)+'" data-field="setup" value="'+Number(m.setup_price||0)+'" '+(!m.implemented?'disabled':'')+'></td><td>'+(!m.implemented?'En desarrollo':m.active?'Disponible':'No comercializado')+'</td></tr>').join('');
+ }
+ async function save(ev){
+  ev.preventDefault();if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true){status('Sesión no autorizada.','error');return;}
+  const btn=document.getElementById('savePriceCatalog');btn.disabled=true;btn.textContent='Guardando…';
+  try{
+   const plans=catalog.plans.map(p=>{const v=f=>Number(document.querySelector('[data-plan-price="'+p.plan_key+'"][data-field="'+f+'"]')?.value);return {planKey:p.plan_key,setupAmount:v('setup'),monthlyAmount:v('monthly'),annualDiscountPercent:Number(p.annual_discount_percent??15),permanentPrice:Number(p.permanent_price??0),fullSalePrice:Number(p.full_sale_price??0),modules:Array.isArray(p.modules)?p.modules:[]};});
+   const modules=catalog.modules.map(m=>({moduleKey:m.module_key,monthlyPrice:Number(document.querySelector('[data-module-price="'+m.module_key+'"][data-field="monthly"]')?.value??m.monthly_price??0),setupPrice:Number(document.querySelector('[data-module-price="'+m.module_key+'"][data-field="setup"]')?.value??m.setup_price??0)}));
+   if(plans.some(p=>![p.setupAmount,p.monthlyAmount].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))throw new Error('Revisá los precios de las licencias.');
+   if(modules.some(m=>![m.monthlyPrice,m.setupPrice].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))throw new Error('Revisá los precios de los módulos.');
+   const d=await window.PanaderiaAuth.api('/api/admin/price-catalog',{method:'PUT',body:JSON.stringify({plans,modules})});catalog={plans:d.plans||[],modules:d.modules||[]};render();
+   status('Precios guardados. Las nuevas licencias, cotizaciones y módulos utilizarán estos importes. Las licencias emitidas conservan sus condiciones.','success');
+  }catch(e){status(e.message||'No se pudieron guardar los precios.','error');}
+  finally{btn.disabled=false;btn.textContent='Guardar y aplicar precios';}
+ }
+ window.loadMattsystemPriceCatalog=load;
+ document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('priceCatalogForm')?.addEventListener('submit',save);
+  document.getElementById('reloadPriceCatalog')?.addEventListener('click',load);
+  document.getElementById('adminPricesNav')?.addEventListener('click',()=>setTimeout(load,120));
+  document.getElementById('manageModulePricingButton')?.addEventListener('click',()=>setTimeout(load,220));
+  window.addEventListener('panaderia:authenticated',()=>{if(location.hash==='#admin-precios')load();});
+ });
+})();
+</script>
+
 </body>
 </html>
