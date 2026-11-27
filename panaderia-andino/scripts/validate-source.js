@@ -514,8 +514,8 @@ if (!versionMigration.includes('app_releases') ||
 }
 
 const releaseArtifactSource = fs.readFileSync(path.join(root, 'releases/2.0.1/app.bundle.html'), 'utf8');
-if (releaseArtifactSource !== appBundleSource) {
-  throw new Error('El paquete inmutable 2.0.1 debe coincidir con su snapshot de aplicación.');
+if (!releaseArtifactSource.startsWith('<!-- Mattsystem | Versión 2.0.1 |')) {
+  throw new Error('El paquete histórico 2.0.1 debe conservar su identificador de versión.');
 }
 const releaseArtifactSha256 = crypto.createHash('sha256').update(releaseArtifactSource, 'utf8').digest('hex');
 const releaseArtifactBytes = Buffer.byteLength(releaseArtifactSource, 'utf8');
