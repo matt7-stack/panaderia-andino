@@ -89,3 +89,6 @@ DROP POLICY IF EXISTS mattsystem_business_versions_tenant_read ON app_business_v
 CREATE POLICY mattsystem_business_versions_tenant_read ON app_business_versions FOR SELECT USING (business_id=app_current_business_id());
 DROP POLICY IF EXISTS mattsystem_business_versions_tenant_ack ON app_business_versions;
 CREATE POLICY mattsystem_business_versions_tenant_ack ON app_business_versions FOR UPDATE USING (business_id=app_current_business_id()) WITH CHECK (business_id=app_current_business_id());
+
+DROP POLICY IF EXISTS mattsystem_releases_published_read ON app_releases;
+CREATE POLICY mattsystem_releases_published_read ON app_releases FOR SELECT USING (status='published');
