@@ -134,7 +134,7 @@ async function getVercelDeploymentHealth() {
       status,configured:true,reason:null,
       latest:{
         id:String(deployment.uid||deployment.id||''),
-        url:deployment.url?'https://'+String(deployment.url).replace(/^https?:\\/\\//i,''):null,
+        url:deployment.url?'https://'+String(deployment.url).replace('https://','').replace('http://',''):null,
         readyState,
         createdAt:deployment.createdAt?new Date(deployment.createdAt).toISOString():null,
         target:deployment.target||null,
