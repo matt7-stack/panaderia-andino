@@ -1271,7 +1271,7 @@ module.exports = async function handler(req, res) {
         const industries=['despensas_minimercados','tiendas_ropa_calzados','ferreterias','electronica_tecnologia','comercios_generales','panaderias','restaurantes','cafeterias_bares','carnicerias_pollerias','fruterias_verdulerias','talleres_mecanicos','barberias_peluquerias','centros_estetica','reparacion_celulares_computadoras','empresas_servicios','otro_rubro','minimercados','despensas','tiendas','farmacias','distribuidoras'];
         if(!prospectName||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!['monthly','annual','permanent','full_sale'].includes(plan)||!['basic','professional','enterprise'].includes(licensePlanKey)||!modules.length||modules.length>50)return send(res,400,{error:'Completá el prospecto, tipo de licencia, rubro, modalidad y módulos.'});
         if(prospectEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prospectEmail))return send(res,400,{error:'Correo electrónico no válido.'});
-        const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
+        const catalog=await sql`SELECT module_key,title,monthly_price,setup_price,commercial_mode FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
         if(catalog.length!==modules.length)return send(res,400,{error:'La cotización contiene módulos no disponibles o todavía no implementados.'});
         const settingsRows=await sql`SELECT monthly_base,annual_discount_percent,permanent_price,full_sale_price,setup_fee,currency FROM app_commercial_settings WHERE setting_key='default' LIMIT 1`;
         const settings=settingsRows[0]||{monthly_base:0,annual_discount_percent:0,permanent_price:0,full_sale_price:0,setup_fee:0,currency:'PYG'};
@@ -1279,7 +1279,8 @@ module.exports = async function handler(req, res) {
         if(!planSettingsRows.length)return send(res,409,{error:'Configurá primero el tipo de licencia seleccionado.'});
         const planSettings=planSettingsRows[0],planModules=Array.isArray(planSettings.modules)?planSettings.modules:[];
         const moduleExpansion=input.moduleExpansion===true,manualPricing=input.manualPricing===true;
-        if(!manualPricing&&!moduleExpansion&&modules.some(key=>!planModules.includes(key)))return send(res,400,{error:'La cotización contiene módulos que no están incluidos en el tipo de licencia seleccionado.'});
+        const addonKeys=catalog.filter(item=>item.commercial_mode==='addon').map(item=>item.module_key);
+        if(!manualPricing&&!moduleExpansion&&modules.some(key=>!planModules.includes(key)&&!addonKeys.includes(key)))return send(res,400,{error:'La cotización contiene módulos que no están incluidos en el plan ni disponibles como complementos.'});
         if(moduleExpansion&&(!input.businessId||!['monthly','annual'].includes(plan)))return send(res,400,{error:'La ampliación de módulos requiere un negocio y una modalidad mensual o anual.'});
         const reusableInMattsystem=input.reusableInMattsystem===true;
         const reuseConsentNotes=String(input.reuseConsentNotes||'').trim().slice(0,1000);
@@ -1554,7 +1555,10 @@ module.exports = async function handler(req, res) {
         if(quotationId){
           const quote=await sql`SELECT id,prospect_name,prospect_email,industry_key,config_mode,modules FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
           if(!quote.length)return send(res,404,{error:'No se encontró una cotización abierta para vincular.'});
-          if(quote[0].prospect_name!==name||quote[0].prospect_email!==String(input.email||'').trim()||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||JSON.stringify(quote[0].modules||[])!==JSON.stringify(selectedModules))return send(res,409,{error:'La cotización no coincide con el nombre, rubro o módulos actuales. Generá una cotización nueva.'});
+          const quoteModules=Array.isArray(quote[0].modules)?quote[0].modules:[];
+          const quoteCoreModules=quoteModules.filter(key=>selectedModules.includes(key)).sort();
+          const quoteAddonModules=quoteModules.filter(key=>requestedAddons.includes(key)).sort();
+          if(quote[0].prospect_name!==name||quote[0].prospect_email!==String(input.email||'').trim()||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||quoteModules.length!==selectedModules.length+requestedAddons.length||JSON.stringify(quoteCoreModules)!==JSON.stringify([...selectedModules].sort())||JSON.stringify(quoteAddonModules)!==JSON.stringify([...requestedAddons].sort()))return send(res,409,{error:'La cotización no coincide con el nombre, rubro, licencia o complementos actuales. Generá una cotización nueva.'});
         }
         const id=crypto.randomUUID();
         const trialCode='TRIAL-'+id.replace(/-/g,'').slice(0,16).toUpperCase();
