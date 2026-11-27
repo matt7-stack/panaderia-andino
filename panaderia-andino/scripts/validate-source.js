@@ -275,6 +275,10 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !html.includes('id="healthDailyTrend"') || !html.includes('id="healthWeeklyTrend"') || !html.includes('id="healthMonthlyTrend"') ||
     !html.includes('id="healthDeviceControl"') || !html.includes('id="healthLockedAccounts"') ||
     !html.includes('id="healthBackupMissingBusinesses"') || !html.includes('id="healthLatestDeployment"') ||
+    !html.includes('id="healthModules"') || !html.includes('id="healthVersions"') ||
+    !html.includes('id="healthInvalidReleaseArtifacts"') || !html.includes('id="healthModulesUnimplemented"') ||
+    !apiSource.includes('active_unimplemented') || !apiSource.includes('invalid_artifacts') ||
+    !apiSource.includes('pending_business_updates') || !apiSource.includes('pending_upgrade_requests') ||
     !apiSource.includes('getVercelDeploymentHealth') || !apiSource.includes('VERCEL_API_TOKEN') ||
     !apiSource.includes('healthMigrationApplied') || !apiSource.includes('businesses_missing_backup') ||
     !apiSource.includes('locked_accounts') || !apiSource.includes('deviceLimits:') ||
