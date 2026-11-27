@@ -2314,7 +2314,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-cotizador', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'admin-centro', 'admin-maintenance', 'novedades', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso', 'contacto-soporte'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-cotizador', 'admin-precios', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'admin-centro', 'admin-maintenance', 'novedades', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso', 'contacto-soporte'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     syncBusinessModuleNavigation();
     const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
@@ -2336,7 +2336,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         (page === 'erp' && Object.values(p).some(value => value === true));
       if (!allowed) return;
     }
-    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
+    const platformPages=['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-precios','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
     const businessPages=['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso','contacto-soporte'];
     if (currentUser?.isPlatformAdmin === true && !platformPages.includes(page) && !(window.PanaderiaAuth.selectedBusinessId && businessPages.includes(page))) page = 'administracion';
     if (currentUser?.isPlatformAdmin === true) document.body.classList.add('platform-admin');
@@ -2351,7 +2351,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       if (active) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-cotizador': 'Cotizador comercial', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'admin-centro': 'Centro de gestión', 'admin-maintenance': 'Modo de mantenimiento', novedades: 'Novedades y versiones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gastos' };
+    const titles = { dashboard: 'Dashboard', movimientos: 'Movimientos', notas: 'Notas', notificaciones: 'Notificaciones', info: 'Info', productos: 'Disponibilidad', empleados: 'Empleados', administracion: 'Administrador', 'admin-panaderias': 'Negocios', 'admin-licencias': 'Licencias y ventas', 'admin-cotizador': 'Cotizador comercial', 'admin-precios': 'Catálogo de precios', 'admin-usuarios': 'Usuarios y permisos', 'admin-notificaciones': 'Notificaciones', 'admin-support': 'Configuración de soporte', 'admin-centro': 'Centro de gestión', 'admin-maintenance': 'Modo de mantenimiento', novedades: 'Novedades y versiones', 'accesos-rapidos': 'Accesos rápidos', configuracion: 'Configuración', actividad: 'Actividad y alertas', seguridad: 'Centro de seguridad', 'reportes-globales': 'Reportes globales', 'guia-uso': 'Guía de uso', erp: 'Gastos' };
     setText('#breadcrumbCurrent', titles[page]);
     $('#globalMonthPicker').classList.toggle('d-none', page !== 'dashboard');
     $('#sidebar').classList.remove('open');
@@ -2363,6 +2363,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (page === 'empleados') renderEmployees();
     if (['administracion','admin-panaderias','admin-usuarios','admin-notificaciones','accesos-rapidos'].includes(page)) renderAdminPanel();
     if (page === 'admin-support') loadAdminSupportSettings();
+    if (page === 'admin-precios') window.loadMattsystemPriceCatalog?.();
     if (page === 'admin-centro') loadAdminCenter();
     if (page === 'administracion') loadAdminPrivateFinance();
     if (page === 'admin-maintenance') loadPlatformMaintenance();
