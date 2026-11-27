@@ -2897,11 +2897,10 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       });
       trialPlanSelect.addEventListener('change',async()=>{try{await loadTrialPlans();if(trialToggle.checked)applyTrialPlan();else{const plan=trialPlanCatalog.find(item=>item.plan_key===trialPlanSelect.value);trialModulesPreview.textContent=plan?'Plan seleccionado: '+(plan.display_name||plan.plan_key)+'. Al activar la prueba se habilitarán '+(plan.modules||[]).length+' módulos. Límite: 2 usuarios y 1 dispositivo.':'No se encontró el plan.';}}catch(error){notify('No se pudieron cargar los planes: '+error.message);}});
       loadTrialPlans().then(()=>{const plan=trialPlanCatalog.find(item=>item.plan_key===trialPlanSelect.value);if(plan)trialModulesPreview.textContent='Plan seleccionado: '+(plan.display_name||plan.plan_key)+'. Al activar la prueba se habilitarán '+(plan.modules||[]).length+' módulos. Límite: 2 usuarios y 1 dispositivo.';}).catch(error=>notify('No se pudieron cargar los planes de prueba: '+error.message));
-      let unavailableModules=new Set(['branches','delivery']);
       const applyTemplate=()=>{
         if(trialToggle.checked){applyTrialPlan();return;}
         const modeValue=modeSelect.value, defaults=templates[industrySelect.value]||[];
-        boxes().forEach(box=>{const key=box.dataset.businessModule,required=key==='dashboard',unavailable=unavailableModules.has(key);box.checked=required||(!unavailable&&(modeValue==='custom'?false:defaults.includes(key)));box.disabled=required||modeValue==='template'||unavailable;});
+        boxes().forEach(box=>{const key=box.dataset.businessModule,required=key==='dashboard';box.checked=required||(modeValue==='custom'?false:defaults.includes(key));box.disabled=required||modeValue==='template';});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
         fields.querySelector('#businessModuleHelp').textContent=modeValue==='template'?'Plantilla automática. Cambiá a modo combinado o personalizado para elegir los módulos.':modeValue==='custom'?'Elegí manualmente los módulos que contratará este negocio.':'Podés agregar o quitar módulos de la plantilla recomendada.';
       };
