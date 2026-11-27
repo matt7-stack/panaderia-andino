@@ -462,8 +462,9 @@ module.exports = async function handler(req, res) {
           RETURNING id,user_id`;
         if(createdAlerts.length)await sendWebPush(sql,createdAlerts.map(x=>x.user_id),alert.title,alert.message,'mattsystem-health-'+crypto.createHash('sha1').update(alert.title+alert.message).digest('hex').slice(0,20));
       }
-      // Mantener tendencias de salud durante 13 meses.
+      // Mantener tendencias de salud durante 13 meses y telemetría operativa por 90 días.
       await sql`DELETE FROM app_health_snapshots WHERE captured_at<NOW()-INTERVAL '13 months'`;
+      await sql`DELETE FROM app_health_events WHERE created_at<NOW()-INTERVAL '90 days'`;
       return send(res,200,{ok:true,created:created.length,pruned:pruned.length,expiryAlertsCreated,healthSnapshot:healthStatus,healthAlerts:healthAlerts.length,source:'daily_cron'});
     }
 
@@ -1202,7 +1203,7 @@ module.exports = async function handler(req, res) {
           FROM app_health_events`,
         sql`SELECT COALESCE(ROUND(AVG(duration_ms))::int,0) AS avg_ms,
           COALESCE((percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms))::int,0) AS p95_ms
-          FROM app_health_events WHERE category IN ('api_slow','api_error') AND created_at>NOW()-INTERVAL '24 hours' AND duration_ms IS NOT NULL`,
+          FROM app_health_events WHERE category IN ('api_request','api_slow','api_error') AND created_at>NOW()-INTERVAL '24 hours' AND duration_ms IS NOT NULL`,
         sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`,
         sql`SELECT COUNT(*)::int AS events_24h FROM app_audit_logs WHERE created_at>NOW()-INTERVAL '24 hours'`,
         sql`SELECT COUNT(*) FILTER(WHERE LOWER(status) NOT IN ('resolved','closed','cancelled'))::int AS open FROM app_support_tickets`,
@@ -1239,7 +1240,7 @@ module.exports = async function handler(req, res) {
       const user=await authenticated(req,res,false); if(!user)return;
       if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
       const input=body(req),category=String(input.category||'');
-      if(!['js_error','promise_rejection','api_error','api_slow'].includes(category))return send(res,400,{error:'Tipo de evento no válido.'});
+      if(!['js_error','promise_rejection','api_error','api_slow','api_request'].includes(category))return send(res,400,{error:'Tipo de evento no válido.'});
       const message=String(input.message||'').replace(/[\\r\\n\\t]+/g,' ').slice(0,500);
       const route=String(input.route||'').split('?')[0].slice(0,240);
       const duration=Number.isFinite(Number(input.durationMs))?Math.max(0,Math.min(120000,Math.round(Number(input.durationMs)))):null;
