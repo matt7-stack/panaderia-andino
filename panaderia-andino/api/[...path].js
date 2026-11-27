@@ -605,8 +605,10 @@ module.exports = async function handler(req, res) {
       if(user.is_platform_admin===true||!user.business_id||user.role!=='admin')return send(res,403,{error:'Solo el dueño del negocio puede administrar los dispositivos.'});
       const sql=db();
       if(req.method==='GET'){
+        const token=deviceTokenCookie(req);
+        const currentHash=token?crypto.createHash('sha256').update(token).digest('hex'):'';
         const rows=await sql`SELECT id,label,first_seen_at,last_seen_at,revoked_at,
-          (revoked_at IS NULL) AS active
+          (revoked_at IS NULL) AS active,(device_hash=${currentHash}) AS is_current
           FROM app_device_registrations
           WHERE business_id=${user.business_id}
           ORDER BY revoked_at NULLS FIRST,last_seen_at DESC LIMIT 100`;
