@@ -275,6 +275,9 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !apiSource.includes("if (path === '/api/health/events')") ||
     !apiSource.includes('percentile_cont(0.95)') ||
     !apiSource.includes("providerSnapshots:'not_verified'") ||
+    !apiSource.includes('healthSnapshot:healthStatus') ||
+    !apiSource.includes('healthAlerts:healthAlerts.length') ||
+    !apiSource.includes("'13 months'") ||
     !healthMigration.includes('app_health_events') ||
     !healthMigration.includes('app_health_snapshots') ||
     !healthMigration.includes('mattsystem_health_events_tenant_insert') ||
