@@ -431,7 +431,39 @@ module.exports = async function handler(req, res) {
           }
         }
       }
-      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,expiryAlertsCreated,source:'daily_cron'});
+      const [healthBackups,healthEvents,healthLicenses]=await Promise.all([
+        sql`SELECT COUNT(*)::int AS total,COUNT(*) FILTER(WHERE checksum=encode(digest(convert_to(payload::text,'UTF8'),'sha256'),'hex'))::int AS valid,MAX(created_at) AS latest_at FROM app_business_backups`,
+        sql`SELECT COUNT(*) FILTER(WHERE category IN ('js_error','promise_rejection','api_error') AND created_at>NOW()-INTERVAL '24 hours')::int AS errors_24h,COUNT(*) FILTER(WHERE category='api_slow' AND created_at>NOW()-INTERVAL '24 hours')::int AS slow_api_24h FROM app_health_events`,
+        sql`SELECT COUNT(*) FILTER(WHERE status='active' AND expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+7)::int AS expiring_7d FROM app_licenses`
+      ]);
+      const backupHealth=healthBackups[0]||{},eventHealth=healthEvents[0]||{},licenseHealth=healthLicenses[0]||{};
+      const healthMetrics={
+        checks:{
+          backups:{total:Number(backupHealth.total||0),valid:Number(backupHealth.valid||0),latestAt:backupHealth.latest_at||null,providerSnapshots:'not_verified'},
+          application:{errors24h:Number(eventHealth.errors_24h||0),slowApi24h:Number(eventHealth.slow_api_24h||0)},
+          licenses:{expiring7d:Number(licenseHealth.expiring_7d||0)}
+        },
+        source:'daily_backup_cron'
+      };
+      const healthCritical=healthMetrics.checks.backups.total>0&&healthMetrics.checks.backups.valid<healthMetrics.checks.backups.total;
+      const healthWarning=healthMetrics.checks.application.errors24h>0||healthMetrics.checks.licenses.expiring7d>0||healthMetrics.checks.backups.total===0;
+      const healthStatus=healthCritical?'critical':healthWarning?'warning':'healthy';
+      await sql`INSERT INTO app_health_snapshots(overall_status,metrics) VALUES(${healthStatus},${JSON.stringify(healthMetrics)}::jsonb)`;
+      const healthAlerts=[];
+      if(healthCritical)healthAlerts.push({title:'Integridad de respaldos: revisar',message:'El diagnóstico diario detectó respaldos con checksum inválido.'});
+      if(healthMetrics.checks.application.errors24h>0)healthAlerts.push({title:'Errores de MATTSYSTEM detectados',message:'Se registraron '+healthMetrics.checks.application.errors24h+' errores de JavaScript o API en las últimas 24 horas.'});
+      if(healthMetrics.checks.licenses.expiring7d>0)healthAlerts.push({title:'Licencias próximas a vencer',message:healthMetrics.checks.licenses.expiring7d+' licencia(s) vencen dentro de los próximos 7 días.'});
+      for(const alert of healthAlerts){
+        const createdAlerts=await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message)
+          SELECT NULL,u.id,'system_activity',${alert.title},${alert.message} FROM app_users u
+          WHERE u.active=TRUE AND u.is_platform_admin=TRUE
+          AND NOT EXISTS(SELECT 1 FROM app_notifications n WHERE n.user_id=u.id AND n.type='system_activity' AND n.title=${alert.title} AND n.message=${alert.message} AND n.created_at>NOW()-INTERVAL '24 hours')
+          RETURNING id,user_id`;
+        if(createdAlerts.length)await sendWebPush(sql,createdAlerts.map(x=>x.user_id),alert.title,alert.message,'mattsystem-health-'+crypto.createHash('sha1').update(alert.title+alert.message).digest('hex').slice(0,20));
+      }
+      // Mantener tendencias de salud durante 13 meses.
+      await sql`DELETE FROM app_health_snapshots WHERE captured_at<NOW()-INTERVAL '13 months'`;
+      return send(res,200,{ok:true,created:created.length,pruned:pruned.length,expiryAlertsCreated,healthSnapshot:healthStatus,healthAlerts:healthAlerts.length,source:'daily_cron'});
     }
 
     if (path === '/api/maintenance/status' && req.method === 'GET') {
