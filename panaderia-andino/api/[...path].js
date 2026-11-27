@@ -1518,6 +1518,9 @@ module.exports = async function handler(req, res) {
       if(req.method==='GET'){
         const rows=await sql`SELECT b.id,b.name,b.slug,b.active,b.address,b.phone,b.email,b.ruc,b.owner_name,b.created_at,b.updated_at,
           bc.industry_key,bc.config_mode,bc.modules AS configured_modules,
+          (SELECT r.version FROM app_business_versions bv JOIN app_releases r ON r.id=bv.installed_release_id WHERE bv.business_id=b.id LIMIT 1) AS installed_version,
+          (SELECT r.version FROM app_business_versions bv JOIN app_releases r ON r.id=bv.target_release_id WHERE bv.business_id=b.id LIMIT 1) AS target_version,
+          (SELECT CASE WHEN l.is_trial THEN 'trial' WHEN l.monthly_amount>0 THEN 'monthly' WHEN l.expires_at IS NULL THEN 'permanent' ELSE 'fixed_term' END FROM app_licenses l WHERE l.business_id=b.id ORDER BY (l.status='active') DESC,l.created_at DESC LIMIT 1) AS license_mode,
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id) AS user_count,
           (SELECT COUNT(*)::int FROM app_users u WHERE u.business_id=b.id AND u.active=TRUE) AS active_user_count,
           (SELECT COUNT(DISTINCT lower(trim(item->>'party')))::int FROM app_state st CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(st.data->'invoices')='array' THEN st.data->'invoices' ELSE '[]'::jsonb END) item WHERE st.business_id=b.id AND COALESCE(trim(item->>'party'),'')<>'') AS customer_count,
