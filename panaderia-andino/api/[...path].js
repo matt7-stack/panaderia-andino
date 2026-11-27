@@ -481,7 +481,7 @@ module.exports = async function handler(req, res) {
         if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Solo las cuentas de negocio pueden crear solicitudes.'});
         const input=body(req),subject=String(input.subject||'').trim().slice(0,120),message=String(input.message||'').trim().slice(0,3000);
         if(!subject||!message)return send(res,400,{error:'Completá el asunto y el mensaje.'});
-        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING id,version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_at,updated_at`;
+        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING id`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'system_activity','Nueva solicitud de soporte',${'El negocio '+String(user.business_name||'')+' envió una solicitud: '+subject} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
         return send(res,201,{ticket:rows[0]});
       }
@@ -3069,7 +3069,7 @@ module.exports = async function handler(req, res) {
         const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,artifact_content,status,delivery_ready,published_at,created_by)
           VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},${runtimeCompatible},NULLIF(${artifactContent},''),
           CASE WHEN ${publish}::boolean THEN 'published' ELSE 'draft' END,${ready},CASE WHEN ${publish}::boolean THEN NOW() ELSE NULL END,${admin.id})
-          RETURNING *`;
+          RETURNING id,version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_at,updated_at`;
         if(publish){
           await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
             SELECT b.id,bv.installed_release_id,${rows[0].id},${admin.id}
@@ -3099,7 +3099,7 @@ module.exports = async function handler(req, res) {
           artifact_url=NULLIF(${artifactUrl},''),artifact_sha256=NULLIF(${artifactSha},''),artifact_bytes=${artifactBytes},runtime_compatible=${runtimeCompatible},
           delivery_ready=${ready},status=CASE WHEN ${publish}::boolean THEN 'published' ELSE status END,
           published_at=CASE WHEN ${publish}::boolean THEN COALESCE(published_at,NOW()) ELSE published_at END,updated_at=NOW()
-          WHERE id=${id} RETURNING *`;
+          WHERE id=${id} RETURNING id,version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_at,updated_at`;
         if(publish){
           await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
             SELECT b.id,bv.installed_release_id,${id},${admin.id} FROM businesses b JOIN app_business_versions bv ON bv.business_id=b.id
