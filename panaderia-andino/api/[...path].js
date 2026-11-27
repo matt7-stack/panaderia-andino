@@ -1196,6 +1196,8 @@ module.exports = async function handler(req, res) {
         sql`SELECT COUNT(*) FILTER(WHERE status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active,
           COUNT(*) FILTER(WHERE status='active' AND expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+7)::int AS expiring_7d,
           COUNT(*) FILTER(WHERE status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE))::int AS inactive,
+          COUNT(*) FILTER(WHERE status='suspended')::int AS suspended,
+          COUNT(*) FILTER(WHERE expires_at IS NOT NULL AND expires_at<CURRENT_DATE)::int AS expired,
           COUNT(*) FILTER(WHERE is_trial=TRUE AND status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active_trials,
           COUNT(*) FILTER(WHERE is_trial=TRUE AND (status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE)))::int AS expired_trials,
           COUNT(*) FILTER(WHERE device_limit IS NOT NULL AND device_limit>0)::int AS device_limits_configured,
@@ -1223,7 +1225,7 @@ module.exports = async function handler(req, res) {
         database:{status:'operational',name:dbInfo.name,sizeBytes:Number(dbInfo.bytes||0),serverVersion:String(dbInfo.server_version||'').split(' ').slice(0,2).join(' ')},
         backups:{status:Number(backup.total||0)===0?'unknown':Number(backup.valid)===Number(backup.total)?'operational':'critical',total:Number(backup.total||0),valid:Number(backup.valid||0),latestAt:backup.latest_at||null,latestRestoreAt:backup.latest_restore_at||null,ageHours:backupAgeHours,providerSnapshots:'not_verified'},
         application:{status:Number(ev.errors_24h||0)>0?'warning':'operational',events24h:Number(ev.events_24h||0),errors24h:Number(ev.errors_24h||0),slowApi24h:Number(ev.slow_api_24h||0),avgApiMs:Number(perf.avg_ms||0),p95ApiMs:Number(perf.p95_ms||0)},
-        licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0),activeTrials:Number(lic.active_trials||0),expiredTrials:Number(lic.expired_trials||0),deviceLimitsConfigured:Number(lic.device_limits_configured||0),userLimitExceeded:Number(lic.user_limit_exceeded||0),payments30d:Number(payments[0]?.payments_30d||0),paidAmount30d:Number(payments[0]?.paid_amount_30d||0)},
+        licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0),suspended:Number(lic.suspended||0),expired:Number(lic.expired||0),activeTrials:Number(lic.active_trials||0),expiredTrials:Number(lic.expired_trials||0),deviceLimitsConfigured:Number(lic.device_limits_configured||0),userLimitExceeded:Number(lic.user_limit_exceeded||0),payments30d:Number(payments[0]?.payments_30d||0),paidAmount30d:Number(payments[0]?.paid_amount_30d||0)},
         platform:{environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'unknown',project:process.env.VERCEL_PROJECT_NAME||null,region:process.env.VERCEL_REGION||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,commit:process.env.VERCEL_GIT_COMMIT_SHA||null,branch:process.env.VERCEL_GIT_COMMIT_REF||null,externalLogs:'not_connected'}
       };
       const alerts=[];
