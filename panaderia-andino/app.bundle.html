@@ -2825,53 +2825,79 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   }
 
   async function loadAdminBackups() {
-    const target = $('#adminBackupList');
+    const target = $('#adminBackupList'), select=$('#adminBackupBusiness'), createButton=$('#adminBackupButton');
     if (!target || !window.PanaderiaAuth?.api) return;
-    target.textContent = 'Consultando copias guardadas…';
+    const isPlatformAdmin=window.PanaderiaAuth?.user?.isPlatformAdmin===true;
+    if(!select)return;
+    try{
+      if(isPlatformAdmin){
+        const response=await window.PanaderiaAuth.api('/api/admin/businesses');
+        const businesses=(Array.isArray(response.businesses)?response.businesses:Array.isArray(response.items)?response.items:[]).filter(item=>item&&item.active===true);
+        const previous=select.value;
+        select.innerHTML='<option value="">Seleccioná un negocio…</option>'+businesses.map(item=>'<option value="'+escapeHTML(item.id)+'">'+escapeHTML(item.name||'Negocio')+'</option>').join('');
+        if(businesses.some(item=>String(item.id)===previous))select.value=previous;
+        if(!businesses.length)select.innerHTML='<option value="">No hay negocios activos disponibles</option>';
+      }else{
+        const user=window.PanaderiaAuth.user;
+        select.innerHTML='<option value="'+escapeHTML(user?.business_id||'')+'">'+escapeHTML(state.business?.name||'Mi negocio')+'</option>';
+        select.value=user?.business_id||'';
+      }
+    }catch(error){
+      target.textContent=error.message||'No se pudo cargar la lista de negocios.';
+      if(createButton)createButton.disabled=true;
+      return;
+    }
+    const businessId=select.value;
+    if(createButton)createButton.disabled=!businessId;
+    if(!businessId){target.innerHTML='<p class="text-muted mb-0">Seleccioná un negocio para consultar su historial y crear una copia de seguridad.</p>';return;}
+    target.textContent='Consultando copias guardadas…';
     try {
-      const result = await window.PanaderiaAuth.api('/api/business/backups');
+      const result = await window.PanaderiaAuth.api('/api/business/backups',{headers:{'x-business-id':businessId}});
       const backups = Array.isArray(result.backups) ? result.backups : [];
       target.innerHTML = backups.map(item => {
         const date = item.created_at ? new Date(item.created_at).toLocaleString('es-PY') : 'Fecha no disponible';
         const size = Number(item.payload_bytes || 0).toLocaleString('es-PY') + ' bytes';
         const restored = item.restored_at ? ' · Restaurada ' + new Date(item.restored_at).toLocaleString('es-PY') : '';
         return '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 border rounded-3 p-2 mb-2"><div><strong class="d-block">' + escapeHTML(item.label || 'Copia de seguridad') + '</strong><span class="text-muted">' + escapeHTML(date) + ' · ' + escapeHTML(size) + escapeHTML(restored) + '</span><span class="d-block text-muted">SHA-256: ' + escapeHTML(String(item.checksum || '').slice(0,16)) + '…</span></div><button class="btn btn-outline-danger btn-sm" type="button" data-restore-backup="' + escapeHTML(item.id) + '"><i class="bi bi-arrow-counterclockwise"></i> Restaurar</button></div>';
-      }).join('') || '<p class="text-muted mb-0">Todavía no hay copias remotas. Creá la primera copia para habilitar la restauración.</p>';
+      }).join('') || '<p class="text-muted mb-0">Este negocio todavía no tiene copias remotas. Creá la primera copia para habilitar la restauración.</p>';
     } catch (error) {
       target.textContent = error.message || 'No se pudo consultar el historial de copias.';
     }
   }
 
   async function exportAdminBackup() {
-    const button = $('#adminBackupButton');
+    const button = $('#adminBackupButton'),businessId=$('#adminBackupBusiness')?.value||'';
     const original = button?.innerHTML;
+    if(!businessId){notify('Seleccioná el negocio que querés respaldar.');return;}
     if (button) { button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Guardando copia…'; }
     try {
-      const result = await window.PanaderiaAuth.api('/api/business/backups', { method: 'POST', body: JSON.stringify({}) });
+      const result = await window.PanaderiaAuth.api('/api/business/backups', { method: 'POST', headers:{'x-business-id':businessId}, body: JSON.stringify({}) });
+      const businessName=$('#adminBackupBusiness')?.selectedOptions?.[0]?.textContent||'negocio';
       const backup = {
         application: 'MATTSYSTEM',
         formatVersion: 1,
         backupId: result.backup.id,
         checksum: result.backup.checksum,
         exportedAt: result.backup.createdAt,
-        businessId: state.business.id || null,
+        businessId,
+        businessName,
         data: result.data
       };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `respaldo-mattsystem-${todayISO()}.json`;
+      link.download = 'respaldo-mattsystem-'+businessName.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'').toLowerCase()+'-'+todayISO()+'.json';
       document.body.appendChild(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      notify('Copia guardada en el servidor y descargada en este dispositivo.');
+      notify('Copia de '+businessName+' guardada en el servidor y descargada.');
       await loadAdminBackups();
     } catch (error) {
       notify(error.message || 'No se pudo crear la copia de seguridad.');
     } finally {
-      if (button) { button.disabled = false; button.innerHTML = original; }
+      if (button) { button.disabled = !businessId; button.innerHTML = original; }
     }
   }
 
