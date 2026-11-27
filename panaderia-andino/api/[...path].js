@@ -1146,6 +1146,69 @@ module.exports = async function handler(req, res) {
         readOnly: true
       });
     }
+    if (path === '/api/admin/health') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const [database,counts,backups,licenses,events,latency,history]=await Promise.all([
+        sql`SELECT current_database() AS name,pg_database_size(current_database())::bigint AS bytes,version() AS server_version`,
+        sql`SELECT (SELECT COUNT(*)::int FROM businesses) AS businesses,
+          (SELECT COUNT(*)::int FROM businesses WHERE active=TRUE) AS active_businesses,
+          (SELECT COUNT(*)::int FROM app_users WHERE active=TRUE) AS active_users`,
+        sql`SELECT COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE checksum=encode(digest(convert_to(payload::text,'UTF8'),'sha256'),'hex'))::int AS valid,
+          MAX(created_at) AS latest_at,MAX(restored_at) AS latest_restore_at
+          FROM app_business_backups`,
+        sql`SELECT COUNT(*) FILTER(WHERE status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active,
+          COUNT(*) FILTER(WHERE status='active' AND expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+7)::int AS expiring_7d,
+          COUNT(*) FILTER(WHERE status<>'active' OR (expires_at IS NOT NULL AND expires_at<CURRENT_DATE))::int AS inactive
+          FROM app_licenses`,
+        sql`SELECT COUNT(*) FILTER(WHERE created_at>NOW()-INTERVAL '24 hours')::int AS events_24h,
+          COUNT(*) FILTER(WHERE category IN ('js_error','promise_rejection','api_error') AND created_at>NOW()-INTERVAL '24 hours')::int AS errors_24h,
+          COUNT(*) FILTER(WHERE category='api_slow' AND created_at>NOW()-INTERVAL '24 hours')::int AS slow_api_24h
+          FROM app_health_events`,
+        sql`SELECT COALESCE(ROUND(AVG(duration_ms))::int,0) AS avg_ms,
+          COALESCE((percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms))::int,0) AS p95_ms
+          FROM app_health_events WHERE category IN ('api_slow','api_error') AND created_at>NOW()-INTERVAL '24 hours' AND duration_ms IS NOT NULL`,
+        sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`
+      ]);
+      const dbInfo=database[0]||{}, totals=counts[0]||{}, backup=backups[0]||{}, lic=licenses[0]||{}, ev=events[0]||{}, perf=latency[0]||{};
+      const backupAgeHours=backup.latest_at?Math.max(0,Math.round((Date.now()-new Date(backup.latest_at).getTime())/3600000)):null;
+      const checks={
+        database:{status:'operational',name:dbInfo.name,sizeBytes:Number(dbInfo.bytes||0),serverVersion:String(dbInfo.server_version||'').split(' ').slice(0,2).join(' ')},
+        backups:{status:Number(backup.total||0)===0?'unknown':Number(backup.valid)===Number(backup.total)?'operational':'critical',total:Number(backup.total||0),valid:Number(backup.valid||0),latestAt:backup.latest_at||null,latestRestoreAt:backup.latest_restore_at||null,ageHours:backupAgeHours,providerSnapshots:'not_verified'},
+        application:{status:Number(ev.errors_24h||0)>0?'warning':'operational',events24h:Number(ev.events_24h||0),errors24h:Number(ev.errors_24h||0),slowApi24h:Number(ev.slow_api_24h||0),avgApiMs:Number(perf.avg_ms||0),p95ApiMs:Number(perf.p95_ms||0)},
+        licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0)},
+        platform:{environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'unknown',project:process.env.VERCEL_PROJECT_NAME||null,region:process.env.VERCEL_REGION||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,commit:process.env.VERCEL_GIT_COMMIT_SHA||null,branch:process.env.VERCEL_GIT_COMMIT_REF||null,externalLogs:'not_connected'}
+      };
+      const alerts=[];
+      if(checks.backups.status==='unknown')alerts.push({level:'warning',title:'No hay respaldos internos registrados',detail:'Todavía no existe un respaldo de negocio que se pueda verificar.'});
+      else if(checks.backups.status==='critical')alerts.push({level:'critical',title:'Hay respaldos con checksum inválido',detail:'Revisá la integridad de los respaldos antes de restaurar.'});
+      if(backupAgeHours!==null&&backupAgeHours>30)alerts.push({level:'warning',title:'Respaldo interno desactualizado',detail:'El último respaldo interno tiene '+backupAgeHours+' horas.'});
+      if(Number(ev.errors_24h||0)>0)alerts.push({level:'warning',title:'Errores de aplicación detectados',detail:Number(ev.errors_24h)+' errores registrados en las últimas 24 horas.'});
+      if(Number(lic.expiring_7d||0)>0)alerts.push({level:'info',title:'Licencias próximas a vencer',detail:Number(lic.expiring_7d)+' licencias vencen dentro de 7 días.'});
+      const critical=alerts.some(a=>a.level==='critical'),warning=alerts.some(a=>a.level==='warning');
+      const overall=critical?'critical':warning?'warning':'healthy';
+      const metrics={totals:{businesses:Number(totals.businesses||0),activeBusinesses:Number(totals.active_businesses||0),activeUsers:Number(totals.active_users||0)},checks,alerts};
+      const latest=history[0];
+      if(!latest||Date.now()-new Date(latest.captured_at).getTime()>15*60*1000){
+        await sql`INSERT INTO app_health_snapshots(overall_status,metrics) VALUES(${overall},${JSON.stringify(metrics)}::jsonb)`;
+      }
+      const freshHistory=await sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`;
+      return send(res,200,{capturedAt:new Date().toISOString(),overall,metrics,history:freshHistory});
+    }
+    if (path === '/api/health/events') {
+      const user=await authenticated(req,res,false); if(!user)return;
+      if(req.method!=='POST')return send(res,405,{error:'Método no permitido.'});
+      const input=body(req),category=String(input.category||'');
+      if(!['js_error','promise_rejection','api_error','api_slow'].includes(category))return send(res,400,{error:'Tipo de evento no válido.'});
+      const message=String(input.message||'').replace(/[\\r\\n\\t]+/g,' ').slice(0,500);
+      const route=String(input.route||'').split('?')[0].slice(0,240);
+      const duration=Number.isFinite(Number(input.durationMs))?Math.max(0,Math.min(120000,Math.round(Number(input.durationMs)))):null;
+      const saved=await sql`INSERT INTO app_health_events(business_id,actor_user_id,category,message,route,duration_ms)
+        VALUES(${user.business_id||null},${user.id},${category},${message},${route},${duration}) RETURNING id`;
+      return send(res,201,{ok:true,id:saved[0]?.id||null});
+    }
     if (path === '/api/admin/security') {
       const admin=await authenticated(req,res,true); if(!admin) return;
       const sql=db();
