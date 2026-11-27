@@ -1555,8 +1555,11 @@ module.exports = async function handler(req, res) {
         const planSetup=Number(planRows[0].setup_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.setup_price||0),0);
         const planMonthly=Number(planRows[0].monthly_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.monthly_price||0),0);
         const includeConfiguration=input.includeConfiguration===true&&!activateTrial;
-        const configurationPlan=includeConfiguration?licensePlanKey:null;
-        const configurationAmount=includeConfiguration?Number(planRows[0].configuration_amount||0):0;
+        const configurationPlan=includeConfiguration?String(input.configurationPlan||licensePlanKey):null;
+        if(includeConfiguration&&!['basic','professional','enterprise'].includes(configurationPlan))return send(res,400,{error:'Seleccioná un nivel válido para la configuración inicial.'});
+        const configurationRows=includeConfiguration?await sql`SELECT configuration_amount FROM app_license_plan_settings WHERE plan_key=${configurationPlan} LIMIT 1`:[];
+        if(includeConfiguration&&!configurationRows.length)return send(res,409,{error:'No encontramos el nivel de configuración seleccionado.'});
+        const configurationAmount=includeConfiguration?Number(configurationRows[0].configuration_amount||0):0;
         const planUserLimit=planRows[0].user_limit===null?null:Number(planRows[0].user_limit);
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
