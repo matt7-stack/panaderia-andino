@@ -3096,8 +3096,9 @@ module.exports = async function handler(req, res) {
           target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
           CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly' ELSE 'permanent' END AS license_mode,
           COALESCE(lic.status,'missing') AS license_status,
-          COALESCE((SELECT json_agg(json_build_object('release_id',h.to_release_id,'version',hr.version) ORDER BY h.changed_at DESC)
-            FROM app_business_version_history h JOIN app_releases hr ON hr.id=h.to_release_id WHERE h.business_id=b.id),'[]'::json) AS version_history,
+          COALESCE((SELECT json_agg(json_build_object('release_id',v.release_id,'version',v.version))
+            FROM (SELECT h.to_release_id AS release_id,tr.version FROM app_business_version_history h JOIN app_releases tr ON tr.id=h.to_release_id WHERE h.business_id=b.id
+              UNION SELECT h.from_release_id AS release_id,fr.version FROM app_business_version_history h JOIN app_releases fr ON fr.id=h.from_release_id WHERE h.business_id=b.id AND h.from_release_id IS NOT NULL) v),'[]'::json) AS version_history,
           (SELECT COUNT(*)::int FROM app_version_upgrade_requests u WHERE u.business_id=b.id AND u.status NOT IN ('applied','rejected','cancelled')) AS open_upgrade_requests
           FROM businesses b LEFT JOIN app_business_versions bv ON bv.business_id=b.id
           LEFT JOIN app_releases installed ON installed.id=bv.installed_release_id
