@@ -1232,6 +1232,8 @@ module.exports = async function handler(req, res) {
       if(backupAgeHours!==null&&backupAgeHours>30)alerts.push({level:'warning',title:'Respaldo interno desactualizado',detail:'El último respaldo interno tiene '+backupAgeHours+' horas.'});
       if(Number(ev.errors_24h||0)>0)alerts.push({level:'warning',title:'Errores de aplicación detectados',detail:Number(ev.errors_24h)+' errores registrados en las últimas 24 horas.'});
       if(Number(lic.expiring_7d||0)>0)alerts.push({level:'info',title:'Licencias próximas a vencer',detail:Number(lic.expiring_7d)+' licencias vencen dentro de 7 días.'});
+      if(Number(lic.user_limit_exceeded||0)>0)alerts.push({level:'warning',title:'Límite de usuarios superado',detail:Number(lic.user_limit_exceeded)+' negocio(s) superan el límite de usuarios de su licencia.'});
+      if(Number(lic.expired_trials||0)>0)alerts.push({level:'info',title:'Pruebas vencidas',detail:Number(lic.expired_trials)+' prueba(s) gratuita(s) están vencidas.'});
       const critical=alerts.some(a=>a.level==='critical'),warning=alerts.some(a=>a.level==='warning');
       const overall=critical?'critical':warning?'warning':'healthy';
       const metrics={totals:{businesses:Number(totals.businesses||0),activeBusinesses:Number(totals.active_businesses||0),activeUsers:Number(totals.active_users||0),openTickets:Number(tickets[0]?.open||0),auditEvents24h:Number(audit[0]?.events_24h||0)},checks,alerts};
