@@ -3007,7 +3007,9 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       fields.querySelector('#generateBusinessQuote').addEventListener('click',async()=>{
         const prospectName=fields.querySelector('#simpleName').value.trim();
         if(!prospectName){notify('Ingresá primero el nombre del negocio para cotizar.');fields.querySelector('#simpleName').focus();return;}
-        const selected=[...new Set([...boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule),...selectedAddonKeys()])];
+        const selectedCore=boxes().filter(box=>box.checked).map(box=>box.dataset.businessModule);
+        const selectedAddons=selectedAddonKeys();
+        const selected=[...new Set([...selectedCore,...selectedAddons])];
         if(!selected.length){notify('Seleccioná al menos un módulo.');return;}
         const manualPricing=manualToggle.checked;
         const manualModulePrices={};
