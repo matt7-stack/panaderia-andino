@@ -3129,7 +3129,7 @@ module.exports = async function handler(req, res) {
         const rows=await sql`SELECT b.id AS business_id,b.name,b.active,
           installed.version AS installed_version,installed.id AS installed_release_id,
           target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
-          CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly' ELSE 'permanent' END AS license_mode,
+          CASE WHEN lic.status IS NULL THEN 'missing' WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly' ELSE 'permanent' END AS license_mode,
           COALESCE(lic.status,'missing') AS license_status,
           COALESCE((SELECT json_agg(json_build_object('release_id',v.release_id,'version',v.version))
             FROM (SELECT h.to_release_id AS release_id,tr.version FROM app_business_version_history h JOIN app_releases tr ON tr.id=h.to_release_id WHERE h.business_id=b.id
