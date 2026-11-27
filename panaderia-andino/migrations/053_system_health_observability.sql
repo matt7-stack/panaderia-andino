@@ -4,12 +4,14 @@ CREATE TABLE IF NOT EXISTS app_health_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id uuid REFERENCES businesses(id) ON DELETE SET NULL,
   actor_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
-  category varchar(32) NOT NULL CHECK (category IN ('js_error','promise_rejection','api_error','api_slow')),
+  category varchar(32) NOT NULL CHECK (category IN ('js_error','promise_rejection','api_error','api_slow','api_request')),
   message varchar(500) NOT NULL DEFAULT '',
   route varchar(240) NOT NULL DEFAULT '',
   duration_ms integer CHECK (duration_ms IS NULL OR duration_ms BETWEEN 0 AND 120000),
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE app_health_events DROP CONSTRAINT IF EXISTS app_health_events_category_check;
+ALTER TABLE app_health_events ADD CONSTRAINT app_health_events_category_check CHECK (category IN ('js_error','promise_rejection','api_error','api_slow','api_request'));
 CREATE INDEX IF NOT EXISTS app_health_events_created_idx ON app_health_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS app_health_events_category_created_idx ON app_health_events(category,created_at DESC);
 ALTER TABLE app_health_events ENABLE ROW LEVEL SECURITY;
