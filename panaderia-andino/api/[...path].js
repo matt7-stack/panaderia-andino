@@ -743,7 +743,17 @@ module.exports = async function handler(req, res) {
         const userLimit=hasUserLimit?(input.userLimit===null||input.userLimit===''?null:Number(input.userLimit)):(planRows[0].user_limit===null?null:Number(planRows[0].user_limit));
         const deviceLimit=hasDeviceLimit?(input.deviceLimit===null||input.deviceLimit===''?null:Number(input.deviceLimit)):(defaultSettings[0]?.device_limit===null||defaultSettings[0]?.device_limit===undefined?null:Number(defaultSettings[0].device_limit));
         if(!(userLimit===null||(Number.isInteger(userLimit)&&userLimit>=1&&userLimit<=500))||!(deviceLimit===null||(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)))return send(res,400,{error:'Los límites deben ser enteros: usuarios de 1 a 500 y dispositivos de 1 a 100, o dejarlos sin límite.'});
-        const setup=Number(planRows[0].setup_amount),monthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
+        const planSetup=Number(planRows[0].setup_amount),planMonthly=Number(planRows[0].monthly_amount),planModules=Array.isArray(planRows[0].modules)?planRows[0].modules:[];
+        const requestedExtraModules=[...new Set((Array.isArray(input.additionalModules)?input.additionalModules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        if(requestedExtraModules.length>50||requestedExtraModules.some(key=>planModules.includes(key)))return send(res,400,{error:'Los módulos adicionales no son válidos o ya están incluidos en el plan.'});
+        let extraModules=[],setup=planSetup,monthly=planMonthly;
+        if(requestedExtraModules.length){
+          extraModules=await sql`SELECT module_key,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
+          if(extraModules.length!==requestedExtraModules.length)return send(res,400,{error:'Uno o más módulos adicionales no están disponibles o implementados.'});
+          setup+=extraModules.reduce((sum,m)=>sum+Number(m.setup_price||0),0);
+          monthly+=extraModules.reduce((sum,m)=>sum+Number(m.monthly_price||0),0);
+        }
+        const licensedModules=[...new Set([...planModules,...requestedExtraModules])];
         const business=await sql`SELECT id FROM businesses WHERE id=${businessId} AND active=TRUE AND NOT EXISTS (SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=businesses.id::text AND t.restored_at IS NULL) LIMIT 1`;
         if(!business.length)return send(res,404,{error:'El negocio seleccionado no existe.'});
         if(status==='active'){
@@ -760,9 +770,9 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(planModules)}::jsonb) RETURNING *`;
+        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(licensedModules)}::jsonb) RETURNING *`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,modules:planModules,isTrial:false})}::jsonb)`;
+          VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,modules:licensedModules,additionalModules:requestedExtraModules,isTrial:false})}::jsonb)`;
         return send(res,201,{license:rows[0]});
       }
       if(req.method==='DELETE'){
