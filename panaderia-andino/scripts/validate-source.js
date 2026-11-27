@@ -273,6 +273,12 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !html.includes('id="healthActiveTrials"') || !html.includes('id="healthUserLimitExceeded"') ||
     !html.includes('id="healthSuspendedLicenses"') || !html.includes('id="healthDeviceLimits"') ||
     !html.includes('id="healthDailyTrend"') || !html.includes('id="healthWeeklyTrend"') || !html.includes('id="healthMonthlyTrend"') ||
+    !html.includes('id="healthDeviceControl"') || !html.includes('id="healthLockedAccounts"') ||
+    !html.includes('id="healthBackupMissingBusinesses"') || !html.includes('id="healthLatestDeployment"') ||
+    !apiSource.includes('getVercelDeploymentHealth') || !apiSource.includes('VERCEL_API_TOKEN') ||
+    !apiSource.includes('healthMigrationApplied') || !apiSource.includes('businesses_missing_backup') ||
+    !apiSource.includes('locked_accounts') || !apiSource.includes('deviceLimits:') ||
+    !apiSource.includes("status:'failed'") ||
     !apiSource.includes("date_trunc('day'") || !apiSource.includes("date_trunc('week'") || !apiSource.includes("date_trunc('month'") ||
     !apiSource.includes('active_trials') || !apiSource.includes('user_limit_exceeded') || !apiSource.includes('payments_30d') ||
     !apiSource.includes('status=\'suspended\'') || !apiSource.includes('device_limits_configured') ||
