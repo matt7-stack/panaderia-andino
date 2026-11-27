@@ -3203,7 +3203,9 @@ module.exports = async function handler(req, res) {
           if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)return send(res,409,{error:'La versión no tiene un paquete publicado y verificable.'});
           const lic=await sql`SELECT id,status,is_trial,monthly_amount,expires_at FROM app_licenses WHERE business_id=${businessId} ORDER BY (status='active') DESC,created_at DESC LIMIT 1`;
           if(!lic.length||lic[0].status!=='active'||lic[0].is_trial||Number(lic[0].monthly_amount||0)>0)return send(res,409,{error:'Este flujo es exclusivo para licencias permanentes activas.'});
-          const current=await sql`SELECT bv.installed_release_id FROM app_business_versions bv WHERE bv.business_id=${businessId} LIMIT 1`;
+          const current=await sql`SELECT bv.installed_release_id,bv.target_release_id FROM app_business_versions bv WHERE bv.business_id=${businessId} LIMIT 1`;
+          if(current[0]?.installed_release_id===releaseId||current[0]?.target_release_id===releaseId)
+            return send(res,409,{error:'Ese negocio ya tiene esa versión instalada o asignada.'});
           const rows=await sql`INSERT INTO app_version_upgrade_requests(business_id,from_release_id,to_release_id,quoted_amount,client_accepted_at,paid_at,payment_reference,status,notes,created_by,approved_by)
             VALUES(${businessId},${current[0]?.installed_release_id||null},${releaseId},${amount},NOW(),NOW(),${paymentReference},'paid',${notes},${admin.id},${admin.id}) RETURNING *`;
           await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
