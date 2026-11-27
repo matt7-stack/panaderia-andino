@@ -66,3 +66,26 @@ ALTER TABLE app_version_upgrade_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_version_upgrade_requests FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS mattsystem_version_upgrades_admin_all ON app_version_upgrade_requests;
 CREATE POLICY mattsystem_version_upgrades_admin_all ON app_version_upgrade_requests FOR ALL USING (app_is_platform_admin()) WITH CHECK (app_is_platform_admin());
+
+CREATE TABLE IF NOT EXISTS app_business_version_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  from_release_id uuid REFERENCES app_releases(id) ON DELETE SET NULL,
+  to_release_id uuid NOT NULL REFERENCES app_releases(id) ON DELETE RESTRICT,
+  change_reason varchar(30) NOT NULL DEFAULT 'upgrade' CHECK (change_reason IN ('initial','upgrade','rollback','runtime_acknowledged')),
+  changed_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  changed_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS app_business_version_history_business_idx ON app_business_version_history(business_id,changed_at DESC);
+ALTER TABLE app_business_version_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_business_version_history FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS mattsystem_business_version_history_admin_all ON app_business_version_history;
+CREATE POLICY mattsystem_business_version_history_admin_all ON app_business_version_history FOR ALL USING (app_is_platform_admin()) WITH CHECK (app_is_platform_admin());
+DROP POLICY IF EXISTS mattsystem_business_version_history_tenant_read ON app_business_version_history;
+CREATE POLICY mattsystem_business_version_history_tenant_read ON app_business_version_history FOR SELECT USING (business_id=app_current_business_id());
+DROP POLICY IF EXISTS mattsystem_business_version_history_tenant_insert ON app_business_version_history;
+CREATE POLICY mattsystem_business_version_history_tenant_insert ON app_business_version_history FOR INSERT WITH CHECK (business_id=app_current_business_id());
+DROP POLICY IF EXISTS mattsystem_business_versions_tenant_read ON app_business_versions;
+CREATE POLICY mattsystem_business_versions_tenant_read ON app_business_versions FOR SELECT USING (business_id=app_current_business_id());
+DROP POLICY IF EXISTS mattsystem_business_versions_tenant_ack ON app_business_versions;
+CREATE POLICY mattsystem_business_versions_tenant_ack ON app_business_versions FOR UPDATE USING (business_id=app_current_business_id()) WITH CHECK (business_id=app_current_business_id());
