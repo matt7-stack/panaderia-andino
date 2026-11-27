@@ -633,14 +633,15 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true);if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const [plans,modules]=await Promise.all([
+        const [plans,modules,otherConcepts]=await Promise.all([
           sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
-          sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`
+          sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`,
+          sql`SELECT concept_key,title,price,billing_mode,active FROM app_commercial_other_prices ORDER BY concept_key`
         ]);
-        return send(res,200,{plans,modules});
+        return send(res,200,{plans,modules,otherConcepts});
       }
       if(req.method==='PUT'){
-        const input=body(req),plans=Array.isArray(input.plans)?input.plans:[],modules=Array.isArray(input.modules)?input.modules:[];
+        const input=body(req),plans=Array.isArray(input.plans)?input.plans:[],modules=Array.isArray(input.modules)?input.modules:[],otherConcepts=Array.isArray(input.otherConcepts)?input.otherConcepts:[];
         const keys=['basic','professional','enterprise'];
         if(plans.length!==3||new Set(plans.map(x=>String(x.planKey||''))).size!==3||!keys.every(k=>plans.some(x=>x.planKey===k)))return send(res,400,{error:'Deben enviarse los tres planes.'});
         if(!modules.length||modules.length>100||new Set(modules.map(x=>String(x.moduleKey||''))).size!==modules.length)return send(res,400,{error:'Revisá la lista de módulos.'});
@@ -648,6 +649,9 @@ module.exports = async function handler(req, res) {
         if(ps.some(p=>[p.setup_amount,p.configuration_amount,p.monthly_amount,p.annual_discount_percent,p.permanent_price,p.full_sale_price].some(v=>!Number.isFinite(v)||v<0||v>1000000000)||p.annual_discount_percent>100))return send(res,400,{error:'Los importes no son válidos.'});
         const ms=modules.map(m=>({module_key:String(m.moduleKey||'').trim(),monthly_price:Number(m.monthlyPrice),setup_price:Number(m.setupPrice)}));
         if(ms.some(m=>!m.module_key||![m.monthly_price,m.setup_price].every(v=>Number.isFinite(v)&&v>=0&&v<=1000000000)))return send(res,400,{error:'Revisá los precios de cada módulo.'});
+        const allowedConcepts=['exclusive_development','hosting','maintenance','special_installation'];
+        const oc=otherConcepts.map(x=>({concept_key:String(x.conceptKey||''),title:String(x.title||'').trim().slice(0,100),price:Number(x.price),billing_mode:String(x.billingMode||'one_time'),active:x.active===true}));
+        if(oc.length!==4||new Set(oc.map(x=>x.concept_key)).size!==4||!allowedConcepts.every(k=>oc.some(x=>x.concept_key===k))||oc.some(x=>!x.title||!Number.isFinite(x.price)||x.price<0||x.price>1000000000||!['one_time','monthly','quote'].includes(x.billing_mode)))return send(res,400,{error:'Revisá los otros conceptos comerciales.'});
         const [ep,em]=await Promise.all([
           sql`SELECT plan_key FROM app_license_plan_settings WHERE plan_key IN ('basic','professional','enterprise')`,
           sql`SELECT module_key,implemented FROM app_module_catalog WHERE module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(ms.map(x=>x.module_key))}::jsonb))`
@@ -658,6 +662,7 @@ module.exports = async function handler(req, res) {
         if(ms.some(x=>impl.get(x.module_key)!==true&&(x.monthly_price>0||x.setup_price>0)))return send(res,409,{error:'No se pueden asignar precios a módulos no implementados.'});
         const priceMap=Object.fromEntries(ms.map(x=>[x.module_key,{monthly:x.monthly_price,setup:x.setup_price}]));
         const normalizedPlans=ps.map(p=>({...p,module_prices:priceMap}));
+        await sql`UPDATE app_commercial_other_prices t SET title=x.title,price=x.price,billing_mode=x.billing_mode,active=x.active,updated_by=${admin.id},updated_at=NOW() FROM jsonb_to_recordset(${JSON.stringify(oc)}::jsonb) AS x(concept_key text,title text,price numeric,billing_mode text,active boolean) WHERE t.concept_key=x.concept_key`;
         const result=await sql`
           WITH module_update AS (
             UPDATE app_module_catalog m SET monthly_price=x.monthly_price,setup_price=x.setup_price,updated_by=${admin.id},updated_at=NOW()
@@ -672,11 +677,12 @@ module.exports = async function handler(req, res) {
         `;
         if(Number(result[0]?.plans_updated)!==3||Number(result[0]?.modules_updated)!==ms.length)return send(res,409,{error:'No se pudo actualizar el catálogo completo.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.price_catalog_updated','commercial_price_catalog','default',${JSON.stringify({plans:keys,modules:ms.length})}::jsonb)`;
-        const [savedPlans,savedModules]=await Promise.all([
+        const [savedPlans,savedModules,savedOtherConcepts]=await Promise.all([
           sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
-          sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`
+          sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`,
+          sql`SELECT concept_key,title,price,billing_mode,active FROM app_commercial_other_prices ORDER BY concept_key`
         ]);
-        return send(res,200,{ok:true,plans:savedPlans,modules:savedModules});
+        return send(res,200,{ok:true,plans:savedPlans,modules:savedModules,otherConcepts:savedOtherConcepts});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
