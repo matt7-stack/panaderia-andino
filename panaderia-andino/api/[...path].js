@@ -286,8 +286,12 @@ async function currentUser(req) {
     const token=deviceTokenCookie(req);
     if (!token || !/^[A-Za-z0-9_-]{40,100}$/.test(token)) return null;
     const hash=crypto.createHash('sha256').update(token).digest('hex');
-    const registered=await db()`SELECT id FROM app_device_registrations
-      WHERE business_id=${user.business_id} AND device_hash=${hash} AND revoked_at IS NULL LIMIT 1`;
+    const registered=await db()`SELECT id FROM (
+      SELECT id,device_hash,ROW_NUMBER() OVER(ORDER BY last_seen_at DESC,first_seen_at ASC,id ASC) AS device_rank
+      FROM app_device_registrations
+      WHERE business_id=${user.business_id} AND revoked_at IS NULL
+    ) active_devices
+    WHERE device_hash=${hash} AND device_rank<=${Number(user.device_limit)} LIMIT 1`;
     if (!registered.length) return null;
   }
   setRequestContext({ userId: String(user.id), businessId: user.business_id || '', isPlatformAdmin: user.is_platform_admin === true });
