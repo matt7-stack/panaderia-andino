@@ -1476,6 +1476,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
         <a class="nav-link" href="#actividad" data-page-link="actividad" id="adminActivityNav" hidden><i class="bi bi-activity"></i><span>Actividad y alertas</span><span class="nav-count" id="adminActivityCount">0</span></a>
         <a class="nav-link" href="#seguridad" data-page-link="seguridad" id="adminSecurityNav" hidden><i class="bi bi-shield-lock"></i><span>Centro de seguridad</span></a>
+        <a class="nav-link admin-only-menu" href="#salud-sistema" data-page-link="salud-sistema" id="adminHealthNav" hidden><i class="bi bi-heart-pulse"></i><span>Panel de salud</span></a>
         <a class="nav-link" href="#reportes-globales" data-page-link="reportes-globales" id="adminReportsNav" hidden><i class="bi bi-bar-chart-line"></i><span>Reportes globales</span></a>
         <a class="nav-link" href="#configuracion" data-page-link="configuracion"><i class="bi bi-gear-fill"></i><span>Configuración</span></a>
         <a class="nav-link" href="#guia-uso" data-page-link="guia-uso"><i class="bi bi-book-half"></i><span>Guía de uso</span></a>
@@ -1821,6 +1822,19 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3><i class="bi bi-bell"></i> Alertas para el administrador</h3><p>Notificaciones generadas automáticamente por cambios de usuarios.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="alerts"><i class="bi bi-trash"></i> Eliminar alertas</button></div><div id="adminActivityAlerts" class="d-grid gap-2"><p class="text-muted">Cargando alertas…</p></div></article>
           <article class="panel settings-card mt-3"><div class="panel-heading admin-activity-panel-heading"><div><h3>Historial de actividad</h3><p>Usuario, negocio, acción y fecha.</p></div><button class="btn btn-outline-danger btn-sm" type="button" data-clear-admin-activity="history"><i class="bi bi-trash"></i> Eliminar historial</button></div><div class="table-responsive"><table class="table data-table align-middle"><thead><tr><th>FECHA</th><th>USUARIO</th><th>NEGOCIO</th><th>ACCIÓN</th><th>DETALLE</th></tr></thead><tbody id="adminActivityTable"><tr><td colspan="5" class="text-muted text-center">Cargando…</td></tr></tbody></table></div></article>
         </section>
+        <section class="page-view" id="page-salud-sistema" data-page="salud-sistema">
+          <div class="page-heading"><div><p class="eyebrow">MONITOREO DE MATTSYSTEM</p><h1><i class="bi bi-heart-pulse heading-page-icon"></i> Panel de salud del sistema</h1><p class="page-subtitle">Estado de servicios, seguridad, actividad y soporte. Solo visible para el administrador de plataforma.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminHealth" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+          <article class="panel mb-3"><div class="panel-heading"><div><h3>Estado general</h3><p id="healthOverallDetail">Esperando comprobaciones…</p></div><span id="healthOverall" class="status-pill status-pending">Pendiente</span></div><div class="row g-3">
+            <div class="col-md-6"><div class="d-flex justify-content-between align-items-center gap-2"><strong>Base de datos</strong><span id="healthDatabase" class="status-pill status-pending">Pendiente</span></div><small id="healthDatabaseDetail" class="text-muted">Conexión y consulta de solo lectura</small></div>
+            <div class="col-md-6"><div class="d-flex justify-content-between align-items-center gap-2"><strong>Seguridad y sesiones</strong><span id="healthSecurity" class="status-pill status-pending">Pendiente</span></div><small id="healthSecurityDetail" class="text-muted">Autenticación, bloqueos y revocación</small></div>
+            <div class="col-md-6"><div class="d-flex justify-content-between align-items-center gap-2"><strong>Operaciones y soporte</strong><span id="healthOperations" class="status-pill status-pending">Pendiente</span></div><small id="healthOperationsDetail" class="text-muted">Negocios y tickets</small></div>
+            <div class="col-md-6"><div class="d-flex justify-content-between align-items-center gap-2"><strong>Auditoría</strong><span id="healthAudit" class="status-pill status-pending">Pendiente</span></div><small id="healthAuditDetail" class="text-muted">Registro de eventos administrativos</small></div>
+          </div></article>
+          <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Negocios registrados</p><h2 id="healthBusinesses">—</h2></article><article class="summary-card profit-card"><p class="summary-label">Negocios activos</p><h2 id="healthActiveBusinesses">—</h2></article><article class="summary-card pending-card"><p class="summary-label">Usuarios activos</p><h2 id="healthActiveUsers">—</h2></article><article class="summary-card expense-card"><p class="summary-label">Intentos fallidos · 24 h</p><h2 id="healthFailedLogins">—</h2></article></div>
+          <div class="summary-grid mt-3"><article class="summary-card"><p class="summary-label">Eventos recientes de auditoría</p><h2 id="healthAuditEvents">—</h2></article><article class="summary-card"><p class="summary-label">Tickets pendientes</p><h2 id="healthOpenTickets">—</h2></article></div>
+          <article class="panel mt-3"><div class="panel-heading"><div><h3>Copias de seguridad y continuidad</h3><p>La restauración de copias de cada negocio está disponible en Herramientas del negocio. Las instantáneas completas de Neon deben verificarse en el panel del proveedor.</p></div></div><p class="small text-muted mb-0">Este panel no declara una copia como válida si no puede verificar su integridad ni sustituye una prueba periódica de restauración. Antes de operar con clientes, confirmá la política de snapshots, retención y recuperación de Neon.</p></article>
+          <article class="panel mt-3"><div class="panel-heading"><div><h3>Controles recomendados de operación</h3><p>Verificaciones periódicas para mantener el servicio estable.</p></div></div><ul class="mb-0 small"><li>Probar una restauración de respaldo en un entorno de QA.</li><li>Revisar eventos de auditoría y accesos fallidos.</li><li>Confirmar que las bajas de empleados revocan sus sesiones.</li><li>Comprobar pagos, vencimientos de licencias y tickets pendientes.</li><li>Exportar los datos del negocio y verificar que el archivo pueda abrirse.</li></ul></article>
+        </section>
         <section class="page-view" id="page-seguridad" data-page="seguridad">
           <div class="page-heading"><div><p class="eyebrow">PROTECCIÓN DE LA PLATAFORMA</p><h1><i class="bi bi-shield-lock heading-page-icon"></i> Centro de seguridad</h1><p class="page-subtitle">Supervisá accesos, intentos fallidos y sesiones de las cuentas de la plataforma.</p></div><button class="btn btn-outline-bakery btn-sm" id="refreshAdminSecurity" type="button"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
           <div class="summary-grid"><article class="summary-card income-card"><p class="summary-label">Usuarios activos</p><h2 id="securityActiveUsers">0</h2></article><article class="summary-card profit-card"><p class="summary-label">Accesos correctos · 24 h</p><h2 id="securitySuccessful24h">0</h2></article><article class="summary-card expense-card"><p class="summary-label">Intentos fallidos · 24 h</p><h2 id="securityFailed24h">0</h2></article><article class="summary-card pending-card"><p class="summary-label">Cuentas bloqueadas ahora</p><h2 id="securityLockedAccounts">0</h2></article></div>
@@ -2116,8 +2130,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (platformAdmin) window.PanaderiaAuth.selectBusiness('');
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','reportes-globales'];
-      const businessPages = ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso'];
+      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','salud-sistema','reportes-globales'];
+      const businessPages = ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso','salud-sistema'];
       const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
       const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
         (page === 'movimientos' && (employeePermissions['cash.view'] === true || employeePermissions['cash.manage'] === true)) ||
@@ -2128,7 +2142,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
-    ['adminLicensesNav','adminQuoteNav','adminPricesNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminLicensesNav','adminQuoteNav','adminPricesNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminHealthNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const supportLink=document.getElementById('supportContactNav');if(supportLink)supportLink.hidden=platformAdmin;
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
@@ -2428,6 +2442,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (page === 'notificaciones') window.refreshNotifications();
     if (page === 'actividad') refreshAdminActivity(true);
     if (page === 'seguridad') refreshAdminSecurity(true);
+    if (page === 'salud-sistema') refreshAdminHealth(true);
     if (page === 'reportes-globales') refreshGlobalReports();
     if (page === 'configuracion') renderSettings();
     window.history.replaceState(null, '', `#${page}`);
@@ -4044,6 +4059,34 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       $('#adminActivityTable').innerHTML=rows.map(x=>'<tr><td>'+escapeHTML(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td>'+escapeHTML(x.actor_name||'Sistema')+'<small class="d-block text-muted">'+escapeHTML(x.actor_email||'')+'</small></td><td>'+escapeHTML(x.business_name||'—')+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(JSON.stringify(x.details||{}))+'</td></tr>').join('')||'<tr><td colspan="5" class="text-center text-muted">Todavía no hay actividad registrada.</td></tr>';
     }catch(error){const target=$('#adminActivityAlerts');if(target)target.innerHTML='<p class="text-danger">No se pudo cargar la actividad. Usá Actualizar para volver a intentar.</p>';if(!quiet)notify('No se pudo cargar la actividad: '+error.message);console.error('Error al cargar actividad administrativa:',error);}
   }
+  async function refreshAdminHealth(quiet=false){
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    const setStatus=(id,ok,detail)=>{const el=document.getElementById(id);if(!el)return;el.textContent=ok?'Operativo':'Revisar';el.className='status-pill '+(ok?'status-paid':'status-pending');const note=document.getElementById(id+'Detail');if(note)note.textContent=detail||'';};
+    const setValue=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=String(value??'—');};
+    try{
+      const results=await Promise.allSettled([
+        window.PanaderiaAuth.api('/api/admin/database-info'),
+        window.PanaderiaAuth.api('/api/admin/security'),
+        window.PanaderiaAuth.api('/api/admin/overview'),
+        window.PanaderiaAuth.api('/api/admin/activity')
+      ]);
+      const [database,security,overview,activity]=results.map(x=>x.status==='fulfilled'?x.value:null);
+      setStatus('healthDatabase',!!database,database?'Conexión verificada · '+(database.database||'base de datos'):'No se pudo consultar la base de datos');
+      setStatus('healthSecurity',!!security,security?'Controles de acceso y sesiones disponibles':'No se pudo consultar seguridad');
+      setStatus('healthOperations',!!overview,overview?'Resumen de negocios y soporte disponible':'No se pudo consultar operaciones');
+      setStatus('healthAudit',!!activity,activity?'Registro de auditoría accesible':'No se pudo consultar auditoría');
+      setValue('healthBusinesses',overview?.totals?.businesses??'—');
+      setValue('healthActiveBusinesses',overview?.totals?.active??'—');
+      setValue('healthActiveUsers',security?.summary?.active_users??'—');
+      setValue('healthFailedLogins',security?.summary?.failed_24h??'—');
+      setValue('healthAuditEvents',activity?.activities?.length??'—');
+      const tickets=overview?.ticketCounts||[];
+      setValue('healthOpenTickets',tickets.filter(x=>!['resolved','closed','cancelled'].includes(String(x.status||'').toLowerCase())).reduce((n,x)=>n+Number(x.total||0),0));
+      const failed=results.filter(x=>x.status==='rejected').length;
+      setStatus('healthOverall',failed===0,failed===0?'Todos los servicios consultados respondieron':'Hay '+failed+' comprobaciones que requieren revisión');
+      if(!quiet&&failed)notify('El panel de salud detectó '+failed+' comprobaciones sin respuesta.');
+    }catch(error){setStatus('healthOverall',false,error.message||'No se pudo completar el diagnóstico');if(!quiet)notify('No se pudo actualizar el panel de salud: '+error.message);}
+  }
   async function refreshAdminSecurity(quiet=false){
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
     try{
@@ -4144,6 +4187,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     catch(error){button.disabled=false;notify('No se pudieron revocar las sesiones: '+error.message);}
   });
   $('#refreshAdminSecurity')?.addEventListener('click',()=>refreshAdminSecurity(false));
+  $('#refreshAdminHealth')?.addEventListener('click',()=>refreshAdminHealth(false));
   $('#refreshAdminActivity')?.addEventListener('click',()=>refreshAdminActivity(false));
   $('#refreshGlobalReports')?.addEventListener('click',refreshGlobalReports);
     window.refreshNotifications = async function refreshNotifications(){
