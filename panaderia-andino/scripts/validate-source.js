@@ -477,6 +477,21 @@ if (!notificationRlsMigration.includes('user_id = public.app_context_user_id()')
   throw new Error('Las notificaciones deben quedar aisladas por destinatario y por administrador de plataforma.');
 }
 
+if (!html.includes('id="adminBackupBusiness"') ||
+    !html.includes("headers:{'x-business-id':businessId}") ||
+    !html.includes("headers:{'x-business-id':businessId}, body: JSON.stringify({ action: 'restore'") ||
+    !html.includes('Seleccioná un negocio para consultar su historial')) {
+  throw new Error('Las copias de seguridad deben exigir un negocio y enviar su identificador en consulta, creación y restauración.');
+}
+if (!html.includes("m.commercial_mode==='addon'") &&
+    !html.includes("m.active!==false&&!allowed.has(m.module_key)")) {
+  throw new Error('Las cotizaciones deben ofrecer todos los módulos activos que no estén incluidos en el plan.');
+}
+if (!html.includes("m.active!==false&&!included.includes(m.module_key)") ||
+    !apiSource.includes("implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text") ||
+    !apiSource.includes("catalog.commercial_mode='addon'")) {
+  throw new Error('Las licencias deben permitir contratar módulos implementados excluidos del plan sin registrar módulos core como complementos opcionales.');
+}
 const employeePwaSource = fs.readFileSync(path.join(root, 'employee-access.js'), 'utf8');
 if (!employeePwaSource.includes("document.getElementById('mattsystemPwaBanner')") ||
     !employeePwaSource.includes('automaticBanner.remove()') ||
