@@ -2348,7 +2348,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
           cloudSaveTimer = null; cloudSaving = true;
           try {
             const endpoint = window.PanaderiaAuth.user?.role === 'employee' ? '/api/business/employee-data' : '/api/data';
-            const saved = await window.PanaderiaAuth.api(endpoint, { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) });
+            const saved = await window.PanaderiaAuth.api(endpoint, { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: cloudUpdatedAt }) });
             cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
           } catch (error) {
             console.error('No se pudo sincronizar la información.', error);
@@ -3662,7 +3662,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }
     try {
       const endpoint = user.role === 'employee' ? '/api/business/employee-data' : '/api/data';
-      const saved = await window.PanaderiaAuth.api(endpoint, {method:'PUT',body:JSON.stringify({data:cloudPayload()})});
+      const saved = await window.PanaderiaAuth.api(endpoint, {method:'PUT',body:JSON.stringify({data:cloudPayload(),expectedUpdatedAt:cloudUpdatedAt})});
       cloudUpdatedAt = saved.updatedAt || cloudUpdatedAt;
       renderDashboard(); renderMovements();
       notify(normalized.length === 1 ? 'Gasto registrado correctamente.' : normalized.length + ' gastos registrados correctamente.');
@@ -3766,7 +3766,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if(button){button.disabled=true;button.dataset.originalText=button.innerHTML;button.innerHTML='<i class="bi bi-hourglass-split"></i> Guardando…';}
     try{
       if(window.PanaderiaAuth?.user&&cloudReady){
-        const saved=await window.PanaderiaAuth.api('/api/data',{method:'PUT',body:JSON.stringify({data:cloudPayload()})});
+        const saved=await window.PanaderiaAuth.api('/api/data',{method:'PUT',body:JSON.stringify({data:cloudPayload(),expectedUpdatedAt:cloudUpdatedAt})});
         cloudUpdatedAt=saved.updatedAt||cloudUpdatedAt;
       }
       notify('Datos del negocio guardados y sincronizados correctamente.');
@@ -4713,7 +4713,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       else if (user.role === 'employee') { state = createEmptyState(); cloudUpdatedAt = null; }
       else {
         if (user.isPlatformAdmin === true && loadSelectedBusiness) throw new Error('No se encontraron datos guardados para este negocio. Por seguridad, no se creó información nueva.');
-        const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload() }) }); cloudUpdatedAt = saved.updatedAt || null;
+        const saved = await window.PanaderiaAuth.api('/api/data', { method: 'PUT', body: JSON.stringify({ data: cloudPayload(), expectedUpdatedAt: cloudUpdatedAt }) }); cloudUpdatedAt = saved.updatedAt || null;
       }
       delete state.users; cloudReady = true; saveState(false); renderAll();
       if (user.isPlatformAdmin === true) {
