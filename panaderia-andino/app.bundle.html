@@ -1682,7 +1682,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
                 <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2"><small class="text-muted">Se guardará como borrador. Para habilitar instalación hacen falta el paquete, su SHA-256 y un runtime compatible.</small><button class="btn btn-bakery btn-sm" type="submit">Registrar borrador</button></div>
               </div>
             </form>
-            <div class="row g-3"><div class="col-lg-5"><h4 class="h6">Todas las versiones</h4><div id="releaseRegistryList" class="d-grid gap-2"><small class="text-muted">Cargando historial…</small></div></div><div class="col-lg-7"><h4 class="h6">Versión por negocio</h4><div id="versionAssignmentsList" class="table-responsive"><small class="text-muted">Cargando asignaciones…</small></div></div></div>
+            <div class="row g-3"><div class="col-lg-5"><h4 class="h6">Todas las versiones</h4><div id="releaseRegistryList" class="d-grid gap-2"><small class="text-muted">Cargando historial…</small></div></div><div class="col-lg-7"><h4 class="h6">Versión por negocio</h4><div class="d-flex flex-wrap gap-2 mb-2"><select id="versionBulkRelease" class="form-select form-select-sm" style="max-width:180px"><option value="">Versión para actualizar…</option></select><label class="form-check small d-flex align-items-center gap-1 mb-0"><input class="form-check-input mt-0" type="checkbox" id="versionSelectAllMonthly"> Seleccionar mensuales</label><button class="btn btn-outline-primary btn-sm" type="button" id="versionUpdateSelected">Actualizar seleccionados</button><button class="btn btn-bakery btn-sm" type="button" id="versionUpdateAllMonthly">Actualizar todos los mensuales</button></div><div id="versionAssignmentsList" class="table-responsive"><small class="text-muted">Cargando asignaciones…</small></div></div></div>
             <div class="mt-3"><h4 class="h6">Mejoras de licencias permanentes</h4><div id="permanentUpgradeList"><small class="text-muted">Cargando solicitudes…</small></div></div>
           </article>
         </section>
@@ -4423,10 +4423,11 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         return '<article class="border rounded-3 p-2"><div class="d-flex align-items-center justify-content-between gap-2"><strong>v'+escapeHTML(r.version)+'</strong><span class="badge '+(r.delivery_ready?'bg-success':'bg-secondary')+'">'+escapeHTML(r.status==='published'?'Publicada':'Borrador')+'</span></div><div class="small fw-semibold mt-1">'+escapeHTML(r.title)+'</div><small class="text-muted d-block">'+escapeHTML(r.summary||'Sin resumen')+'</small><small class="d-block mt-1">'+escapeHTML(status)+' · '+Number(r.installed_businesses||0)+' instalados · '+Number(r.pending_businesses||0)+' pendientes</small></article>';
       }).join('')||'<small class="text-muted">Todavía no hay versiones registradas.</small>';
       const ready=releases.filter(r=>r.status==='published'&&r.delivery_ready===true);
-      if(assignmentRoot)assignmentRoot.innerHTML='<table class="table table-sm align-middle"><thead><tr><th>Negocio</th><th>Instalada</th><th>Licencia</th><th>Asignar</th></tr></thead><tbody>'+businesses.map(b=>{
+      const bulkSelect=$('#versionBulkRelease');if(bulkSelect){const previous=bulkSelect.value;bulkSelect.innerHTML='<option value="">Versión para actualizar…</option>'+ready.map(r=>'<option value="'+escapeHTML(r.id)+'">'+escapeHTML(r.version)+'</option>').join('');if(ready.some(r=>r.id===previous))bulkSelect.value=previous;}
+      if(assignmentRoot)assignmentRoot.innerHTML='<table class="table table-sm align-middle"><thead><tr><th></th><th>Negocio</th><th>Instalada</th><th>Licencia</th><th>Asignar</th></tr></thead><tbody>'+businesses.map(b=>{
         const opts=ready.map(r=>'<option value="'+escapeHTML(r.id)+'" '+(r.id===b.target_release_id?'selected':'')+'>'+escapeHTML(r.version)+'</option>').join('');
         const permanent=b.license_mode==='permanent';
-        return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="d-block text-muted">'+escapeHTML(b.active?'Activo':'Inactivo')+'</small></td><td>'+escapeHTML(b.installed_version||'Sin asignar')+(b.target_version&&b.target_version!==b.installed_version?'<small class="d-block text-warning">Destino: '+escapeHTML(b.target_version)+'</small>':'')+'</td><td>'+escapeHTML(({monthly:'Mensual',permanent:'Permanente',fixed_term:'Plazo fijo',trial:'Prueba',missing:'Sin licencia'})[b.license_mode]||'—')+'</td><td><div class="d-flex gap-1"><select class="form-select form-select-sm" data-version-select="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+'><option value="">Versión…</option>'+opts+'</select><button class="btn btn-sm btn-outline-primary" type="button" '+(permanent?'data-permanent-version':'data-assign-version')+'="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+' title="'+(permanent?'Registrar aceptación y pago':'Asignar actualización')+'"><i class="bi bi-arrow-repeat"></i></button></div></td></tr>';
+        return '<tr><td>'+(b.license_mode==='monthly'&&b.active?'<input type="checkbox" class="form-check-input" data-version-business-check="'+escapeHTML(b.business_id)+'">':'')+'</td><td><strong>'+escapeHTML(b.name)+'</strong><small class="d-block text-muted">'+escapeHTML(b.active?'Activo':'Inactivo')+'</small></td><td>'+escapeHTML(b.installed_version||'Sin asignar')+(b.target_version&&b.target_version!==b.installed_version?'<small class="d-block text-warning">Destino: '+escapeHTML(b.target_version)+'</small>':'')+'</td><td>'+escapeHTML(({monthly:'Mensual',permanent:'Permanente',fixed_term:'Plazo fijo',trial:'Prueba',missing:'Sin licencia'})[b.license_mode]||'—')+'</td><td><div class="d-flex gap-1"><select class="form-select form-select-sm" data-version-select="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+'><option value="">Versión…</option>'+opts+'</select><button class="btn btn-sm btn-outline-primary" type="button" '+(permanent?'data-permanent-version':'data-assign-version')+'="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+' title="'+(permanent?'Registrar aceptación y pago':'Asignar actualización')+'"><i class="bi bi-arrow-repeat"></i></button></div></td></tr>';
       }).join('')+'</tbody></table>'+(ready.length?'':'<small class="text-warning">No hay paquetes instalables todavía. Las asignaciones permanecerán bloqueadas hasta completar el runtime versionado.</small>');
       if(upgradeRoot)upgradeRoot.innerHTML=requests.map(u=>'<div class="border rounded-3 p-2 mb-2"><strong>'+escapeHTML(u.business_name)+'</strong> · '+escapeHTML(u.from_version||'—')+' → '+escapeHTML(u.to_version)+'<div class="small text-muted">Gs. '+Number(u.quoted_amount||0).toLocaleString('es-PY')+' · '+escapeHTML(u.status)+' · '+escapeHTML(u.payment_reference||'Sin referencia')+'</div></div>').join('')||'<small class="text-muted">No hay mejoras permanentes registradas.</small>';
     }catch(error){
@@ -4450,6 +4451,25 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }catch(error){notify(error.message||'No se pudo registrar la versión.');}
     finally{button.disabled=false;}
   });
+  $('#versionSelectAllMonthly')?.addEventListener('change',event=>{
+    document.querySelectorAll('[data-version-business-check]').forEach(box=>{box.checked=event.target.checked;});
+  });
+  async function bulkAssignVersions(allMonthly){
+    const releaseId=$('#versionBulkRelease')?.value;if(!releaseId){notify('Elegí una versión publicable.');return;}
+    const businesses=window.__mattsystemVersionBusinesses||[];
+    const ids=allMonthly?businesses.filter(b=>b.active&&b.license_mode==='monthly').map(b=>b.business_id):
+      [...document.querySelectorAll('[data-version-business-check]:checked')].map(box=>box.dataset.versionBusinessCheck);
+    if(!ids.length){notify('No hay negocios mensuales seleccionados.');return;}
+    if(ids.length>200){notify('Dividí la actualización: el máximo por operación es 200 negocios.');return;}
+    if(!confirm('Se asignará la versión elegida a '+ids.length+' negocio(s) con licencia mensual. ¿Continuar?'))return;
+    try{
+      const result=await window.PanaderiaAuth.api('/api/admin/business-versions',{method:'POST',body:JSON.stringify({businessIds:ids,releaseId})});
+      notify('Versión asignada a '+Number(result.assigned||0)+' negocio(s).');
+      $('#versionSelectAllMonthly').checked=false;await loadAdminVersionCenter();await refreshCloudBusinesses();
+    }catch(error){notify(error.message||'No se pudo asignar la actualización.');}
+  }
+  $('#versionUpdateSelected')?.addEventListener('click',()=>bulkAssignVersions(false));
+  $('#versionUpdateAllMonthly')?.addEventListener('click',()=>bulkAssignVersions(true));
   $('#versionAssignmentsList')?.addEventListener('click',async event=>{
     const assign=event.target.closest('[data-assign-version],[data-permanent-version]');if(!assign)return;
     const businessId=assign.dataset.assignVersion||assign.dataset.permanentVersion;
