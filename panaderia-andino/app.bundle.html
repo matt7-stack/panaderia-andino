@@ -1955,21 +1955,37 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   }
 
   let selectedBusinessId = localStorage.getItem('pa_selected_business_id') || '';
+  function reportHealthEvent(category,message,durationMs){
+    try{
+      if(String(location.pathname||'').startsWith('/health'))return;
+      fetch('/api/health/events',{method:'POST',credentials:'same-origin',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({category,message:String(message||'').slice(0,500),route:String(location.pathname||'/').slice(0,240),durationMs})}).catch(()=>{});
+    }catch(_){}
+  }
+  if(!window.__mattsystemHealthListeners){
+    window.__mattsystemHealthListeners=true;
+    window.addEventListener('error',event=>reportHealthEvent('js_error',event.message||'Error JavaScript'));
+    window.addEventListener('unhandledrejection',event=>reportHealthEvent('promise_rejection',event.reason?.message||String(event.reason||'Promesa rechazada')));
+  }
   async function api(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (selectedBusinessId && !headers['x-business-id']) headers['x-business-id'] = selectedBusinessId;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    const apiStartedAt=performance.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     let response;
     try {
       response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...options, headers, signal: controller.signal });
     } catch (error) {
+      reportHealthEvent('api_error',String(path)+': '+(error?.message||'fallo de red'));
       if (error.name === 'AbortError') throw new Error('El servidor tardó demasiado en responder. Reintentá en unos segundos.');
       throw new Error('No se pudo conectar con el servidor. Revisá tu conexión e intentá nuevamente.');
     } finally { clearTimeout(timeout); }
+    const apiDuration=Math.round(performance.now()-apiStartedAt);
+    if(path!=='/api/health/events'&&apiDuration>=1500)reportHealthEvent('api_slow',String(path)+' tardó '+apiDuration+' ms',apiDuration);
     let result = {};
     try { result = await response.json(); } catch (_) { /* response without JSON */ }
+    if(path!=='/api/health/events'&&!response.ok)reportHealthEvent('api_error',String(path)+' respondió HTTP '+response.status,apiDuration);
     // Una sesión inexistente es normal durante el primer acceso; permite consultar /status y activar el administrador.
     if (!response.ok && !(path === '/api/auth/me' && response.status === 401)) {
       if (result.code === 'LICENSE_INACTIVE') {
