@@ -92,3 +92,6 @@ CREATE POLICY mattsystem_business_versions_tenant_ack ON app_business_versions F
 
 DROP POLICY IF EXISTS mattsystem_releases_published_read ON app_releases;
 CREATE POLICY mattsystem_releases_published_read ON app_releases FOR SELECT USING (status='published');
+
+DROP POLICY IF EXISTS mattsystem_version_upgrades_tenant_ack ON app_version_upgrade_requests;
+CREATE POLICY mattsystem_version_upgrades_tenant_ack ON app_version_upgrade_requests FOR UPDATE USING (business_id=app_current_business_id()) WITH CHECK (business_id=app_current_business_id());
