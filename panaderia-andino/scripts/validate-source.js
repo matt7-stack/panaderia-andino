@@ -49,7 +49,7 @@ for (const relative of requiredFiles) {
   if (!fs.existsSync(absolute)) throw new Error('Falta el archivo requerido: ' + relative);
 }
 
-for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','admin-nav.js','employee-access.js','erp-modules.js','operations-tools.js']) {
+for (const relative of ['api/[...path].js','api/business/receivables.js','api/admin/business-addons.js','admin-nav.js','employee-access.js','erp-modules.js','operations-tools.js','business-improvements.js']) {
   const absolute = path.join(root, relative);
   new vm.Script(fs.readFileSync(absolute, 'utf8'), { filename: absolute });
 }
