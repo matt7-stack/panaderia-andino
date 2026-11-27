@@ -3045,18 +3045,27 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='POST'){
         const input=body(req),version=String(input.version||'').trim(),title=String(input.title||'').trim().slice(0,160),
-          summary=String(input.summary||'').trim().slice(0,500),details=String(input.details||'').trim(),
-          artifactContent=typeof input.artifactContent==='string'?input.artifactContent:'',
-          artifactBytes=artifactContent?Buffer.byteLength(artifactContent,'utf8'):null,
-          artifactSha=artifactContent?crypto.createHash('sha256').update(artifactContent,'utf8').digest('hex'):'',
-          artifactUrl=artifactContent?'/api/releases/'+version:'',
-          runtimeCompatible=!!(artifactContent&&artifactContent.includes('<meta name="mattsystem-version" content="'+version+'">')&&artifactContent.includes('/api/business/version?build=')&&artifactContent.includes("crypto.subtle.digest('SHA-256'")),
-          publish=input.publish===true;
-        if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
+          summary=String(input.summary||'').trim().slice(0,500),details=String(input.details||'').trim();
+        if(!/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
           return send(res,400,{error:'Ingresá una versión semántica válida (ej. 2.1.0) y un título.'});
+        let artifactContent=typeof input.artifactContent==='string'?input.artifactContent:'';
+        if(!artifactContent&&input.captureCurrentBuild===true){
+          const deploymentHost=String(process.env.VERCEL_URL||'').trim();
+          if(!deploymentHost)return send(res,503,{error:'No se pudo identificar la versión desplegada. Subí el archivo HTML del paquete.'});
+          const snapshot=await fetch('https://'+deploymentHost+'/app.bundle.html',{cache:'no-store'});
+          if(!snapshot.ok)return send(res,502,{error:'No se pudo capturar el paquete de la versión desplegada.'});
+          artifactContent=await snapshot.text();
+        }
+        const versionMeta=/(<meta\\s+name=["']mattsystem-version["']\\s+content=["'])[^"']+(["'])/i;
+        if(versionMeta.test(artifactContent))artifactContent=artifactContent.replace(versionMeta,(_,prefix,suffix)=>prefix+version+suffix);
+        const artifactBytes=artifactContent?Buffer.byteLength(artifactContent,'utf8'):null;
+        const artifactSha=artifactContent?crypto.createHash('sha256').update(artifactContent,'utf8').digest('hex'):'';
+        const artifactUrl=artifactContent?'/api/releases/'+version:'';
+        const runtimeCompatible=!!(artifactContent&&artifactContent.includes('<meta name="mattsystem-version" content="'+version+'">')&&artifactContent.includes('/api/business/version?build=')&&artifactContent.includes("crypto.subtle.digest('SHA-256'"));
+        const publish=input.publish===true;
         if(artifactBytes!==null&&artifactBytes>4000000)return send(res,413,{error:'El paquete supera el máximo permitido de 4 MB.'});
         const ready=!!(artifactContent&&artifactSha&&artifactBytes&&runtimeCompatible);
-        if(publish&&!ready)return send(res,409,{error:'No se puede publicar: primero cargá el paquete independiente, su SHA-256 y su tamaño.'});
+        if(publish&&!ready)return send(res,409,{error:'No se puede publicar: el paquete debe contener el runtime compatible y su versión identificada.'});
         const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,artifact_content,status,delivery_ready,published_at,created_by)
           VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},${runtimeCompatible},NULLIF(${artifactContent},''),
           CASE WHEN ${publish}::boolean THEN 'published' ELSE 'draft' END,${ready},CASE WHEN ${publish}::boolean THEN NOW() ELSE NULL END,${admin.id})
