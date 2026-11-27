@@ -1152,6 +1152,33 @@ html body .auth-gate.auth-gate-hidden {
 #licenseCreateForm .license-configuration-tier-wrap .form-text{display:block;max-width:100%;overflow-wrap:anywhere;}
 #licenseCreateForm #licenseConfigurationTier{display:block;width:100%;max-width:100%;min-width:0;white-space:normal;text-overflow:ellipsis;}
 @media(max-width:575.98px){#licenseCreateForm .license-configuration-tier-wrap{flex:0 0 100%;}}
+
+/* MATTSYSTEM 2.0.2: ajustes de escritorio para licencias y soporte. */
+@media (min-width: 992px) {
+  #licenseCreateForm .license-configuration-option {
+    min-height: 54px;
+    padding: 7px 10px !important;
+    gap: 8px !important;
+    border-radius: 8px !important;
+  }
+  #licenseCreateForm .license-configuration-option strong { font-size: 11px; line-height: 1.25; }
+  #licenseCreateForm .license-configuration-option small { font-size: 9px; line-height: 1.3; }
+  #licenseCreateForm .license-configuration-option #licenseIncludeConfiguration {
+    flex-basis: 15px; width: 15px; height: 15px;
+  }
+  #licenseCreateForm #licenseConfigurationPrice { font-size: 9px; line-height: 1.3; }
+}
+.admin-support-queues {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-auto-flow: row !important;
+  width: min(100%, 1040px) !important;
+  max-width: 1040px !important;
+  margin: 0 auto !important;
+  gap: 14px !important;
+}
+.admin-support-queue-panel { width: 100% !important; min-width: 0 !important; }
+#quoteServicesList > [data-quote-service-card] { min-width: 0; }
 </style>
 <style>
 /* Alineación consistente de los encabezados en la cuenta de cada negocio. */
