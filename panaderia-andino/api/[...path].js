@@ -3088,6 +3088,7 @@ module.exports = async function handler(req, res) {
           LEFT JOIN LATERAL(SELECT status FROM app_licenses x WHERE x.business_id=b.id ORDER BY (x.status='active') DESC,x.created_at DESC LIMIT 1) lic ON TRUE
           WHERE b.id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::uuid)`;
         if(businesses.length!==ids.length)return send(res,404,{error:'Uno o más negocios no existen.'});
+        if(businesses.some(b=>b.license_status!=='active'))return send(res,409,{error:'Solo se pueden asignar versiones a negocios con licencia activa.'});
         const permanent=businesses.filter(b=>!b.is_trial&&Number(b.monthly_amount||0)===0);
         if(permanent.length)return send(res,409,{error:'Las licencias permanentes requieren aceptación y pago registrados en Solicitudes de mejora antes de actualizarse.',permanentBusinessIds:permanent.map(b=>b.id)});
         const trial=businesses.filter(b=>b.is_trial);
