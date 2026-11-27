@@ -210,6 +210,18 @@ function cookie(req) {
   }
   return '';
 }
+function deviceTokenCookie(req) {
+  for (const part of String(req.headers.cookie || '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > -1 && part.slice(0, i).trim() === 'pa_device') {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch (_) { return ''; }
+    }
+  }
+  return '';
+}
+function deviceTokenCookieHeader(token) {
+  return 'pa_device=' + encodeURIComponent(token) + '; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000';
+}
 function secret(key) {
   const value = process.env[key];
   if (!value || value.length < 32) throw new Error('Security configuration missing');
@@ -1145,10 +1157,10 @@ module.exports = async function handler(req, res) {
       const licenseSystem = String(process.env.LICENSE_SYSTEM_NAME || 'Mattsystem').trim() || 'Mattsystem';
       const rows = await sql`SELECT u.id,u.name,u.email,u.password_hash,u.role,u.active,u.business_id,u.is_platform_admin,u.session_version,u.permissions,
           lic.license_code, lic.system_name AS license_system_name, lic.status AS license_status,
-          lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid
+          lic.expires_at AS license_expires_at, lic.is_valid AS license_is_valid, lic.device_limit
         FROM app_users u
         LEFT JOIN LATERAL (
-          SELECT l.license_code,l.system_name,l.status,l.expires_at,
+          SELECT l.license_code,l.system_name,l.status,l.expires_at,l.device_limit,
             (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
           FROM app_licenses l
           WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
@@ -1166,14 +1178,72 @@ module.exports = async function handler(req, res) {
         const maintenance=await sql`SELECT message,(enabled AND (starts_at IS NULL OR starts_at<=NOW()) AND (ends_at IS NULL OR ends_at>NOW())) AS active FROM app_platform_maintenance WHERE id=1 LIMIT 1`;
         if(maintenance[0]?.active===true)return send(res,503,{code:'PLATFORM_MAINTENANCE',error:maintenance[0].message||'MATTSYSTEM está temporalmente en mantenimiento.'});
       }
-      // Generar la cookie antes de registrar el acceso como exitoso. Si falta
-      // SESSION_SECRET, el error queda visible como fallo y no como login exitoso.
+      // La cuota de dispositivos se aplica solo a licencias vigentes con límite configurado.
+      // Se bloquea la fila de licencia dentro de la sentencia para serializar altas concurrentes.
       setRequestContext({ userId: String(u.id), businessId: u.business_id || '', isPlatformAdmin: u.is_platform_admin === true });
+      let issuedDeviceToken = '';
+      if (u.is_platform_admin !== true && u.license_is_valid === true &&
+          Number.isInteger(Number(u.device_limit)) && Number(u.device_limit) > 0 && u.business_id) {
+        const suppliedToken = deviceTokenCookie(req);
+        const rawDeviceToken = suppliedToken && /^[A-Za-z0-9_-]{40,100}$/.test(suppliedToken)
+          ? suppliedToken : crypto.randomBytes(32).toString('base64url');
+        const deviceHash = crypto.createHash('sha256').update(rawDeviceToken).digest('hex');
+        const registration = await sql`
+          WITH locked_license AS MATERIALIZED (
+            SELECT l.id,l.device_limit FROM app_licenses l
+            WHERE l.business_id=${u.business_id}
+              AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
+              AND l.status='active' AND (l.expires_at IS NULL OR l.expires_at>=CURRENT_DATE)
+            ORDER BY l.created_at DESC LIMIT 1 FOR UPDATE
+          ),
+          existing AS MATERIALIZED (
+            SELECT d.id,d.revoked_at FROM app_device_registrations d
+            WHERE d.business_id=${u.business_id} AND d.device_hash=${deviceHash}
+          ),
+          active_count AS MATERIALIZED (
+            SELECT COUNT(*)::int AS total FROM app_device_registrations d
+            CROSS JOIN locked_license l
+            WHERE d.business_id=${u.business_id} AND d.revoked_at IS NULL
+          ),
+          touched_existing AS (
+            UPDATE app_device_registrations d
+            SET last_seen_at=NOW(),user_id=${u.id}
+            WHERE d.business_id=${u.business_id} AND d.device_hash=${deviceHash} AND d.revoked_at IS NULL
+              AND EXISTS(SELECT 1 FROM locked_license)
+            RETURNING d.id
+          ),
+          inserted AS (
+            INSERT INTO app_device_registrations(business_id,user_id,device_hash,label)
+            SELECT ${u.business_id},${u.id},${deviceHash},'Dispositivo registrado'
+            FROM locked_license l CROSS JOIN active_count c
+            WHERE NOT EXISTS(SELECT 1 FROM existing)
+              AND (l.device_limit IS NULL OR c.total < l.device_limit)
+            ON CONFLICT(business_id,device_hash) DO UPDATE
+              SET last_seen_at=NOW(),user_id=EXCLUDED.user_id
+              WHERE app_device_registrations.revoked_at IS NULL
+            RETURNING id
+          )
+          SELECT (EXISTS(SELECT 1 FROM touched_existing) OR EXISTS(SELECT 1 FROM inserted)) AS allowed,
+                 (SELECT total FROM active_count) AS active_devices,
+                 (SELECT device_limit FROM locked_license) AS device_limit,
+                 EXISTS(SELECT 1 FROM existing WHERE revoked_at IS NOT NULL) AS was_revoked
+        `;
+        if (registration[0]?.allowed !== true) {
+          const limit = Number(registration[0]?.device_limit ?? u.device_limit);
+          const count = Number(registration[0]?.active_devices ?? 0);
+          const message = registration[0]?.was_revoked
+            ? 'Este dispositivo fue revocado. Contactá al dueño del negocio para habilitarlo nuevamente.'
+            : 'Se alcanzó el límite de dispositivos de la licencia (' + count + '/' + limit + '). El dueño del negocio debe revocar un dispositivo anterior.';
+          return send(res,403,{code:'DEVICE_LIMIT_REACHED',error:message,devices:{active:count,limit}});
+        }
+        issuedDeviceToken = rawDeviceToken;
+      }
+      // Generar la cookie antes de registrar el acceso como exitoso.
       const issuedCookie = sessionCookie(u.id,u.session_version);
       await sql`DELETE FROM app_login_attempts WHERE email=${email}`;
       if (ipHash) await sql`DELETE FROM app_login_ip_attempts WHERE ip_hash=${ipHash}`;
       try { await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details,ip_address) VALUES(${u.business_id||null},${u.id},'auth.login_success','authentication',${u.id},${JSON.stringify({email:u.email})}::jsonb,${req.headers['x-forwarded-for']?.split(',')[0]?.trim()||null})`; } catch (logError) { console.error('No se pudo registrar el acceso:',logError); }
-      return send(res,200,{user:publicUser(u)},{'Set-Cookie':issuedCookie});
+      return send(res,200,{user:publicUser(u)},{'Set-Cookie':issuedDeviceToken ? [issuedCookie,deviceTokenCookieHeader(issuedDeviceToken)] : issuedCookie});
     }
     if (path === '/api/admin/database-info' && req.method === 'GET') {
       // Diagnóstico de solo lectura: autentica sin ensureSchema para evitar DDL.
