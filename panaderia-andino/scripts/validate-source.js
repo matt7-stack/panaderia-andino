@@ -41,6 +41,8 @@ const requiredFiles = [
   'migrations/047_license_plan_device_limits.sql',
   'migrations/048_industry_library_templates.sql',
   'migrations/052_versioned_releases.sql',
+  'migrations/055_version_acknowledgement_guards.sql',
+  'migrations/056_device_registration_and_limits.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -109,6 +111,21 @@ if (!apiSource.includes("WHERE app_state.updated_at IS NOT DISTINCT FROM") ||
     !apiSource.includes("typeof input.active==='boolean'}::boolean")) {
   throw new Error('La API debe evitar sobrescrituras concurrentes, validar archivos, respetar módulos y tipar condiciones SQL.');
 }
+const deviceMigration = fs.readFileSync(path.join(root, 'migrations/056_device_registration_and_limits.sql'), 'utf8');
+if (!deviceMigration.includes('app_device_registrations') ||
+    !deviceMigration.includes('ENABLE ROW LEVEL SECURITY') ||
+    !deviceMigration.includes('FORCE ROW LEVEL SECURITY') ||
+    !deviceMigration.includes('mattsystem_devices_select') ||
+    !deviceMigration.includes('UNIQUE (business_id, device_hash)') ||
+    !apiSource.includes('deviceTokenCookie(req)') ||
+    !apiSource.includes('app_device_registrations') ||
+    !apiSource.includes('DEVICE_LIMIT_REACHED') ||
+    !apiSource.includes("path==='/api/business/devices'") ||
+    !apiSource.includes("user.role!=='admin'") ||
+    !apiSource.includes('deviceTokenCookieHeader(issuedDeviceToken)')) {
+  throw new Error('El límite de dispositivos debe registrarse por negocio, aplicarse al iniciar sesión y permitir revocación segura por el dueño.');
+}
+
 const authSource = fs.readFileSync(path.join(root, 'js/auth.js'), 'utf8');
 if (!apiSource.includes("code:'EXPECTED_VERSION_REQUIRED'") ||
     !apiSource.includes("code:'DATA_VERSION_CONFLICT'") ||
