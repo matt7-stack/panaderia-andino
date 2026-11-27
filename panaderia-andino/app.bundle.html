@@ -4992,7 +4992,35 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      const trial=l.is_trial===true;
      container.innerHTML='<article class="panel settings-card"><div class="panel-heading"><div><p class="eyebrow mb-1">PLAN '+(trial?'DE PRUEBA':'CONTRATADO')+'</p><h3 class="mb-1">'+esc(labels[l.plan]||l.plan||'Plan no especificado')+'</h3><p class="text-muted mb-0">'+esc(l.system_name||'Mattsystem')+'</p></div><span class="badge '+(l.effective_status==='active'?'bg-success':'bg-secondary')+'">'+esc(labels[l.effective_status]||l.effective_status||'Sin estado')+'</span></div><div class="row g-3 mt-1">'+field('Código de licencia',l.license_code||'No disponible')+field('Tipo de licencia',trial?'Prueba gratuita':'Licencia contratada')+field('Fecha de inicio',date(l.license_start_date||l.sold_at||l.trial_started_at||l.created_at))+field('Vencimiento',date(l.expires_at))+field('Días restantes',l.expires_at?(Number.isFinite(Number(l.days_remaining))?String(l.days_remaining):'Consultar vencimiento')+' días':'Sin vencimiento')+field('Cargo mensual',money(l.monthly_amount))+field('Precio de licencia',money(l.setup_amount))+field('Configuración inicial contratada',l.configuration_plan?((labels[l.configuration_plan]||l.configuration_plan)+' · '+money(l.configuration_amount)): 'No contratada')+field('Día de facturación','Día '+Number(l.billing_day||1)+' de cada mes')+field('Usuarios permitidos',l.user_limit===null||l.user_limit===undefined?'No especificado':String(l.user_limit))+field('Dispositivos permitidos',l.device_limit===null?'Sin límite':(l.device_limit===undefined?'No especificado':String(l.device_limit)))+field('Módulos autorizados',(Array.isArray(l.modules)?l.modules:[]).map(x=>String(x).replace(/[_-]/g,' ')).join(', ')||'Según configuración del plan')+(trial?field('Duración de prueba',Number(l.trial_days||0)+' días'):'')+(l.contract_reference?field('Referencia de contrato',l.contract_reference):'')+'</div></article><p class="text-muted small mb-0">Esta información corresponde a la licencia vinculada a tu negocio. Para solicitar cambios, renovación o aclaraciones, comunicate con soporte.</p>';
    }catch(error){container.innerHTML='<article class="panel settings-card"><p class="text-danger mb-2">'+esc(error.message||'No se pudo cargar la información de la licencia.')+'</p><button type="button" class="btn btn-outline-bakery btn-sm" id="retryLicenseInfo">Reintentar</button></article>';}
+   await loadBusinessDevices();
  }
+ async function loadBusinessDevices(){
+   const container=$('#businessDevicesPanel');
+   const info=$('#licenseInfoContent');
+   const current=window.PanaderiaAuth?.user;
+   if(!info||!current||current.is_platform_admin===true||current.role!=='admin')return;
+   try{
+     const result=await api('/api/business/devices');
+     const devices=Array.isArray(result.devices)?result.devices:[];
+     const active=devices.filter(x=>!x.revoked_at);
+     const limit=result.limit===null||result.limit===undefined?'Sin límite':String(result.limit);
+     const html='<article class="panel settings-card mt-3" id="businessDevicesPanel"><div class="panel-heading"><div><h3>Dispositivos autorizados</h3><p class="text-muted mb-0">Administrá los equipos que pueden ingresar al negocio.</p></div><span class="badge bg-secondary">'+active.length+' / '+esc(limit)+'</span></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Dispositivo</th><th>Último acceso</th><th>Estado</th><th></th></tr></thead><tbody>'+devices.map(d=>'<tr><td>'+esc(d.label||'Dispositivo')+'</td><td>'+esc(d.last_seen_at?new Date(d.last_seen_at).toLocaleString('es-PY'):'—')+'</td><td>'+(d.revoked_at?'<span class="text-muted">Revocado</span>':'<span class="text-success">Activo</span>')+'</td><td>'+(d.revoked_at?'':'<button type="button" class="btn btn-sm btn-outline-danger" data-revoke-device="'+esc(d.id)+'">Revocar</button>')+'</td></tr>').join('')+(devices.length?'':'<tr><td colspan="4" class="text-muted">Todavía no hay dispositivos registrados.</td></tr>')+'</tbody></table></div><p class="small text-muted mt-2 mb-0">Por seguridad, no podés revocar el dispositivo de esta sesión desde el mismo equipo. Para liberar ese acceso, cerrá sesión y administralo desde otro dispositivo.</p></article>';
+     const old=$('#businessDevicesPanel');if(old)old.remove();
+     info.insertAdjacentHTML('beforeend',html);
+   }catch(error){
+     const old=$('#businessDevicesPanel');if(old)old.remove();
+     info.insertAdjacentHTML('beforeend','<article class="panel settings-card mt-3" id="businessDevicesPanel"><h3>Dispositivos autorizados</h3><p class="text-danger mb-0">'+esc(error.message||'No se pudieron consultar los dispositivos.')+'</p></article>');
+   }
+ }
+ document.addEventListener('click',async event=>{
+   const button=event.target.closest('[data-revoke-device]');
+   if(!button||button.disabled)return;
+   const id=button.dataset.revokeDevice;
+   if(!confirm('¿Revocar este dispositivo? Ya no podrá iniciar sesión hasta que vuelva a ser autorizado.'))return;
+   button.disabled=true;
+   try{await api('/api/business/devices',{method:'POST',body:JSON.stringify({deviceId:id})});notify('Dispositivo revocado correctamente.');await loadBusinessDevices();}
+   catch(error){button.disabled=false;notify(error.message||'No se pudo revocar el dispositivo.');}
+ });
  let licensePlanSettings=[],licensePlanModuleCatalog=[];
  async function loadLicensePlanSettings(){
    const container=$('#licensePlanSettingsList');if(!container)return false;
