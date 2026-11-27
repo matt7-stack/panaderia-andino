@@ -708,7 +708,7 @@ module.exports = async function handler(req, res) {
             const m=Number(price?.monthly??0),s=Number(price?.setup??0);
             if(!Number.isFinite(m)||m<0||!Number.isFinite(s)||s<0)return send(res,400,{error:'Revisá los precios de los módulos de cada plan.'});
           }
-          normalized.push({plan_key:planKey,display_name:({basic:'Básico',professional:'Profesional',enterprise:'Empresa'})[planKey],setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules,annual_discount_percent:annualDiscount,permanent_price:permanent,full_sale_price:fullSale,module_prices:modulePrices});
+          normalized.push({plan_key:planKey,display_name:({basic:'Básico',professional:'Profesional',enterprise:'Empresa'})[planKey],setup_amount:setup,configuration_amount:configuration,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules,annual_discount_percent:annualDiscount,permanent_price:permanent,full_sale_price:fullSale,module_prices:modulePrices});
         }
         const allKeys=[...new Set(normalized.flatMap(x=>x.modules))];
         const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
@@ -718,7 +718,7 @@ module.exports = async function handler(req, res) {
           FROM jsonb_to_recordset(${JSON.stringify(normalized.map(x=>({...x,updated_by:admin.id})))}::jsonb)
           AS x(plan_key text,display_name text,setup_amount numeric,configuration_amount numeric,monthly_amount numeric,user_limit integer,device_limit integer,modules jsonb,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb,updated_by uuid)
           ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,configuration_amount=EXCLUDED.configuration_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,device_limit=EXCLUDED.device_limit,modules=EXCLUDED.modules,annual_discount_percent=COALESCE(EXCLUDED.annual_discount_percent,app_license_plan_settings.annual_discount_percent),permanent_price=COALESCE(EXCLUDED.permanent_price,app_license_plan_settings.permanent_price),full_sale_price=COALESCE(EXCLUDED.full_sale_price,app_license_plan_settings.full_sale_price),module_prices=COALESCE(EXCLUDED.module_prices,app_license_plan_settings.module_prices),updated_by=EXCLUDED.updated_by,updated_at=NOW()
-          RETURNING plan_key,display_name,setup_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at`;
+          RETURNING plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at`;
         return send(res,200,{plans:rows,updated:true});
       }
       return send(res,405,{error:'Método no permitido.'});
