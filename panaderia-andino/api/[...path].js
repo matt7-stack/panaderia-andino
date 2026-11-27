@@ -481,7 +481,7 @@ module.exports = async function handler(req, res) {
         if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Solo las cuentas de negocio pueden crear solicitudes.'});
         const input=body(req),subject=String(input.subject||'').trim().slice(0,120),message=String(input.message||'').trim().slice(0,3000);
         if(!subject||!message)return send(res,400,{error:'Completá el asunto y el mensaje.'});
-        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING *`;
+        const rows=await sql`INSERT INTO app_support_tickets(business_id,created_by,subject,message) VALUES(${user.business_id},${user.id},${subject},${message}) RETURNING id,version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_at,updated_at`;
         await sql`INSERT INTO app_notifications(business_id,user_id,type,title,message) SELECT ${user.business_id},u.id,'system_activity','Nueva solicitud de soporte',${'El negocio '+String(user.business_name||'')+' envió una solicitud: '+subject} FROM app_users u WHERE u.is_platform_admin=TRUE AND u.active=TRUE`;
         return send(res,201,{ticket:rows[0]});
       }
@@ -3037,7 +3037,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
       if(req.method==='GET'){
-        const releases=await sql`SELECT r.*,
+        const releases=await sql`SELECT r.id,r.version,r.title,r.summary,r.details,r.artifact_url,r.artifact_sha256,r.artifact_bytes,r.runtime_compatible,r.status,r.delivery_ready,r.published_at,r.created_at,r.updated_at,
           (SELECT COUNT(*)::int FROM app_business_versions bv WHERE bv.installed_release_id=r.id) AS installed_businesses,
           (SELECT COUNT(*)::int FROM app_business_versions bv WHERE bv.target_release_id=r.id AND bv.installed_release_id IS DISTINCT FROM bv.target_release_id) AS pending_businesses
           FROM app_releases r ORDER BY published_at DESC NULLS LAST,created_at DESC`;
