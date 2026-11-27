@@ -4423,7 +4423,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       window.__mattsystemReleaseCache=releases;window.__mattsystemVersionBusinesses=businesses;
       if(releaseRoot)releaseRoot.innerHTML=releases.map(r=>{
         const status=r.delivery_ready?'Paquete listo':(r.runtime_compatible?'Falta paquete':'Falta runtime compatible');
-        return '<article class="border rounded-3 p-2"><div class="d-flex align-items-center justify-content-between gap-2"><strong>v'+escapeHTML(r.version)+'</strong><span class="badge '+(r.delivery_ready?'bg-success':'bg-secondary')+'">'+escapeHTML(r.status==='published'?'Publicada':'Borrador')+'</span></div><div class="small fw-semibold mt-1">'+escapeHTML(r.title)+'</div><small class="text-muted d-block">'+escapeHTML(r.summary||'Sin resumen')+'</small><small class="d-block mt-1">'+escapeHTML(status)+' · '+Number(r.installed_businesses||0)+' instalados · '+Number(r.pending_businesses||0)+' pendientes</small></article>';
+        return '<article class="border rounded-3 p-2"><div class="d-flex align-items-center justify-content-between gap-2"><strong>v'+escapeHTML(r.version)+'</strong><span class="badge '+(r.delivery_ready?'bg-success':'bg-secondary')+'">'+escapeHTML(r.status==='published'?'Publicada':'Borrador')+'</span></div><div class="small fw-semibold mt-1">'+escapeHTML(r.title)+'</div><small class="text-muted d-block">'+escapeHTML(r.summary||'Sin resumen')+'</small><small class="d-block mt-1">'+escapeHTML(status)+' · '+Number(r.installed_businesses||0)+' instalados · '+Number(r.pending_businesses||0)+' pendientes</small>'+(r.status==='draft'&&r.delivery_ready?'<button class="btn btn-sm btn-outline-success mt-2" type="button" data-publish-release="'+escapeHTML(r.id)+'">Publicar versión</button>':'')+'</article>';
       }).join('')||'<small class="text-muted">Todavía no hay versiones registradas.</small>';
       const ready=releases.filter(r=>r.status==='published'&&r.delivery_ready===true);
       const bulkSelect=$('#versionBulkRelease');if(bulkSelect){const previous=bulkSelect.value;bulkSelect.innerHTML='<option value="">Versión para actualizar…</option>'+ready.map(r=>'<option value="'+escapeHTML(r.id)+'">'+escapeHTML(r.version)+'</option>').join('');if(ready.some(r=>r.id===previous))bulkSelect.value=previous;}
@@ -4441,6 +4441,18 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }
   }
   $('#refreshVersionCenter')?.addEventListener('click',()=>loadAdminVersionCenter());
+  $('#releaseRegistryList')?.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-publish-release]');if(!button)return;
+    if(!confirm('Al publicar esta versión, todos los negocios con licencia mensual recibirán la actualización automáticamente. ¿Publicar?'))return;
+    button.disabled=true;
+    try{
+      await window.PanaderiaAuth.api('/api/admin/releases',{method:'PATCH',body:JSON.stringify({id:button.dataset.publishRelease,publish:true})});
+      notify('Versión publicada. Se asignó a los negocios con licencia mensual; las permanentes no se modificaron.');
+      await loadAdminVersionCenter();await refreshCloudBusinesses();
+    }catch(error){notify(error.message||'No se pudo publicar la versión.');}
+    finally{button.disabled=false;}
+  });
+
   $('#releaseCreateForm')?.addEventListener('submit',async event=>{
     event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
     if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
