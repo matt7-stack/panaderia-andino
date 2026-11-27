@@ -887,7 +887,7 @@ module.exports = async function handler(req, res) {
         const durationType=String(input.durationType||'year_1'),durationMonths=Object.prototype.hasOwnProperty.call(termMonths,durationType)?termMonths[durationType]:Number(input.durationMonths??12),durationDays=Number(input.durationDays??0);
         const validDuration=durationType==='custom_days'?Number.isInteger(durationDays)&&durationDays>=1&&durationDays<=3650:(durationMonths===null||Number.isInteger(durationMonths)&&durationMonths>=1&&durationMonths<=120);
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!['basic','professional','enterprise'].includes(plan)||!['pending','active','suspended'].includes(status)||!Number.isInteger(billingDay)||billingDay<1||billingDay>28||!validDuration||(includeConfiguration&&!['basic','professional','enterprise'].includes(configurationPlan)))return send(res,400,{error:'Datos de licencia no válidos. Elegí un nivel de configuración válido y verificá la duración.'});
-        const planRows=await sql`SELECT setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
+        const planRows=await sql`SELECT setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,module_prices FROM app_license_plan_settings WHERE plan_key=${plan} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No existe una configuración para este tipo de licencia. Configurá los planes antes de emitir licencias.'});
         const hasUserLimit=Object.prototype.hasOwnProperty.call(input,'userLimit'),hasDeviceLimit=Object.prototype.hasOwnProperty.call(input,'deviceLimit');
         const userLimit=hasUserLimit?(input.userLimit===null||input.userLimit===''?null:Number(input.userLimit)):(planRows[0].user_limit===null?null:Number(planRows[0].user_limit));
@@ -903,6 +903,8 @@ module.exports = async function handler(req, res) {
         if(requestedExtraModules.length){
           extraModules=await sql`SELECT module_key,monthly_price,setup_price,commercial_mode FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
           if(extraModules.length!==requestedExtraModules.length)return send(res,400,{error:'Uno o más módulos adicionales no están disponibles o implementados.'});
+          const planModulePrices=planRows[0].module_prices&&typeof planRows[0].module_prices==='object'?planRows[0].module_prices:{};
+          extraModules=extraModules.map(module=>{const price=planModulePrices[module.module_key]||{};return {...module,setup_price:Number(price.setup??module.setup_price??0),monthly_price:Number(price.monthly??module.monthly_price??0)};});
           setup+=extraModules.reduce((sum,m)=>sum+Number(m.setup_price||0),0);
           monthly+=extraModules.reduce((sum,m)=>sum+Number(m.monthly_price||0),0);
         }
