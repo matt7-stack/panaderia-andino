@@ -490,7 +490,7 @@ if (!html.includes('id="adminBackupBusiness"') ||
 if (!html.includes("m.active!==false&&!allowed.has(m.module_key)")) {
   throw new Error('Las cotizaciones deben ofrecer todos los módulos activos que no estén incluidos en el plan.');
 }
-if (!html.includes("m.active!==false&&!included.includes(m.module_key)") ||
+if (!html.includes("m.active!==false&&['core','addon'].includes(m.commercial_mode)&&!included.includes(m.module_key)") ||
     !apiSource.includes("implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text") ||
     !apiSource.includes("catalog.commercial_mode='addon'")) {
   throw new Error('Las licencias deben permitir contratar módulos implementados excluidos del plan sin registrar módulos core como complementos opcionales.');
