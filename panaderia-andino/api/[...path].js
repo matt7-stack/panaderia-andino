@@ -3156,6 +3156,8 @@ module.exports = async function handler(req, res) {
         const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
         if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)
           return send(res,409,{error:'Esta versión todavía no tiene un paquete publicado y verificable.'});
+        const latest=await sql`SELECT id FROM app_releases WHERE status='published' AND delivery_ready=TRUE ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 1`;
+        if(!latest.length||latest[0].id!==releaseId)return send(res,409,{error:'Los negocios con mensualidad solo pueden recibir la versión estable más reciente.'});
         const businesses=await sql`SELECT b.id,COALESCE(l.monthly_amount,0) AS monthly_amount,COALESCE(l.is_trial,FALSE) AS is_trial,
           l.expires_at,lic.status AS license_status
           FROM businesses b LEFT JOIN LATERAL(SELECT status,is_trial,monthly_amount,expires_at FROM app_licenses x
@@ -3204,6 +3206,14 @@ module.exports = async function handler(req, res) {
           const current=await sql`SELECT bv.installed_release_id,bv.target_release_id FROM app_business_versions bv WHERE bv.business_id=${businessId} LIMIT 1`;
           if(current[0]?.installed_release_id===releaseId||current[0]?.target_release_id===releaseId)
             return send(res,409,{error:'Ese negocio ya tiene esa versión instalada o asignada.'});
+          if(current[0]?.installed_release_id){
+            const installed=await sql`SELECT version FROM app_releases WHERE id=${current[0].installed_release_id} LIMIT 1`;
+            if(installed.length){
+              const nextParts=release[0].version.split(/[+-]/)[0].split('.').map(Number),currentParts=installed[0].version.split(/[+-]/)[0].split('.').map(Number);
+              let isNewer=false;for(let i=0;i<3;i++){if(nextParts[i]!==currentParts[i]){isNewer=nextParts[i]>currentParts[i];break;}}
+              if(!isNewer)return send(res,409,{error:'Una mejora de licencia permanente debe ser una versión superior. Para volver atrás usá Revertir.'});
+            }
+          }
           const rows=await sql`INSERT INTO app_version_upgrade_requests(business_id,from_release_id,to_release_id,quoted_amount,client_accepted_at,paid_at,payment_reference,status,notes,created_by,approved_by)
             VALUES(${businessId},${current[0]?.installed_release_id||null},${releaseId},${amount},NOW(),NOW(),${paymentReference},'paid',${notes},${admin.id},${admin.id}) RETURNING *`;
           await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
