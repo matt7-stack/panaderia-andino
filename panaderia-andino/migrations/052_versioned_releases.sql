@@ -53,3 +53,16 @@ ON CONFLICT(version) DO NOTHING;
 INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id)
 SELECT b.id,r.id,r.id FROM businesses b CROSS JOIN app_releases r WHERE r.version='2.0.1'
 ON CONFLICT(business_id) DO NOTHING;
+
+ALTER TABLE app_releases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_releases FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS mattsystem_releases_admin_all ON app_releases;
+CREATE POLICY mattsystem_releases_admin_all ON app_releases FOR ALL USING (app_is_platform_admin()) WITH CHECK (app_is_platform_admin());
+ALTER TABLE app_business_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_business_versions FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS mattsystem_business_versions_admin_all ON app_business_versions;
+CREATE POLICY mattsystem_business_versions_admin_all ON app_business_versions FOR ALL USING (app_is_platform_admin()) WITH CHECK (app_is_platform_admin());
+ALTER TABLE app_version_upgrade_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_version_upgrade_requests FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS mattsystem_version_upgrades_admin_all ON app_version_upgrade_requests;
+CREATE POLICY mattsystem_version_upgrades_admin_all ON app_version_upgrade_requests FOR ALL USING (app_is_platform_admin()) WITH CHECK (app_is_platform_admin());
