@@ -30,7 +30,11 @@
         document.body.classList.add('auth-locked');
         showLogin('Tu sesión venció. Iniciá sesión nuevamente.');
       }
-      throw new Error(result.error || 'No se pudo completar la solicitud.');
+      const error = new Error(result.error || 'No se pudo completar la solicitud.');
+      error.status = response.status;
+      error.code = result.code || '';
+      error.serverUpdatedAt = result.serverUpdatedAt || null;
+      throw error;
     }
     return result;
   }
