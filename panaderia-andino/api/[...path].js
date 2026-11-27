@@ -1521,24 +1521,29 @@ module.exports = async function handler(req, res) {
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
         const activateTrial=input.activateTrial===true;
-        const trialPlanKey=String(input.trialPlanKey||'basic');
-        if(activateTrial&&!['basic','professional','enterprise'].includes(trialPlanKey))return send(res,400,{error:'Seleccioná un plan válido para la prueba gratuita.'});
-        let selectedModules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-        if(activateTrial){
-          const trialPlan=await sql`SELECT plan_key,modules FROM app_license_plan_settings WHERE plan_key=${trialPlanKey} LIMIT 1`;
-          if(!trialPlan.length)return send(res,400,{error:'No encontramos la configuración del plan elegido para la prueba.'});
-          selectedModules=Array.isArray(trialPlan[0].modules)?[...new Set(trialPlan[0].modules.map(x=>String(x).trim()).filter(Boolean))]:[];
-        }
-        if(configMode==='custom'&&!selectedModules.length)return send(res,400,{error:'En configuración personalizada seleccioná al menos un módulo.'});
-        if(!selectedModules.length){
-          const defaults=await sql`SELECT module_key FROM app_industry_templates WHERE industry_key=${industry} AND enabled_by_default=TRUE ORDER BY module_key`;
-          selectedModules=defaults.map(row=>row.module_key);
-        }
-        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(selectedModules)}::jsonb))`;
-        if(!selectedModules.length||validModules.length!==selectedModules.length)return send(res,400,{error:'Seleccioná al menos un módulo válido.'});
-        if(!selectedModules.includes('dashboard'))selectedModules.push('dashboard');
+        const licensePlanKey=String(input.licensePlanKey||input.trialPlanKey||'basic');
+        const trialPlanKey=String(input.trialPlanKey||licensePlanKey);
+        if(!['basic','professional','enterprise'].includes(licensePlanKey)||!['basic','professional','enterprise'].includes(trialPlanKey))return send(res,400,{error:'Seleccioná un tipo de licencia válido.'});
+        if(activateTrial&&trialPlanKey!==licensePlanKey)return send(res,400,{error:'El plan de prueba debe coincidir con el tipo de licencia seleccionado.'});
+        const planRows=await sql`SELECT plan_key,modules,setup_amount,monthly_amount,user_limit FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
+        if(!planRows.length)return send(res,409,{error:'No encontramos la configuración comercial del plan seleccionado.'});
+        const planModules=[...new Set((Array.isArray(planRows[0].modules)?planRows[0].modules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(planModules)}::jsonb))`;
+        if(!planModules.length||validModules.length!==planModules.length)return send(res,409,{error:'El plan contiene módulos no disponibles. Revisá las condiciones comerciales antes de crear el negocio.'});
+        const requestedAddons=[...new Set((Array.isArray(input.additionalModules)?input.additionalModules:[]).map(x=>String(x).trim()).filter(Boolean))];
+        if(activateTrial&&requestedAddons.length)return send(res,400,{error:'Las pruebas gratuitas incluyen los módulos del nivel elegido; los complementos se contratan al emitir una licencia comercial.'});
+        const addonRows=requestedAddons.length?await sql`SELECT module_key,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='addon' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedAddons)}::jsonb))`:[];
+        if(addonRows.length!==requestedAddons.length)return send(res,400,{error:'Uno o más complementos seleccionados no están disponibles para contratación.'});
+        const selectedModules=planModules;
+        const licensedModules=[...new Set([...planModules,...requestedAddons])];
+        const planSetup=Number(planRows[0].setup_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.setup_price||0),0);
+        const planMonthly=Number(planRows[0].monthly_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.monthly_price||0),0);
+        const planUserLimit=planRows[0].user_limit===null?null:Number(planRows[0].user_limit);
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
+        const defaultDeviceSettings=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
+        const licenseDeviceLimit=defaultDeviceSettings[0]?.device_limit===null||defaultDeviceSettings[0]?.device_limit===undefined?null:Number(defaultDeviceSettings[0].device_limit);
+        const newLicenseCode='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
         const quotationId=String(input.quotationId||'');
         const requestedTrialDays=Number(input.trialDays||7);
         if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>3650))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 3650 días.'});
@@ -1572,25 +1577,47 @@ module.exports = async function handler(req, res) {
             setup_amount,monthly_amount,billing_day,user_limit,device_limit,created_by,is_trial,
             trial_started_at,trial_days,modules
           )
-          SELECT created.id,${trialCode},${licenseSystem},${activateTrial?trialPlanKey:'basic'},'active',CURRENT_DATE,
+          SELECT created.id,${trialCode},${licenseSystem},${trialPlanKey},'active',CURRENT_DATE,
             (CURRENT_DATE + trial_settings.trial_days),
             0,0,1,trial_settings.user_limit,trial_settings.device_limit,${admin.id},TRUE,NOW(),trial_settings.trial_days,
             ${JSON.stringify(selectedModules)}::jsonb
           FROM created CROSS JOIN trial_settings
           WHERE ${activateTrial}::boolean=TRUE
           RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,trial_days,device_limit,modules
+        ), paid_license_created AS (
+          INSERT INTO app_licenses(
+            business_id,license_code,system_name,plan,status,sold_at,expires_at,
+            setup_amount,monthly_amount,billing_day,user_limit,device_limit,created_by,is_trial,modules
+          )
+          SELECT created.id,${newLicenseCode},${licenseSystem},${licensePlanKey},'pending',CURRENT_DATE,
+            (CURRENT_DATE + INTERVAL '12 months')::date,${planSetup},${planMonthly},1,${planUserLimit},${licenseDeviceLimit},${admin.id},FALSE,
+            ${JSON.stringify(licensedModules)}::jsonb
+          FROM created
+          WHERE ${activateTrial}::boolean=FALSE
+          RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,setup_amount,monthly_amount,user_limit,device_limit,modules
+        ), addons_created AS (
+          INSERT INTO app_business_addons(business_id,module_key,contracted,enabled,status,contracted_at,activated_at,deactivated_at,updated_by,updated_at)
+          SELECT created.id,addon.module_key,TRUE,TRUE,'active',NOW(),NOW(),NULL,${admin.id},NOW()
+          FROM created
+          CROSS JOIN jsonb_to_recordset(${JSON.stringify(requestedAddons.map(module_key=>({module_key})))}::jsonb) AS addon(module_key text)
+          WHERE ${activateTrial}::boolean=FALSE
+          ON CONFLICT (business_id,module_key) DO UPDATE SET contracted=TRUE,enabled=TRUE,status='active',contracted_at=COALESCE(app_business_addons.contracted_at,NOW()),activated_at=NOW(),deactivated_at=NULL,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+          RETURNING module_key
         ), quote_linked AS (
           UPDATE app_quotations SET business_id=(SELECT id FROM created),status=CASE WHEN status='accepted' THEN 'converted' ELSE status END,updated_at=NOW()
           WHERE id=NULLIF(${quotationId},'')::uuid AND (business_id IS NULL OR business_id=(SELECT id FROM created)) RETURNING id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,quotationId:quotationId||null,trialLicense:activateTrial,trialDays:activateTrial?requestedTrialDays:null})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,licensePlanKey,additionalModules:requestedAddons,quotationId:quotationId||null,trialLicense:activateTrial,trialDays:activateTrial?requestedTrialDays:null})}::jsonb FROM created RETURNING id
         )
         SELECT created.*,
-          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'isTrial',l.is_trial,'trialDays',l.trial_days,'modules',l.modules) FROM trial_created l LIMIT 1) AS trial_license
+          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'isTrial',l.is_trial,'trialDays',l.trial_days,'modules',l.modules) FROM trial_created l LIMIT 1) AS trial_license,
+          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'setupAmount',l.setup_amount,'monthlyAmount',l.monthly_amount,'modules',l.modules) FROM paid_license_created l LIMIT 1) AS paid_license,
+          (SELECT COUNT(*)::int FROM addons_created) AS addons_created_count
         FROM created`;
         const trialLicense=rows[0]?.trial_license||null;
-        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:!!trialLicense,trialLicense});
+        const paidLicense=rows[0]?.paid_license||null;
+        return send(res,201,{business:rows[0],configuration:{industry,configMode,modules:selectedModules},licenseCreated:!!(trialLicense||paidLicense),trialLicense,license:paidLicense,additionalModules:requestedAddons,addonsCreated:Number(rows[0]?.addons_created_count||0)});
       }
       if(req.method==='PATCH'){
         const input=body(req); const id=String(input.id||''); if(!id) return send(res,400,{error:'Falta el identificador del negocio.'});
