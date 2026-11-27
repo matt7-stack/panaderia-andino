@@ -901,7 +901,7 @@ module.exports = async function handler(req, res) {
         if(requestedExtraModules.length>50||requestedExtraModules.some(key=>planModules.includes(key)))return send(res,400,{error:'Los módulos adicionales no son válidos o ya están incluidos en el plan.'});
         let extraModules=[],setup=planSetup,monthly=planMonthly;
         if(requestedExtraModules.length){
-          extraModules=await sql`SELECT module_key,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='addon' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
+          extraModules=await sql`SELECT module_key,monthly_price,setup_price,commercial_mode FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
           if(extraModules.length!==requestedExtraModules.length)return send(res,400,{error:'Uno o más módulos adicionales no están disponibles o implementados.'});
           setup+=extraModules.reduce((sum,m)=>sum+Number(m.setup_price||0),0);
           monthly+=extraModules.reduce((sum,m)=>sum+Number(m.monthly_price||0),0);
@@ -933,6 +933,7 @@ module.exports = async function handler(req, res) {
             SELECT license_created.business_id,addon.module_key,TRUE,TRUE,'active',NOW(),NOW(),NULL,${admin.id},NOW()
             FROM license_created
             CROSS JOIN jsonb_to_recordset(${JSON.stringify(requestedExtraModules.map(module_key=>({module_key})))}::jsonb) AS addon(module_key text)
+            JOIN app_module_catalog catalog ON catalog.module_key=addon.module_key AND catalog.commercial_mode='addon'
             ON CONFLICT (business_id,module_key) DO UPDATE SET contracted=TRUE,enabled=TRUE,status='active',contracted_at=COALESCE(app_business_addons.contracted_at,NOW()),activated_at=NOW(),deactivated_at=NULL,updated_by=EXCLUDED.updated_by,updated_at=NOW()
             RETURNING module_key
           )
