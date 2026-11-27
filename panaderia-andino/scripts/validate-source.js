@@ -85,6 +85,15 @@ inlineScripts.forEach((source, index) => {
   new vm.Script(source, { filename: 'app.bundle.html:inline-script-' + (index + 1) });
 });
 
+const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+const securityHeaders = vercelConfig.headers?.[0]?.headers || [];
+const cspReportOnly = securityHeaders.find(header => header.key === 'Content-Security-Policy-Report-Only')?.value || '';
+if (!cspReportOnly.includes("default-src 'self'") ||
+    !cspReportOnly.includes("frame-ancestors 'none'") ||
+    !cspReportOnly.includes("script-src 'self'") ||
+    !cspReportOnly.includes('https://cdn.jsdelivr.net')) {
+  throw new Error('Falta una política CSP en modo Report-Only para medir compatibilidad antes de endurecer la política aplicada.');
+}
 for (const relative of ['manifest.webmanifest', 'vercel.json']) {
   JSON.parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 }
