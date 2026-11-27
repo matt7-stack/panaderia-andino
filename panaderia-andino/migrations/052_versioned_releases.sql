@@ -95,3 +95,5 @@ CREATE POLICY mattsystem_releases_published_read ON app_releases FOR SELECT USIN
 
 DROP POLICY IF EXISTS mattsystem_version_upgrades_tenant_ack ON app_version_upgrade_requests;
 CREATE POLICY mattsystem_version_upgrades_tenant_ack ON app_version_upgrade_requests FOR UPDATE USING (business_id=app_current_business_id()) WITH CHECK (business_id=app_current_business_id());
+
+ALTER TABLE app_releases ADD COLUMN IF NOT EXISTS artifact_content text;
