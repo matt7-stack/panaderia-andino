@@ -26,6 +26,7 @@
   <meta name="description" content="Gestión de Negocio: sistema integral para administrar operaciones, ingresos, gastos, notas y configuración.">
   <meta name="theme-color" content="#142b45">
   <meta name="application-name" content="MATTSYSTEM">
+  <meta name="mattsystem-version" content="2.0.1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="MATTSYSTEM">
@@ -4680,6 +4681,18 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   setInterval(updateGreeting, 60000);
   // Un error al dibujar una tarjeta o un dato no debe impedir que se active la vista inicial.
   try { renderAll(); } catch (error) { console.error('Error al renderizar el contenido inicial:', error); }
+  const ensureBusinessRuntimeVersion=async user=>{
+    if(!user||user.isPlatformAdmin===true||user.is_platform_admin===true)return false;
+    const buildVersion=document.querySelector('meta[name="mattsystem-version"]')?.content||'2.0.1';
+    const result=await window.PanaderiaAuth.api('/api/business/version?build='+encodeURIComponent(buildVersion));
+    if(result.action==='redirect'&&result.artifactUrl){
+      const destination=new URL(result.artifactUrl,window.location.origin);
+      if(destination.origin!==window.location.origin||!destination.pathname.startsWith('/releases/'))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
+      destination.search=window.location.search;destination.hash=window.location.hash;
+      window.location.replace(destination.href);return true;
+    }
+    return false;
+  };
   const applyInitialRoute = async (user) => {
     const hashPage = window.location.hash.replace('#', '');
     if (user?.isPlatformAdmin === true) {
@@ -4713,10 +4726,18 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       startAuthenticatedHydration(user).catch(error => console.error('Error al iniciar administración:', error));
       return;
     }
-    if (user) await startAuthenticatedHydration(user);
+    if (user) {
+      try{if(await ensureBusinessRuntimeVersion(user))return;}
+      catch(error){console.warn('No se pudo comprobar la versión asignada:',error.message);}
+      await startAuthenticatedHydration(user);
+    }
     if (['dashboard', 'movimientos', 'notas', 'empleados', 'configuracion'].includes(hashPage)) pageNavigate(hashPage);
     else pageNavigate('dashboard');
   };
+  window.addEventListener('panaderia:authenticated',()=>{
+    const current=window.PanaderiaAuth?.user;
+    if(current&&!current.isPlatformAdmin&&!current.is_platform_admin)ensureBusinessRuntimeVersion(current).catch(error=>console.warn('No se pudo comprobar la actualización:',error.message));
+  });
   if (window.PanaderiaAuthReady && typeof window.PanaderiaAuthReady.then === 'function') {
     window.PanaderiaAuthReady.then(applyInitialRoute).catch(() => applyInitialRoute(null));
   } else applyInitialRoute(window.PanaderiaAuth?.user || null);
