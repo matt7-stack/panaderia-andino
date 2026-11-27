@@ -274,6 +274,8 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !html.includes('id="healthActiveTrials"') || !html.includes('id="healthUserLimitExceeded"') ||
     !html.includes('id="healthSuspendedLicenses"') || !html.includes('id="healthDeviceLimits"') ||
     !html.includes('id="healthDailyTrend"') || !html.includes('id="healthWeeklyTrend"') || !html.includes('id="healthMonthlyTrend"') ||
+    !html.includes('id="healthLatestDeploymentUrl"') || !html.includes('id="healthLatestDeploymentCommit"') ||
+    !apiSource.includes("process.env.VERCEL_PROJECT_NAME") || !apiSource.includes('No se pudo verificar Vercel') ||
     !html.includes('id="healthDeviceControl"') || !html.includes('id="healthLockedAccounts"') ||
     !html.includes('id="healthBackupMissingBusinesses"') || !html.includes('id="healthLatestDeployment"') ||
     !html.includes('id="healthModules"') || !html.includes('id="healthVersions"') ||
