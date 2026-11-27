@@ -4398,6 +4398,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       const selected = cloudBusinesses.find((b) => b.id === window.PanaderiaAuth.selectedBusinessId && b.active);
       if (!selected && window.PanaderiaAuth.selectedBusinessId) window.PanaderiaAuth.selectBusiness('');
       renderCloudBusinesses();
+      loadAdminVersionCenter();
       const target=$('#adminNotificationTarget');
       if(target){const selected=target.value;target.innerHTML='<option value="all">Todas los negocios y sus usuarios</option>'+cloudBusinesses.filter(b=>b.active).map(b=>'<option value="'+escapeHTML(b.id)+'">'+escapeHTML(b.name)+'</option>').join('');if([...target.options].some(o=>o.value===selected))target.value=selected;}
     } catch (error) {
@@ -4407,6 +4408,71 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       throw error;
     }
   }
+  async function loadAdminVersionCenter(){
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    const releaseRoot=$('#releaseRegistryList'),assignmentRoot=$('#versionAssignmentsList'),upgradeRoot=$('#permanentUpgradeList');
+    try{
+      const [releaseData,businessData,upgradeData]=await Promise.all([
+        window.PanaderiaAuth.api('/api/admin/releases'),
+        window.PanaderiaAuth.api('/api/admin/business-versions'),
+        window.PanaderiaAuth.api('/api/admin/version-upgrades')
+      ]);
+      const releases=releaseData.releases||[],businesses=businessData.businesses||[],requests=upgradeData.requests||[];
+      window.__mattsystemReleaseCache=releases;window.__mattsystemVersionBusinesses=businesses;
+      if(releaseRoot)releaseRoot.innerHTML=releases.map(r=>{
+        const status=r.delivery_ready?'Paquete listo':(r.runtime_compatible?'Falta paquete':'Falta runtime compatible');
+        return '<article class="border rounded-3 p-2"><div class="d-flex align-items-center justify-content-between gap-2"><strong>v'+escapeHTML(r.version)+'</strong><span class="badge '+(r.delivery_ready?'bg-success':'bg-secondary')+'">'+escapeHTML(r.status==='published'?'Publicada':'Borrador')+'</span></div><div class="small fw-semibold mt-1">'+escapeHTML(r.title)+'</div><small class="text-muted d-block">'+escapeHTML(r.summary||'Sin resumen')+'</small><small class="d-block mt-1">'+escapeHTML(status)+' · '+Number(r.installed_businesses||0)+' instalados · '+Number(r.pending_businesses||0)+' pendientes</small></article>';
+      }).join('')||'<small class="text-muted">Todavía no hay versiones registradas.</small>';
+      const ready=releases.filter(r=>r.status==='published'&&r.delivery_ready===true);
+      if(assignmentRoot)assignmentRoot.innerHTML='<table class="table table-sm align-middle"><thead><tr><th>Negocio</th><th>Instalada</th><th>Licencia</th><th>Asignar</th></tr></thead><tbody>'+businesses.map(b=>{
+        const opts=ready.map(r=>'<option value="'+escapeHTML(r.id)+'" '+(r.id===b.target_release_id?'selected':'')+'>'+escapeHTML(r.version)+'</option>').join('');
+        const permanent=b.license_mode==='permanent';
+        return '<tr><td><strong>'+escapeHTML(b.name)+'</strong><small class="d-block text-muted">'+escapeHTML(b.active?'Activo':'Inactivo')+'</small></td><td>'+escapeHTML(b.installed_version||'Sin asignar')+(b.target_version&&b.target_version!==b.installed_version?'<small class="d-block text-warning">Destino: '+escapeHTML(b.target_version)+'</small>':'')+'</td><td>'+escapeHTML(({monthly:'Mensual',permanent:'Permanente',fixed_term:'Plazo fijo',trial:'Prueba',missing:'Sin licencia'})[b.license_mode]||'—')+'</td><td><div class="d-flex gap-1"><select class="form-select form-select-sm" data-version-select="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+'><option value="">Versión…</option>'+opts+'</select><button class="btn btn-sm btn-outline-primary" type="button" '+(permanent?'data-permanent-version':'data-assign-version')+'="'+escapeHTML(b.business_id)+'" '+(!ready.length?'disabled':'')+' title="'+(permanent?'Registrar aceptación y pago':'Asignar actualización')+'"><i class="bi bi-arrow-repeat"></i></button></div></td></tr>';
+      }).join('')+'</tbody></table>'+(ready.length?'':'<small class="text-warning">No hay paquetes instalables todavía. Las asignaciones permanecerán bloqueadas hasta completar el runtime versionado.</small>');
+      if(upgradeRoot)upgradeRoot.innerHTML=requests.map(u=>'<div class="border rounded-3 p-2 mb-2"><strong>'+escapeHTML(u.business_name)+'</strong> · '+escapeHTML(u.from_version||'—')+' → '+escapeHTML(u.to_version)+'<div class="small text-muted">Gs. '+Number(u.quoted_amount||0).toLocaleString('es-PY')+' · '+escapeHTML(u.status)+' · '+escapeHTML(u.payment_reference||'Sin referencia')+'</div></div>').join('')||'<small class="text-muted">No hay mejoras permanentes registradas.</small>';
+    }catch(error){
+      if(releaseRoot)releaseRoot.textContent='No se pudo cargar el historial: '+(error.message||'Error');
+      if(assignmentRoot)assignmentRoot.textContent='No se pudieron cargar las asignaciones.';
+      if(upgradeRoot)upgradeRoot.textContent='No se pudieron cargar las mejoras.';
+      console.error('Error al cargar el centro de versiones:',error);
+    }
+  }
+  $('#refreshVersionCenter')?.addEventListener('click',()=>loadAdminVersionCenter());
+  $('#releaseCreateForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+    if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+    button.disabled=true;
+    try{
+      await window.PanaderiaAuth.api('/api/admin/releases',{method:'POST',body:JSON.stringify({
+        version:$('#releaseNewVersion').value.trim(),title:$('#releaseNewTitle').value.trim(),
+        summary:$('#releaseNewSummary').value.trim(),details:$('#releaseNewDetails').value.trim(),publish:false
+      })});
+      form.reset();await loadAdminVersionCenter();notify('Versión registrada como borrador. Todavía no se puede instalar hasta preparar el paquete y el runtime.');
+    }catch(error){notify(error.message||'No se pudo registrar la versión.');}
+    finally{button.disabled=false;}
+  });
+  $('#versionAssignmentsList')?.addEventListener('click',async event=>{
+    const assign=event.target.closest('[data-assign-version],[data-permanent-version]');if(!assign)return;
+    const businessId=assign.dataset.assignVersion||assign.dataset.permanentVersion;
+    const select=document.querySelector('[data-version-select="'+businessId+'"]'),releaseId=select?.value;
+    if(!releaseId){notify('Elegí primero una versión disponible.');return;}
+    assign.disabled=true;
+    try{
+      if(assign.hasAttribute('data-permanent-version')){
+        const amount=prompt('Importe acordado por la mejora (Gs.):');if(amount===null)return;
+        const parsed=Number(String(amount).replace(/[^0-9]/g,''));if(!Number.isFinite(parsed)||parsed<=0)throw new Error('Ingresá un importe válido.');
+        if(!confirm('Confirmá que el cliente aceptó esta actualización y que el pago ya fue recibido.'))return;
+        const paymentReference=prompt('Referencia o comprobante del pago:');if(!paymentReference?.trim())throw new Error('La referencia del pago es obligatoria.');
+        await window.PanaderiaAuth.api('/api/admin/version-upgrades',{method:'POST',body:JSON.stringify({action:'record-permanent-upgrade',businessId,releaseId,amount:parsed,clientAccepted:true,paymentReceived:true,paymentReference:paymentReference.trim()})});
+        notify('Aceptación y pago registrados. La mejora quedó autorizada.');
+      }else{
+        await window.PanaderiaAuth.api('/api/admin/business-versions',{method:'POST',body:JSON.stringify({businessIds:[businessId],releaseId})});
+        notify('Versión asignada. La instalación se confirmará cuando el runtime cargue el paquete.');
+      }
+      await loadAdminVersionCenter();await refreshCloudBusinesses();
+    }catch(error){notify(error.message||'No se pudo asignar la versión.');}
+    finally{assign.disabled=false;}
+  });
   async function refreshCloudUsers() {
     if (window.PanaderiaAuth?.user?.isPlatformAdmin !== true) { cloudUsers = []; renderSettings(); return; }
     const result = await window.PanaderiaAuth.api('/api/admin/users');
