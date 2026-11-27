@@ -2886,6 +2886,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       const picker=fields.querySelector('#businessModulesPicker');
       const industrySelect=fields.querySelector('#businessIndustry');
       const modeSelect=fields.querySelector('#businessConfigMode');
+      modeSelect.value='template';modeSelect.disabled=true;modeSelect.closest('.col-md-6')?.setAttribute('hidden','');
       const count=fields.querySelector('#businessModuleCount');
       const trialToggle=fields.querySelector('#businessActivateTrial');
       const trialDaysInput=fields.querySelector('#businessTrialDays');
@@ -2940,6 +2941,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         if(trialToggle.checked){addonHost.querySelectorAll('[data-business-addon]').forEach(input=>{input.checked=false;input.disabled=true;});}
         else addonHost.querySelectorAll('[data-business-addon]').forEach(input=>input.disabled=false);
         updateBusinessPricingSummary();
+        updateBusinessPricingSummary();
       };
       const invalidateBusinessQuote=()=>{delete fields.dataset.quotationId;const preview=fields.querySelector('#businessQuotePreview');if(preview)preview.textContent='La configuración cambió. Generá una nueva cotización antes de crear el negocio.';};
       industrySelect.addEventListener('change',()=>{if(industrySelect.value==='otro_rubro'&&modeSelect.value==='template')modeSelect.value='hybrid';applyTemplate();invalidateBusinessQuote();});
@@ -2967,7 +2969,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         if(simpleModalMode!=='business')return;
         unavailableModules=new Set((result.modules||[]).filter(module=>!module.active||!module.implemented).map(module=>module.module_key));
         if(unavailableModules.has('products'))['sales','inventory','purchases','recipes','production'].forEach(key=>unavailableModules.add(key));
-        boxes().forEach(box=>{const key=box.dataset.businessModule;if(unavailableModules.has(key)){box.checked=false;box.disabled=true;}else if(key!=='dashboard')box.disabled=modeSelect.value==='template';});
+        boxes().forEach(box=>{const key=box.dataset.businessModule;if(unavailableModules.has(key)){box.checked=false;box.disabled=true;}else box.disabled=true;});
         count.textContent=boxes().filter(box=>box.checked).length+' módulos seleccionados';
       }).catch(()=>{});
       const quotePlanSelect=fields.querySelector('#businessQuoteLicenseType');
