@@ -2333,7 +2333,15 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   let cloudSaveTimer = null;
   let cloudUpdatedAt = null;
   let cloudSaving = false;
+  let cloudConflict = false;
   let cloudSyncInterval = null;
+  window.addEventListener('mattsystem:data-conflict', event => {
+    cloudConflict = true;
+    try {
+      localStorage.setItem(STORAGE_KEY + '_conflict_backup', JSON.stringify({ savedAt: new Date().toISOString(), serverUpdatedAt: event.detail?.serverUpdatedAt || null, data: state }));
+    } catch (error) { console.error('No se pudo conservar la copia local del conflicto.', error); }
+    notify('Otro usuario guardó cambios primero. Tus cambios locales quedaron respaldados en este dispositivo y la sincronización automática se pausó para evitar sobrescribir información. Recargá solo después de revisar esos cambios.');
+  });
   const cloudPayload = () => {
     const payload = JSON.parse(JSON.stringify(state));
     delete payload.users;
@@ -2342,7 +2350,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   const saveState = (syncCloud = true) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      if (syncCloud && cloudReady && window.PanaderiaAuth?.user) {
+      if (syncCloud && cloudReady && !cloudConflict && window.PanaderiaAuth?.user) {
         clearTimeout(cloudSaveTimer);
         cloudSaveTimer = setTimeout(async () => {
           cloudSaveTimer = null; cloudSaving = true;
@@ -4661,7 +4669,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
   }
 
   async function refreshCloudData() {
-    if (!window.PanaderiaAuth?.user || !cloudReady || cloudSaving || cloudSaveTimer) return;
+    if (!window.PanaderiaAuth?.user || !cloudReady || cloudConflict || cloudSaving || cloudSaveTimer) return;
     try { const endpoint = window.PanaderiaAuth.user?.role === 'employee' ? '/api/business/employee-data' : '/api/data';
       const result = await window.PanaderiaAuth.api(endpoint);
       if (result.data && result.updatedAt && result.updatedAt !== cloudUpdatedAt) { state = { ...createEmptyState(), ...result.data }; state.categories = { ...createEmptyState().categories, ...(state.categories || {}) }; state.categories.expense = [...new Set([...(createEmptyState().categories.expense || []), ...(state.categories.expense || [])])]; delete state.users; cloudUpdatedAt = result.updatedAt; saveState(false); renderAll(); }
