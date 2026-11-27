@@ -74,3 +74,26 @@ Implementar la suite completa de mejoras acordada por el propietario en una rama
 - No se activa ni cobra ninguna tarifa nueva sin definición del propietario.
 - No se incluye ninguna función de turnos de trabajo.
 - Preview debe estar READY en el commit de esta rama; producción permanece intacta.
+
+## Auditoría inicial de implementación (27-11-2026)
+
+### Reutilizable ya presente en Neon QA
+- Caja: app_cash_sessions ya contiene opening_amount, closing_amount, expected_amount, difference, opened_by, closed_by y estados open/closed; existe restricción de una sola caja abierta por negocio. app_cash_movements registra ingresos y egresos. El modelo de datos soporta arqueo/diferencia; falta verificar y completar UX, validaciones, cierre y reportes.
+- Inventario: app_products ya tiene min_stock y stock; app_inventory_movements admite entry, exit, adjustment y waste con cantidad/costo/actor. Se puede reutilizar para alertas y mermas sin crear módulo duplicado.
+- Auditoría: app_audit_logs existe y la API expone /api/admin/activity. Falta comprobar cobertura real de eventos por acción/usuario y acceso del administrador del negocio/supervisor.
+- Respaldos: app_business_backups conserva payload, checksum, tamaño y datos de restauración; /api/business/backups existe. Revisar integridad, permisos, retención y UX de restauración.
+- Papelera: app_trash y /api/admin/trash existen; actualmente el tipo de entidad permitido en DB incluye negocio, usuario y anuncio. Ampliar solo si se define restauración segura de más entidades.
+- Cotizaciones/prospectos: app_quotations ya tiene prospect_name, prospect_email, industria, módulos, precios, estado y notas; /api/admin/quotations existe. Falta verificar pipeline/seguimiento y generación PDF real.
+- Empleados: app_employee_offboarding_events, session_version y permisos JSON en app_users ya existen. Falta comprobar revocación inmediata de todas las sesiones y la granularidad efectiva de cada operación.
+- Notificaciones y novedades: app_notifications, app_notification_preferences y app_release_notes existen; revisar experiencia unificada, destinatarios y filtros.
+- Centro de control: existe la sección base y varias rutas administrativas, pero debe auditarse el alcance de métricas y estado operativo.
+
+### Brechas de interfaz detectadas por inspección estática inicial
+- No se encontraron referencias visibles de interfaz para “arqueo”, “diferencia de caja”, “merma”, “historial de precios”, “prospectos” como pipeline, “comparador de planes”, “sesiones activas” o “revocar sesión”.
+- Existen menciones genéricas a PDF, seguridad, demostración y Centro de control, pero no bastan para certificar los flujos completos.
+- No se verificó la aplicación con sesión real ni un recorrido E2E; no marcar como terminado ningún flujo solo por existir una tabla o endpoint.
+
+### Decisiones de implementación derivadas
+- No crear tablas duplicadas para caja, mermas, auditoría, respaldos, papelera, cotizaciones o novedades antes de revisar sus endpoints existentes.
+- Próxima prioridad técnica: completar cierre/arqueo de caja y control de mermas/alertas de stock, luego historial de precios y panel de Supervisor; a continuación pipeline comercial y PDF; por último sesiones/dispositivos y Centro de control.
+- Mantener la rama y Preview aislados. El deployment READY actual solo contiene la especificación y auditoría inicial; no representa la implementación funcional de estas mejoras.
