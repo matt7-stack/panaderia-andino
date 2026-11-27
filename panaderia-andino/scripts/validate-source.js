@@ -265,6 +265,7 @@ if (!privateFinanceMigration.includes('app_admin_private_notes') || !privateFina
 if (!html.includes('id="adminPrivateNoteForm"') || !html.includes('id="adminPrivateFinanceForm"')) throw new Error('Faltan los formularios privados del administrador.');
 const healthMigration = fs.readFileSync(path.join(root, 'migrations/053_system_health_observability.sql'), 'utf8');
 if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sistema"') ||
+    !html.includes("if (page === 'salud-sistema' && currentUser?.isPlatformAdmin !== true) return;") ||
     !html.includes("if (page === 'salud-sistema') refreshAdminHealth(true);") ||
     !html.includes("window.PanaderiaAuth.api('/api/admin/health')") ||
     !html.includes("window.PanaderiaAuth.api('/api/admin/security')") ||
