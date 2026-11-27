@@ -3015,6 +3015,8 @@ module.exports = async function handler(req, res) {
           VALUES(${businessId},${version.installed_release_id},${version.target_release_id},'runtime_acknowledged')`;
         await sql`UPDATE app_business_versions SET installed_release_id=target_release_id,assigned_at=NOW(),updated_at=NOW()
           WHERE business_id=${businessId} AND target_release_id=${version.target_release_id}`;
+        await sql`UPDATE app_version_upgrade_requests SET status='applied',applied_at=NOW(),updated_at=NOW()
+          WHERE business_id=${businessId} AND to_release_id=${version.target_release_id} AND status='paid'`;
         return send(res,200,{action:'installed',version:buildVersion,previousVersion:version.installed_version});
       }
       return send(res,200,{action:'current',version:version.installed_version||buildVersion,targetVersion:version.target_version||null});
@@ -3094,6 +3096,8 @@ module.exports = async function handler(req, res) {
           target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
           CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly' ELSE 'permanent' END AS license_mode,
           COALESCE(lic.status,'missing') AS license_status,
+          COALESCE((SELECT json_agg(json_build_object('release_id',h.to_release_id,'version',hr.version) ORDER BY h.changed_at DESC)
+            FROM app_business_version_history h JOIN app_releases hr ON hr.id=h.to_release_id WHERE h.business_id=b.id),'[]'::json) AS version_history,
           (SELECT COUNT(*)::int FROM app_version_upgrade_requests u WHERE u.business_id=b.id AND u.status NOT IN ('applied','rejected','cancelled')) AS open_upgrade_requests
           FROM businesses b LEFT JOIN app_business_versions bv ON bv.business_id=b.id
           LEFT JOIN app_releases installed ON installed.id=bv.installed_release_id
@@ -3105,7 +3109,24 @@ module.exports = async function handler(req, res) {
         return send(res,200,{businesses:rows});
       }
       if(req.method==='POST'){
-        const input=body(req),ids=[...new Set((Array.isArray(input.businessIds)?input.businessIds:[]).map(String))],releaseId=String(input.releaseId||'');
+        const input=body(req),action=String(input.action||''),releaseId=String(input.releaseId||'');
+        if(action==='rollback'){
+          const businessId=String(input.businessId||'');
+          if(!/^[0-9a-f-]{36}$/i.test(businessId)||!/^[0-9a-f-]{36}$/i.test(releaseId))return send(res,400,{error:'Negocio o versión de respaldo inválidos.'});
+          const lic=await sql`SELECT status,is_trial,monthly_amount FROM app_licenses WHERE business_id=${businessId} ORDER BY (status='active') DESC,created_at DESC LIMIT 1`;
+          if(!lic.length||lic[0].status!=='active'||lic[0].is_trial||Number(lic[0].monthly_amount||0)>0)return send(res,409,{error:'El retorno manual a versiones anteriores está reservado a licencias de pago único/permanentes.'});
+          const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
+          if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)return send(res,409,{error:'La versión de respaldo no tiene un paquete publicado y verificable.'});
+          const current=await sql`SELECT installed_release_id FROM app_business_versions WHERE business_id=${businessId} LIMIT 1`;
+          if(!current.length)return send(res,404,{error:'El negocio todavía no tiene versión instalada.'});
+          const history=await sql`SELECT id FROM app_business_version_history WHERE business_id=${businessId} AND to_release_id=${releaseId} LIMIT 1`;
+          if(current[0].installed_release_id!==releaseId&&!history.length)return send(res,403,{error:'Solo se puede volver a una versión que este negocio ya tuvo instalada.'});
+          await sql`UPDATE app_business_versions SET target_release_id=${releaseId},updated_at=NOW(),updated_by=${admin.id} WHERE business_id=${businessId}`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            VALUES(${businessId},${admin.id},'release.rollback_assigned','business',${businessId},${JSON.stringify({version:release[0].version})}::jsonb)`;
+          return send(res,200,{assigned:1,rollback:true,release:release[0]});
+        }
+        const ids=[...new Set((Array.isArray(input.businessIds)?input.businessIds:[]).map(String))];
         if(!ids.length||ids.length>200||ids.some(id=>!/^[0-9a-f-]{36}$/i.test(id))||!/^[0-9a-f-]{36}$/i.test(releaseId))
           return send(res,400,{error:'Seleccioná una versión y uno o más negocios válidos.'});
         const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
