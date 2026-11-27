@@ -3021,6 +3021,18 @@ module.exports = async function handler(req, res) {
       }
       return send(res,200,{action:'current',version:version.installed_version||buildVersion,targetVersion:version.target_version||null});
     }
+    if (path.startsWith('/api/releases/')) {
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const user=await authenticated(req,res,false);if(!user)return;
+      const version=String(path.slice('/api/releases/'.length)||'').trim();
+      if(!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(version))return send(res,400,{error:'Versión de paquete no válida.'});
+      const sql=db();
+      const rows=await sql`SELECT artifact_content FROM app_releases WHERE version=${version} AND status='published' AND delivery_ready=TRUE LIMIT 1`;
+      if(!rows.length||!rows[0].artifact_content)return send(res,404,{error:'No se encontró el paquete publicado.'});
+      res.statusCode=200;res.setHeader('Content-Type','text/html; charset=utf-8');res.setHeader('Cache-Control','no-store, max-age=0');
+      res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+      res.end(rows[0].artifact_content);return;
+    }
     if (path === '/api/admin/releases') {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
@@ -3034,17 +3046,19 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'){
         const input=body(req),version=String(input.version||'').trim(),title=String(input.title||'').trim().slice(0,160),
           summary=String(input.summary||'').trim().slice(0,500),details=String(input.details||'').trim(),
-          artifactUrl=String(input.artifactUrl||'').trim(),artifactSha=String(input.artifactSha256||'').trim().toLowerCase(),
-          artifactBytes=input.artifactBytes==null?null:Number(input.artifactBytes),runtimeCompatible=input.runtimeCompatible===true,publish=input.publish===true;
+          artifactContent=typeof input.artifactContent==='string'?input.artifactContent:'',
+          artifactBytes=artifactContent?Buffer.byteLength(artifactContent,'utf8'):null,
+          artifactSha=artifactContent?crypto.createHash('sha256').update(artifactContent,'utf8').digest('hex'):'',
+          artifactUrl=artifactContent?'/api/releases/'+version:'',
+          runtimeCompatible=!!(artifactContent&&artifactContent.includes('<meta name="mattsystem-version" content="'+version+'">')&&artifactContent.includes('/api/business/version?build=')&&artifactContent.includes("crypto.subtle.digest('SHA-256'")),
+          publish=input.publish===true;
         if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
           return send(res,400,{error:'Ingresá una versión semántica válida (ej. 2.1.0) y un título.'});
-        if(artifactUrl&&!/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(artifactUrl))return send(res,400,{error:'El paquete de versión debe tener una URL HTTPS.'});
-        if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 del paquete no es válido.'});
-        if(artifactBytes!==null&&(!Number.isSafeInteger(artifactBytes)||artifactBytes<1))return send(res,400,{error:'El tamaño del paquete no es válido.'});
-        const ready=!!(artifactUrl&&artifactSha&&artifactBytes&&runtimeCompatible);
+        if(artifactBytes!==null&&artifactBytes>4000000)return send(res,413,{error:'El paquete supera el máximo permitido de 4 MB.'});
+        const ready=!!(artifactContent&&artifactSha&&artifactBytes&&runtimeCompatible);
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar: primero cargá el paquete independiente, su SHA-256 y su tamaño.'});
-        const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_by)
-          VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},${runtimeCompatible},
+        const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,artifact_content,status,delivery_ready,published_at,created_by)
+          VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},${runtimeCompatible},NULLIF(${artifactContent},''),
           CASE WHEN ${publish}::boolean THEN 'published' ELSE 'draft' END,${ready},CASE WHEN ${publish}::boolean THEN NOW() ELSE NULL END,${admin.id})
           RETURNING *`;
         if(publish){
