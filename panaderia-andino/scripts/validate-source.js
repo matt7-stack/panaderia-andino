@@ -263,6 +263,12 @@ const privateFinanceMigration = fs.readFileSync(path.join(root, 'migrations/027_
 if (!privateFinanceApi.includes("if(path==='/api/admin/private-finance')") || !privateFinanceApi.includes("authenticated(req,res,true)")) throw new Error('Las finanzas privadas deben estar protegidas por autenticación exclusiva del administrador.');
 if (!privateFinanceMigration.includes('app_admin_private_notes') || !privateFinanceMigration.includes('app_admin_finance_entries')) throw new Error('Falta la migración de notas y finanzas privadas del administrador.');
 if (!html.includes('id="adminPrivateNoteForm"') || !html.includes('id="adminPrivateFinanceForm"')) throw new Error('Faltan los formularios privados del administrador.');
+if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sistema"') ||
+    !html.includes("if (page === 'salud-sistema') refreshAdminHealth(true);") ||
+    !html.includes("window.PanaderiaAuth.api('/api/admin/database-info')") ||
+    !html.includes("'adminHealthNav'")) {
+  throw new Error('El Panel de salud debe estar disponible solo para el administrador de plataforma y comprobar servicios reales.');
+}
 if (html.includes('id="adminCenterCards"')) throw new Error('El Centro de gestión todavía contiene accesos rápidos que fueron solicitados eliminar.');
 if (!html.includes('id="adminPrivateBalanceTotal"')) throw new Error('Falta el resumen mensual privado en la pantalla principal del administrador.');
 
