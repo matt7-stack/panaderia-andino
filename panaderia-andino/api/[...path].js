@@ -514,7 +514,7 @@ module.exports = async function handler(req, res) {
       if(user.is_platform_admin===true||!user.business_id)return send(res,403,{error:'Esta información está disponible desde una cuenta vinculada a un negocio.'});
       const sql=db();
       const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
-      const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
+      const rows=await sql`SELECT l.license_code,l.system_name,l.plan,l.configuration_plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
         l.sold_at::text AS sold_at,l.created_at,COALESCE(l.expires_at,CASE WHEN l.is_trial=TRUE AND l.trial_started_at IS NOT NULL THEN (l.trial_started_at::date+GREATEST(COALESCE(l.trial_days,0),1))::date WHEN l.monthly_amount>0 THEN (COALESCE(l.sold_at::date,l.created_at::date)+INTERVAL '1 month')::date ELSE NULL END)::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.configuration_amount,l.monthly_amount,l.billing_day,
         l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,l.modules,
@@ -534,7 +534,7 @@ module.exports = async function handler(req, res) {
       const code=String(body(req).licenseCode||'').trim().toUpperCase();
       if(!/^MTS-[A-Z0-9]+-[A-F0-9]{6}$/.test(code))return send(res,400,{error:'Ingresá un código de licencia válido.'});
       const sql=db(),system=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
-      const rows=await sql`SELECT id,license_code,system_name,plan,status,expires_at,setup_amount,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial
+      const rows=await sql`SELECT id,license_code,system_name,plan,status,expires_at,setup_amount,configuration_plan,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial
         FROM app_licenses WHERE business_id=${user.business_id} AND UPPER(license_code)=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${system})) LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'El código no corresponde a una licencia de este negocio. Verificá el código con el administrador.'});
       const license=rows[0];
@@ -673,7 +673,7 @@ module.exports = async function handler(req, res) {
         if(Number(result[0]?.plans_updated)!==3||Number(result[0]?.modules_updated)!==ms.length)return send(res,409,{error:'No se pudo actualizar el catálogo completo.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.price_catalog_updated','commercial_price_catalog','default',${JSON.stringify({plans:keys,modules:ms.length})}::jsonb)`;
         const [savedPlans,savedModules]=await Promise.all([
-          sql`SELECT plan_key,display_name,setup_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
+          sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
           sql`SELECT module_key,title,category,description,implemented,active,commercial_mode,monthly_price,setup_price,sort_order FROM app_module_catalog ORDER BY sort_order,title`
         ]);
         return send(res,200,{ok:true,plans:savedPlans,modules:savedModules});
@@ -685,7 +685,7 @@ module.exports = async function handler(req, res) {
       const sql=db();
       if(req.method==='GET'){
         const [plans,modules]=await Promise.all([
-          sql`SELECT plan_key,display_name,setup_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
+          sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
           sql`SELECT module_key,title,category,description,implemented,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`
         ]);
         return send(res,200,{plans,modules});
