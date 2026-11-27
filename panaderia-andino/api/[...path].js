@@ -759,7 +759,7 @@ module.exports = async function handler(req, res) {
         if(requestedExtraModules.length>50||requestedExtraModules.some(key=>planModules.includes(key)))return send(res,400,{error:'Los módulos adicionales no son válidos o ya están incluidos en el plan.'});
         let extraModules=[],setup=planSetup,monthly=planMonthly;
         if(requestedExtraModules.length){
-          extraModules=await sql`SELECT module_key,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
+          extraModules=await sql`SELECT module_key,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='addon' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(requestedExtraModules)}::jsonb))`;
           if(extraModules.length!==requestedExtraModules.length)return send(res,400,{error:'Uno o más módulos adicionales no están disponibles o implementados.'});
           setup+=extraModules.reduce((sum,m)=>sum+Number(m.setup_price||0),0);
           monthly+=extraModules.reduce((sum,m)=>sum+Number(m.monthly_price||0),0);
@@ -781,7 +781,21 @@ module.exports = async function handler(req, res) {
           if(!config.length||JSON.stringify(linkedQuote[0].modules||[])!==JSON.stringify(config[0].modules||[])||linkedQuote[0].industry_key!==config[0].industry_key||linkedQuote[0].config_mode!==config[0].config_mode)return send(res,409,{error:'La configuración del negocio cambió después de la cotización. Generá y obtené la aceptación de una cotización actualizada.'});
         }
         const code='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
-        const rows=await sql`INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,configuration_plan,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules) VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${configurationPlan},${configurationAmount},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(licensedModules)}::jsonb) RETURNING *`;
+        const rows=await sql`
+          WITH license_created AS (
+            INSERT INTO app_licenses(business_id,license_code,system_name,plan,status,sold_at,expires_at,setup_amount,configuration_plan,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,contract_reference,notes,created_by,modules)
+            VALUES(${businessId},${code},${systemName},${plan},${status},CURRENT_DATE,CASE WHEN ${durationType}='permanent' THEN NULL WHEN ${durationType}='custom_days' THEN (CURRENT_DATE + ${durationDays})::date ELSE (CURRENT_DATE + (${durationMonths} * INTERVAL '1 month'))::date END,${setup},${configurationPlan},${configurationAmount},${monthly},${billingDay},${userLimit},${deviceLimit},${String(input.contractReference||'').slice(0,120)},${String(input.notes||'').slice(0,1000)},${admin.id},${JSON.stringify(licensedModules)}::jsonb)
+            RETURNING *
+          ), addons_created AS (
+            INSERT INTO app_business_addons(business_id,module_key,contracted,enabled,status,contracted_at,activated_at,deactivated_at,updated_by,updated_at)
+            SELECT license_created.business_id,addon.module_key,TRUE,TRUE,'active',NOW(),NOW(),NULL,${admin.id},NOW()
+            FROM license_created
+            CROSS JOIN jsonb_to_recordset(${JSON.stringify(requestedExtraModules.map(module_key=>({module_key})))}::jsonb) AS addon(module_key text)
+            ON CONFLICT (business_id,module_key) DO UPDATE SET contracted=TRUE,enabled=TRUE,status='active',contracted_at=COALESCE(app_business_addons.contracted_at,NOW()),activated_at=NOW(),deactivated_at=NULL,updated_by=EXCLUDED.updated_by,updated_at=NOW()
+            RETURNING module_key
+          )
+          SELECT license_created.* FROM license_created
+        `;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
           VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,setup_amount:setup,configuration_plan:configurationPlan,configuration_amount:configurationAmount,monthly_amount:monthly,modules:licensedModules,additionalModules:requestedExtraModules,isTrial:false})}::jsonb)`;
         return send(res,201,{license:rows[0]});
