@@ -3011,8 +3011,8 @@ module.exports = async function handler(req, res) {
         if(artifactBytes!==null&&(!Number.isSafeInteger(artifactBytes)||artifactBytes<1))return send(res,400,{error:'El tamaño del paquete no es válido.'});
         const ready=!!(artifactUrl&&artifactSha&&artifactBytes&&runtimeCompatible);
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar: primero cargá el paquete independiente, su SHA-256 y su tamaño.'});
-        const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,status,delivery_ready,published_at,created_by)
-          VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},
+        const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,runtime_compatible,status,delivery_ready,published_at,created_by)
+          VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},${runtimeCompatible},
           CASE WHEN ${publish}::boolean THEN 'published' ELSE 'draft' END,${ready},CASE WHEN ${publish}::boolean THEN NOW() ELSE NULL END,${admin.id})
           RETURNING *`;
         if(publish){
@@ -3041,7 +3041,7 @@ module.exports = async function handler(req, res) {
         const rows=await sql`UPDATE app_releases SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,160)},
           summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},
           details=${input.details===undefined?old.details:String(input.details).trim()},
-          artifact_url=NULLIF(${artifactUrl},''),artifact_sha256=NULLIF(${artifactSha},''),artifact_bytes=${artifactBytes},
+          artifact_url=NULLIF(${artifactUrl},''),artifact_sha256=NULLIF(${artifactSha},''),artifact_bytes=${artifactBytes},runtime_compatible=${runtimeCompatible},
           delivery_ready=${ready},status=CASE WHEN ${publish}::boolean THEN 'published' ELSE status END,
           published_at=CASE WHEN ${publish}::boolean THEN COALESCE(published_at,NOW()) ELSE published_at END,updated_at=NOW()
           WHERE id=${id} RETURNING *`;
