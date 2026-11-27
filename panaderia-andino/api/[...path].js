@@ -421,6 +421,7 @@ module.exports = async function handler(req, res) {
         SELECT saved.id,saved.business_id,saved.checksum,saved.payload_bytes,saved.created_at
         FROM saved
       `;
+      await sql`INSERT INTO app_backup_log(business_id,status,storage_reference,details) VALUES(NULL,'completed',NULL,${JSON.stringify({source:'daily_cron',scope:'global'})}::jsonb)`;
       const pruned = await sql`DELETE FROM app_business_backups b
         WHERE b.created_at < NOW()-INTERVAL '30 days'
           OR b.id IN (
