@@ -7,6 +7,23 @@ SET commercial_mode='addon',
     updated_at=NOW()
 WHERE module_key IN ('branches','delivery','receivables');
 
+-- Official MATTSYSTEM acquisition and monthly prices (configuration is quoted separately).
+UPDATE app_license_plan_settings
+SET setup_amount=CASE plan_key
+      WHEN 'basic' THEN 1200000
+      WHEN 'professional' THEN 1500000
+      WHEN 'enterprise' THEN 2000000
+      ELSE setup_amount
+    END,
+    monthly_amount=CASE plan_key
+      WHEN 'basic' THEN 120000
+      WHEN 'professional' THEN 200000
+      WHEN 'enterprise' THEN 260000
+      ELSE monthly_amount
+    END,
+    updated_at=NOW()
+WHERE plan_key IN ('basic','professional','enterprise');
+
 -- Keep only core modules inside Basic, Professional and Enterprise plan definitions.
 -- Add-ons are contracted and enabled independently per business.
 UPDATE app_license_plan_settings p
