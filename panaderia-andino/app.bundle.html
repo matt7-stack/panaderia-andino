@@ -4776,6 +4776,12 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const current=window.PanaderiaAuth?.user;
     if(current&&!current.isPlatformAdmin&&!current.is_platform_admin)ensureBusinessRuntimeVersion(current).catch(error=>console.warn('No se pudo comprobar la actualización:',error.message));
   });
+  const recheckBusinessVersion=()=>{
+    const current=window.PanaderiaAuth?.user;
+    if(current&&!current.isPlatformAdmin&&!current.is_platform_admin)ensureBusinessRuntimeVersion(current).catch(error=>console.warn('No se pudo comprobar la actualización:',error.message));
+  };
+  window.addEventListener('focus',recheckBusinessVersion);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)recheckBusinessVersion();});
   if (window.PanaderiaAuthReady && typeof window.PanaderiaAuthReady.then === 'function') {
     window.PanaderiaAuthReady.then(applyInitialRoute).catch(() => applyInitialRoute(null));
   } else applyInitialRoute(window.PanaderiaAuth?.user || null);
