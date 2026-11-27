@@ -3089,12 +3089,14 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
             const industryNames={despensas_minimercados:'Despensas y minimercados',tiendas_ropa_calzados:'Tiendas de ropa y calzados',ferreterias:'Ferreterías y materiales de construcción',electronica_tecnologia:'Electrónica y tecnología',comercios_generales:'Comercios generales',panaderias:'Panaderías y confiterías',restaurantes:'Restaurantes',cafeterias_bares:'Cafeterías y bares',carnicerias_pollerias:'Carnicerías y pollerías',fruterias_verdulerias:'Fruterías y verdulerías',talleres_mecanicos:'Talleres mecánicos',barberias_peluquerias:'Barberías y peluquerías',centros_estetica:'Centros de estética',reparacion_celulares_computadoras:'Reparación de celulares y computadoras',empresas_servicios:'Empresas de servicios',otro_rubro:'Otro rubro',minimercados:'Minimercados',despensas:'Despensas',tiendas:'Tiendas',farmacias:'Farmacias (existente)',distribuidoras:'Distribuidoras (existente)'};
             const moduleNames=items.map(m=>m.title).join(', ')||quoteData.modules.map(m=>m.title).join(', ')||'No especificados';
             const priceRows=items.map(m=>({label:m.title,setup:Number(m.setup||0),monthly:Number(m.monthly||0)}));
+            const services=Array.isArray(b.services)?b.services:Array.isArray(q.services)?q.services:[];
+            const serviceNames=services.map(x=>x.title||x.name||'Servicio adicional');
             const clauses=[
               'La licencia permanente, cuando corresponda, concede uso indefinido de la versión contratada; no entrega el código fuente ni transfiere la propiedad intelectual.',
-              'Hosting, mantenimiento, soporte y actualizaciones no se consideran incluidos ni se suman al total de esta cotización: si se requieren, deberán presupuestarse y acordarse por separado.',
+              services.length?'Los servicios adicionales detallados en esta propuesta se incluyen únicamente con los importes y la periodicidad indicados.':'No se contrataron servicios adicionales en esta propuesta; podrán cotizarse por separado si el cliente los solicita.',
               'La contratación queda sujeta a aceptación expresa y a las condiciones del contrato de licencia correspondiente.'
             ];
-            return {q,t,b,planKey,planType,monthly,annualProjection,firstYear,industryNames,moduleNames,priceRows,clauses,dateValue};
+            return {q,t,b,planKey,planType,monthly,annualProjection,firstYear,industryNames,moduleNames,priceRows,services,serviceNames,clauses,dateValue};
           };
           const quoteMessage=()=>{
             const d=quoteDetails(),{q,t,b,monthly,annualProjection,firstYear,industryNames,moduleNames,dateValue}=d;
@@ -3119,7 +3121,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               planType==='monthly'?'Total estimado del primer año (alta + 12 mensualidades): '+fmt(firstYear):'',
               ['permanent','full_sale'].includes(planType)?'Pago único de esta modalidad: '+fmt(t.setup):'',
               '',
-              'Hosting, mantenimiento, soporte y actualizaciones: no incluidos ni cotizados en este total; se presupuestan por separado si se solicitan.',
+              'Servicios adicionales seleccionados: '+(d.serviceNames.length?d.serviceNames.join(', '):'Ninguno'),
               'La licencia permanente no incluye entrega del código fuente ni derechos de propiedad intelectual.',
               'La contratación requiere aceptación de la propuesta y firma/aceptación de las condiciones correspondientes.',
               '',
