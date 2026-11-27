@@ -274,6 +274,8 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !apiSource.includes("if (path === '/api/admin/health')") ||
     !apiSource.includes("if (path === '/api/health/events')") ||
     !apiSource.includes('percentile_cont(0.95)') ||
+    !apiSource.includes("'api_request'") ||
+    !html.includes('healthRequestSample') ||
     !apiSource.includes("providerSnapshots:'not_verified'") ||
     !apiSource.includes('healthSnapshot:healthStatus') ||
     !apiSource.includes('healthAlerts:healthAlerts.length') ||
