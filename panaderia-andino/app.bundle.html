@@ -4852,7 +4852,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      planSelect.innerHTML=commercialQuoteCatalog.plans.map(p=>'<option value="'+quoteEsc(p.plan_key)+'">'+quoteEsc(p.display_name||p.plan_key)+'</option>').join('');
      if(commercialQuoteCatalog.plans.some(p=>p.plan_key==='professional'))planSelect.value='professional';
      renderServices();renderModules();
-     planSelect.onchange=()=>{renderModules();renderServices();};
+     planSelect.onchange=()=>{renderModules();const configPrice=root.querySelector('[data-quote-service-setup="configuration"]');if(configPrice)configPrice.value=Number(selectedPlan()?.configuration_amount||0);};
      root.querySelector('#quotePaymentType').onchange=updateQuoteSummary;
      root.addEventListener('input',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
      root.addEventListener('change',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
