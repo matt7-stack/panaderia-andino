@@ -1164,7 +1164,7 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='PUT'){
         const input=body(req),businessId=String(input.businessId||''),industry=String(input.industry||''),mode=String(input.configMode||''),modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['despensas_minimercados','tiendas_ropa_calzados','ferreterias','electronica_tecnologia','comercios_generales','panaderias','restaurantes','cafeterias_bares','carnicerias_pollerias','fruterias_verdulerias','talleres_mecanicos','barberias_peluquerias','centros_estetica','reparacion_celulares_computadoras','empresas_servicios','otro_rubro','minimercados','despensas','tiendas','farmacias','distribuidoras'];
         if(!/^[0-9a-f-]{36}$/i.test(businessId)||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!modules.length||modules.length>50)return send(res,400,{error:'La configuración del negocio no es válida.'});
         const valid=await sql`SELECT module_key,active FROM app_module_catalog WHERE implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
         if(valid.length!==modules.length)return send(res,400,{error:'La selección contiene módulos inexistentes o no implementados.'});
@@ -1196,7 +1196,7 @@ module.exports = async function handler(req, res) {
         const input=body(req),prospectName=String(input.prospectName||'').trim().slice(0,120),prospectEmail=String(input.prospectEmail||'').trim().slice(0,254);
         const industry=String(input.industry||''),mode=String(input.configMode||''),plan=String(input.planType||'monthly'),licensePlanKey=String(input.licensePlanKey||'professional');
         const modules=[...new Set((Array.isArray(input.modules)?input.modules:[]).map(x=>String(x).trim()).filter(Boolean))];
-        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['despensas_minimercados','tiendas_ropa_calzados','ferreterias','electronica_tecnologia','comercios_generales','panaderias','restaurantes','cafeterias_bares','carnicerias_pollerias','fruterias_verdulerias','talleres_mecanicos','barberias_peluquerias','centros_estetica','reparacion_celulares_computadoras','empresas_servicios','otro_rubro','minimercados','despensas','tiendas','farmacias','distribuidoras'];
         if(!prospectName||!industries.includes(industry)||!['template','custom','hybrid'].includes(mode)||!['monthly','annual','permanent','full_sale'].includes(plan)||!['basic','professional','enterprise'].includes(licensePlanKey)||!modules.length||modules.length>50)return send(res,400,{error:'Completá el prospecto, tipo de licencia, rubro, modalidad y módulos.'});
         if(prospectEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(prospectEmail))return send(res,400,{error:'Correo electrónico no válido.'});
         const catalog=await sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(modules)}::jsonb))`;
@@ -1445,7 +1445,7 @@ module.exports = async function handler(req, res) {
         const input=body(req); const name=String(input.name||'').trim().slice(0,120);
         const slug=String(input.slug||name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);
         const industry=String(input.industry||'comercios_generales'),configMode=String(input.configMode||'template');
-        const industries=['panaderias','minimercados','despensas','ferreterias','farmacias','tiendas','restaurantes','comercios_generales','distribuidoras'];
+        const industries=['despensas_minimercados','tiendas_ropa_calzados','ferreterias','electronica_tecnologia','comercios_generales','panaderias','restaurantes','cafeterias_bares','carnicerias_pollerias','fruterias_verdulerias','talleres_mecanicos','barberias_peluquerias','centros_estetica','reparacion_celulares_computadoras','empresas_servicios','otro_rubro','minimercados','despensas','tiendas','farmacias','distribuidoras'];
         if(!name||!slug) return send(res,400,{error:'Ingresá el nombre del negocio.'});
         if(!industries.includes(industry)||!['template','custom','hybrid'].includes(configMode))return send(res,400,{error:'Seleccioná un rubro y una modalidad de configuración válidos.'});
         const activateTrial=input.activateTrial===true;
