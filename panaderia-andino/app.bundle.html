@@ -3858,7 +3858,8 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const button = event.target.closest('[data-restore-backup]');
     if (!button) return;
     const backupId = button.dataset.restoreBackup;
-    if (!backupId || !window.confirm('¿Restaurar esta copia? Los datos operativos actuales del negocio serán reemplazados por los datos guardados en esa fecha. Esta acción no se puede deshacer.')) return;
+    const selectedBusiness=$('#adminBackupBusiness')?.selectedOptions?.[0]?.textContent||'el negocio seleccionado';
+    if (!backupId || !window.confirm('¿Restaurar la copia de '+selectedBusiness+'? Los datos operativos actuales de ese negocio serán reemplazados por los datos guardados en esa fecha. Esta acción no se puede deshacer.')) return;
     button.disabled = true;
     try {
       const businessId=$('#adminBackupBusiness')?.value||'';if(!businessId)throw new Error('Seleccioná primero el negocio que querés restaurar.');const result = await window.PanaderiaAuth.api('/api/business/backups', { method: 'POST', headers:{'x-business-id':businessId}, body: JSON.stringify({ action: 'restore', backupId }) });
@@ -5070,7 +5071,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    const extraBox=$('#licenseAdditionalModules');
    if(extraBox){
      const selected=[...extraBox.querySelectorAll('[data-license-addon]:checked')].map(x=>x.dataset.licenseAddon);
-     const available=licensePlanModuleCatalog.filter(m=>m.implemented===true&&m.active!==false&&!included.includes(m.module_key));
+     const available=licensePlanModuleCatalog.filter(m=>m.implemented===true&&m.active!==false&&['core','addon'].includes(m.commercial_mode)&&!included.includes(m.module_key));
      extraBox.innerHTML=available.length?available.map(m=>'<div class="col-12 col-md-6"><label class="border rounded p-2 d-flex gap-2 align-items-start h-100 bg-white"><input type="checkbox" class="form-check-input mt-1" data-license-addon="'+esc(m.module_key)+'" '+(selected.includes(m.module_key)?'checked':'')+'><span class="flex-grow-1"><strong class="d-block">'+esc(m.title)+'</strong><small class="text-muted">'+(m.commercial_mode==='addon'?'Complemento':'Módulo del sistema no incluido en este plan')+' · Alta: Gs. '+Number(m.setup_price||0).toLocaleString('es-PY')+' · Mensual: Gs. '+Number(m.monthly_price||0).toLocaleString('es-PY')+'</small></span></label></div>').join(''):'<div class="col-12 text-muted small">No hay módulos adicionales disponibles para este plan.</div>';
      extraBox.querySelectorAll('[data-license-addon]').forEach(x=>x.addEventListener('change',updateLicensePlanPreview));
    }
