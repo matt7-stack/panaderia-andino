@@ -1150,7 +1150,7 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
-      const [database,counts,backups,licenses,events,latency,history]=await Promise.all([
+      const [database,counts,backups,licenses,events,latency,history,audit,tickets,dailyTrend,weeklyTrend,monthlyTrend]=await Promise.all([
         sql`SELECT current_database() AS name,pg_database_size(current_database())::bigint AS bytes,version() AS server_version`,
         sql`SELECT (SELECT COUNT(*)::int FROM businesses) AS businesses,
           (SELECT COUNT(*)::int FROM businesses WHERE active=TRUE) AS active_businesses,
@@ -1170,7 +1170,12 @@ module.exports = async function handler(req, res) {
         sql`SELECT COALESCE(ROUND(AVG(duration_ms))::int,0) AS avg_ms,
           COALESCE((percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms))::int,0) AS p95_ms
           FROM app_health_events WHERE category IN ('api_slow','api_error') AND created_at>NOW()-INTERVAL '24 hours' AND duration_ms IS NOT NULL`,
-        sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`
+        sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`,
+        sql`SELECT COUNT(*)::int AS events_24h FROM app_audit_logs WHERE created_at>NOW()-INTERVAL '24 hours'`,
+        sql`SELECT COUNT(*) FILTER(WHERE LOWER(status) NOT IN ('resolved','closed','cancelled'))::int AS open FROM app_support_tickets`,
+        sql`SELECT date_trunc('day',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '90 days' GROUP BY 1 ORDER BY 1 DESC LIMIT 90`,
+        sql`SELECT date_trunc('week',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '90 days' GROUP BY 1 ORDER BY 1 DESC LIMIT 26`,
+        sql`SELECT date_trunc('month',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '12 months' GROUP BY 1 ORDER BY 1 DESC LIMIT 12`
       ]);
       const dbInfo=database[0]||{}, totals=counts[0]||{}, backup=backups[0]||{}, lic=licenses[0]||{}, ev=events[0]||{}, perf=latency[0]||{};
       const backupAgeHours=backup.latest_at?Math.max(0,Math.round((Date.now()-new Date(backup.latest_at).getTime())/3600000)):null;
@@ -1189,13 +1194,13 @@ module.exports = async function handler(req, res) {
       if(Number(lic.expiring_7d||0)>0)alerts.push({level:'info',title:'Licencias próximas a vencer',detail:Number(lic.expiring_7d)+' licencias vencen dentro de 7 días.'});
       const critical=alerts.some(a=>a.level==='critical'),warning=alerts.some(a=>a.level==='warning');
       const overall=critical?'critical':warning?'warning':'healthy';
-      const metrics={totals:{businesses:Number(totals.businesses||0),activeBusinesses:Number(totals.active_businesses||0),activeUsers:Number(totals.active_users||0)},checks,alerts};
+      const metrics={totals:{businesses:Number(totals.businesses||0),activeBusinesses:Number(totals.active_businesses||0),activeUsers:Number(totals.active_users||0),openTickets:Number(tickets[0]?.open||0),auditEvents24h:Number(audit[0]?.events_24h||0)},checks,alerts};
       const latest=history[0];
       if(!latest||Date.now()-new Date(latest.captured_at).getTime()>15*60*1000){
         await sql`INSERT INTO app_health_snapshots(overall_status,metrics) VALUES(${overall},${JSON.stringify(metrics)}::jsonb)`;
       }
       const freshHistory=await sql`SELECT id,captured_at,overall_status,metrics FROM app_health_snapshots ORDER BY captured_at DESC LIMIT 30`;
-      return send(res,200,{capturedAt:new Date().toISOString(),overall,metrics,history:freshHistory});
+      return send(res,200,{capturedAt:new Date().toISOString(),overall,metrics,history:freshHistory,trends:{daily:dailyTrend,weekly:weeklyTrend,monthly:monthlyTrend}});
     }
     if (path === '/api/health/events') {
       const user=await authenticated(req,res,false); if(!user)return;
