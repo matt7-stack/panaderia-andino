@@ -3000,7 +3000,7 @@ module.exports = async function handler(req, res) {
       if(user.is_platform_admin===true)return send(res,200,{action:'current',platformAdmin:true});
       const businessId=String(user.business_id||''),buildVersion=String(req.query?.build||'').trim().slice(0,40);
       if(!businessId)return send(res,400,{error:'La cuenta no está asociada a un negocio.'});
-      if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(buildVersion))return send(res,400,{error:'Versión del programa no válida.'});
+      if(!/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(buildVersion))return send(res,400,{error:'Versión del programa no válida.'});
       const sql=db();
       const rows=await sql`SELECT bv.business_id,bv.installed_release_id,bv.target_release_id,
         installed.version AS installed_version,target.version AS target_version,target.artifact_url,target.artifact_sha256,
