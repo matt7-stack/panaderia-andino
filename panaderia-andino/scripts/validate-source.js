@@ -230,8 +230,8 @@ if (!html.includes('id="adminBackupList"') ||
 const deploymentConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
 const backupSchedules = deploymentConfig.schedules || {};
 const backupCron = (deploymentConfig.crons || []).some(item => item.path === '/api/internal/backup' && item.schedule === '0 5 * * *');
-const securityHeaders = deploymentConfig.headers.find(item => item.source === '/(.*)')?.headers || [];
-const cspValue = securityHeaders.find(item => item.key === 'Content-Security-Policy')?.value || '';
+const deployedSecurityHeaders = deploymentConfig.headers.find(item => item.source === '/(.*)')?.headers || [];
+const cspValue = deployedSecurityHeaders.find(item => item.key === 'Content-Security-Policy')?.value || '';
 if (!cspValue.includes("form-action 'self'") || !cspValue.includes('upgrade-insecure-requests')) {
   throw new Error('La política CSP debe limitar el envío de formularios y forzar recursos HTTPS.');
 }
@@ -255,8 +255,8 @@ if (!apiSource.includes("const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
     !apiSource.includes("fetchSite === 'cross-site'")) {
   throw new Error('La protección CSRF debe rechazar solicitudes mutables sin Origin y solicitudes cross-site.');
 }
-const vercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
-const globalHeaderSet = new Map((vercelConfig.headers.find(item => item.source === '/(.*)')?.headers || []).map(item => [item.key.toLowerCase(), item.value]));
+const globalVercelConfig = JSON.parse(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8'));
+const globalHeaderSet = new Map((globalVercelConfig.headers.find(item => item.source === '/(.*)')?.headers || []).map(item => [item.key.toLowerCase(), item.value]));
 for (const key of ['x-content-type-options','x-frame-options','referrer-policy','permissions-policy','strict-transport-security','content-security-policy']) {
   if (!globalHeaderSet.has(key)) throw new Error('Falta el encabezado de seguridad global: ' + key);
 }
