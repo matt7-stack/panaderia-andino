@@ -269,7 +269,7 @@ async function currentUser(req) {
     FROM app_users u LEFT JOIN businesses b ON b.id=u.business_id
     LEFT JOIN app_business_config bc ON bc.business_id=u.business_id
     LEFT JOIN LATERAL (
-      SELECT l.license_code, l.system_name, l.status, l.expires_at, l.modules,
+      SELECT l.license_code, l.system_name, l.status, l.expires_at, l.modules, l.device_limit,
         (l.status='active' AND (l.expires_at IS NULL OR l.expires_at >= CURRENT_DATE)) AS is_valid
       FROM app_licenses l
       WHERE l.business_id=u.business_id AND LOWER(BTRIM(l.system_name))=LOWER(BTRIM(${licenseSystem}))
@@ -279,6 +279,17 @@ async function currentUser(req) {
     WHERE u.id = ${data.sub} AND (u.is_platform_admin=TRUE OR b.active=TRUE) LIMIT 1`;
   const user = rows[0];
   if (!user || !user.active || Number(user.session_version || 0) !== Number(data.sv || 0)) return null;
+  // Revalidar el dispositivo en cada petición: revocar un equipo invalida también
+  // sus sesiones ya abiertas y los límites nuevos obligan a reautenticar sesiones antiguas.
+  if (user.is_platform_admin !== true && user.license_is_valid === true &&
+      Number.isInteger(Number(user.device_limit)) && Number(user.device_limit) > 0) {
+    const token=deviceTokenCookie(req);
+    if (!token || !/^[A-Za-z0-9_-]{40,100}$/.test(token)) return null;
+    const hash=crypto.createHash('sha256').update(token).digest('hex');
+    const registered=await db()`SELECT id FROM app_device_registrations
+      WHERE business_id=${user.business_id} AND device_hash=${hash} AND revoked_at IS NULL LIMIT 1`;
+    if (!registered.length) return null;
+  }
   setRequestContext({ userId: String(user.id), businessId: user.business_id || '', isPlatformAdmin: user.is_platform_admin === true });
   return user;
 }
