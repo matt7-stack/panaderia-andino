@@ -39,6 +39,7 @@ const requiredFiles = [
   'migrations/046_license_catalog_branches_delivery.sql',
   'migrations/047_license_plan_device_limits.sql',
   'migrations/048_industry_library_templates.sql',
+  'migrations/052_versioned_releases.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -482,6 +483,23 @@ if (industryKeys.some(key => !html.includes(key) || !apiSource.includes(key) || 
 }
 if (!html.includes("industrySelect.value==='otro_rubro'") || !html.includes('Otro rubro / configuración personalizada')) {
   throw new Error('Debe existir una ruta de configuración para negocios de otros rubros.');
+}
+
+
+const versionMigration = fs.readFileSync(path.join(root, 'migrations/052_versioned_releases.sql'), 'utf8');
+if (!versionMigration.includes('app_releases') ||
+    !versionMigration.includes('app_business_versions') ||
+    !versionMigration.includes('app_version_upgrade_requests') ||
+    !versionMigration.includes('app_is_platform_admin()') ||
+    !apiSource.includes("path === '/api/admin/releases'") ||
+    !apiSource.includes("path === '/api/admin/business-versions'") ||
+    !apiSource.includes("path === '/api/admin/version-upgrades'") ||
+    !apiSource.includes('runtime_compatible') ||
+    !apiSource.includes('client_accepted_at') ||
+    !appBundleSource.includes('id="adminVersionCenter"') ||
+    !appBundleSource.includes('id="businessInitialVersion"') ||
+    !appBundleSource.includes('data-permanent-version')) {
+  throw new Error('Falta el catálogo de versiones, la asignación por negocio o la autorización de mejoras permanentes.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
