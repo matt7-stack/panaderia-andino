@@ -270,6 +270,8 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !html.includes("window.PanaderiaAuth.api('/api/admin/security')") ||
     !html.includes("window.PanaderiaAuth.api('/api/admin/overview')") ||
     !html.includes('id="healthHistory"') || !html.includes('id="healthAlerts"') ||
+    !html.includes('id="healthActiveTrials"') || !html.includes('id="healthUserLimitExceeded"') ||
+    !apiSource.includes('active_trials') || !apiSource.includes('user_limit_exceeded') || !apiSource.includes('payments_30d') ||
     !html.includes("reportHealthEvent('js_error'") || !html.includes("reportHealthEvent('api_error'") ||
     !apiSource.includes("if (path === '/api/admin/health')") ||
     !apiSource.includes("if (path === '/api/health/events')") ||
