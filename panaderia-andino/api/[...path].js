@@ -3061,8 +3061,10 @@ module.exports = async function handler(req, res) {
         const artifactBytes=artifactContent?Buffer.byteLength(artifactContent,'utf8'):null;
         const artifactSha=artifactContent?crypto.createHash('sha256').update(artifactContent,'utf8').digest('hex'):'';
         const artifactUrl=artifactContent?'/api/releases/'+version:'';
-        const runtimeCompatible=!!(artifactContent&&artifactContent.includes('<meta name="mattsystem-version" content="'+version+'">')&&artifactContent.includes('/api/business/version?build=')&&artifactContent.includes("crypto.subtle.digest('SHA-256'"));
+        const runtimeCompatible=!!(artifactContent&&artifactContent.toLowerCase().includes('<!doctype html')&&artifactContent.includes('</html>')&&artifactContent.includes('<meta name="mattsystem-version" content="'+version+'">')&&artifactContent.includes('/api/business/version?build=')&&artifactContent.includes("crypto.subtle.digest('SHA-256'"));
         const publish=input.publish===true;
+        const duplicate=await sql`SELECT id FROM app_releases WHERE version=${version} LIMIT 1`;
+        if(duplicate.length)return send(res,409,{error:'Ese número de versión ya está registrado. Usá uno nuevo.'});
         if(artifactBytes!==null&&artifactBytes>4000000)return send(res,413,{error:'El paquete supera el máximo permitido de 4 MB.'});
         const ready=!!(artifactContent&&artifactSha&&artifactBytes&&runtimeCompatible);
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar: el paquete debe contener el runtime compatible y su versión identificada.'});
