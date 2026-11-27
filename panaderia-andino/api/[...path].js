@@ -3003,13 +3003,13 @@ module.exports = async function handler(req, res) {
         const input=body(req),version=String(input.version||'').trim(),title=String(input.title||'').trim().slice(0,160),
           summary=String(input.summary||'').trim().slice(0,500),details=String(input.details||'').trim(),
           artifactUrl=String(input.artifactUrl||'').trim(),artifactSha=String(input.artifactSha256||'').trim().toLowerCase(),
-          artifactBytes=input.artifactBytes==null?null:Number(input.artifactBytes),publish=input.publish===true;
+          artifactBytes=input.artifactBytes==null?null:Number(input.artifactBytes),runtimeCompatible=input.runtimeCompatible===true,publish=input.publish===true;
         if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
           return send(res,400,{error:'Ingresá una versión semántica válida (ej. 2.1.0) y un título.'});
         if(artifactUrl&&!/^https:\\/\\//i.test(artifactUrl))return send(res,400,{error:'El paquete de versión debe tener una URL HTTPS.'});
         if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 del paquete no es válido.'});
         if(artifactBytes!==null&&(!Number.isSafeInteger(artifactBytes)||artifactBytes<1))return send(res,400,{error:'El tamaño del paquete no es válido.'});
-        const ready=!!(artifactUrl&&artifactSha&&artifactBytes);
+        const ready=!!(artifactUrl&&artifactSha&&artifactBytes&&runtimeCompatible);
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar: primero cargá el paquete independiente, su SHA-256 y su tamaño.'});
         const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,status,delivery_ready,published_at,created_by)
           VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},
@@ -3033,10 +3033,10 @@ module.exports = async function handler(req, res) {
         if(!oldRows.length)return send(res,404,{error:'No se encontró la versión.'});
         const old=oldRows[0],artifactUrl=input.artifactUrl===undefined?old.artifact_url:String(input.artifactUrl||'').trim(),
           artifactSha=input.artifactSha256===undefined?old.artifact_sha256:String(input.artifactSha256||'').trim().toLowerCase(),
-          artifactBytes=input.artifactBytes===undefined?old.artifact_bytes:(input.artifactBytes===null?null:Number(input.artifactBytes));
+          artifactBytes=input.artifactBytes===undefined?old.artifact_bytes:(input.artifactBytes===null?null:Number(input.artifactBytes)),runtimeCompatible=input.runtimeCompatible===undefined?old.runtime_compatible:input.runtimeCompatible===true;
         if(artifactUrl&&!/^https:\\/\\//i.test(artifactUrl))return send(res,400,{error:'El paquete debe usar HTTPS.'});
         if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 no es válido.'});
-        const ready=!!(artifactUrl&&artifactSha&&Number(artifactBytes)>0),publish=input.publish===true;
+        const ready=!!(artifactUrl&&artifactSha&&Number(artifactBytes)>0&&runtimeCompatible),publish=input.publish===true;
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar sin un paquete verificable.'});
         const rows=await sql`UPDATE app_releases SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,160)},
           summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},
