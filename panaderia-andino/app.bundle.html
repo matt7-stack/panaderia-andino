@@ -3053,27 +3053,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
               '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>
-<style id="client-mobile-menu-button-visibility-20261126">
-/* En móviles el panel lateral del cliente es desplegable: mostrar siempre su botón. */
-@media (max-width:767.98px) {
-  body:not(.platform-admin) .topbar .mobile-menu-button {
-    display:inline-grid !important;
-    place-items:center !important;
-    flex:0 0 42px !important;
-    width:42px !important;
-    height:42px !important;
-    min-width:42px !important;
-    min-height:42px !important;
-    padding:0 !important;
-    border:1px solid var(--line,#dce6ed) !important;
-    border-radius:10px !important;
-    color:var(--brown-900,#142b45) !important;
-    background:#fff !important;
-    visibility:visible !important;
-    opacity:1 !important;
-  }
-}
-</style>
+
 
 </body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
@@ -5086,5 +5066,18 @@ html.auth-locked body::-webkit-scrollbar-track {
 .nav-menu .admin-nav-group__items[hidden]{display:none!important}
 </style>
 
+<style id="client-mobile-menu-button-visibility-20261126">
+/* En móviles el panel lateral del cliente es desplegable: mostrar su botón. */
+@media (max-width:767.98px) {
+  body:not(.platform-admin) .topbar .mobile-menu-button {
+    display:inline-grid !important; place-items:center !important;
+    flex:0 0 42px !important; width:42px !important; height:42px !important;
+    min-width:42px !important; min-height:42px !important; padding:0 !important;
+    border:1px solid var(--line,#dce6ed) !important; border-radius:10px !important;
+    color:var(--brown-900,#142b45) !important; background:#fff !important;
+    visibility:visible !important; opacity:1 !important;
+  }
+}
+</style>
 </body>
 </html>
