@@ -127,6 +127,13 @@ function parseMoney(value) {
   return Number.isFinite(amount) && amount <= 999999999999.99 ? amount : NaN;
 }
 function validISODate(value) {
+function isNewerVersion(candidate, current) {
+  const parse = value => String(value || '').split(/[+-]/)[0].split('.').slice(0,3).map(part => Number(part));
+  const next=parse(candidate),previous=parse(current);
+  for(let i=0;i<3;i++){if((next[i]||0)!==(previous[i]||0))return (next[i]||0)>(previous[i]||0);}
+  return false;
+}
+
   const dateText = String(value || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateText)) return false;
   const date = new Date(dateText + 'T00:00:00Z');
@@ -3065,6 +3072,8 @@ module.exports = async function handler(req, res) {
         const publish=input.publish===true;
         const duplicate=await sql`SELECT id FROM app_releases WHERE version=${version} LIMIT 1`;
         if(duplicate.length)return send(res,409,{error:'Ese número de versión ya está registrado. Usá uno nuevo.'});
+        const latestPublished=await sql`SELECT version FROM app_releases WHERE status='published' ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 1`;
+        if(latestPublished.length&&!isNewerVersion(version,latestPublished[0].version))return send(res,409,{error:'La nueva versión debe ser superior a la última versión publicada.'});
         if(artifactBytes!==null&&artifactBytes>4000000)return send(res,413,{error:'El paquete supera el máximo permitido de 4 MB.'});
         const ready=!!(artifactContent&&artifactSha&&artifactBytes&&runtimeCompatible);
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar: el paquete debe contener el runtime compatible y su versión identificada.'});
@@ -3093,6 +3102,10 @@ module.exports = async function handler(req, res) {
         const contentHash=old.artifact_content?crypto.createHash('sha256').update(old.artifact_content,'utf8').digest('hex'):'';
         const ready=!!(old.artifact_content&&artifactUrl==='/api/releases/'+old.version&&artifactSha===contentHash&&Number(artifactBytes)===Buffer.byteLength(old.artifact_content,'utf8')&&runtimeCompatible),publish=input.publish===true;
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar sin un paquete verificable.'});
+        if(publish){
+          const latestPublished=await sql`SELECT version FROM app_releases WHERE status='published' AND id<>${id} ORDER BY published_at DESC NULLS LAST,created_at DESC LIMIT 1`;
+          if(latestPublished.length&&!isNewerVersion(old.version,latestPublished[0].version))return send(res,409,{error:'Solo se puede publicar una versión superior a la última versión estable.'});
+        }
         const rows=await sql`UPDATE app_releases SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,160)},
           summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},
           details=${input.details===undefined?old.details:String(input.details).trim()},
