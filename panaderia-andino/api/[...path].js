@@ -3497,6 +3497,8 @@ module.exports = async function handler(req, res) {
       }
       if(req.method==='PUT'){
         const input=body(req); if(!input.data||typeof input.data!=='object'||Array.isArray(input.data)) return send(res,400,{error:'No se recibieron datos válidos.'});
+        if(!Object.prototype.hasOwnProperty.call(input,'expectedUpdatedAt') || (input.expectedUpdatedAt!==null && (typeof input.expectedUpdatedAt!=='string' || !Number.isFinite(Date.parse(input.expectedUpdatedAt))))) return send(res,428,{error:'La versión de los datos no fue indicada. Actualizá la pantalla antes de guardar.',code:'EXPECTED_VERSION_REQUIRED'});
+        const expectedUpdatedAt=input.expectedUpdatedAt===null?null:new Date(input.expectedUpdatedAt);
         const data={...input.data}; delete data.users;
         if(user.is_platform_admin!==true && user.role==='supervisor'){
           const currentRows=await sql`SELECT data FROM app_state WHERE business_id=${businessId} LIMIT 1`;
@@ -3516,7 +3518,11 @@ module.exports = async function handler(req, res) {
         }
         const serialized=JSON.stringify(data);
         if(Buffer.byteLength(serialized,'utf8')>900000) return send(res,413,{error:'El volumen de datos supera el límite permitido.'});
-        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() RETURNING updated_at`;
+        const saved=await sql`INSERT INTO app_state(data,updated_by,business_id,updated_at) VALUES(${serialized}::jsonb,${user.id},${businessId},NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW() WHERE app_state.updated_at IS NOT DISTINCT FROM ${expectedUpdatedAt} RETURNING updated_at`;
+        if(!saved.length){
+          const latest=await sql`SELECT updated_at FROM app_state WHERE business_id=${businessId} LIMIT 1`;
+          return send(res,409,{error:'Otro usuario modificó los datos de este negocio. Actualizá la información antes de volver a guardar para evitar sobrescribir sus cambios.',code:'DATA_VERSION_CONFLICT',serverUpdatedAt:latest[0]?.updated_at||null},{'Cache-Control':'no-store, max-age=0'});
+        }
         if(user.is_platform_admin!==true){
           const biz=await sql`SELECT name FROM businesses WHERE id=${businessId} LIMIT 1`;
           const title='Actividad en '+(biz[0]?.name||'un negocio');
