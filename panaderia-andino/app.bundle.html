@@ -1680,7 +1680,11 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
                 <div class="col-md-9"><label class="form-label" for="releaseNewTitle">Título</label><input id="releaseNewTitle" class="form-control" maxlength="160" required placeholder="Actualización de noviembre"></div>
                 <div class="col-12"><label class="form-label" for="releaseNewSummary">Resumen de mejoras</label><input id="releaseNewSummary" class="form-control" maxlength="500"></div>
                 <div class="col-12"><label class="form-label" for="releaseNewDetails">Detalle de cambios</label><textarea id="releaseNewDetails" class="form-control" rows="2"></textarea></div>
-                <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2"><small class="text-muted">Se guardará como borrador. Para habilitar instalación hacen falta el paquete, su SHA-256 y un runtime compatible.</small><button class="btn btn-bakery btn-sm" type="submit">Registrar borrador</button></div>
+                <div class="col-md-6"><label class="form-label" for="releaseArtifactUrl">Ruta del paquete publicado</label><input id="releaseArtifactUrl" class="form-control" placeholder="/releases/2.1.0/app.bundle.html"></div>
+                <div class="col-md-6"><label class="form-label" for="releaseArtifactSha">SHA-256 del paquete</label><input id="releaseArtifactSha" class="form-control" maxlength="64" placeholder="64 caracteres hexadecimales"></div>
+                <div class="col-md-4"><label class="form-label" for="releaseArtifactBytes">Tamaño en bytes</label><input id="releaseArtifactBytes" type="number" min="1" class="form-control" placeholder="Ej. 600000"></div>
+                <div class="col-md-8 d-flex flex-wrap align-items-end gap-3"><label class="form-check mb-1"><input id="releaseRuntimeCompatible" class="form-check-input" type="checkbox"><span class="form-check-label">Runtime probado y compatible</span></label><label class="form-check mb-1"><input id="releasePublishNow" class="form-check-input" type="checkbox"><span class="form-check-label">Publicar y actualizar licencias mensuales</span></label></div>
+                <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2"><small class="text-muted">El archivo debe estar previamente publicado en MATTSYSTEM. Solo se habilita el despliegue con SHA-256 válido y runtime compatible.</small><button class="btn btn-bakery btn-sm" type="submit">Guardar versión</button></div>
               </div>
             </form>
             <div class="row g-3"><div class="col-lg-5"><h4 class="h6">Todas las versiones</h4><div id="releaseRegistryList" class="d-grid gap-2"><small class="text-muted">Cargando historial…</small></div></div><div class="col-lg-7"><h4 class="h6">Versión por negocio</h4><div class="d-flex flex-wrap gap-2 mb-2"><select id="versionBulkRelease" class="form-select form-select-sm" style="max-width:180px"><option value="">Versión para actualizar…</option></select><label class="form-check small d-flex align-items-center gap-1 mb-0"><input class="form-check-input mt-0" type="checkbox" id="versionSelectAllMonthly"> Seleccionar mensuales</label><button class="btn btn-outline-primary btn-sm" type="button" id="versionUpdateSelected">Actualizar seleccionados</button><button class="btn btn-bakery btn-sm" type="button" id="versionUpdateAllMonthly">Actualizar todos los mensuales</button></div><div id="versionAssignmentsList" class="table-responsive"><small class="text-muted">Cargando asignaciones…</small></div></div></div>
@@ -4446,7 +4450,10 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     try{
       await window.PanaderiaAuth.api('/api/admin/releases',{method:'POST',body:JSON.stringify({
         version:$('#releaseNewVersion').value.trim(),title:$('#releaseNewTitle').value.trim(),
-        summary:$('#releaseNewSummary').value.trim(),details:$('#releaseNewDetails').value.trim(),publish:false
+        summary:$('#releaseNewSummary').value.trim(),details:$('#releaseNewDetails').value.trim(),
+        artifactUrl:$('#releaseArtifactUrl').value.trim(),artifactSha256:$('#releaseArtifactSha').value.trim(),
+        artifactBytes:$('#releaseArtifactBytes').value?Number($('#releaseArtifactBytes').value):null,
+        runtimeCompatible:$('#releaseRuntimeCompatible').checked,publish:$('#releasePublishNow').checked
       })});
       form.reset();await loadAdminVersionCenter();notify('Versión registrada como borrador. Todavía no se puede instalar hasta preparar el paquete y el runtime.');
     }catch(error){notify(error.message||'No se pudo registrar la versión.');}
