@@ -2989,6 +2989,36 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/business/version') {
+      const user=await authenticated(req,res,false); if(!user)return;
+      if(user.is_platform_admin===true)return send(res,200,{action:'current',platformAdmin:true});
+      const businessId=String(user.business_id||''),buildVersion=String(req.query?.build||'').trim().slice(0,40);
+      if(!businessId)return send(res,400,{error:'La cuenta no está asociada a un negocio.'});
+      if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(buildVersion))return send(res,400,{error:'Versión del programa no válida.'});
+      const sql=db();
+      const rows=await sql`SELECT bv.business_id,bv.installed_release_id,bv.target_release_id,
+        installed.version AS installed_version,target.version AS target_version,target.artifact_url,target.artifact_sha256,
+        target.delivery_ready,target.status AS target_status
+        FROM app_business_versions bv
+        LEFT JOIN app_releases installed ON installed.id=bv.installed_release_id
+        LEFT JOIN app_releases target ON target.id=bv.target_release_id
+        WHERE bv.business_id=${businessId} LIMIT 1`;
+      if(!rows.length)return send(res,404,{error:'Este negocio todavía no tiene una versión asignada.'});
+      const version=rows[0];
+      if(version.target_status==='published'&&version.delivery_ready===true&&version.target_version&&version.target_version!==buildVersion){
+        if(!/^\\/releases\\/[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?\\/app\\.bundle\\.html$/.test(String(version.artifact_url||'')))
+          return send(res,409,{error:'El paquete asignado no tiene una ruta segura dentro de MATTSYSTEM.'});
+        return send(res,200,{action:'redirect',version:version.target_version,artifactUrl:version.artifact_url,sha256:version.artifact_sha256});
+      }
+      if(version.target_version===buildVersion&&version.target_release_id&&version.installed_release_id!==version.target_release_id){
+        await sql`INSERT INTO app_business_version_history(business_id,from_release_id,to_release_id,change_reason)
+          VALUES(${businessId},${version.installed_release_id},${version.target_release_id},'runtime_acknowledged')`;
+        await sql`UPDATE app_business_versions SET installed_release_id=target_release_id,assigned_at=NOW(),updated_at=NOW()
+          WHERE business_id=${businessId} AND target_release_id=${version.target_release_id}`;
+        return send(res,200,{action:'installed',version:buildVersion,previousVersion:version.installed_version});
+      }
+      return send(res,200,{action:'current',version:version.installed_version||buildVersion,targetVersion:version.target_version||null});
+    }
     if (path === '/api/admin/releases') {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
@@ -3006,7 +3036,7 @@ module.exports = async function handler(req, res) {
           artifactBytes=input.artifactBytes==null?null:Number(input.artifactBytes),runtimeCompatible=input.runtimeCompatible===true,publish=input.publish===true;
         if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
           return send(res,400,{error:'Ingresá una versión semántica válida (ej. 2.1.0) y un título.'});
-        if(artifactUrl&&!/^https:\/\/\//i.test(artifactUrl))return send(res,400,{error:'El paquete de versión debe tener una URL HTTPS.'});
+        if(artifactUrl&&!/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(artifactUrl))return send(res,400,{error:'El paquete de versión debe tener una URL HTTPS.'});
         if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 del paquete no es válido.'});
         if(artifactBytes!==null&&(!Number.isSafeInteger(artifactBytes)||artifactBytes<1))return send(res,400,{error:'El tamaño del paquete no es válido.'});
         const ready=!!(artifactUrl&&artifactSha&&artifactBytes&&runtimeCompatible);
@@ -3034,7 +3064,7 @@ module.exports = async function handler(req, res) {
         const old=oldRows[0],artifactUrl=input.artifactUrl===undefined?old.artifact_url:String(input.artifactUrl||'').trim(),
           artifactSha=input.artifactSha256===undefined?old.artifact_sha256:String(input.artifactSha256||'').trim().toLowerCase(),
           artifactBytes=input.artifactBytes===undefined?old.artifact_bytes:(input.artifactBytes===null?null:Number(input.artifactBytes)),runtimeCompatible=input.runtimeCompatible===undefined?old.runtime_compatible:input.runtimeCompatible===true;
-        if(artifactUrl&&!/^https:\/\/\//i.test(artifactUrl))return send(res,400,{error:'El paquete debe usar HTTPS.'});
+        if(artifactUrl&&!/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(artifactUrl))return send(res,400,{error:'El paquete debe usar HTTPS.'});
         if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 no es válido.'});
         const ready=!!(artifactUrl&&artifactSha&&Number(artifactBytes)>0&&runtimeCompatible),publish=input.publish===true;
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar sin un paquete verificable.'});
