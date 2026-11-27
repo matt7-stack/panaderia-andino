@@ -1525,7 +1525,7 @@ module.exports = async function handler(req, res) {
         const trialPlanKey=String(input.trialPlanKey||licensePlanKey);
         if(!['basic','professional','enterprise'].includes(licensePlanKey)||!['basic','professional','enterprise'].includes(trialPlanKey))return send(res,400,{error:'Seleccioná un tipo de licencia válido.'});
         if(activateTrial&&trialPlanKey!==licensePlanKey)return send(res,400,{error:'El plan de prueba debe coincidir con el tipo de licencia seleccionado.'});
-        const planRows=await sql`SELECT plan_key,modules,setup_amount,monthly_amount,user_limit FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
+        const planRows=await sql`SELECT plan_key,modules,setup_amount,configuration_amount,monthly_amount,user_limit FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No encontramos la configuración comercial del plan seleccionado.'});
         const planModules=[...new Set((Array.isArray(planRows[0].modules)?planRows[0].modules:[]).map(x=>String(x).trim()).filter(Boolean))];
         const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(planModules)}::jsonb))`;
@@ -1538,6 +1538,9 @@ module.exports = async function handler(req, res) {
         const licensedModules=[...new Set([...planModules,...requestedAddons])];
         const planSetup=Number(planRows[0].setup_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.setup_price||0),0);
         const planMonthly=Number(planRows[0].monthly_amount||0)+addonRows.reduce((sum,row)=>sum+Number(row.monthly_price||0),0);
+        const includeConfiguration=input.includeConfiguration===true&&!activateTrial;
+        const configurationPlan=includeConfiguration?licensePlanKey:null;
+        const configurationAmount=includeConfiguration?Number(planRows[0].configuration_amount||0):0;
         const planUserLimit=planRows[0].user_limit===null?null:Number(planRows[0].user_limit);
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
@@ -1587,14 +1590,14 @@ module.exports = async function handler(req, res) {
         ), paid_license_created AS (
           INSERT INTO app_licenses(
             business_id,license_code,system_name,plan,status,sold_at,expires_at,
-            setup_amount,monthly_amount,billing_day,user_limit,device_limit,created_by,is_trial,modules
+            setup_amount,configuration_plan,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,created_by,is_trial,modules
           )
           SELECT created.id,${newLicenseCode},${licenseSystem},${licensePlanKey},'pending',CURRENT_DATE,
-            (CURRENT_DATE + INTERVAL '12 months')::date,${planSetup},${planMonthly},1,${planUserLimit},${licenseDeviceLimit},${admin.id},FALSE,
+            (CURRENT_DATE + INTERVAL '12 months')::date,${planSetup},${configurationPlan},${configurationAmount},${planMonthly},1,${planUserLimit},${licenseDeviceLimit},${admin.id},FALSE,
             ${JSON.stringify(licensedModules)}::jsonb
           FROM created
           WHERE ${activateTrial}::boolean=FALSE
-          RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,setup_amount,monthly_amount,user_limit,device_limit,modules
+          RETURNING id,business_id,license_code,plan,status,expires_at,is_trial,setup_amount,configuration_plan,configuration_amount,monthly_amount,user_limit,device_limit,modules
         ), addons_created AS (
           INSERT INTO app_business_addons(business_id,module_key,contracted,enabled,status,contracted_at,activated_at,deactivated_at,updated_by,updated_at)
           SELECT created.id,addon.module_key,TRUE,TRUE,'active',NOW(),NOW(),NULL,${admin.id},NOW()
@@ -1608,11 +1611,11 @@ module.exports = async function handler(req, res) {
           WHERE id=NULLIF(${quotationId},'')::uuid AND (business_id IS NULL OR business_id=(SELECT id FROM created)) RETURNING id
         ), audit_created AS (
           INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
-          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,licensePlanKey,additionalModules:requestedAddons,quotationId:quotationId||null,trialLicense:activateTrial,trialDays:activateTrial?requestedTrialDays:null})}::jsonb FROM created RETURNING id
+          SELECT id,${admin.id},'business.created','business',id,${JSON.stringify({name,slug,industry,configMode,modules:selectedModules,licensePlanKey,additionalModules:requestedAddons,includeConfiguration,configurationPlan,configurationAmount,quotationId:quotationId||null,trialLicense:activateTrial,trialDays:activateTrial?requestedTrialDays:null})}::jsonb FROM created RETURNING id
         )
         SELECT created.*,
           (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'isTrial',l.is_trial,'trialDays',l.trial_days,'modules',l.modules) FROM trial_created l LIMIT 1) AS trial_license,
-          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'setupAmount',l.setup_amount,'monthlyAmount',l.monthly_amount,'modules',l.modules) FROM paid_license_created l LIMIT 1) AS paid_license,
+          (SELECT json_build_object('id',l.id,'licenseCode',l.license_code,'plan',l.plan,'status',l.status,'expiresAt',l.expires_at,'setupAmount',l.setup_amount,'configurationPlan',l.configuration_plan,'configurationAmount',l.configuration_amount,'monthlyAmount',l.monthly_amount,'modules',l.modules) FROM paid_license_created l LIMIT 1) AS paid_license,
           (SELECT COUNT(*)::int FROM addons_created) AS addons_created_count
         FROM created`;
         const trialLicense=rows[0]?.trial_license||null;
