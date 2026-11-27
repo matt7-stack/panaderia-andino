@@ -120,6 +120,11 @@ if (!html.includes("api('/api/business/devices')") ||
   throw new Error('La interfaz del dueño debe consultar y revocar dispositivos mediante la API protegida.');
 }
 const deviceMigration = fs.readFileSync(path.join(root, 'migrations/056_device_registration_and_limits.sql'), 'utf8');
+if (!apiSource.includes('user_limit,device_limit,modules FROM app_license_plan_settings') ||
+    !apiSource.includes('planRows[0].device_limit') ||
+    apiSource.includes("SELECT device_limit FROM app_license_settings WHERE setting_key='default'")) {
+  throw new Error('La emisión de licencias debe heredar el límite de dispositivos del plan seleccionado; NULL representa ilimitado.');
+}
 if (!deviceMigration.includes('app_device_registrations') ||
     !deviceMigration.includes('ENABLE ROW LEVEL SECURITY') ||
     !deviceMigration.includes('FORCE ROW LEVEL SECURITY') ||
