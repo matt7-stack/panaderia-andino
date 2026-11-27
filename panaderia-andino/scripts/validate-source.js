@@ -565,5 +565,24 @@ const releaseArtifactBytes = Buffer.byteLength(releaseArtifactSource, 'utf8');
 if (!versionMigration.includes(releaseArtifactSha256) || !versionMigration.includes(String(releaseArtifactBytes) + ",true,'published',true")) {
   throw new Error('El checksum y tamaño del release 2.0.1 no coinciden con la migración.');
 }
+
+const commercialSecurityMigration = fs.readFileSync(path.join(root, 'migrations/054_commercial_catalog_rls_and_migration_ledger.sql'), 'utf8');
+if (!commercialSecurityMigration.includes('ALTER TABLE public.app_commercial_other_prices ENABLE ROW LEVEL SECURITY') ||
+    !commercialSecurityMigration.includes('ALTER TABLE public.app_commercial_other_prices FORCE ROW LEVEL SECURITY') ||
+    !commercialSecurityMigration.includes('USING (public.app_is_platform_admin())') ||
+    !commercialSecurityMigration.includes('actor_user_id = public.app_context_user_id()') ||
+    !commercialSecurityMigration.includes("VALUES ('052_versioned_releases')")) {
+  throw new Error('El catálogo comercial debe estar aislado por RLS, la telemetría debe usar identidad firmada y la migración 052 debe estar registrada.');
+}
+
+const versionAckGuardMigration = fs.readFileSync(path.join(root, 'migrations/055_version_acknowledgement_guards.sql'), 'utf8');
+if (!versionAckGuardMigration.includes('app_guard_business_version_tenant_ack') ||
+    !versionAckGuardMigration.includes('app_guard_version_upgrade_tenant_ack') ||
+    !versionAckGuardMigration.includes('app_guard_business_version_history_insert') ||
+    !versionAckGuardMigration.includes("NEW.status <> 'applied'") ||
+    !versionAckGuardMigration.includes("NEW.change_reason <> 'runtime_acknowledged'")) {
+  throw new Error('Los negocios solo pueden confirmar la versión asignada; no pueden modificar aprobaciones, pagos ni el historial de versiones.');
+}
+
 process.stdout.write('Release 2.0.1 SHA-256: ' + releaseArtifactSha256 + ' (' + releaseArtifactBytes + ' bytes).\\n');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
