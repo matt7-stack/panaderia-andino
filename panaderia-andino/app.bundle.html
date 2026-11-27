@@ -1140,6 +1140,11 @@ html body .auth-gate.auth-gate-hidden {
   pointer-events: none !important;
 }
 
+/* Evita que la casilla de configuración quede recortada por el margen negativo de Bootstrap. */
+#licenseCreateForm .license-configuration-option{box-sizing:border-box;min-width:0;padding-left:12px!important;gap:10px!important;overflow-wrap:anywhere;}
+#licenseCreateForm .license-configuration-option #licenseIncludeConfiguration{position:static;float:none;margin:0!important;flex:0 0 18px;width:18px;height:18px;}
+#licenseCreateForm .license-configuration-option>span{min-width:0;flex:1 1 auto;}
+
 /* Evita que el selector de configuración se desborde del formulario en pantallas estrechas. */
 #licenseCreateForm .license-configuration-tier-wrap{min-width:0;max-width:100%;width:100%;}
 #licenseCreateForm .license-configuration-tier-wrap .form-label,
@@ -1707,7 +1712,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
 <div class="col-6 col-lg-3"><label class="form-label">Sistema o producto</label><input class="form-control" id="licenseSystem" maxlength="100" value="Mattsystem" required></div>
 <div class="col-6 col-lg-2"><label class="form-label">Plan</label><select class="form-select" id="licensePlan"><option value="basic">Básica</option><option value="professional">Profesional</option><option value="enterprise">Empresarial</option></select></div>
 <div class="col-6 col-lg-3"><label class="form-label">Estado</label><select class="form-select" id="licenseStatus"><option value="pending">Pendiente</option><option value="active">Activa</option><option value="suspended">Suspendida</option></select></div>
-<div class="col-6 col-md-4 col-lg-3"><label class="form-label">Precio de licencia y altas de módulos (Gs.)</label><input class="form-control" id="licenseSetup" type="number" min="0" value="1000000" readonly></div><div class="col-12 col-md-6 col-lg-4"><label class="form-check d-flex align-items-center gap-2 border rounded p-2 h-100"><input class="form-check-input mt-0" id="licenseIncludeConfiguration" type="checkbox"><span><strong class="d-block">Contratar configuración inicial</strong><small class="text-muted">Servicio opcional, independiente del tipo de licencia.</small></span></label><small class="text-muted d-block mt-1" id="licenseConfigurationPrice">Marcá la casilla para elegir el servicio.</small></div>
+<div class="col-6 col-md-4 col-lg-3"><label class="form-label">Precio de licencia y altas de módulos (Gs.)</label><input class="form-control" id="licenseSetup" type="number" min="0" value="1000000" readonly></div><div class="col-12 col-md-6 col-lg-4"><label class="form-check license-configuration-option d-flex align-items-center gap-2 border rounded p-2 h-100"><input class="form-check-input mt-0" id="licenseIncludeConfiguration" type="checkbox"><span><strong class="d-block">Contratar configuración inicial</strong><small class="text-muted">Servicio opcional, independiente del tipo de licencia.</small></span></label><small class="text-muted d-block mt-1" id="licenseConfigurationPrice">Marcá la casilla para elegir el servicio.</small></div>
 <div class="col-12 col-md-6 col-lg-4 license-configuration-tier-wrap" id="licenseConfigurationTierWrap" hidden><label class="form-label" for="licenseConfigurationTier">Nivel de configuración inicial</label><select class="form-select" id="licenseConfigurationTier"><option value="">Elegí un nivel de configuración</option><option value="basic">Básica — Gs. 250.000</option><option value="professional">Profesional — Gs. 400.000</option><option value="enterprise">Empresarial — Gs. 600.000</option></select><div class="form-text" id="licenseConfigurationDescription">Seleccioná un nivel para ver qué incluye.</div></div>
 <div class="col-6 col-md-4 col-lg-3"><label class="form-label">Cuota mensual (Gs.)</label><input class="form-control" id="licenseMonthlyInput" type="number" min="0" value="99000" readonly></div>
 <div class="col-6 col-md-4 col-lg-2"><label class="form-label">Día de cobro</label><input class="form-control" id="licenseBillingDay" type="number" min="1" max="28" value="1"></div>
