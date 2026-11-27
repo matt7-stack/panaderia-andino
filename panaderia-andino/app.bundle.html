@@ -4709,16 +4709,25 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const buildVersion=document.querySelector('meta[name="mattsystem-version"]')?.content||'2.0.1';
     const result=await window.PanaderiaAuth.api('/api/business/version?build='+encodeURIComponent(buildVersion));
     if(result.action==='redirect'&&result.artifactUrl){
-      const destination=new URL(result.artifactUrl,window.location.origin);
-      if(destination.origin!==window.location.origin||!(destination.pathname.startsWith('/releases/')||destination.pathname.startsWith('/api/releases/')))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
-      if(!result.sha256||!window.crypto?.subtle)throw new Error('No se pudo verificar la integridad del paquete de actualización.');
-      const response=await fetch(destination.href,{cache:'no-store',credentials:'same-origin'});
-      if(!response.ok)throw new Error('No se pudo descargar el paquete de la versión '+result.version+'.');
-      const bytes=await response.arrayBuffer(),digest=await window.crypto.subtle.digest('SHA-256',bytes);
-      const actual=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
-      if(actual!==String(result.sha256).toLowerCase())throw new Error('La verificación SHA-256 del paquete falló. No se instalará esta versión.');
-      destination.search=window.location.search;destination.hash=window.location.hash;
-      window.location.replace(destination.href);return true;
+      try{
+        const destination=new URL(result.artifactUrl,window.location.origin);
+        if(destination.origin!==window.location.origin||!(destination.pathname.startsWith('/releases/')||destination.pathname.startsWith('/api/releases/')))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
+        if(!result.sha256||!window.crypto?.subtle)throw new Error('No se pudo verificar la integridad del paquete de actualización.');
+        const response=await fetch(destination.href,{cache:'no-store',credentials:'same-origin'});
+        if(!response.ok)throw new Error('No se pudo descargar el paquete de la versión '+result.version+'.');
+        const bytes=await response.arrayBuffer(),digest=await window.crypto.subtle.digest('SHA-256',bytes);
+        const actual=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
+        if(actual!==String(result.sha256).toLowerCase())throw new Error('La verificación SHA-256 del paquete falló.');
+        destination.search=window.location.search;destination.hash=window.location.hash;
+        window.location.replace(destination.href);return true;
+      }catch(error){
+        let panel=document.getElementById('mattsystemRequiredVersionError');
+        if(!panel){panel=document.createElement('div');panel.id='mattsystemRequiredVersionError';panel.style.cssText='position:fixed;z-index:30000;inset:0;display:grid;place-content:center;gap:14px;padding:28px;background:#f3f7fa;color:#142b45;text-align:center;font:15px/1.5 system-ui,sans-serif';document.body.appendChild(panel);}
+        panel.innerHTML='<strong>Esta actualización es obligatoria para continuar.</strong><p style="max-width:460px;margin:0"></p><button type="button" style="justify-self:center;padding:10px 18px;border:0;border-radius:8px;background:#142b45;color:white">Reintentar actualización</button>';
+        panel.querySelector('p').textContent=error.message||'No se pudo verificar el paquete.';
+        panel.querySelector('button').addEventListener('click',()=>window.location.reload());
+        return true;
+      }
     }
     return false;
   };
