@@ -108,6 +108,44 @@ function body(req) {
   if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch (_) { return {}; } }
   return {};
 }
+
+async function getVercelDeploymentHealth() {
+  const token=String(process.env.VERCEL_API_TOKEN||'').trim();
+  const projectId=String(process.env.VERCEL_PROJECT_ID||'').trim();
+  const teamId=String(process.env.VERCEL_TEAM_ID||'').trim();
+  if(!token||!projectId)return {status:'not_connected',configured:false,reason:'missing_credentials',latest:null};
+  try{
+    const endpoint=new URL('https://api.vercel.com/v6/deployments');
+    endpoint.searchParams.set('projectId',projectId);
+    endpoint.searchParams.set('limit','5');
+    if(teamId)endpoint.searchParams.set('teamId',teamId);
+    const response=await fetch(endpoint.toString(),{
+      method:'GET',
+      headers:{Authorization:'Bearer '+token,Accept:'application/json'},
+      signal:AbortSignal.timeout(5000)
+    });
+    if(!response.ok)return {status:'unknown',configured:true,httpStatus:response.status,reason:'provider_request_failed',latest:null};
+    const payload=await response.json();
+    const deployment=Array.isArray(payload.deployments)?payload.deployments[0]:null;
+    if(!deployment)return {status:'unknown',configured:true,reason:'no_deployments',latest:null};
+    const readyState=String(deployment.readyState||deployment.state||'UNKNOWN').toUpperCase();
+    const status=readyState==='READY'?'operational':readyState==='ERROR'?'critical':readyState==='BUILDING'||readyState==='QUEUED'?'warning':readyState==='CANCELED'?'warning':'unknown';
+    return {
+      status,configured:true,reason:null,
+      latest:{
+        id:String(deployment.uid||deployment.id||''),
+        url:deployment.url?'https://'+String(deployment.url).replace(/^https?:\\/\\//i,''):null,
+        readyState,
+        createdAt:deployment.createdAt?new Date(deployment.createdAt).toISOString():null,
+        target:deployment.target||null,
+        branch:deployment.meta?.githubCommitRef||deployment.meta?.gitCommitRef||null,
+        commit:deployment.meta?.githubCommitSha||deployment.meta?.gitCommitSha||null
+      }
+    };
+  }catch(error){
+    return {status:'unknown',configured:true,reason:error.name==='TimeoutError'?'timeout':'provider_unavailable',latest:null};
+  }
+}
 function parseMoney(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
   let raw = String(value ?? '').trim().replace(/[^0-9,.-]/g, '');
@@ -1184,14 +1222,15 @@ module.exports = async function handler(req, res) {
       const admin=await authenticated(req,res,true); if(!admin)return;
       const sql=db();
       if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
-      const [database,counts,backups,licenses,payments,events,latency,history,audit,tickets,dailyTrend,weeklyTrend,monthlyTrend]=await Promise.all([
+      const [database,counts,backups,licenses,payments,events,latency,history,audit,tickets,dailyTrend,weeklyTrend,monthlyTrend,backupCron,securityStats,schemaStatus,vercelDeployment]=await Promise.all([
         sql`SELECT current_database() AS name,pg_database_size(current_database())::bigint AS bytes,version() AS server_version`,
         sql`SELECT (SELECT COUNT(*)::int FROM businesses) AS businesses,
           (SELECT COUNT(*)::int FROM businesses WHERE active=TRUE) AS active_businesses,
           (SELECT COUNT(*)::int FROM app_users WHERE active=TRUE) AS active_users`,
         sql`SELECT COUNT(*)::int AS total,
           COUNT(*) FILTER (WHERE checksum=encode(digest(convert_to(payload::text,'UTF8'),'sha256'),'hex'))::int AS valid,
-          MAX(created_at) AS latest_at,MAX(restored_at) AS latest_restore_at
+          MAX(created_at) AS latest_at,MAX(restored_at) AS latest_restore_at,
+          (SELECT COUNT(*)::int FROM businesses b WHERE b.active=TRUE AND NOT EXISTS(SELECT 1 FROM app_business_backups bb WHERE bb.business_id=b.id AND bb.created_at>NOW()-INTERVAL '30 hours')) AS businesses_missing_backup
           FROM app_business_backups`,
         sql`SELECT COUNT(*) FILTER(WHERE status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE))::int AS active,
           COUNT(*) FILTER(WHERE status='active' AND expires_at BETWEEN CURRENT_DATE AND CURRENT_DATE+7)::int AS expiring_7d,
@@ -1217,22 +1256,40 @@ module.exports = async function handler(req, res) {
         sql`SELECT COUNT(*) FILTER(WHERE LOWER(status) NOT IN ('resolved','closed','cancelled'))::int AS open FROM app_support_tickets`,
         sql`SELECT date_trunc('day',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '90 days' GROUP BY 1 ORDER BY 1 DESC LIMIT 90`,
         sql`SELECT date_trunc('week',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '90 days' GROUP BY 1 ORDER BY 1 DESC LIMIT 26`,
-        sql`SELECT date_trunc('month',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '12 months' GROUP BY 1 ORDER BY 1 DESC LIMIT 12`
+        sql`SELECT date_trunc('month',captured_at) AS period,COUNT(*)::int AS checks,COUNT(*) FILTER(WHERE overall_status='critical')::int AS critical,COUNT(*) FILTER(WHERE overall_status='warning')::int AS warnings FROM app_health_snapshots WHERE captured_at>NOW()-INTERVAL '12 months' GROUP BY 1 ORDER BY 1 DESC LIMIT 12`,
+        sql`SELECT MAX(created_at) FILTER(WHERE status='completed') AS latest_success,MAX(created_at) AS latest_run,COUNT(*) FILTER(WHERE status<>'completed' AND created_at>NOW()-INTERVAL '30 hours')::int AS failures_30h FROM app_backup_log`,
+        sql`SELECT COUNT(*) FILTER(WHERE locked_until>NOW())::int AS locked_accounts,COUNT(*) FILTER(WHERE updated_at>NOW()-INTERVAL '24 hours' AND failures>0)::int AS accounts_with_failures,COALESCE(MAX(failures),0)::int AS max_failures FROM app_login_attempts`,
+        sql`SELECT COUNT(*)::int AS applied_count,MAX(applied_at) AS latest_applied_at,BOOL_OR(version='053_system_health_observability') AS health_migration_applied FROM schema_migrations`,
+        getVercelDeploymentHealth()
       ]);
-      const dbInfo=database[0]||{}, totals=counts[0]||{}, backup=backups[0]||{}, lic=licenses[0]||{}, ev=events[0]||{}, perf=latency[0]||{};
+      const dbPingStarted=Date.now();
+      await sql`SELECT 1 AS ok`;
+      const dbPingMs=Date.now()-dbPingStarted;
+      const dbInfo=database[0]||{}, totals=counts[0]||{}, backup=backups[0]||{}, lic=licenses[0]||{}, ev=events[0]||{}, perf=latency[0]||{}, cron=backupCron[0]||{}, security=securityStats[0]||{}, schema=schemaStatus[0]||{};
       const backupAgeHours=backup.latest_at?Math.max(0,Math.round((Date.now()-new Date(backup.latest_at).getTime())/3600000)):null;
       const checks={
-        database:{status:'operational',name:dbInfo.name,sizeBytes:Number(dbInfo.bytes||0),serverVersion:String(dbInfo.server_version||'').split(' ').slice(0,2).join(' ')},
-        backups:{status:Number(backup.total||0)===0?'unknown':Number(backup.valid)===Number(backup.total)?'operational':'critical',total:Number(backup.total||0),valid:Number(backup.valid||0),latestAt:backup.latest_at||null,latestRestoreAt:backup.latest_restore_at||null,ageHours:backupAgeHours,providerSnapshots:'not_verified'},
-        application:{status:Number(ev.errors_24h||0)>0?'warning':'operational',events24h:Number(ev.events_24h||0),errors24h:Number(ev.errors_24h||0),slowApi24h:Number(ev.slow_api_24h||0),avgApiMs:Number(perf.avg_ms||0),p95ApiMs:Number(perf.p95_ms||0)},
+        database:{status:schema.health_migration_applied===true?'operational':'warning',name:dbInfo.name,sizeBytes:Number(dbInfo.bytes||0),serverVersion:String(dbInfo.server_version||'').split(' ').slice(0,2).join(' '),pingMs:dbPingMs,appliedMigrations:Number(schema.applied_count||0),latestMigrationAt:schema.latest_applied_at||null,healthMigrationApplied:schema.health_migration_applied===true},
+        backups:{status:Number(backup.total||0)===0?'unknown':Number(backup.valid)<Number(backup.total)?'critical':backupAgeHours!==null&&backupAgeHours>30||Number(backup.businesses_missing_backup||0)>0?'warning':'operational',total:Number(backup.total||0),valid:Number(backup.valid||0),latestAt:backup.latest_at||null,latestRestoreAt:backup.latest_restore_at||null,ageHours:backupAgeHours,businessesMissingBackup:Number(backup.businesses_missing_backup||0),latestCronSuccess:cron.latest_success||null,latestCronRun:cron.latest_run||null,cronFailures30h:Number(cron.failures_30h||0),providerSnapshots:'not_verified',restoreDrill:'not_verified'},
+        application:{status:Number(ev.errors_24h||0)>0||Number(ev.slow_api_24h||0)>0?'warning':'operational',events24h:Number(ev.events_24h||0),errors24h:Number(ev.errors_24h||0),slowApi24h:Number(ev.slow_api_24h||0),avgApiMs:Number(perf.avg_ms||0),p95ApiMs:Number(perf.p95_ms||0)},
+        security:{status:Number(security.locked_accounts||0)>0?'warning':'operational',lockedAccounts:Number(security.locked_accounts||0),accountsWithFailures:Number(security.accounts_with_failures||0),maxFailures:Number(security.max_failures||0)},
+        deviceLimits:{status:Number(lic.device_limits_configured||0)>0?'not_verified':'not_applicable',configured:Number(lic.device_limits_configured||0),enforcement:'not_verified',reason:'No existe un registro de dispositivos activos asociado a las sesiones.'},
         licenses:{active:Number(lic.active||0),expiring7d:Number(lic.expiring_7d||0),inactive:Number(lic.inactive||0),suspended:Number(lic.suspended||0),expired:Number(lic.expired||0),activeTrials:Number(lic.active_trials||0),expiredTrials:Number(lic.expired_trials||0),deviceLimitsConfigured:Number(lic.device_limits_configured||0),userLimitExceeded:Number(lic.user_limit_exceeded||0),payments30d:Number(payments[0]?.payments_30d||0),paidAmount30d:Number(payments[0]?.paid_amount_30d||0)},
-        platform:{environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'unknown',project:process.env.VERCEL_PROJECT_NAME||null,region:process.env.VERCEL_REGION||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,commit:process.env.VERCEL_GIT_COMMIT_SHA||null,branch:process.env.VERCEL_GIT_COMMIT_REF||null,externalLogs:'not_connected'}
+        platform:{environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'unknown',project:process.env.VERCEL_PROJECT_NAME||null,region:process.env.VERCEL_REGION||null,deploymentId:process.env.VERCEL_DEPLOYMENT_ID||null,commit:process.env.VERCEL_GIT_COMMIT_SHA||null,branch:process.env.VERCEL_GIT_COMMIT_REF||null,externalLogs:'not_connected',deployment:vercelDeployment}
       };
       const alerts=[];
       if(checks.backups.status==='unknown')alerts.push({level:'warning',title:'No hay respaldos internos registrados',detail:'Todavía no existe un respaldo de negocio que se pueda verificar.'});
       else if(checks.backups.status==='critical')alerts.push({level:'critical',title:'Hay respaldos con checksum inválido',detail:'Revisá la integridad de los respaldos antes de restaurar.'});
       if(backupAgeHours!==null&&backupAgeHours>30)alerts.push({level:'warning',title:'Respaldo interno desactualizado',detail:'El último respaldo interno tiene '+backupAgeHours+' horas.'});
       if(Number(ev.errors_24h||0)>0)alerts.push({level:'warning',title:'Errores de aplicación detectados',detail:Number(ev.errors_24h)+' errores registrados en las últimas 24 horas.'});
+      if(Number(ev.slow_api_24h||0)>0)alerts.push({level:'warning',title:'Solicitudes lentas detectadas',detail:Number(ev.slow_api_24h)+' solicitudes superaron el umbral de latencia en las últimas 24 horas.'});
+      if(Number(backup.businesses_missing_backup||0)>0)alerts.push({level:'warning',title:'Negocios sin respaldo reciente',detail:Number(backup.businesses_missing_backup)+' negocio(s) activos no tienen un respaldo en las últimas 30 horas.'});
+      if(Number(cron.failures_30h||0)>0)alerts.push({level:'critical',title:'Falló una tarea de respaldo',detail:Number(cron.failures_30h)+' ejecución(es) fallidas registradas en las últimas 30 horas.'});
+      if(Number(security.locked_accounts||0)>0)alerts.push({level:'warning',title:'Cuentas bloqueadas por seguridad',detail:Number(security.locked_accounts)+' cuenta(s) tienen un bloqueo activo por intentos fallidos.'});
+      if(Number(lic.device_limits_configured||0)>0)alerts.push({level:'warning',title:'Límites de dispositivos sin verificación',detail:'Hay licencias con límite de dispositivos, pero el sistema todavía no registra dispositivos activos para comprobar su cumplimiento.'});
+      if(schema.health_migration_applied!==true)alerts.push({level:'critical',title:'Migración de observabilidad no aplicada',detail:'La base de datos no registra la migración 053 requerida por el panel de salud.'});
+      if(!vercelDeployment.configured)alerts.push({level:'warning',title:'Vercel no está conectado al panel',detail:'Agregá VERCEL_API_TOKEN en las variables de entorno de Vercel para consultar el estado real de los despliegues.'});
+      else if(vercelDeployment.status==='critical')alerts.push({level:'critical',title:'El último despliegue de Vercel falló',detail:'El proveedor informa estado '+(vercelDeployment.latest?.readyState||'ERROR')+'. Revisá el build antes de publicar.'});
+      else if(vercelDeployment.status==='warning')alerts.push({level:'warning',title:'Despliegue de Vercel en proceso o cancelado',detail:'El último despliegue informa estado '+(vercelDeployment.latest?.readyState||'BUILDING')+'.'});
       if(Number(lic.expiring_7d||0)>0)alerts.push({level:'info',title:'Licencias próximas a vencer',detail:Number(lic.expiring_7d)+' licencias vencen dentro de 7 días.'});
       if(Number(lic.user_limit_exceeded||0)>0)alerts.push({level:'warning',title:'Límite de usuarios superado',detail:Number(lic.user_limit_exceeded)+' negocio(s) superan el límite de usuarios de su licencia.'});
       if(Number(lic.expired_trials||0)>0)alerts.push({level:'info',title:'Pruebas vencidas',detail:Number(lic.expired_trials)+' prueba(s) gratuita(s) están vencidas.'});
