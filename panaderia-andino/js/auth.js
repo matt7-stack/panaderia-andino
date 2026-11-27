@@ -34,6 +34,9 @@
       error.status = response.status;
       error.code = result.code || '';
       error.serverUpdatedAt = result.serverUpdatedAt || null;
+      if (error.code === 'DATA_VERSION_CONFLICT') {
+        window.dispatchEvent(new CustomEvent('mattsystem:data-conflict', { detail: { serverUpdatedAt: error.serverUpdatedAt } }));
+      }
       throw error;
     }
     return result;
