@@ -4688,6 +4688,12 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if(result.action==='redirect'&&result.artifactUrl){
       const destination=new URL(result.artifactUrl,window.location.origin);
       if(destination.origin!==window.location.origin||!destination.pathname.startsWith('/releases/'))throw new Error('La ruta de actualización no pertenece a MATTSYSTEM.');
+      if(!result.sha256||!window.crypto?.subtle)throw new Error('No se pudo verificar la integridad del paquete de actualización.');
+      const response=await fetch(destination.href,{cache:'no-store',credentials:'same-origin'});
+      if(!response.ok)throw new Error('No se pudo descargar el paquete de la versión '+result.version+'.');
+      const bytes=await response.arrayBuffer(),digest=await window.crypto.subtle.digest('SHA-256',bytes);
+      const actual=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,'0')).join('');
+      if(actual!==String(result.sha256).toLowerCase())throw new Error('La verificación SHA-256 del paquete falló. No se instalará esta versión.');
       destination.search=window.location.search;destination.hash=window.location.hash;
       window.location.replace(destination.href);return true;
     }
