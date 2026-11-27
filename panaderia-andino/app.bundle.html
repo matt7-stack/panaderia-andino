@@ -4615,6 +4615,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    const key=$('#licensePlan')?.value||'basic',plan=licensePlanSettings.find(x=>x.plan_key===key);if(!plan)return;
    $('#licenseSetup').value=Number(plan.setup_amount||0);$('#licenseMonthlyInput').value=Number(plan.monthly_amount||0);
    const userLimit=$('#licenseUserLimit');if(userLimit)userLimit.value=plan.user_limit===null||plan.user_limit===undefined?'':String(plan.user_limit);
+   const deviceLimit=$('#licenseDeviceLimit');if(deviceLimit)deviceLimit.value=plan.device_limit===null||plan.device_limit===undefined?'':String(plan.device_limit);
    const names=(Array.isArray(plan.modules)?plan.modules:[]).map(k=>licensePlanModuleCatalog.find(m=>m.module_key===k)?.title||k);
    const preview=$('#licensePlanPreview'),limit=plan.user_limit?String(plan.user_limit)+' usuarios':'sin límite definido';
    if(preview)preview.textContent='Plan '+(plan.display_name||key)+': inicial Gs. '+Number(plan.setup_amount||0).toLocaleString('es-PY')+', mensual Gs. '+Number(plan.monthly_amount||0).toLocaleString('es-PY')+', '+limit+'. Módulos: '+names.join(', ')+'.';
@@ -4631,7 +4632,6 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    const table=$('#licensesTableBody'),businessSelect=$('#licenseBusiness');
    if(!table||!businessSelect)return false;
    await loadLicensePlanSettings();
-   try{const settings=await api('/api/admin/license-settings');const deviceLimit=$('#licenseDeviceLimit');if(deviceLimit)deviceLimit.value=settings.settings?.deviceLimit===null||settings.settings?.deviceLimit===undefined?'':String(settings.settings.deviceLimit);}catch(error){console.warn('No se pudo cargar el límite predeterminado de dispositivos:',error.message);}
    table.innerHTML='<tr><td colspan="11" class="text-center">Cargando licencias…</td></tr>';
    businessSelect.disabled=true;
    try{
