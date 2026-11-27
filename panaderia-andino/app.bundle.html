@@ -4814,7 +4814,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
    if(reloadButton){reloadButton.disabled=true;reloadButton.textContent='Actualizando…';}
    const api=window.PanaderiaAuth.api;
    const planSelect=root.querySelector('#quoteLicensePlan'),moduleBox=root.querySelector('#quoteModulesList'),serviceBox=root.querySelector('#quoteServicesList');
-   const serviceDefs=[['hosting','Hosting / alojamiento'],['maintenance','Mantenimiento técnico'],['support','Soporte técnico'],['updates','Actualizaciones del sistema']];
+   const serviceDefs=[['configuration','Configuración inicial'],['hosting','Hosting / alojamiento'],['maintenance','Mantenimiento técnico'],['support','Soporte técnico'],['updates','Actualizaciones del sistema']];
    const readNum=selector=>Math.max(0,Number(root.querySelector(selector)?.value||0));
    const selectedPlan=()=>commercialQuoteCatalog?.plans?.find(p=>p.plan_key===planSelect.value);
    const chosenModules=()=>[...moduleBox.querySelectorAll('[data-quote-module]:checked')].map(x=>x.dataset.quoteModule);
@@ -4831,7 +4831,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      el.innerHTML=[['setup','Precio de licencia',p.setup_amount],['monthly','Licencia mensual',p.monthly_amount],['permanent','Licencia permanente',p.permanent_price],['fullSale','Venta completa',p.full_sale_price]].map(([key,label,value])=>'<div class="col-md-6"><label class="form-label">'+label+' (Gs.)</label><input class="form-control" type="number" min="0" data-quote-license="'+key+'" value="'+Number(value||0)+'"></div>').join('')+'<div class="col-md-6"><label class="form-label">Descuento anual (%)</label><input class="form-control" type="number" min="0" max="100" data-quote-license="annual" value="'+Number(p.annual_discount_percent||0)+'"></div><div class="col-md-6"><label class="form-label">Límite de usuarios</label><input class="form-control" value="'+(p.user_limit??'Sin límite definido')+'" readonly></div>';
    };
    const renderServices=()=>{
-     serviceBox.innerHTML=serviceDefs.map(([key,title])=>'<div class="col-md-6"><div class="border rounded p-2 h-100"><label class="form-check"><input class="form-check-input" type="checkbox" data-quote-service="'+key+'"><span class="form-check-label fw-semibold">'+title+'</span></label><div class="row g-2 mt-1"><div class="col-6"><label class="small">Único Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="0" data-quote-service-setup="'+key+'"></div><div class="col-6"><label class="small">Mensual Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="0" data-quote-service-monthly="'+key+'"></div></div></div></div>').join('');
+     serviceBox.innerHTML=serviceDefs.map(([key,title])=>'<div class="col-md-6"><div class="border rounded p-2 h-100"><label class="form-check"><input class="form-check-input" type="checkbox" data-quote-service="'+key+'"><span class="form-check-label fw-semibold">'+title+'</span></label><div class="row g-2 mt-1"><div class="col-6"><label class="small">Único Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="'+(key==='configuration'?Number(selectedPlan()?.configuration_amount||0):0)+'" data-quote-service-setup="'+key+'"></div><div class="col-6"><label class="small">Mensual Gs.</label><input class="form-control form-control-sm" type="number" min="0" value="0" data-quote-service-monthly="'+key+'"></div></div></div></div>').join('');
    };
    const updateQuoteSummary=()=>{
      if(!commercialQuoteCatalog)return;
@@ -4852,7 +4852,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      planSelect.innerHTML=commercialQuoteCatalog.plans.map(p=>'<option value="'+quoteEsc(p.plan_key)+'">'+quoteEsc(p.display_name||p.plan_key)+'</option>').join('');
      if(commercialQuoteCatalog.plans.some(p=>p.plan_key==='professional'))planSelect.value='professional';
      renderServices();renderModules();
-     planSelect.onchange=()=>{renderModules();};
+     planSelect.onchange=()=>{renderModules();renderServices();};
      root.querySelector('#quotePaymentType').onchange=updateQuoteSummary;
      root.addEventListener('input',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
      root.addEventListener('change',e=>{if(e.target.matches('input,textarea,select'))updateQuoteSummary();});
