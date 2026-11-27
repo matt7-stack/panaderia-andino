@@ -2419,13 +2419,14 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     }
   }
   function pageNavigate(page) {
-    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-cotizador', 'admin-precios', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'admin-centro', 'admin-maintenance', 'novedades', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'reportes-globales', 'guia-uso', 'contacto-soporte'].includes(page)) return;
+    if (!['dashboard', 'movimientos', 'notas', 'notificaciones', 'info', 'productos', 'empleados', 'erp', 'administracion', 'admin-panaderias', 'admin-licencias', 'admin-cotizador', 'admin-precios', 'admin-usuarios', 'admin-notificaciones', 'admin-support', 'admin-centro', 'admin-maintenance', 'novedades', 'accesos-rapidos', 'configuracion', 'actividad', 'seguridad', 'salud-sistema', 'reportes-globales', 'guia-uso', 'contacto-soporte'].includes(page)) return;
     const currentUser = window.PanaderiaAuth?.user;
     syncBusinessModuleNavigation();
     const pageModules={dashboard:'dashboard',movimientos:'movements',notas:'invoices',productos:'products',empleados:'employees'};
     const requestedModule=pageModules[page];
     if(currentUser?.isPlatformAdmin!==true&&requestedModule&&Array.isArray(currentUser?.businessConfig?.modules)&&!currentUser.businessConfig.modules.includes(requestedModule))page='dashboard';
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
+    if (page === 'salud-sistema' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-precios' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-maintenance' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
