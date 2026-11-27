@@ -36,6 +36,7 @@ const requiredFiles = [
   'migrations/043_multiple_expiry_alert_days.sql',
   'migrations/044_web_push_subscriptions.sql',
   'migrations/045_api_global_rate_limits.sql',
+  'migrations/048_industry_library_templates.sql',
   'manifest.webmanifest',
   'vercel.json',
   'sw.js'
@@ -458,6 +459,20 @@ if (!webPushMigration.includes('app_push_subscriptions') ||
     !appBundleSource.includes("pushManager.subscribe") ||
     !packageSource.dependencies['web-push']) {
   throw new Error('Las notificaciones push deben guardar suscripciones privadas y enviarse en segundo plano.');
+}
+
+const industryKeys = [
+  'despensas_minimercados','tiendas_ropa_calzados','ferreterias','electronica_tecnologia',
+  'comercios_generales','panaderias','restaurantes','cafeterias_bares','carnicerias_pollerias',
+  'fruterias_verdulerias','talleres_mecanicos','barberias_peluquerias','centros_estetica',
+  'reparacion_celulares_computadoras','empresas_servicios'
+];
+const industryMigration = fs.readFileSync(path.join(root, 'migrations/048_industry_library_templates.sql'), 'utf8');
+if (industryKeys.some(key => !html.includes(key) || !apiSource.includes(key) || !industryMigration.includes(key))) {
+  throw new Error('La biblioteca de rubros debe estar sincronizada entre interfaz, API y migración.');
+}
+if (!html.includes("industrySelect.value==='otro_rubro'") || !html.includes('Otro rubro / configuración personalizada')) {
+  throw new Error('Debe existir una ruta de configuración para negocios de otros rubros.');
 }
 
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
