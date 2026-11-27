@@ -1863,7 +1863,7 @@ module.exports = async function handler(req, res) {
         const trialPlanKey=String(input.trialPlanKey||licensePlanKey);
         if(!['basic','professional','enterprise'].includes(licensePlanKey)||!['basic','professional','enterprise'].includes(trialPlanKey))return send(res,400,{error:'Seleccioná un tipo de licencia válido.'});
         if(activateTrial&&trialPlanKey!==licensePlanKey)return send(res,400,{error:'El plan de prueba debe coincidir con el tipo de licencia seleccionado.'});
-        const planRows=await sql`SELECT plan_key,modules,setup_amount,configuration_amount,monthly_amount,user_limit FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
+        const planRows=await sql`SELECT plan_key,modules,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit FROM app_license_plan_settings WHERE plan_key=${licensePlanKey} LIMIT 1`;
         if(!planRows.length)return send(res,409,{error:'No encontramos la configuración comercial del plan seleccionado.'});
         const planModules=[...new Set((Array.isArray(planRows[0].modules)?planRows[0].modules:[]).map(x=>String(x).trim()).filter(Boolean))];
         const validModules=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND commercial_mode='core' AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(planModules)}::jsonb))`;
@@ -1885,8 +1885,8 @@ module.exports = async function handler(req, res) {
         const planUserLimit=planRows[0].user_limit===null?null:Number(planRows[0].user_limit);
         if(selectedModules.some(key=>['sales','inventory','purchases','recipes','production'].includes(key))&&!selectedModules.includes('products'))return send(res,400,{error:'Los módulos de ventas, inventario, compras y producción requieren Productos y costos.'});
         if(selectedModules.includes('users')&&!selectedModules.includes('employees'))return send(res,400,{error:'La gestión de usuarios requiere el módulo Empleados y pagos.'});
-        const defaultDeviceSettings=await sql`SELECT device_limit FROM app_license_settings WHERE setting_key='default' LIMIT 1`;
-        const licenseDeviceLimit=defaultDeviceSettings[0]?.device_limit===null||defaultDeviceSettings[0]?.device_limit===undefined?null:Number(defaultDeviceSettings[0].device_limit);
+        // Los límites de dispositivos se heredan del plan comercial seleccionado; NULL significa ilimitado.
+        const licenseDeviceLimit=planRows[0].device_limit===null||planRows[0].device_limit===undefined?null:Number(planRows[0].device_limit);
         const newLicenseCode='MTS-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(3).toString('hex').toUpperCase();
         const quotationId=String(input.quotationId||'');
         const requestedReleaseId=String(input.releaseId||'');
