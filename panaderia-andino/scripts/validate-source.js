@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 
 const root = path.resolve(__dirname, '..');
 const requiredFiles = [
@@ -512,4 +513,11 @@ if (!versionMigration.includes('app_releases') ||
   throw new Error('Falta el catálogo de versiones, la asignación por negocio o la autorización de mejoras permanentes.');
 }
 
+const releaseArtifactSource = fs.readFileSync(path.join(root, 'releases/2.0.1/app.bundle.html'), 'utf8');
+if (releaseArtifactSource !== appBundleSource) {
+  throw new Error('El paquete inmutable 2.0.1 debe coincidir con su snapshot de aplicación.');
+}
+const releaseArtifactSha256 = crypto.createHash('sha256').update(releaseArtifactSource, 'utf8').digest('hex');
+const releaseArtifactBytes = Buffer.byteLength(releaseArtifactSource, 'utf8');
+process.stdout.write('Release 2.0.1 SHA-256: ' + releaseArtifactSha256 + ' (' + releaseArtifactBytes + ' bytes).\\n');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
