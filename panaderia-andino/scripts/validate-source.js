@@ -272,6 +272,8 @@ if (!html.includes('id="adminHealthNav"') || !html.includes('id="page-salud-sist
     !html.includes('id="healthHistory"') || !html.includes('id="healthAlerts"') ||
     !html.includes('id="healthActiveTrials"') || !html.includes('id="healthUserLimitExceeded"') ||
     !html.includes('id="healthSuspendedLicenses"') || !html.includes('id="healthDeviceLimits"') ||
+    !html.includes('id="healthDailyTrend"') || !html.includes('id="healthWeeklyTrend"') || !html.includes('id="healthMonthlyTrend"') ||
+    !apiSource.includes("date_trunc('day'") || !apiSource.includes("date_trunc('week'") || !apiSource.includes("date_trunc('month'") ||
     !apiSource.includes('active_trials') || !apiSource.includes('user_limit_exceeded') || !apiSource.includes('payments_30d') ||
     !apiSource.includes('status=\'suspended\'') || !apiSource.includes('device_limits_configured') ||
     !html.includes("reportHealthEvent('js_error'") || !html.includes("reportHealthEvent('api_error'") ||
