@@ -451,6 +451,7 @@ module.exports = async function handler(req, res) {
       await sql`INSERT INTO app_health_snapshots(overall_status,metrics) VALUES(${healthStatus},${JSON.stringify(healthMetrics)}::jsonb)`;
       const healthAlerts=[];
       if(healthCritical)healthAlerts.push({title:'Integridad de respaldos: revisar',message:'El diagnóstico diario detectó respaldos con checksum inválido.'});
+      if(healthMetrics.checks.backups.total===0)healthAlerts.push({title:'No hay respaldos internos registrados',message:'El diagnóstico diario no encontró respaldos internos de negocios para verificar.'});
       if(healthMetrics.checks.application.errors24h>0)healthAlerts.push({title:'Errores de MATTSYSTEM detectados',message:'Se registraron '+healthMetrics.checks.application.errors24h+' errores de JavaScript o API en las últimas 24 horas.'});
       if(healthMetrics.checks.licenses.expiring7d>0)healthAlerts.push({title:'Licencias próximas a vencer',message:healthMetrics.checks.licenses.expiring7d+' licencia(s) vencen dentro de los próximos 7 días.'});
       for(const alert of healthAlerts){
