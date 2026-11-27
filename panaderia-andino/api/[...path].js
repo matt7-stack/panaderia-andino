@@ -692,7 +692,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='GET'){
         const [plans,modules]=await Promise.all([
           sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
-          sql`SELECT module_key,title,category,description,implemented,monthly_price,setup_price FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`
+          sql`SELECT module_key,title,category,description,implemented,monthly_price,setup_price,commercial_mode FROM app_module_catalog WHERE active=TRUE ORDER BY sort_order,title`
         ]);
         return send(res,200,{plans,modules});
       }
@@ -720,8 +720,9 @@ module.exports = async function handler(req, res) {
           normalized.push({plan_key:planKey,display_name:({basic:'Básico',professional:'Profesional',enterprise:'Empresa'})[planKey],setup_amount:setup,configuration_amount:configuration,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules,annual_discount_percent:annualDiscount,permanent_price:permanent,full_sale_price:fullSale,module_prices:modulePrices});
         }
         const allKeys=[...new Set(normalized.flatMap(x=>x.modules))];
-        const valid=await sql`SELECT module_key FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
+        const valid=await sql`SELECT module_key,commercial_mode FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
         if(valid.length!==allKeys.length)return send(res,400,{error:'Un plan contiene módulos no disponibles o todavía no implementados.'});
+        if(valid.some(item=>item.commercial_mode!=='core'))return send(res,400,{error:'Sucursales, Pedidos y entregas y Cuentas por cobrar son complementos independientes y no pueden incluirse dentro de una licencia base.'});
         const rows=await sql`INSERT INTO app_license_plan_settings(plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_by,updated_at)
           SELECT x.plan_key,x.display_name,x.setup_amount,x.configuration_amount,x.monthly_amount,x.user_limit,x.device_limit,x.modules,COALESCE(x.annual_discount_percent,15),COALESCE(x.permanent_price,0),COALESCE(x.full_sale_price,0),COALESCE(x.module_prices,'{}'::jsonb),x.updated_by,NOW()
           FROM jsonb_to_recordset(${JSON.stringify(normalized.map(x=>({...x,updated_by:admin.id})))}::jsonb)
