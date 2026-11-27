@@ -490,15 +490,25 @@ const versionMigration = fs.readFileSync(path.join(root, 'migrations/052_version
 if (!versionMigration.includes('app_releases') ||
     !versionMigration.includes('app_business_versions') ||
     !versionMigration.includes('app_version_upgrade_requests') ||
+    !versionMigration.includes('app_business_version_history') ||
+    !versionMigration.includes('artifact_content text') ||
     !versionMigration.includes('app_is_platform_admin()') ||
     !apiSource.includes("path === '/api/admin/releases'") ||
+    !apiSource.includes("path.startsWith('/api/releases/')") ||
     !apiSource.includes("path === '/api/admin/business-versions'") ||
     !apiSource.includes("path === '/api/admin/version-upgrades'") ||
+    !apiSource.includes("path === '/api/business/version'") ||
+    !apiSource.includes('crypto.createHash') ||
     !apiSource.includes('runtime_compatible') ||
     !apiSource.includes('client_accepted_at') ||
+    !apiSource.includes('app_business_version_history') ||
     !appBundleSource.includes('id="adminVersionCenter"') ||
     !appBundleSource.includes('id="businessInitialVersion"') ||
-    !appBundleSource.includes('data-permanent-version')) {
+    !appBundleSource.includes('id="versionUpdateAllMonthly"') ||
+    !appBundleSource.includes('data-permanent-version') ||
+    !appBundleSource.includes('data-rollback-version') ||
+    !appBundleSource.includes('mattsystem-version') ||
+    !appBundleSource.includes("crypto.subtle.digest('SHA-256'")) {
   throw new Error('Falta el catálogo de versiones, la asignación por negocio o la autorización de mejoras permanentes.');
 }
 
