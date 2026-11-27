@@ -516,7 +516,7 @@ module.exports = async function handler(req, res) {
       const licenseSystem=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
       const rows=await sql`SELECT l.license_code,l.system_name,l.plan,
         CASE WHEN l.status='active' AND l.expires_at<CURRENT_DATE THEN 'expired' ELSE l.status END AS effective_status,
-        l.sold_at::text AS sold_at,l.created_at,COALESCE(l.expires_at,CASE WHEN l.is_trial=TRUE AND l.trial_started_at IS NOT NULL THEN (l.trial_started_at::date+GREATEST(COALESCE(l.trial_days,0),1))::date WHEN l.monthly_amount>0 THEN (COALESCE(l.sold_at::date,l.created_at::date)+INTERVAL '1 month')::date ELSE NULL END)::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.monthly_amount,l.billing_day,
+        l.sold_at::text AS sold_at,l.created_at,COALESCE(l.expires_at,CASE WHEN l.is_trial=TRUE AND l.trial_started_at IS NOT NULL THEN (l.trial_started_at::date+GREATEST(COALESCE(l.trial_days,0),1))::date WHEN l.monthly_amount>0 THEN (COALESCE(l.sold_at::date,l.created_at::date)+INTERVAL '1 month')::date ELSE NULL END)::text AS expires_at,COALESCE(l.sold_at::date,l.trial_started_at::date,l.created_at::date)::text AS license_start_date,l.setup_amount,l.configuration_amount,l.monthly_amount,l.billing_day,
         l.contract_reference,l.is_trial,l.trial_started_at,l.trial_days,l.device_limit,l.user_limit,l.modules,
         EXISTS(SELECT 1 FROM app_support_tickets t WHERE t.business_id=l.business_id AND t.subject='Solicitud de activación de licencia' AND t.status IN ('open','in_progress')) AS activation_requested
         FROM app_licenses l
@@ -534,7 +534,7 @@ module.exports = async function handler(req, res) {
       const code=String(body(req).licenseCode||'').trim().toUpperCase();
       if(!/^MTS-[A-Z0-9]+-[A-F0-9]{6}$/.test(code))return send(res,400,{error:'Ingresá un código de licencia válido.'});
       const sql=db(),system=String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem').trim()||'Mattsystem';
-      const rows=await sql`SELECT id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial
+      const rows=await sql`SELECT id,license_code,system_name,plan,status,expires_at,setup_amount,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial
         FROM app_licenses WHERE business_id=${user.business_id} AND UPPER(license_code)=${code} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${system})) LIMIT 1`;
       if(!rows.length)return send(res,404,{error:'El código no corresponde a una licencia de este negocio. Verificá el código con el administrador.'});
       const license=rows[0];
@@ -594,7 +594,7 @@ module.exports = async function handler(req, res) {
       if(req.method==='GET'){
         const businessId=String(req.query?.businessId||'');
         if(!/^[0-9a-f-]{36}$/i.test(businessId))return send(res,400,{error:'Negocio no válido.'});
-        const rows=await sql`SELECT id,business_id,license_code,system_name,plan,status,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,created_at,updated_at FROM app_licenses WHERE business_id=${businessId} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)) DESC,created_at DESC LIMIT 1`;
+        const rows=await sql`SELECT id,business_id,license_code,system_name,plan,status,expires_at,setup_amount,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,created_at,updated_at FROM app_licenses WHERE business_id=${businessId} AND LOWER(BTRIM(system_name))=LOWER(BTRIM(${String(process.env.LICENSE_SYSTEM_NAME||'Mattsystem')})) ORDER BY (status='active' AND (expires_at IS NULL OR expires_at>=CURRENT_DATE)) DESC,created_at DESC LIMIT 1`;
         if(!rows.length)return send(res,404,{error:'Este negocio todavía no tiene una licencia registrada. Creá la licencia desde Licencias y ventas.'});
         return send(res,200,{license:rows[0]});
       }
@@ -617,7 +617,7 @@ module.exports = async function handler(req, res) {
         ), license_updated AS (
           UPDATE app_licenses SET plan=${plan},status=${status},setup_amount=${setup},monthly_amount=${monthly},billing_day=${billingDay},user_limit=${userLimit},device_limit=${deviceLimit},modules=${JSON.stringify(authorizedModules)}::jsonb,updated_at=NOW()
           WHERE id=${id} AND business_id IN (SELECT business_id FROM config_updated)
-          RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at
+          RETURNING id,business_id,license_code,system_name,plan,status,sold_at,created_at,expires_at,setup_amount,configuration_amount,monthly_amount,billing_day,user_limit,device_limit,modules,is_trial,updated_at
         ) SELECT * FROM license_updated`;
         if(!rows.length)return send(res,409,{error:'No se pudieron guardar juntos los módulos y la licencia. Actualizá la lista e intentá nuevamente.'});
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${current[0].business_id},${admin.id},'license.updated_by_business','license',${id},${JSON.stringify({plan,status,setup_amount:setup,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules:authorizedModules,is_trial:current[0].is_trial===true})}::jsonb)`;
