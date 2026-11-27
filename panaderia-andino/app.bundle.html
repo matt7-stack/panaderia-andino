@@ -4657,7 +4657,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
      enterprise:'Todo lo profesional, más configuración integral, adaptación de procesos, pruebas y acompañamiento de puesta en marcha.'
    };
    const tierWrap=$('#licenseConfigurationTierWrap');if(tierWrap)tierWrap.hidden=!includeConfiguration;
-   const tierSelect=$('#licenseConfigurationTier');if(tierSelect){tierSelect.disabled=!includeConfiguration;tierSelect.required=includeConfiguration;}
+   const tierSelect=$('#licenseConfigurationTier');if(tierSelect){tierSelect.disabled=!includeConfiguration;tierSelect.required=includeConfiguration;[...tierSelect.options].forEach(option=>{const packagePlan=licensePlanSettings.find(item=>item.plan_key===option.value);if(packagePlan)option.textContent=configurationLabels[option.value]+' — Gs. '+Number(packagePlan.configuration_amount||0).toLocaleString('es-PY');});}
    const tierDescription=$('#licenseConfigurationDescription');if(tierDescription)tierDescription.textContent=configurationDescriptions[configurationTier]||'Seleccioná un nivel para ver qué incluye.';
    const monthly=Number(plan.monthly_amount||0)+extras.reduce((n,m)=>n+Number(m.monthly_price||0),0);
    $('#licenseSetup').value=setup;$('#licenseMonthlyInput').value=monthly;
