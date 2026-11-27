@@ -1571,12 +1571,13 @@ module.exports = async function handler(req, res) {
         if(activateTrial&&(!Number.isInteger(requestedTrialDays)||requestedTrialDays<1||requestedTrialDays>3650))return send(res,400,{error:'La prueba gratuita debe durar entre 1 y 3650 días.'});
         if(quotationId&&!/^[0-9a-f-]{36}$/i.test(quotationId))return send(res,400,{error:'Referencia de cotización no válida.'});
         if(quotationId){
-          const quote=await sql`SELECT id,prospect_name,prospect_email,industry_key,config_mode,modules FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
+          const quote=await sql`SELECT id,prospect_name,prospect_email,industry_key,config_mode,modules,price_breakdown FROM app_quotations WHERE id=${quotationId} AND business_id IS NULL AND status IN ('draft','sent','accepted') LIMIT 1`;
           if(!quote.length)return send(res,404,{error:'No se encontró una cotización abierta para vincular.'});
           const quoteModules=Array.isArray(quote[0].modules)?quote[0].modules:[];
           const quoteCoreModules=quoteModules.filter(key=>selectedModules.includes(key)).sort();
           const quoteAddonModules=quoteModules.filter(key=>requestedAddons.includes(key)).sort();
-          if(quote[0].prospect_name!==name||quote[0].prospect_email!==String(input.email||'').trim()||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||quoteModules.length!==selectedModules.length+requestedAddons.length||JSON.stringify(quoteCoreModules)!==JSON.stringify([...selectedModules].sort())||JSON.stringify(quoteAddonModules)!==JSON.stringify([...requestedAddons].sort()))return send(res,409,{error:'La cotización no coincide con el nombre, rubro, licencia o complementos actuales. Generá una cotización nueva.'});
+          const quotedConfiguration=Array.isArray(quote[0].price_breakdown?.services)?quote[0].price_breakdown.services.filter(item=>item.key==='configuration').reduce((sum,item)=>sum+Number(item.setup||0),0):0;
+          if(quote[0].prospect_name!==name||quote[0].prospect_email!==String(input.email||'').trim()||quote[0].industry_key!==industry||quote[0].config_mode!==configMode||quoteModules.length!==selectedModules.length+requestedAddons.length||JSON.stringify(quoteCoreModules)!==JSON.stringify([...selectedModules].sort())||JSON.stringify(quoteAddonModules)!==JSON.stringify([...requestedAddons].sort())||quotedConfiguration!==configurationAmount)return send(res,409,{error:'La cotización no coincide con el nombre, rubro, licencia, complementos o configuración inicial actuales. Generá una cotización nueva.'});
         }
         const id=crypto.randomUUID();
         const trialCode='TRIAL-'+id.replace(/-/g,'').slice(0,16).toUpperCase();
