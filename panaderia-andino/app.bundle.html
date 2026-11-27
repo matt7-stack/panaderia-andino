@@ -2111,7 +2111,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
-    ['adminLicensesNav','adminQuoteNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminLicensesNav','adminQuoteNav','adminPricesNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const supportLink=document.getElementById('supportContactNav');if(supportLink)supportLink.hidden=platformAdmin;
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
@@ -2361,6 +2361,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     const requestedModule=pageModules[page];
     if(currentUser?.isPlatformAdmin!==true&&requestedModule&&Array.isArray(currentUser?.businessConfig?.modules)&&!currentUser.businessConfig.modules.includes(requestedModule))page='dashboard';
     if (page === 'administracion' && currentUser?.isPlatformAdmin !== true) return;
+    if (page === 'admin-precios' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'admin-maintenance' && currentUser?.isPlatformAdmin !== true) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin === true && !window.PanaderiaAuth.selectedBusinessId) return;
     if (page === 'configuracion' && currentUser?.isPlatformAdmin !== true && currentUser?.role !== 'admin') return;
