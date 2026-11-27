@@ -2970,6 +2970,157 @@ module.exports = async function handler(req, res) {
       }
       return send(res,405,{error:'Método no permitido.'});
     }
+    if (path === '/api/admin/releases') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const releases=await sql`SELECT r.*,
+          (SELECT COUNT(*)::int FROM app_business_versions bv WHERE bv.installed_release_id=r.id) AS installed_businesses,
+          (SELECT COUNT(*)::int FROM app_business_versions bv WHERE bv.target_release_id=r.id AND bv.installed_release_id IS DISTINCT FROM bv.target_release_id) AS pending_businesses
+          FROM app_releases r ORDER BY published_at DESC NULLS LAST,created_at DESC`;
+        return send(res,200,{releases});
+      }
+      if(req.method==='POST'){
+        const input=body(req),version=String(input.version||'').trim(),title=String(input.title||'').trim().slice(0,160),
+          summary=String(input.summary||'').trim().slice(0,500),details=String(input.details||'').trim(),
+          artifactUrl=String(input.artifactUrl||'').trim(),artifactSha=String(input.artifactSha256||'').trim().toLowerCase(),
+          artifactBytes=input.artifactBytes==null?null:Number(input.artifactBytes),publish=input.publish===true;
+        if(!/^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)||!title)
+          return send(res,400,{error:'Ingresá una versión semántica válida (ej. 2.1.0) y un título.'});
+        if(artifactUrl&&!/^https:\\/\\//i.test(artifactUrl))return send(res,400,{error:'El paquete de versión debe tener una URL HTTPS.'});
+        if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 del paquete no es válido.'});
+        if(artifactBytes!==null&&(!Number.isSafeInteger(artifactBytes)||artifactBytes<1))return send(res,400,{error:'El tamaño del paquete no es válido.'});
+        const ready=!!(artifactUrl&&artifactSha&&artifactBytes);
+        if(publish&&!ready)return send(res,409,{error:'No se puede publicar: primero cargá el paquete independiente, su SHA-256 y su tamaño.'});
+        const rows=await sql`INSERT INTO app_releases(version,title,summary,details,artifact_url,artifact_sha256,artifact_bytes,status,delivery_ready,published_at,created_by)
+          VALUES(${version},${title},${summary},${details},NULLIF(${artifactUrl},''),NULLIF(${artifactSha},''),${artifactBytes},
+          CASE WHEN ${publish}::boolean THEN 'published' ELSE 'draft' END,${ready},CASE WHEN ${publish}::boolean THEN NOW() ELSE NULL END,${admin.id})
+          RETURNING *`;
+        if(publish){
+          await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
+            SELECT b.id,bv.installed_release_id,${rows[0].id},${admin.id}
+            FROM businesses b JOIN app_business_versions bv ON bv.business_id=b.id
+            WHERE EXISTS(SELECT 1 FROM app_licenses l WHERE l.business_id=b.id AND l.status='active' AND l.is_trial=FALSE AND l.monthly_amount>0)
+            ON CONFLICT(business_id) DO UPDATE SET target_release_id=EXCLUDED.target_release_id,updated_at=NOW(),updated_by=EXCLUDED.updated_by`;
+        }
+        await sql`INSERT INTO app_audit_logs(actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${admin.id},'release.created','release',${rows[0].id},${JSON.stringify({version,published:publish,deliveryReady:ready})}::jsonb)`;
+        return send(res,201,{release:rows[0]});
+      }
+      if(req.method==='PATCH'){
+        const input=body(req),id=String(input.id||'');
+        if(!/^[0-9a-f-]{36}$/i.test(id))return send(res,400,{error:'Versión no válida.'});
+        const oldRows=await sql`SELECT * FROM app_releases WHERE id=${id} LIMIT 1`;
+        if(!oldRows.length)return send(res,404,{error:'No se encontró la versión.'});
+        const old=oldRows[0],artifactUrl=input.artifactUrl===undefined?old.artifact_url:String(input.artifactUrl||'').trim(),
+          artifactSha=input.artifactSha256===undefined?old.artifact_sha256:String(input.artifactSha256||'').trim().toLowerCase(),
+          artifactBytes=input.artifactBytes===undefined?old.artifact_bytes:(input.artifactBytes===null?null:Number(input.artifactBytes));
+        if(artifactUrl&&!/^https:\\/\\//i.test(artifactUrl))return send(res,400,{error:'El paquete debe usar HTTPS.'});
+        if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 no es válido.'});
+        const ready=!!(artifactUrl&&artifactSha&&Number(artifactBytes)>0),publish=input.publish===true;
+        if(publish&&!ready)return send(res,409,{error:'No se puede publicar sin un paquete verificable.'});
+        const rows=await sql`UPDATE app_releases SET title=${input.title===undefined?old.title:String(input.title).trim().slice(0,160)},
+          summary=${input.summary===undefined?old.summary:String(input.summary).trim().slice(0,500)},
+          details=${input.details===undefined?old.details:String(input.details).trim()},
+          artifact_url=NULLIF(${artifactUrl},''),artifact_sha256=NULLIF(${artifactSha},''),artifact_bytes=${artifactBytes},
+          delivery_ready=${ready},status=CASE WHEN ${publish}::boolean THEN 'published' ELSE status END,
+          published_at=CASE WHEN ${publish}::boolean THEN COALESCE(published_at,NOW()) ELSE published_at END,updated_at=NOW()
+          WHERE id=${id} RETURNING *`;
+        if(publish){
+          await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
+            SELECT b.id,bv.installed_release_id,${id},${admin.id} FROM businesses b JOIN app_business_versions bv ON bv.business_id=b.id
+            WHERE EXISTS(SELECT 1 FROM app_licenses l WHERE l.business_id=b.id AND l.status='active' AND l.is_trial=FALSE AND l.monthly_amount>0)
+            ON CONFLICT(business_id) DO UPDATE SET target_release_id=EXCLUDED.target_release_id,updated_at=NOW(),updated_by=EXCLUDED.updated_by`;
+        }
+        return send(res,200,{release:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/business-versions') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT b.id AS business_id,b.name,b.active,
+          installed.version AS installed_version,installed.id AS installed_release_id,
+          target.version AS target_version,target.id AS target_release_id,target.delivery_ready AS target_delivery_ready,
+          CASE WHEN lic.is_trial THEN 'trial' WHEN lic.monthly_amount>0 THEN 'monthly'
+            WHEN lic.expires_at IS NULL THEN 'permanent' ELSE 'fixed_term' END AS license_mode,
+          COALESCE(lic.status,'missing') AS license_status,
+          (SELECT COUNT(*)::int FROM app_version_upgrade_requests u WHERE u.business_id=b.id AND u.status NOT IN ('applied','rejected','cancelled')) AS open_upgrade_requests
+          FROM businesses b LEFT JOIN app_business_versions bv ON bv.business_id=b.id
+          LEFT JOIN app_releases installed ON installed.id=bv.installed_release_id
+          LEFT JOIN app_releases target ON target.id=bv.target_release_id
+          LEFT JOIN LATERAL(SELECT l.status,l.is_trial,l.monthly_amount,l.expires_at FROM app_licenses l WHERE l.business_id=b.id
+            ORDER BY (l.status='active') DESC,l.created_at DESC LIMIT 1) lic ON TRUE
+          WHERE NOT EXISTS(SELECT 1 FROM app_trash t WHERE t.entity_type='business' AND t.entity_id=b.id::text AND t.restored_at IS NULL)
+          ORDER BY b.name`;
+        return send(res,200,{businesses:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),ids=[...new Set((Array.isArray(input.businessIds)?input.businessIds:[]).map(String))],releaseId=String(input.releaseId||'');
+        if(!ids.length||ids.length>200||ids.some(id=>!/^[0-9a-f-]{36}$/i.test(id))||!/^[0-9a-f-]{36}$/i.test(releaseId))
+          return send(res,400,{error:'Seleccioná una versión y uno o más negocios válidos.'});
+        const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
+        if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)
+          return send(res,409,{error:'Esta versión todavía no tiene un paquete publicado y verificable.'});
+        const businesses=await sql`SELECT b.id,COALESCE(l.monthly_amount,0) AS monthly_amount,COALESCE(l.is_trial,FALSE) AS is_trial,
+          l.expires_at,lic.status AS license_status
+          FROM businesses b LEFT JOIN LATERAL(SELECT status,is_trial,monthly_amount,expires_at FROM app_licenses x
+            WHERE x.business_id=b.id ORDER BY (x.status='active') DESC,x.created_at DESC LIMIT 1) l ON TRUE
+          LEFT JOIN LATERAL(SELECT status FROM app_licenses x WHERE x.business_id=b.id ORDER BY (x.status='active') DESC,x.created_at DESC LIMIT 1) lic ON TRUE
+          WHERE b.id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::uuid)`;
+        if(businesses.length!==ids.length)return send(res,404,{error:'Uno o más negocios no existen.'});
+        const permanent=businesses.filter(b=>!b.is_trial&&Number(b.monthly_amount||0)===0&&!b.expires_at);
+        if(permanent.length)return send(res,409,{error:'Las licencias permanentes requieren aceptación y pago registrados en Solicitudes de mejora antes de actualizarse.',permanentBusinessIds:permanent.map(b=>b.id)});
+        const trial=businesses.filter(b=>b.is_trial);
+        if(trial.length)return send(res,409,{error:'Las pruebas gratuitas no se pueden actualizar mediante una asignación comercial.'});
+        await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
+          SELECT b.id,bv.installed_release_id,${releaseId},${admin.id} FROM businesses b
+          LEFT JOIN app_business_versions bv ON bv.business_id=b.id
+          WHERE b.id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::uuid)
+          ON CONFLICT(business_id) DO UPDATE SET target_release_id=EXCLUDED.target_release_id,updated_at=NOW(),updated_by=EXCLUDED.updated_by`;
+        await sql`INSERT INTO app_audit_logs(actor_user_id,action,entity_type,entity_id,details)
+          VALUES(${admin.id},'release.assignment_created','release',${releaseId},${JSON.stringify({businessIds:ids,version:release[0].version})}::jsonb)`;
+        return send(res,200,{assigned:ids.length,release:release[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if (path === '/api/admin/version-upgrades') {
+      const admin=await authenticated(req,res,true); if(!admin)return;
+      const sql=db();
+      if(req.method==='GET'){
+        const rows=await sql`SELECT u.*,b.name AS business_name,fr.version AS from_version,tr.version AS to_version
+          FROM app_version_upgrade_requests u JOIN businesses b ON b.id=u.business_id
+          LEFT JOIN app_releases fr ON fr.id=u.from_release_id JOIN app_releases tr ON tr.id=u.to_release_id
+          ORDER BY u.created_at DESC LIMIT 300`;
+        return send(res,200,{requests:rows});
+      }
+      if(req.method==='POST'){
+        const input=body(req),action=String(input.action||''),businessId=String(input.businessId||''),releaseId=String(input.releaseId||'');
+        if(action==='record-permanent-upgrade'){
+          if(!/^[0-9a-f-]{36}$/i.test(businessId)||!/^[0-9a-f-]{36}$/i.test(releaseId))return send(res,400,{error:'Negocio o versión inválidos.'});
+          const amount=Number(input.amount),accepted=input.clientAccepted===true,paid=input.paymentReceived===true,
+            paymentReference=String(input.paymentReference||'').trim().slice(0,160),notes=String(input.notes||'').trim().slice(0,3000);
+          if(!Number.isFinite(amount)||amount<=0||!accepted||!paid||!paymentReference)
+            return send(res,400,{error:'Para autorizar una mejora permanente registrá el importe, aceptación del cliente, pago recibido y referencia del pago.'});
+          const release=await sql`SELECT id,version,delivery_ready,status FROM app_releases WHERE id=${releaseId} LIMIT 1`;
+          if(!release.length||release[0].status!=='published'||release[0].delivery_ready!==true)return send(res,409,{error:'La versión no tiene un paquete publicado y verificable.'});
+          const lic=await sql`SELECT id,is_trial,monthly_amount,expires_at FROM app_licenses WHERE business_id=${businessId} ORDER BY (status='active') DESC,created_at DESC LIMIT 1`;
+          if(!lic.length||lic[0].is_trial||Number(lic[0].monthly_amount||0)>0||lic[0].expires_at)return send(res,409,{error:'Este flujo es exclusivo para licencias permanentes activas.'});
+          const current=await sql`SELECT bv.installed_release_id FROM app_business_versions bv WHERE bv.business_id=${businessId} LIMIT 1`;
+          const rows=await sql`INSERT INTO app_version_upgrade_requests(business_id,from_release_id,to_release_id,quoted_amount,client_accepted_at,paid_at,payment_reference,status,notes,created_by,approved_by)
+            VALUES(${businessId},${current[0]?.installed_release_id||null},${releaseId},${amount},NOW(),NOW(),${paymentReference},'paid',${notes},${admin.id},${admin.id}) RETURNING *`;
+          await sql`INSERT INTO app_business_versions(business_id,installed_release_id,target_release_id,updated_by)
+            VALUES(${businessId},${current[0]?.installed_release_id||null},${releaseId},${admin.id})
+            ON CONFLICT(business_id) DO UPDATE SET target_release_id=EXCLUDED.target_release_id,updated_at=NOW(),updated_by=EXCLUDED.updated_by`;
+          await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
+            VALUES(${businessId},${admin.id},'release.permanent_upgrade_paid','business',${businessId},${JSON.stringify({requestId:rows[0].id,release:release[0].version,amount,paymentReference})}::jsonb)`;
+          return send(res,201,{request:rows[0],authorized:true,message:'Aceptación y pago registrados. La actualización queda autorizada; la instalación se confirmará cuando el runtime cargue el paquete.'});
+        }
+        return send(res,400,{error:'Acción de mejora no reconocida.'});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
     if (path === '/api/release-notes') {
       const user=await authenticated(req,res,false); if(!user) return;
       const sql=db();
