@@ -111,7 +111,7 @@ function body(req) {
 
 async function getVercelDeploymentHealth() {
   const token=String(process.env.VERCEL_API_TOKEN||'').trim();
-  const projectId=String(process.env.VERCEL_PROJECT_ID||'').trim();
+  const projectId=String(process.env.VERCEL_PROJECT_ID||process.env.VERCEL_PROJECT_NAME||'').trim();
   const teamId=String(process.env.VERCEL_TEAM_ID||'').trim();
   if(!token||!projectId)return {status:'not_connected',configured:false,reason:'missing_credentials',latest:null};
   try{
@@ -1306,6 +1306,7 @@ module.exports = async function handler(req, res) {
       if(!vercelDeployment.configured)alerts.push({level:'warning',title:'Vercel no está conectado al panel',detail:'Agregá VERCEL_API_TOKEN en las variables de entorno de Vercel para consultar el estado real de los despliegues.'});
       else if(vercelDeployment.status==='critical')alerts.push({level:'critical',title:'El último despliegue de Vercel falló',detail:'El proveedor informa estado '+(vercelDeployment.latest?.readyState||'ERROR')+'. Revisá el build antes de publicar.'});
       else if(vercelDeployment.status==='warning')alerts.push({level:'warning',title:'Despliegue de Vercel en proceso o cancelado',detail:'El último despliegue informa estado '+(vercelDeployment.latest?.readyState||'BUILDING')+'.'});
+      else if(vercelDeployment.status==='unknown')alerts.push({level:'warning',title:'No se pudo verificar Vercel',detail:vercelDeployment.reason==='missing_credentials'?'Faltan VERCEL_API_TOKEN y VERCEL_PROJECT_ID (o VERCEL_PROJECT_NAME) en el entorno.':'La consulta al proveedor no devolvió un estado verificable: '+(vercelDeployment.reason||'causa desconocida')+'.'});
       if(Number(lic.expiring_7d||0)>0)alerts.push({level:'info',title:'Licencias próximas a vencer',detail:Number(lic.expiring_7d)+' licencias vencen dentro de 7 días.'});
       if(Number(lic.user_limit_exceeded||0)>0)alerts.push({level:'warning',title:'Límite de usuarios superado',detail:Number(lic.user_limit_exceeded)+' negocio(s) superan el límite de usuarios de su licencia.'});
       if(Number(lic.expired_trials||0)>0)alerts.push({level:'info',title:'Pruebas vencidas',detail:Number(lic.expired_trials)+' prueba(s) gratuita(s) están vencidas.'});
