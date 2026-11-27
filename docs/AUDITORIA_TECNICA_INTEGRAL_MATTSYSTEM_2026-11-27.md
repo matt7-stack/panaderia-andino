@@ -108,13 +108,15 @@ La acción ejecuta el validador estático del proyecto. No debe interpretarse co
 
 Estos puntos no se presentan como corregidos. Requieren una fase específica antes de considerar el sistema listo para una operación comercial de alta confianza.
 
-### Alto — concurrencia y pérdida de actualizaciones en `app_state`
+### Corregido en esta ronda — concurrencia del estado general
 
-La aplicación envía el estado operativo completo como JSONB a `/api/data` y a otras rutas. El cliente mantiene `cloudUpdatedAt`, pero no lo envía como precondición al guardar. Varias escrituras usan `INSERT ... ON CONFLICT DO UPDATE` sin comparar la versión que leyó el cliente. Dos dispositivos o usuarios que guarden casi al mismo tiempo pueden sobrescribirse cambios.
+El guardado general de `/api/data` ahora exige `expectedUpdatedAt` y ejecuta el UPSERT condicionado por `app_state.updated_at IS NOT DISTINCT FROM expectedUpdatedAt`. Si otra sesión guardó primero, el servidor devuelve HTTP 409 con código `DATA_VERSION_CONFLICT` y la marca de tiempo actual del servidor. Las escrituras iniciales también quedan protegidas frente a dos creaciones simultáneas.
 
-Las herramientas operativas ya implementan comparación de `updated_at` y responden conflicto, pero el guardado general y algunas rutas auxiliares no aplican el mismo mecanismo.
+El cliente envía la versión que leyó, recibe el conflicto como error estructurado, conserva una copia local bajo `STORAGE_KEY_conflict_backup` y pausa la sincronización automática para no reemplazar silenciosamente los cambios locales. El validador comprueba estos contratos y GitHub Actions pasó en el SHA actual.
 
-**Acción recomendada:** introducir control de concurrencia optimista para todos los escritores de `app_state`, con `expectedUpdatedAt`, respuesta 409 y una experiencia de resolución/recarga que preserve los cambios locales. No se aplicó en esta ronda para evitar alterar el flujo principal sin pruebas funcionales de todos los formularios.
+Se ejecutó una prueba transaccional aislada en QA que confirmó que la primera escritura con versión correcta se acepta y que una escritura con versión antigua afecta cero filas. Esta prueba valida el predicado SQL de concurrencia; aún falta probar dos sesiones completas en navegador.
+
+**Estado:** mitigación implementada y validada a nivel SQL/estático; pendiente E2E de dos usuarios/dispositivos y una interfaz guiada para resolver conflictos.
 
 ### Alto — límite de dispositivos configurado, pero no demostrado como aplicado
 
@@ -142,7 +144,7 @@ El workflow ejecuta validaciones estáticas. No hay en el pipeline una suite aut
 - Flujo real del cron autenticado.
 - Restauración de respaldo sobre una base descartable.
 
-**Acción recomendada:** crear pruebas API/RLS con roles reales y E2E Playwright en Preview con datos ficticios.
+**Acción recomendada:** crear pruebas API/RLS con roles reales y E2E Playwright en Preview con datos ficticios. Incluir dos sesiones concurrentes para comprobar que el HTTP 409 aparece sin pérdida de cambios.
 
 ### Medio — reproducibilidad de dependencias
 
