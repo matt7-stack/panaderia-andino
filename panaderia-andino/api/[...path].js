@@ -3089,7 +3089,7 @@ module.exports = async function handler(req, res) {
         const old=oldRows[0],artifactUrl=input.artifactUrl===undefined?old.artifact_url:String(input.artifactUrl||'').trim(),
           artifactSha=input.artifactSha256===undefined?old.artifact_sha256:String(input.artifactSha256||'').trim().toLowerCase(),
           artifactBytes=input.artifactBytes===undefined?old.artifact_bytes:(input.artifactBytes===null?null:Number(input.artifactBytes)),runtimeCompatible=input.runtimeCompatible===undefined?old.runtime_compatible:input.runtimeCompatible===true;
-        if(artifactUrl&&!/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(artifactUrl))return send(res,400,{error:'El paquete debe usar HTTPS.'});
+        if(artifactUrl&&!(/^\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\/app\.bundle\.html$/.test(artifactUrl)||/^\/api\/releases\/[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/.test(artifactUrl)))return send(res,400,{error:'El paquete debe usar HTTPS.'});
         if(artifactSha&&!/^[a-f0-9]{64}$/.test(artifactSha))return send(res,400,{error:'El SHA-256 no es válido.'});
         const ready=!!(artifactUrl&&artifactSha&&Number(artifactBytes)>0&&runtimeCompatible),publish=input.publish===true;
         if(publish&&!ready)return send(res,409,{error:'No se puede publicar sin un paquete verificable.'});
