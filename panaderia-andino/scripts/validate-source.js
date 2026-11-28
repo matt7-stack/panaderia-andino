@@ -515,15 +515,17 @@ if (!apiSource.includes("req.method==='DELETE'") ||
 if (!apiSource.includes("durationType==='custom_days'") ||
     !apiSource.includes('durationDays<=3650') ||
     !appBundleSource.includes('id="licenseCustomDaysWrap"') ||
-    !appBundleSource.includes('id="businessLicenseSetupWrap" hidden') ||
-    !appBundleSource.includes('id="businessTrialWrap" hidden')) {
-  throw new Error('Las licencias deben admitir duraciones personalizadas y el alta de negocios debe permanecer separada de su contratación.');
+    appBundleSource.includes('id="businessLicenseSetupWrap" hidden') ||
+    appBundleSource.includes('id="businessTrialWrap" hidden')) {
+  throw new Error('Las licencias deben admitir duraciones personalizadas y el formulario completo de alta debe mostrar sus opciones de licencia y prueba.');
 }
 const businessCreateSource = apiSource.slice(apiSource.indexOf("if (path === '/api/admin/businesses')"), apiSource.indexOf("if (path === '/api/admin/clients')"));
-if (!businessCreateSource || businessCreateSource.includes('INSERT INTO app_licenses') ||
-    !apiSource.includes("if(status==='active')") ||
-    !apiSource.includes('UPDATE app_business_config SET modules=')) {
-  throw new Error('Crear un negocio no debe emitir licencias; los módulos contratados se incorporan al activar la licencia.');
+if (!businessCreateSource || !businessCreateSource.includes('INSERT INTO app_licenses') ||
+    !businessCreateSource.includes('trial_created AS') ||
+    !businessCreateSource.includes('additionalModules') ||
+    !appBundleSource.includes("activateTrial: $('#businessActivateTrial').checked") ||
+    !appBundleSource.includes("trialDays: Number($('#businessTrialDays').value||7)")) {
+  throw new Error('El alta completa debe permitir contratar licencia, complementos y activar manualmente una prueba con duración configurable.');
 }
 if (!apiSource.includes('Tu licencia vence HOY') ||
     !apiSource.includes('Licencia vence hoy') ||
