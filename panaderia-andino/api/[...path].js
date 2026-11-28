@@ -963,7 +963,7 @@ module.exports = async function handler(req, res) {
             RETURNING *
           ), addons_created AS (
             INSERT INTO app_business_addons(business_id,module_key,contracted,enabled,status,contracted_at,activated_at,deactivated_at,updated_by,updated_at)
-            SELECT license_created.business_id,addon.module_key,TRUE,${status==='active'},CASE WHEN ${status==='active'} THEN 'active' ELSE 'pending' END,NOW(),CASE WHEN ${status==='active'} THEN NOW() ELSE NULL END,NULL,${admin.id},NOW()
+            SELECT license_created.business_id,addon.module_key,TRUE,${status==='active'}::boolean,CASE WHEN ${status==='active'}::boolean THEN 'active' ELSE 'pending' END,NOW(),CASE WHEN ${status==='active'}::boolean THEN NOW() ELSE NULL END,NULL,${admin.id},NOW()
             FROM license_created
             CROSS JOIN jsonb_to_recordset(${JSON.stringify(requestedExtraModules.map(module_key=>({module_key})))}::jsonb) AS addon(module_key text)
             JOIN app_module_catalog catalog ON catalog.module_key=addon.module_key AND catalog.commercial_mode='addon'
