@@ -659,5 +659,23 @@ if (!versionAckGuardMigration.includes('app_guard_business_version_tenant_ack') 
   throw new Error('Los negocios solo pueden confirmar la versión asignada; no pueden modificar aprobaciones, pagos ni el historial de versiones.');
 }
 
+const commercialPipelineMigration = fs.readFileSync(path.join(root, 'migrations/057_commercial_price_history_and_sales_pipeline.sql'), 'utf8');
+if (!commercialPipelineMigration.includes('app_commercial_price_history') ||
+    !commercialPipelineMigration.includes('app_sales_pipeline') ||
+    !commercialPipelineMigration.includes('FORCE ROW LEVEL SECURITY') ||
+    !commercialPipelineMigration.includes("VALUES ('057_commercial_price_history_and_sales_pipeline')") ||
+    !apiSource.includes("path==='/api/admin/commercial-price-history'") ||
+    !apiSource.includes("path==='/api/admin/sales-pipeline'") ||
+    !apiSource.includes('commercial.pipeline_created') ||
+    !apiSource.includes('commercial.pipeline_updated') ||
+    !apiSource.includes('INSERT INTO app_commercial_price_history') ||
+    !appBundleSource.includes('id="page-admin-commercial"') ||
+    !appBundleSource.includes('id="salesPipelineForm"') ||
+    !appBundleSource.includes('id="commercialPriceHistoryList"') ||
+    !appBundleSource.includes('id="adminCommercialNav"') ||
+    !appBundleSource.includes('data-save-pipeline')) {
+  throw new Error('El historial de precios y el pipeline comercial deben tener migración, API protegida, auditoría e interfaz administrativa.');
+}
+
 process.stdout.write('Release 2.0.1 SHA-256: ' + releaseArtifactSha256 + ' (' + releaseArtifactBytes + ' bytes).\\n');
 process.stdout.write('Validación estática correcta: API, interfaz, permisos, PWA, JSON y límite Vercel (' + serverlessFiles.length + '/12 funciones).\\n');
