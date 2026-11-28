@@ -803,6 +803,11 @@ module.exports = async function handler(req, res) {
         if(ms.some(x=>impl.get(x.module_key)!==true&&(x.monthly_price>0||x.setup_price>0)))return send(res,409,{error:'No se pueden asignar precios a módulos no implementados.'});
         const priceMap=Object.fromEntries(ms.map(x=>[x.module_key,{monthly:x.monthly_price,setup:x.setup_price}]));
         const normalizedPlans=ps.map(p=>({...p,module_prices:priceMap}));
+        const [oldPlans,oldModules,oldOther]=await Promise.all([
+          sql`SELECT plan_key,setup_amount,configuration_amount,monthly_amount,annual_discount_percent,permanent_price,full_sale_price,module_prices FROM app_license_plan_settings WHERE plan_key IN ('basic','professional','enterprise')`,
+          sql`SELECT module_key,title,monthly_price,setup_price FROM app_module_catalog WHERE module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(ms.map(x=>x.module_key))}::jsonb))`,
+          sql`SELECT concept_key,title,price,billing_mode,active FROM app_commercial_other_prices`
+        ]);
         await sql`UPDATE app_commercial_other_prices t SET title=x.title,price=x.price,billing_mode=x.billing_mode,active=x.active,updated_by=${admin.id},updated_at=NOW() FROM jsonb_to_recordset(${JSON.stringify(oc)}::jsonb) AS x(concept_key text,title text,price numeric,billing_mode text,active boolean) WHERE t.concept_key=x.concept_key`;
         const result=await sql`
           WITH module_update AS (
@@ -817,6 +822,22 @@ module.exports = async function handler(req, res) {
           SELECT (SELECT COUNT(*) FROM module_update)::int AS modules_updated,(SELECT COUNT(*) FROM plan_update)::int AS plans_updated
         `;
         if(Number(result[0]?.plans_updated)!==3||Number(result[0]?.modules_updated)!==ms.length)return send(res,409,{error:'No se pudo actualizar el catálogo completo.'});
+        const oldPlanMap=new Map(oldPlans.map(x=>[x.plan_key,x])),oldModuleMap=new Map(oldModules.map(x=>[x.module_key,x])),oldOtherMap=new Map(oldOther.map(x=>[x.concept_key,x]));
+        for(const item of ps){
+          const before=oldPlanMap.get(item.plan_key),after={...item,module_prices:priceMap};
+          if(before&&JSON.stringify({setup_amount:Number(before.setup_amount),configuration_amount:Number(before.configuration_amount),monthly_amount:Number(before.monthly_amount),annual_discount_percent:Number(before.annual_discount_percent),permanent_price:Number(before.permanent_price),full_sale_price:Number(before.full_sale_price),module_prices:before.module_prices})!==JSON.stringify(after))
+            await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('license_plan',${item.plan_key},${item.plan_key},${JSON.stringify(before)}::jsonb,${JSON.stringify(after)}::jsonb,${admin.id})`;
+        }
+        for(const item of ms){
+          const before=oldModuleMap.get(item.module_key),after={monthly_price:item.monthly_price,setup_price:item.setup_price};
+          if(before&&(Number(before.monthly_price)!==item.monthly_price||Number(before.setup_price)!==item.setup_price))
+            await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('module',${item.module_key},${String(before.title||item.module_key)},${JSON.stringify({monthly_price:Number(before.monthly_price),setup_price:Number(before.setup_price)})}::jsonb,${JSON.stringify(after)}::jsonb,${admin.id})`;
+        }
+        for(const item of oc){
+          const before=oldOtherMap.get(item.concept_key),after={title:item.title,price:item.price,billing_mode:item.billing_mode,active:item.active};
+          if(before&&(before.title!==item.title||Number(before.price)!==item.price||before.billing_mode!==item.billing_mode||before.active!==item.active))
+            await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('other_concept',${item.concept_key},${item.title},${JSON.stringify({title:before.title,price:Number(before.price),billing_mode:before.billing_mode,active:before.active})}::jsonb,${JSON.stringify(after)}::jsonb,${admin.id})`;
+        }
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},'commercial.price_catalog_updated','commercial_price_catalog','default',${JSON.stringify({plans:keys,modules:ms.length})}::jsonb)`;
         const [savedPlans,savedModules,savedOtherConcepts]=await Promise.all([
           sql`SELECT plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at FROM app_license_plan_settings ORDER BY CASE plan_key WHEN 'basic' THEN 1 WHEN 'professional' THEN 2 ELSE 3 END`,
@@ -1584,6 +1605,43 @@ module.exports = async function handler(req, res) {
           RETURNING business_id,industry_key,config_mode,modules,updated_at`;
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(${businessId},${admin.id},'business.modules_updated','business',${businessId},${JSON.stringify({industry,mode,modules})}::jsonb)`;
         return send(res,200,{config:rows[0]});
+      }
+      return send(res,405,{error:'Método no permitido.'});
+    }
+    if(path==='/api/admin/commercial-price-history'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      if(req.method!=='GET')return send(res,405,{error:'Método no permitido.'});
+      const sql=db(),url=new URL(req.url,`https://${req.headers.host||'localhost'}`);
+      const entityType=String(url.searchParams.get('entityType')||'').trim();
+      if(entityType&&!['license_plan','module','other_concept'].includes(entityType))return send(res,400,{error:'Tipo de historial no válido.'});
+      const rows=entityType
+        ? await sql`SELECT id,entity_type,entity_key,display_name,previous_values,new_values,actor_user_id,created_at FROM app_commercial_price_history WHERE entity_type=${entityType} ORDER BY created_at DESC LIMIT 300`
+        : await sql`SELECT id,entity_type,entity_key,display_name,previous_values,new_values,actor_user_id,created_at FROM app_commercial_price_history ORDER BY created_at DESC LIMIT 300`;
+      return send(res,200,{history:rows});
+    }
+    if(path==='/api/admin/sales-pipeline'){
+      const admin=await authenticated(req,res,true);if(!admin)return;
+      const sql=db(),stages=['new','contacted','meeting','proposal','negotiation','won','lost'];
+      const clean=(value,max)=>String(value??'').trim().slice(0,max);
+      if(req.method==='GET'){
+        const [rows,summary]=await Promise.all([
+          sql`SELECT id,prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_at,updated_at FROM app_sales_pipeline ORDER BY CASE WHEN next_follow_up_at IS NOT NULL AND next_follow_up_at<NOW() THEN 0 ELSE 1 END,updated_at DESC LIMIT 500`,
+          sql`SELECT stage,COUNT(*)::int AS total,COALESCE(SUM(estimated_value),0)::numeric AS value FROM app_sales_pipeline GROUP BY stage`
+        ]);
+        return send(res,200,{items:rows,summary});
+      }
+      if(req.method==='POST'||req.method==='PATCH'){
+        const input=body(req),id=String(input.id||''),prospectName=clean(input.prospectName,120),businessName=clean(input.businessName,160),email=clean(input.email,254),phone=clean(input.phone,50),industry=clean(input.industry,80),source=clean(input.source,80),stage=String(input.stage||'new'),estimatedValue=Number(input.estimatedValue||0),expectedCloseDate=input.expectedCloseDate?String(input.expectedCloseDate):null,nextFollowUpAt=input.nextFollowUpAt?String(input.nextFollowUpAt):null,notes=clean(input.notes,4000);
+        if((req.method==='PATCH'&&!/^[0-9a-f-]{36}$/i.test(id))||!prospectName||!stages.includes(stage)||!Number.isFinite(estimatedValue)||estimatedValue<0||estimatedValue>1000000000000)return send(res,400,{error:'Revisá el nombre, etapa e importe estimado del prospecto.'});
+        if(email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return send(res,400,{error:'Correo electrónico no válido.'});
+        if(expectedCloseDate&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(expectedCloseDate))return send(res,400,{error:'Fecha de cierre no válida.'});
+        if(nextFollowUpAt&&!Number.isFinite(Date.parse(nextFollowUpAt)))return send(res,400,{error:'Fecha de seguimiento no válida.'});
+        const rows=req.method==='POST'
+          ? await sql`INSERT INTO app_sales_pipeline(prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_by,updated_by) VALUES(${prospectName},${businessName},${email},${phone},${industry},${source},${stage},${Math.round(estimatedValue)},${expectedCloseDate},${nextFollowUpAt},${notes},${admin.id},${admin.id}) RETURNING id,prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_at,updated_at`
+          : await sql`UPDATE app_sales_pipeline SET prospect_name=${prospectName},business_name=${businessName},email=${email},phone=${phone},industry=${industry},source=${source},stage=${stage},estimated_value=${Math.round(estimatedValue)},expected_close_date=${expectedCloseDate},next_follow_up_at=${nextFollowUpAt},notes=${notes},updated_by=${admin.id},updated_at=NOW() WHERE id=${id} RETURNING id,prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_at,updated_at`;
+        if(!rows.length)return send(res,404,{error:'No se encontró el prospecto.'});
+        await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details) VALUES(NULL,${admin.id},${req.method==='POST'?'commercial.pipeline_created':'commercial.pipeline_updated'},'sales_pipeline',${rows[0].id},${JSON.stringify({prospectName,stage})}::jsonb)`;
+        return send(res,req.method==='POST'?201:200,{item:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
     }
