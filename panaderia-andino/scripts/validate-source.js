@@ -514,10 +514,16 @@ if (!apiSource.includes("req.method==='DELETE'") ||
 }
 if (!apiSource.includes("durationType==='custom_days'") ||
     !apiSource.includes('durationDays<=3650') ||
-    !apiSource.includes('requestedTrialDays>3650') ||
     !appBundleSource.includes('id="licenseCustomDaysWrap"') ||
-    !appBundleSource.includes('id="businessTrialDays" type="number" class="form-control" min="1" max="3650"')) {
-  throw new Error('Las licencias y pruebas deben admitir duraciones personalizadas de 1 a 3650 días.');
+    !appBundleSource.includes('id="businessLicenseSetupWrap" hidden') ||
+    !appBundleSource.includes('id="businessTrialWrap" hidden')) {
+  throw new Error('Las licencias deben admitir duraciones personalizadas y el alta de negocios debe permanecer separada de su contratación.');
+}
+const businessCreateSource = apiSource.slice(apiSource.indexOf("if (path === '/api/admin/businesses')"), apiSource.indexOf("if (path === '/api/admin/clients')"));
+if (!businessCreateSource || businessCreateSource.includes('INSERT INTO app_licenses') ||
+    !apiSource.includes("if(status==='active')") ||
+    !apiSource.includes('UPDATE app_business_config SET modules=')) {
+  throw new Error('Crear un negocio no debe emitir licencias; los módulos contratados se incorporan al activar la licencia.');
 }
 if (!apiSource.includes('Tu licencia vence HOY') ||
     !apiSource.includes('Licencia vence hoy') ||
