@@ -824,9 +824,11 @@ module.exports = async function handler(req, res) {
         if(Number(result[0]?.plans_updated)!==3||Number(result[0]?.modules_updated)!==ms.length)return send(res,409,{error:'No se pudo actualizar el catálogo completo.'});
         const oldPlanMap=new Map(oldPlans.map(x=>[x.plan_key,x])),oldModuleMap=new Map(oldModules.map(x=>[x.module_key,x])),oldOtherMap=new Map(oldOther.map(x=>[x.concept_key,x]));
         for(const item of ps){
-          const before=oldPlanMap.get(item.plan_key),after={...item,module_prices:priceMap};
-          if(before&&JSON.stringify({setup_amount:Number(before.setup_amount),configuration_amount:Number(before.configuration_amount),monthly_amount:Number(before.monthly_amount),annual_discount_percent:Number(before.annual_discount_percent),permanent_price:Number(before.permanent_price),full_sale_price:Number(before.full_sale_price),module_prices:before.module_prices})!==JSON.stringify(after))
-            await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('license_plan',${item.plan_key},${item.plan_key},${JSON.stringify(before)}::jsonb,${JSON.stringify(after)}::jsonb,${admin.id})`;
+          const before=oldPlanMap.get(item.plan_key);
+          const beforeComparable=before?{setup_amount:Number(before.setup_amount),configuration_amount:Number(before.configuration_amount),monthly_amount:Number(before.monthly_amount),annual_discount_percent:Number(before.annual_discount_percent),permanent_price:Number(before.permanent_price),full_sale_price:Number(before.full_sale_price),module_prices:before.module_prices||{}}:null;
+          const afterComparable={setup_amount:item.setup_amount,configuration_amount:item.configuration_amount,monthly_amount:item.monthly_amount,annual_discount_percent:item.annual_discount_percent,permanent_price:item.permanent_price,full_sale_price:item.full_sale_price,module_prices:priceMap};
+          if(before&&JSON.stringify(beforeComparable)!==JSON.stringify(afterComparable))
+            await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('license_plan',${item.plan_key},${item.plan_key},${JSON.stringify(beforeComparable)}::jsonb,${JSON.stringify(afterComparable)}::jsonb,${admin.id})`;
         }
         for(const item of ms){
           const before=oldModuleMap.get(item.module_key),after={monthly_price:item.monthly_price,setup_price:item.setup_price};
@@ -881,6 +883,7 @@ module.exports = async function handler(req, res) {
           }
           normalized.push({plan_key:planKey,display_name:({basic:'Básico',professional:'Profesional',enterprise:'Empresa'})[planKey],setup_amount:setup,configuration_amount:configuration,monthly_amount:monthly,user_limit:userLimit,device_limit:deviceLimit,modules,annual_discount_percent:annualDiscount,permanent_price:permanent,full_sale_price:fullSale,module_prices:modulePrices});
         }
+        const previousPlans=await sql`SELECT plan_key,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices FROM app_license_plan_settings WHERE plan_key IN ('basic','professional','enterprise')`;
         const allKeys=[...new Set(normalized.flatMap(x=>x.modules))];
         const valid=await sql`SELECT module_key,commercial_mode FROM app_module_catalog WHERE active=TRUE AND implemented=TRUE AND module_key IN (SELECT jsonb_array_elements_text(${JSON.stringify(allKeys)}::jsonb))`;
         if(valid.length!==allKeys.length)return send(res,400,{error:'Un plan contiene módulos no disponibles o todavía no implementados.'});
@@ -891,6 +894,13 @@ module.exports = async function handler(req, res) {
           AS x(plan_key text,display_name text,setup_amount numeric,configuration_amount numeric,monthly_amount numeric,user_limit integer,device_limit integer,modules jsonb,annual_discount_percent numeric,permanent_price numeric,full_sale_price numeric,module_prices jsonb,updated_by uuid)
           ON CONFLICT(plan_key) DO UPDATE SET display_name=EXCLUDED.display_name,setup_amount=EXCLUDED.setup_amount,configuration_amount=EXCLUDED.configuration_amount,monthly_amount=EXCLUDED.monthly_amount,user_limit=EXCLUDED.user_limit,device_limit=EXCLUDED.device_limit,modules=EXCLUDED.modules,annual_discount_percent=COALESCE(EXCLUDED.annual_discount_percent,app_license_plan_settings.annual_discount_percent),permanent_price=COALESCE(EXCLUDED.permanent_price,app_license_plan_settings.permanent_price),full_sale_price=COALESCE(EXCLUDED.full_sale_price,app_license_plan_settings.full_sale_price),module_prices=COALESCE(EXCLUDED.module_prices,app_license_plan_settings.module_prices),updated_by=EXCLUDED.updated_by,updated_at=NOW()
           RETURNING plan_key,display_name,setup_amount,configuration_amount,monthly_amount,user_limit,device_limit,modules,annual_discount_percent,permanent_price,full_sale_price,module_prices,updated_at`;
+        const previousMap=new Map(previousPlans.map(x=>[x.plan_key,x]));
+        for(const current of rows){
+          const before=previousMap.get(current.plan_key);
+          const beforeValues=before?{setup_amount:Number(before.setup_amount),configuration_amount:Number(before.configuration_amount),monthly_amount:Number(before.monthly_amount),user_limit:before.user_limit,device_limit:before.device_limit,modules:before.modules,annual_discount_percent:Number(before.annual_discount_percent),permanent_price:Number(before.permanent_price),full_sale_price:Number(before.full_sale_price),module_prices:before.module_prices||{}}:{};
+          const newValues={setup_amount:Number(current.setup_amount),configuration_amount:Number(current.configuration_amount),monthly_amount:Number(current.monthly_amount),user_limit:current.user_limit,device_limit:current.device_limit,modules:current.modules,annual_discount_percent:Number(current.annual_discount_percent),permanent_price:Number(current.permanent_price),full_sale_price:Number(current.full_sale_price),module_prices:current.module_prices||{}};
+          if(before&&JSON.stringify(beforeValues)!==JSON.stringify(newValues))await sql`INSERT INTO app_commercial_price_history(entity_type,entity_key,display_name,previous_values,new_values,actor_user_id) VALUES('license_plan',${current.plan_key},${current.display_name},${JSON.stringify(beforeValues)}::jsonb,${JSON.stringify(newValues)}::jsonb,${admin.id})`;
+        }
         return send(res,200,{plans:rows,updated:true});
       }
       return send(res,405,{error:'Método no permitido.'});
