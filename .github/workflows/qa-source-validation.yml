@@ -5,6 +5,7 @@ on:
     branches:
       - feat/business-improvements-suite-2026-11-27
       - fix/commercial-pipeline-price-history-e2e
+      - feat/business-first-license-later
   pull_request:
     branches:
       - main
