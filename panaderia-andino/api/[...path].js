@@ -1633,8 +1633,8 @@ module.exports = async function handler(req, res) {
       if(req.method==='POST'||req.method==='PATCH'){
         const input=body(req),id=String(input.id||''),prospectName=clean(input.prospectName,120),businessName=clean(input.businessName,160),email=clean(input.email,254),phone=clean(input.phone,50),industry=clean(input.industry,80),source=clean(input.source,80),stage=String(input.stage||'new'),estimatedValue=Number(input.estimatedValue||0),expectedCloseDate=input.expectedCloseDate?String(input.expectedCloseDate):null,nextFollowUpAt=input.nextFollowUpAt?String(input.nextFollowUpAt):null,notes=clean(input.notes,4000);
         if((req.method==='PATCH'&&!/^[0-9a-f-]{36}$/i.test(id))||!prospectName||!stages.includes(stage)||!Number.isFinite(estimatedValue)||estimatedValue<0||estimatedValue>1000000000000)return send(res,400,{error:'Revisá el nombre, etapa e importe estimado del prospecto.'});
-        if(email&&!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))return send(res,400,{error:'Correo electrónico no válido.'});
-        if(expectedCloseDate&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(expectedCloseDate))return send(res,400,{error:'Fecha de cierre no válida.'});
+        if(email&&!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(email))return send(res,400,{error:'Correo electrónico no válido.'});
+        if(expectedCloseDate&&!/^\d{4}-\d{2}-\d{2}$/.test(expectedCloseDate))return send(res,400,{error:'Fecha de cierre no válida.'});
         if(nextFollowUpAt&&!Number.isFinite(Date.parse(nextFollowUpAt)))return send(res,400,{error:'Fecha de seguimiento no válida.'});
         const rows=req.method==='POST'
           ? await sql`INSERT INTO app_sales_pipeline(prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_by,updated_by) VALUES(${prospectName},${businessName},${email},${phone},${industry},${source},${stage},${Math.round(estimatedValue)},${expectedCloseDate},${nextFollowUpAt},${notes},${admin.id},${admin.id}) RETURNING id,prospect_name,business_name,email,phone,industry,source,stage,estimated_value,expected_close_date,next_follow_up_at,notes,created_at,updated_at`
