@@ -2196,7 +2196,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         (page === 'notas' && ['sales.view','sales.create','sales.cancel'].some(key => employeePermissions[key] === true)) ||
         (page === 'productos' && ['products.view','products.manage','inventory.view','inventory.manage'].some(key => employeePermissions[key] === true)) ||
         (page === 'erp' && Object.values(employeePermissions).some(value => value === true));
-      link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
+      link.hidden = platformAdmin ? !adminPages.includes(page) : (user.role === 'employee' ? !employeePageAllowed : ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-precios','admin-commercial','admin-usuarios','admin-notificaciones','admin-support','actividad','seguridad','reportes-globales'].includes(page));
       if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
