@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/business-improvements-suite-2026-11-27
+      - fix/commercial-pipeline-price-history-e2e
   pull_request:
     branches:
       - main
