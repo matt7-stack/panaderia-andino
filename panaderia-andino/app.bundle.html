@@ -3291,72 +3291,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
               '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>' +
-              '<script id="mattsystem-commercial-pipeline-and-price-history-20261128">
-(()=>{
- const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const money=v=>'Gs. '+Math.round(Number(v||0)).toLocaleString('es-PY');
- const stageNames={new:'Nuevo',contacted:'Contactado',meeting:'Reunión',proposal:'Propuesta enviada',negotiation:'Negociación',won:'Ganado',lost:'Perdido'};
- const api=()=>window.PanaderiaAuth?.api;
- async function loadPriceHistory(){
-  const box=document.getElementById('commercialPriceHistoryList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
-  box.innerHTML='<p class="small text-muted">Consultando historial…</p>';
-  try{
-   const data=await api()('/api/admin/commercial-price-history');
-   const rows=Array.isArray(data.history)?data.history:[];
-   box.innerHTML=rows.length?'<table class="table table-sm align-middle"><thead><tr><th>Fecha</th><th>Concepto</th><th>Anterior</th><th>Nuevo</th></tr></thead><tbody>'+rows.map(x=>{
-    const fmt=o=>esc(Object.entries(o||{}).filter(([k])=>!['module_prices','modules'].includes(k)).map(([k,v])=>k+': '+(typeof v==='number'?money(v):String(v))).join(' · ')||'—');
-    return '<tr><td>'+esc(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td><strong>'+esc(x.display_name)+'</strong><small class="d-block text-muted">'+esc(x.entity_type)+' / '+esc(x.entity_key)+'</small></td><td class="small">'+fmt(x.previous_values)+'</td><td class="small">'+fmt(x.new_values)+'</td></tr>';
-   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay cambios de precios registrados.</p>';
-  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el historial.')+'</p>';}
- }
- async function loadPipeline(){
-  const box=document.getElementById('salesPipelineList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
-  box.innerHTML='<p class="small text-muted">Consultando oportunidades…</p>';
-  try{
-   const data=await api()('/api/admin/sales-pipeline'),items=Array.isArray(data.items)?data.items:[];
-   const summary=Array.isArray(data.summary)?data.summary:[];
-   const totals=Object.fromEntries(summary.map(x=>[x.stage,{count:Number(x.total||0),value:Number(x.value||0)}]));
-   const sum=items.length,neg=totals.negotiation?.count||0,won=totals.won?.count||0,wonValue=totals.won?.value||0;
-   const cards=document.getElementById('salesPipelineSummary');
-   if(cards)cards.innerHTML=[['Prospectos',sum],['En negociación',neg],['Ventas ganadas',won],[ 'Valor ganado',money(wonValue)]].map(([k,v])=>'<article class="summary-card"><p class="summary-label">'+k+'</p><h2>'+v+'</h2></article>').join('');
-   box.innerHTML=items.length?'<table class="table table-sm align-middle"><thead><tr><th>Prospecto</th><th>Etapa</th><th>Valor estimado</th><th>Seguimiento</th><th>Notas</th><th></th></tr></thead><tbody>'+items.map(x=>{
-    const follow=x.next_follow_up_at?new Date(x.next_follow_up_at).toLocaleString('es-PY'):'—';
-    return '<tr data-pipeline-row="'+esc(x.id)+'" data-business-name="'+esc(x.business_name||'')+'" data-email="'+esc(x.email||'')+'" data-phone="'+esc(x.phone||'')+'" data-industry="'+esc(x.industry||'')+'" data-source="'+esc(x.source||'')+'" data-expected-close-date="'+esc(x.expected_close_date||'')+'"><td><strong>'+esc(x.prospect_name)+'</strong><small class="d-block text-muted">'+esc(x.business_name||'')+'</small><small class="d-block">'+esc(x.email||'')+' '+esc(x.phone||'')+'</small></td><td><select class="form-select form-select-sm" data-field="stage">'+Object.entries(stageNames).map(([k,v])=>'<option value="'+k+'" '+(x.stage===k?'selected':'')+'>'+v+'</option>').join('')+'</select></td><td><input class="form-control form-control-sm" data-field="estimatedValue" type="number" min="0" value="'+Number(x.estimated_value||0)+'"></td><td><span class="small">'+esc(follow)+'</span><input class="form-control form-control-sm mt-1" data-field="nextFollowUpAt" type="datetime-local" value="'+(x.next_follow_up_at?new Date(x.next_follow_up_at).toISOString().slice(0,16):'')+'"></td><td><textarea class="form-control form-control-sm" data-field="notes" rows="2">'+esc(x.notes||'')+'</textarea></td><td><button class="btn btn-outline-bakery btn-sm" type="button" data-save-pipeline>Guardar</button></td></tr>';
-   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay prospectos. Registrá el primero arriba.</p>';
-  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el pipeline.')+'</p>';}
- }
- async function savePipeline(ev){
-  ev.preventDefault();const form=ev.currentTarget;if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
-  const get=id=>document.getElementById(id)?.value||'';
-  const btn=document.getElementById('savePipelineProspect');btn.disabled=true;
-  try{
-   await api()('/api/admin/sales-pipeline',{method:'POST',body:JSON.stringify({prospectName:get('pipelineProspectName'),businessName:get('pipelineBusinessName'),email:get('pipelineEmail'),phone:get('pipelinePhone'),industry:get('pipelineIndustry'),source:get('pipelineSource'),stage:get('pipelineStage'),estimatedValue:Number(get('pipelineValue')||0),expectedCloseDate:get('pipelineCloseDate')||null,nextFollowUpAt:get('pipelineFollowUp')?new Date(get('pipelineFollowUp')).toISOString():null,notes:get('pipelineNotes')})});
-   form.reset();document.getElementById('pipelineValue').value='0';await loadPipeline();
-  }catch(e){window.alert(e.message||'No se pudo guardar el prospecto.');}
-  finally{btn.disabled=false;}
- }
- async function savePipelineRow(button){
-  const row=button.closest('[data-pipeline-row]');if(!row)return;button.disabled=true;
-  try{
-   const get=k=>row.querySelector('[data-field="'+k+'"]')?.value||'';
-   const originalId=row.dataset.pipelineRow;
-   const data=await api()('/api/admin/sales-pipeline',{method:'PATCH',body:JSON.stringify({id:originalId,prospectName:row.querySelector('td strong')?.textContent||'',businessName:row.dataset.businessName||'',email:row.dataset.email||'',phone:row.dataset.phone||'',industry:row.dataset.industry||'',source:row.dataset.source||'',stage:get('stage'),estimatedValue:Number(get('estimatedValue')||0),nextFollowUpAt:get('nextFollowUpAt')?new Date(get('nextFollowUpAt')).toISOString():null,expectedCloseDate:row.dataset.expectedCloseDate||null,notes:get('notes')})});
-   await loadPipeline();
-  }catch(e){window.alert(e.message||'No se pudo actualizar el prospecto.');}
-  finally{button.disabled=false;}
- }
- function init(){
-  document.getElementById('salesPipelineForm')?.addEventListener('submit',savePipeline);
-  document.getElementById('reloadSalesPipeline')?.addEventListener('click',loadPipeline);
-  document.getElementById('reloadCommercialPriceHistory')?.addEventListener('click',loadPriceHistory);
-  document.getElementById('salesPipelineList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-save-pipeline]');if(b)savePipelineRow(b);});
-  window.addEventListener('panaderia:pagenavigate',ev=>{if(ev.detail?.page==='admin-commercial')loadPipeline();if(ev.detail?.page==='admin-precios')loadPriceHistory();});
-  window.addEventListener('panaderia:authenticated',()=>{if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();});
-  Promise.resolve(window.PanaderiaAuthReady).then(user=>{if(user?.isPlatformAdmin){if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();}}).catch(()=>{});
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-})();
-</script>
+              '
 </body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
@@ -5736,5 +5671,71 @@ html.auth-locked body::-webkit-scrollbar-track {
 }
 </style>
 
+<script id="mattsystem-commercial-pipeline-and-price-history-20261128">
+(()=>{
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const money=v=>'Gs. '+Math.round(Number(v||0)).toLocaleString('es-PY');
+ const stageNames={new:'Nuevo',contacted:'Contactado',meeting:'Reunión',proposal:'Propuesta enviada',negotiation:'Negociación',won:'Ganado',lost:'Perdido'};
+ const api=()=>window.PanaderiaAuth?.api;
+ async function loadPriceHistory(){
+  const box=document.getElementById('commercialPriceHistoryList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  box.innerHTML='<p class="small text-muted">Consultando historial…</p>';
+  try{
+   const data=await api()('/api/admin/commercial-price-history');
+   const rows=Array.isArray(data.history)?data.history:[];
+   box.innerHTML=rows.length?'<table class="table table-sm align-middle"><thead><tr><th>Fecha</th><th>Concepto</th><th>Anterior</th><th>Nuevo</th></tr></thead><tbody>'+rows.map(x=>{
+    const fmt=o=>esc(Object.entries(o||{}).filter(([k])=>!['module_prices','modules'].includes(k)).map(([k,v])=>k+': '+(typeof v==='number'?money(v):String(v))).join(' · ')||'—');
+    return '<tr><td>'+esc(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td><strong>'+esc(x.display_name)+'</strong><small class="d-block text-muted">'+esc(x.entity_type)+' / '+esc(x.entity_key)+'</small></td><td class="small">'+fmt(x.previous_values)+'</td><td class="small">'+fmt(x.new_values)+'</td></tr>';
+   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay cambios de precios registrados.</p>';
+  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el historial.')+'</p>';}
+ }
+ async function loadPipeline(){
+  const box=document.getElementById('salesPipelineList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  box.innerHTML='<p class="small text-muted">Consultando oportunidades…</p>';
+  try{
+   const data=await api()('/api/admin/sales-pipeline'),items=Array.isArray(data.items)?data.items:[];
+   const summary=Array.isArray(data.summary)?data.summary:[];
+   const totals=Object.fromEntries(summary.map(x=>[x.stage,{count:Number(x.total||0),value:Number(x.value||0)}]));
+   const sum=items.length,neg=totals.negotiation?.count||0,won=totals.won?.count||0,wonValue=totals.won?.value||0;
+   const cards=document.getElementById('salesPipelineSummary');
+   if(cards)cards.innerHTML=[['Prospectos',sum],['En negociación',neg],['Ventas ganadas',won],[ 'Valor ganado',money(wonValue)]].map(([k,v])=>'<article class="summary-card"><p class="summary-label">'+k+'</p><h2>'+v+'</h2></article>').join('');
+   box.innerHTML=items.length?'<table class="table table-sm align-middle"><thead><tr><th>Prospecto</th><th>Etapa</th><th>Valor estimado</th><th>Seguimiento</th><th>Notas</th><th></th></tr></thead><tbody>'+items.map(x=>{
+    const follow=x.next_follow_up_at?new Date(x.next_follow_up_at).toLocaleString('es-PY'):'—';
+    return '<tr data-pipeline-row="'+esc(x.id)+'" data-business-name="'+esc(x.business_name||'')+'" data-email="'+esc(x.email||'')+'" data-phone="'+esc(x.phone||'')+'" data-industry="'+esc(x.industry||'')+'" data-source="'+esc(x.source||'')+'" data-expected-close-date="'+esc(x.expected_close_date||'')+'"><td><strong>'+esc(x.prospect_name)+'</strong><small class="d-block text-muted">'+esc(x.business_name||'')+'</small><small class="d-block">'+esc(x.email||'')+' '+esc(x.phone||'')+'</small></td><td><select class="form-select form-select-sm" data-field="stage">'+Object.entries(stageNames).map(([k,v])=>'<option value="'+k+'" '+(x.stage===k?'selected':'')+'>'+v+'</option>').join('')+'</select></td><td><input class="form-control form-control-sm" data-field="estimatedValue" type="number" min="0" value="'+Number(x.estimated_value||0)+'"></td><td><span class="small">'+esc(follow)+'</span><input class="form-control form-control-sm mt-1" data-field="nextFollowUpAt" type="datetime-local" value="'+(x.next_follow_up_at?new Date(x.next_follow_up_at).toISOString().slice(0,16):'')+'"></td><td><textarea class="form-control form-control-sm" data-field="notes" rows="2">'+esc(x.notes||'')+'</textarea></td><td><button class="btn btn-outline-bakery btn-sm" type="button" data-save-pipeline>Guardar</button></td></tr>';
+   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay prospectos. Registrá el primero arriba.</p>';
+  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el pipeline.')+'</p>';}
+ }
+ async function savePipeline(ev){
+  ev.preventDefault();const form=ev.currentTarget;if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  const get=id=>document.getElementById(id)?.value||'';
+  const btn=document.getElementById('savePipelineProspect');btn.disabled=true;
+  try{
+   await api()('/api/admin/sales-pipeline',{method:'POST',body:JSON.stringify({prospectName:get('pipelineProspectName'),businessName:get('pipelineBusinessName'),email:get('pipelineEmail'),phone:get('pipelinePhone'),industry:get('pipelineIndustry'),source:get('pipelineSource'),stage:get('pipelineStage'),estimatedValue:Number(get('pipelineValue')||0),expectedCloseDate:get('pipelineCloseDate')||null,nextFollowUpAt:get('pipelineFollowUp')?new Date(get('pipelineFollowUp')).toISOString():null,notes:get('pipelineNotes')})});
+   form.reset();document.getElementById('pipelineValue').value='0';await loadPipeline();
+  }catch(e){window.alert(e.message||'No se pudo guardar el prospecto.');}
+  finally{btn.disabled=false;}
+ }
+ async function savePipelineRow(button){
+  const row=button.closest('[data-pipeline-row]');if(!row)return;button.disabled=true;
+  try{
+   const get=k=>row.querySelector('[data-field="'+k+'"]')?.value||'';
+   const originalId=row.dataset.pipelineRow;
+   const data=await api()('/api/admin/sales-pipeline',{method:'PATCH',body:JSON.stringify({id:originalId,prospectName:row.querySelector('td strong')?.textContent||'',businessName:row.dataset.businessName||'',email:row.dataset.email||'',phone:row.dataset.phone||'',industry:row.dataset.industry||'',source:row.dataset.source||'',stage:get('stage'),estimatedValue:Number(get('estimatedValue')||0),nextFollowUpAt:get('nextFollowUpAt')?new Date(get('nextFollowUpAt')).toISOString():null,expectedCloseDate:row.dataset.expectedCloseDate||null,notes:get('notes')})});
+   await loadPipeline();
+  }catch(e){window.alert(e.message||'No se pudo actualizar el prospecto.');}
+  finally{button.disabled=false;}
+ }
+ function init(){
+  document.getElementById('salesPipelineForm')?.addEventListener('submit',savePipeline);
+  document.getElementById('reloadSalesPipeline')?.addEventListener('click',loadPipeline);
+  document.getElementById('reloadCommercialPriceHistory')?.addEventListener('click',loadPriceHistory);
+  document.getElementById('salesPipelineList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-save-pipeline]');if(b)savePipelineRow(b);});
+  window.addEventListener('panaderia:pagenavigate',ev=>{if(ev.detail?.page==='admin-commercial')loadPipeline();if(ev.detail?.page==='admin-precios')loadPriceHistory();});
+  window.addEventListener('panaderia:authenticated',()=>{if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();});
+  Promise.resolve(window.PanaderiaAuthReady).then(user=>{if(user?.isPlatformAdmin){if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();}}).catch(()=>{});
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
 </body>
 </html>
