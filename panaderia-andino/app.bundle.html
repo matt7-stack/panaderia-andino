@@ -1471,6 +1471,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
         <a class="nav-link admin-only-menu" href="#admin-licencias" data-page-link="admin-licencias" id="adminLicensesNav" hidden><i class="bi bi-file-earmark-lock"></i><span>Licencias y ventas</span></a>
         <a class="nav-link admin-only-menu" href="#admin-cotizador" data-page-link="admin-cotizador" id="adminQuoteNav" hidden><i class="bi bi-calculator"></i><span>Cotizador comercial</span></a>
         <a class="nav-link admin-only-menu" href="#admin-precios" data-page-link="admin-precios" id="adminPricesNav" hidden><i class="bi bi-tags"></i><span>Catálogo de precios</span></a>
+        <a class="nav-link admin-only-menu" href="#admin-commercial" data-page-link="admin-commercial" id="adminCommercialNav" hidden><i class="bi bi-kanban"></i><span>Pipeline comercial</span></a>
         <a class="nav-link admin-only-menu" href="#admin-panaderias" data-page-link="admin-panaderias" id="adminBusinessesNav" hidden><i class="bi bi-shop-window"></i><span>Negocios</span></a>
         <a class="nav-link admin-only-menu" href="#admin-usuarios" data-page-link="admin-usuarios" id="adminUsersNav" hidden><i class="bi bi-people"></i><span>Usuarios y permisos</span></a>
         <a class="nav-link admin-only-menu" href="#admin-notificaciones" data-page-link="admin-notificaciones" id="adminNotificationsNav" hidden><i class="bi bi-send"></i><span>Notificaciones</span></a>
@@ -1746,7 +1747,30 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
 <article class="panel settings-card mb-3"><div class="panel-heading"><div><h3>2. Módulos adicionales</h3><p>Definí el precio mensual y el pago único de configuración por módulo.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Módulo</th><th>Mensual (Gs.)</th><th>Pago único (Gs.)</th><th>Estado</th></tr></thead><tbody id="priceCatalogModules"><tr><td colspan="4">Cargando…</td></tr></tbody></table></div><p class="small text-muted mb-0">No se cobra aparte un módulo que ya esté incluido en el plan. Los módulos no implementados no pueden comercializarse.</p></article>
 <article class="panel settings-card mb-3"><div class="panel-heading"><div><h3>3. Otros conceptos</h3><p>Activá los servicios que ofrecés y definí su tarifa. Los conceptos desactivados no deben incluirse en nuevas cotizaciones.</p></div></div><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Concepto</th><th>Modalidad</th><th>Precio (Gs.)</th><th>Disponible</th></tr></thead><tbody id="priceCatalogOther"><tr><td colspan="4">Cargando…</td></tr></tbody></table></div></article>
 <div class="d-flex flex-wrap gap-2 justify-content-end"><button class="btn btn-outline-bakery" type="button" id="reloadPriceCatalog">Recargar</button><button class="btn btn-bakery" type="submit" id="savePriceCatalog">Guardar y aplicar precios</button></div>
-</form></section>
+</form>
+<article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Historial de precios</h3><p>Registro de cambios en licencias, módulos y otros conceptos. Solo lectura.</p></div><button class="btn btn-outline-bakery btn-sm" type="button" id="reloadCommercialPriceHistory">Actualizar historial</button></div><div id="commercialPriceHistoryList" class="table-responsive"><p class="small text-muted">Cargando historial…</p></div></article>
+</section>
+
+<section class="page-view" id="page-admin-commercial" data-page="admin-commercial">
+<div class="page-heading"><div><p class="eyebrow">GESTIÓN COMERCIAL MATTSYSTEM</p><h1><i class="bi bi-kanban heading-page-icon"></i> Pipeline comercial</h1><p class="page-subtitle">Registrá prospectos, seguí oportunidades y controlá el valor estimado de ventas.</p></div><button class="btn btn-outline-bakery" type="button" id="reloadSalesPipeline"><i class="bi bi-arrow-clockwise"></i> Actualizar</button></div>
+<div class="summary-grid admin-business-overview" id="salesPipelineSummary"><article class="summary-card"><p class="summary-label">Prospectos</p><h2>—</h2></article><article class="summary-card"><p class="summary-label">En negociación</p><h2>—</h2></article><article class="summary-card"><p class="summary-label">Ventas ganadas</p><h2>—</h2></article><article class="summary-card"><p class="summary-label">Valor ganado</p><h2>—</h2></article></div>
+<article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Nuevo prospecto</h3><p>Los datos quedan guardados en la base de datos y solo los puede ver el administrador de MATTSYSTEM.</p></div></div>
+<form id="salesPipelineForm" class="row g-3">
+<div class="col-md-4"><label class="form-label" for="pipelineProspectName">Contacto *</label><input class="form-control" id="pipelineProspectName" maxlength="120" required></div>
+<div class="col-md-4"><label class="form-label" for="pipelineBusinessName">Negocio / empresa</label><input class="form-control" id="pipelineBusinessName" maxlength="160"></div>
+<div class="col-md-4"><label class="form-label" for="pipelineEmail">Correo</label><input class="form-control" id="pipelineEmail" type="email" maxlength="254"></div>
+<div class="col-md-3"><label class="form-label" for="pipelinePhone">Teléfono</label><input class="form-control" id="pipelinePhone" maxlength="50"></div>
+<div class="col-md-3"><label class="form-label" for="pipelineIndustry">Rubro</label><input class="form-control" id="pipelineIndustry" maxlength="80"></div>
+<div class="col-md-3"><label class="form-label" for="pipelineSource">Origen</label><select class="form-select" id="pipelineSource"><option value="">Sin especificar</option><option>Referido</option><option>Redes sociales</option><option>Contacto directo</option><option>Publicidad</option><option>Otro</option></select></div>
+<div class="col-md-3"><label class="form-label" for="pipelineStage">Etapa</label><select class="form-select" id="pipelineStage"><option value="new">Nuevo</option><option value="contacted">Contactado</option><option value="meeting">Reunión</option><option value="proposal">Propuesta enviada</option><option value="negotiation">Negociación</option><option value="won">Ganado</option><option value="lost">Perdido</option></select></div>
+<div class="col-md-4"><label class="form-label" for="pipelineValue">Valor estimado (Gs.)</label><input class="form-control" id="pipelineValue" type="number" min="0" step="1000" value="0"></div>
+<div class="col-md-4"><label class="form-label" for="pipelineCloseDate">Cierre estimado</label><input class="form-control" id="pipelineCloseDate" type="date"></div>
+<div class="col-md-4"><label class="form-label" for="pipelineFollowUp">Próximo seguimiento</label><input class="form-control" id="pipelineFollowUp" type="datetime-local"></div>
+<div class="col-12"><label class="form-label" for="pipelineNotes">Notas y próximo paso</label><textarea class="form-control" id="pipelineNotes" rows="2" maxlength="4000"></textarea></div>
+<div class="col-12 d-flex justify-content-end"><button class="btn btn-bakery" id="savePipelineProspect" type="submit">Guardar prospecto</button></div>
+</form></article>
+<article class="panel settings-card mt-3"><div class="panel-heading"><div><h3>Oportunidades</h3><p>Podés actualizar la etapa, los datos y el seguimiento de cada prospecto.</p></div></div><div id="salesPipelineList" class="table-responsive"><p class="small text-muted">Cargando prospectos…</p></div></article>
+</section>
 
 <section class="page-view" id="page-admin-licencias" data-page="admin-licencias">
 <div class="page-heading"><div><p class="eyebrow">GESTIÓN COMERCIAL MATTSYSTEM</p><h1>Licencias y ventas</h1><p class="page-subtitle">Cada negocio tiene su licencia, contrato, plan y pagos independientes.</p></div></div>
@@ -2164,7 +2188,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
     if (platformAdmin) window.PanaderiaAuth.selectBusiness('');
     document.querySelectorAll('.nav-menu [data-page-link]').forEach(link => {
       const page = link.dataset.pageLink;
-      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','salud-sistema','reportes-globales'];
+      const adminPages = ['administracion','admin-panaderias','admin-licencias','admin-cotizador','admin-precios','admin-commercial','admin-usuarios','admin-notificaciones','admin-support','admin-centro','admin-maintenance','novedades','guia-uso','accesos-rapidos','actividad','seguridad','salud-sistema','reportes-globales'];
       const businessPages = ['dashboard','movimientos','notas','notificaciones','info','productos','empleados','erp','configuracion','guia-uso','salud-sistema'];
       const employeePermissions = user.permissions && typeof user.permissions === 'object' ? user.permissions : {};
       const employeePageAllowed = page === 'dashboard' || page === 'notificaciones' || page === 'info' || page === 'guia-uso' ||
@@ -2176,7 +2200,7 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
       if (!platformAdmin && user.role !== 'admin' && page === 'configuracion') link.hidden = true;
       if (platformAdmin && businessPages.includes(page)) link.hidden = true;
     });
-    ['adminLicensesNav','adminQuoteNav','adminPricesNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminHealthNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
+    ['adminLicensesNav','adminQuoteNav','adminPricesNav','adminCommercialNav','adminBusinessesNav','adminUsersNav','adminNotificationsNav','adminSupportSettingsNav','adminActivityNav','adminSecurityNav','adminHealthNav','adminReportsNav','adminCenterNav'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!platformAdmin;});
     const supportLink=document.getElementById('supportContactNav');if(supportLink)supportLink.hidden=platformAdmin;
     const sidebarLabel = document.querySelector('.sidebar-label');
     if (sidebarLabel) sidebarLabel.textContent = platformAdmin ? 'GESTIÓN DE PLATAFORMA' : 'MENÚ PRINCIPAL';
@@ -3267,7 +3291,73 @@ body:not(.platform-admin) #page-admin-maintenance{display:none!important}
               '<h3 class="section">Condiciones comerciales</h3><ul class="conditions">'+clauses.map(c=>'<li>'+esc(c)+'</li>').join('')+
               '<li>La forma, fechas y medios de pago se confirmarán en el acuerdo comercial aceptado por ambas partes.</li><li>Los importes se expresan en guaraníes paraguayos (Gs.).</li></ul>'+
               '<div class="foot">MATTSYSTEM · Sistema de gestión empresarial · Documento generado para revisión y aceptación del cliente.</div>' +
-              '</body></html>';
+              '<script id="mattsystem-commercial-pipeline-and-price-history-20261128">
+(()=>{
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const money=v=>'Gs. '+Math.round(Number(v||0)).toLocaleString('es-PY');
+ const stageNames={new:'Nuevo',contacted:'Contactado',meeting:'Reunión',proposal:'Propuesta enviada',negotiation:'Negociación',won:'Ganado',lost:'Perdido'};
+ const api=()=>window.PanaderiaAuth?.api;
+ async function loadPriceHistory(){
+  const box=document.getElementById('commercialPriceHistoryList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  box.innerHTML='<p class="small text-muted">Consultando historial…</p>';
+  try{
+   const data=await api()('/api/admin/commercial-price-history');
+   const rows=Array.isArray(data.history)?data.history:[];
+   box.innerHTML=rows.length?'<table class="table table-sm align-middle"><thead><tr><th>Fecha</th><th>Concepto</th><th>Anterior</th><th>Nuevo</th></tr></thead><tbody>'+rows.map(x=>{
+    const fmt=o=>esc(Object.entries(o||{}).filter(([k])=>!['module_prices','modules'].includes(k)).map(([k,v])=>k+': '+(typeof v==='number'?money(v):String(v))).join(' · ')||'—');
+    return '<tr><td>'+esc(new Date(x.created_at).toLocaleString('es-PY'))+'</td><td><strong>'+esc(x.display_name)+'</strong><small class="d-block text-muted">'+esc(x.entity_type)+' / '+esc(x.entity_key)+'</small></td><td class="small">'+fmt(x.previous_values)+'</td><td class="small">'+fmt(x.new_values)+'</td></tr>';
+   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay cambios de precios registrados.</p>';
+  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el historial.')+'</p>';}
+ }
+ async function loadPipeline(){
+  const box=document.getElementById('salesPipelineList');if(!box||window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  box.innerHTML='<p class="small text-muted">Consultando oportunidades…</p>';
+  try{
+   const data=await api()('/api/admin/sales-pipeline'),items=Array.isArray(data.items)?data.items:[];
+   const summary=Array.isArray(data.summary)?data.summary:[];
+   const totals=Object.fromEntries(summary.map(x=>[x.stage,{count:Number(x.total||0),value:Number(x.value||0)}]));
+   const sum=items.length,neg=totals.negotiation?.count||0,won=totals.won?.count||0,wonValue=totals.won?.value||0;
+   const cards=document.getElementById('salesPipelineSummary');
+   if(cards)cards.innerHTML=[['Prospectos',sum],['En negociación',neg],['Ventas ganadas',won],[ 'Valor ganado',money(wonValue)]].map(([k,v])=>'<article class="summary-card"><p class="summary-label">'+k+'</p><h2>'+v+'</h2></article>').join('');
+   box.innerHTML=items.length?'<table class="table table-sm align-middle"><thead><tr><th>Prospecto</th><th>Etapa</th><th>Valor estimado</th><th>Seguimiento</th><th>Notas</th><th></th></tr></thead><tbody>'+items.map(x=>{
+    const follow=x.next_follow_up_at?new Date(x.next_follow_up_at).toLocaleString('es-PY'):'—';
+    return '<tr data-pipeline-row="'+esc(x.id)+'"><td><strong>'+esc(x.prospect_name)+'</strong><small class="d-block text-muted">'+esc(x.business_name||'')+'</small><small class="d-block">'+esc(x.email||'')+' '+esc(x.phone||'')+'</small></td><td><select class="form-select form-select-sm" data-field="stage">'+Object.entries(stageNames).map(([k,v])=>'<option value="'+k+'" '+(x.stage===k?'selected':'')+'>'+v+'</option>').join('')+'</select></td><td><input class="form-control form-control-sm" data-field="estimatedValue" type="number" min="0" value="'+Number(x.estimated_value||0)+'"></td><td><span class="small">'+esc(follow)+'</span><input class="form-control form-control-sm mt-1" data-field="nextFollowUpAt" type="datetime-local" value="'+(x.next_follow_up_at?new Date(x.next_follow_up_at).toISOString().slice(0,16):'')+'"></td><td><textarea class="form-control form-control-sm" data-field="notes" rows="2">'+esc(x.notes||'')+'</textarea></td><td><button class="btn btn-outline-bakery btn-sm" type="button" data-save-pipeline>Guardar</button></td></tr>';
+   }).join('')+'</tbody></table>':'<p class="small text-muted">Todavía no hay prospectos. Registrá el primero arriba.</p>';
+  }catch(e){box.innerHTML='<p class="text-danger small">'+esc(e.message||'No se pudo cargar el pipeline.')+'</p>';}
+ }
+ async function savePipeline(ev){
+  ev.preventDefault();const form=ev.currentTarget;if(window.PanaderiaAuth?.user?.isPlatformAdmin!==true)return;
+  const get=id=>document.getElementById(id)?.value||'';
+  const btn=document.getElementById('savePipelineProspect');btn.disabled=true;
+  try{
+   await api()('/api/admin/sales-pipeline',{method:'POST',body:JSON.stringify({prospectName:get('pipelineProspectName'),businessName:get('pipelineBusinessName'),email:get('pipelineEmail'),phone:get('pipelinePhone'),industry:get('pipelineIndustry'),source:get('pipelineSource'),stage:get('pipelineStage'),estimatedValue:Number(get('pipelineValue')||0),expectedCloseDate:get('pipelineCloseDate')||null,nextFollowUpAt:get('pipelineFollowUp')?new Date(get('pipelineFollowUp')).toISOString():null,notes:get('pipelineNotes')})});
+   form.reset();document.getElementById('pipelineValue').value='0';await loadPipeline();
+  }catch(e){window.alert(e.message||'No se pudo guardar el prospecto.');}
+  finally{btn.disabled=false;}
+ }
+ async function savePipelineRow(button){
+  const row=button.closest('[data-pipeline-row]');if(!row)return;button.disabled=true;
+  try{
+   const get=k=>row.querySelector('[data-field="'+k+'"]')?.value||'';
+   const originalId=row.dataset.pipelineRow;
+   const data=await api()('/api/admin/sales-pipeline',{method:'PATCH',body:JSON.stringify({id:originalId,prospectName:row.querySelector('td strong')?.textContent||'',businessName:row.querySelector('td small')?.textContent||'',email:'',phone:'',industry:'',source:'',stage:get('stage'),estimatedValue:Number(get('estimatedValue')||0),nextFollowUpAt:get('nextFollowUpAt')?new Date(get('nextFollowUpAt')).toISOString():null,expectedCloseDate:null,notes:get('notes')})});
+   await loadPipeline();
+  }catch(e){window.alert(e.message||'No se pudo actualizar el prospecto.');}
+  finally{button.disabled=false;}
+ }
+ function init(){
+  document.getElementById('salesPipelineForm')?.addEventListener('submit',savePipeline);
+  document.getElementById('reloadSalesPipeline')?.addEventListener('click',loadPipeline);
+  document.getElementById('reloadCommercialPriceHistory')?.addEventListener('click',loadPriceHistory);
+  document.getElementById('salesPipelineList')?.addEventListener('click',ev=>{const b=ev.target.closest('[data-save-pipeline]');if(b)savePipelineRow(b);});
+  window.addEventListener('panaderia:pagenavigate',ev=>{if(ev.detail?.page==='admin-commercial')loadPipeline();if(ev.detail?.page==='admin-precios')loadPriceHistory();});
+  window.addEventListener('panaderia:authenticated',()=>{if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();});
+  Promise.resolve(window.PanaderiaAuthReady).then(user=>{if(user?.isPlatformAdmin){if(location.hash==='#admin-commercial')loadPipeline();if(location.hash==='#admin-precios')loadPriceHistory();}}).catch(()=>{});
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+</body></html>';
             const win=window.open('','_blank');if(!win){notify('Permití las ventanas emergentes para generar el PDF.');return;}win.document.open();win.document.write(html);win.document.close();setTimeout(()=>win.print(),500);
           });
           actions.querySelector('#sendBusinessQuote').addEventListener('click',()=>{
