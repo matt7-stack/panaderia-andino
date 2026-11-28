@@ -972,11 +972,14 @@ module.exports = async function handler(req, res) {
           )
           SELECT license_created.* FROM license_created
         `;
-        const existingConfig=await sql`SELECT modules FROM app_business_config WHERE business_id=${businessId} LIMIT 1`;
-        if(!existingConfig.length)return send(res,409,{error:'La licencia se creó, pero no se encontró la configuración inicial del negocio. Contactá soporte antes de activar módulos.'});
-        const configuredModules=Array.isArray(existingConfig[0].modules)?existingConfig[0].modules:[];
-        const mergedModules=[...new Set([...configuredModules,...licensedModules])];
-        await sql`UPDATE app_business_config SET modules=${JSON.stringify(mergedModules)}::jsonb,updated_by=${admin.id},updated_at=NOW() WHERE business_id=${businessId}`;
+        if(status==='active'){
+          const existingConfig=await sql`SELECT modules FROM app_business_config WHERE business_id=${businessId} LIMIT 1`;
+          if(!existingConfig.length)return send(res,409,{error:'La licencia se creó, pero no se encontró la configuración inicial del negocio. Contactá soporte antes de activar módulos.'});
+          const configuredModules=Array.isArray(existingConfig[0].modules)?existingConfig[0].modules:[];
+          const mergedModules=[...new Set([...configuredModules,...licensedModules])];
+          await sql`UPDATE app_business_config SET modules=${JSON.stringify(mergedModules)}::jsonb,updated_by=${admin.id},updated_at=NOW() WHERE business_id=${businessId}`;
+  
+        }
         await sql`INSERT INTO app_audit_logs(business_id,actor_user_id,action,entity_type,entity_id,details)
           VALUES(${businessId},${admin.id},'license.created','license',${rows[0].id},${JSON.stringify({plan,status,durationType,expiresAt:rows[0].expires_at,setup_amount:setup,configuration_plan:configurationPlan,configuration_amount:configurationAmount,monthly_amount:monthly,modules:licensedModules,additionalModules:requestedExtraModules,isTrial:false})}::jsonb)`;
         return send(res,201,{license:rows[0]});
@@ -1063,6 +1066,14 @@ module.exports = async function handler(req, res) {
         if(status==='active'){const current=await sql`SELECT expires_at<CURRENT_DATE AS expired FROM app_licenses WHERE id=${id} LIMIT 1`;if(!current.length)return send(res,404,{error:'Licencia no encontrada.'});if(current[0].expired===true)return send(res,409,{error:'La licencia ya venció. Usá Renovar para establecer una nueva fecha antes de reactivar el acceso.'});}
         const rows=await sql`UPDATE app_licenses SET status=${status},updated_at=NOW() WHERE id=${id} RETURNING *`;
         if(!rows.length)return send(res,404,{error:'Licencia no encontrada.'});
+        if(status==='active'){
+          const config=await sql`SELECT modules FROM app_business_config WHERE business_id=${rows[0].business_id} LIMIT 1`;
+          if(!config.length)return send(res,409,{error:'La licencia se activó, pero no se encontró la configuración del negocio. Contactá soporte.'});
+          const licensed=Array.isArray(rows[0].modules)?rows[0].modules:[];
+          const configured=Array.isArray(config[0].modules)?config[0].modules:[];
+          const merged=[...new Set([...configured,...licensed])];
+          await sql`UPDATE app_business_config SET modules=${JSON.stringify(merged)}::jsonb,updated_by=${admin.id},updated_at=NOW() WHERE business_id=${rows[0].business_id}`;
+        }
         return send(res,200,{license:rows[0]});
       }
       return send(res,405,{error:'Método no permitido.'});
